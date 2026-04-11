@@ -410,6 +410,32 @@ So Flightdeck just needs to ensure the project directory has the right MCP confi
 
 ---
 
+### ACP Metadata Utilization
+
+Flightdeck maximizes use of ACP-provided metadata:
+
+| ACP Data | Flightdeck Use |
+|---|---|
+| Token input/output | Real-time cost tracking, budget cap enforcement |
+| Session state (running/idle/ended) | Stall detection (ended without submit = crash) |
+| Session duration | Timeout management, efficiency analysis |
+| Exit code/reason | Auto-decide retry vs escalate |
+| Model used | Verify reviewer uses different model than worker |
+| Turn count | Detect infinite loops |
+
+### Agent Adapter Layer
+
+Not all runtimes support ACP natively. Flightdeck uses an adapter to normalize:
+
+```
+Flightdeck
+  → AgentAdapter (unified: spawn, steer, kill, getMetadata)
+    → AcpAdapter     (Codex, Gemini CLI, Copilot CLI — native ACP)
+    → PtyAdapter     (Claude Code — tmux/PTY, limited metadata)
+```
+
+ACP-native runtimes get full metadata. PTY-based runtimes get best-effort (process state, parsed output). MCP self-reporting supplements PTY gaps.
+
 ### External Interfaces
 
 | Interface | Protocol | Direction | Purpose |
