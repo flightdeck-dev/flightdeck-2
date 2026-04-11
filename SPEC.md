@@ -268,6 +268,33 @@ No structured/moderated mode. Keep it simple: DM for review, group chat for disc
 
 ---
 
+### Context Management Constraint
+
+Flightdeck does NOT manage agent context windows. The agent runtime (Claude Code, Codex, Gemini CLI, etc.) owns the context. Flightdeck cannot:
+- Know how much context space remains
+- Control when compaction happens  
+- Inject into the system prompt
+
+This means Flightdeck must use three strategies to ensure agents have the information they need:
+
+1. **Self-contained steer messages** — every ACP steer includes everything the agent needs for that interaction. Never assume the agent remembers previous steers.
+2. **File system as persistent context** — write `.flightdeck/PROJECT.md`, task context files, decision logs as markdown files in the agent's working directory. Files survive context compaction.
+3. **MCP tools for pull-based context** — agents call `flightdeck_task_status()`, `flightdeck_memory_search()` etc. to get current state on demand.
+
+### MCP Tool Injection via ACP
+
+Flightdeck's MCP server must be available to all agent runtimes. How this works depends on the runtime:
+
+*(TODO: Research how each ACP-compatible CLI supports MCP tool injection)*
+
+- Claude Code: ?
+- Codex CLI: ?
+- Gemini CLI: ?
+- Copilot CLI: ?
+- Cursor: ?
+
+---
+
 ### External Interfaces
 
 | Interface | Protocol | Direction | Purpose |
