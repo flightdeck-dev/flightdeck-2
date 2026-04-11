@@ -228,60 +228,43 @@ workspace/
 #### none mode
 All agents share one workspace. DAG dependencies ensure ordering.
 
-### Agent Discussions
+### Agent Communication
 
-Agents can discuss topics through Flightdeck-managed channels. Two modes:
+Two modes, matching how humans naturally communicate:
 
-#### Structured discussions (default)
-Flightdeck is the moderator. Round-based, forced convergence.
+#### DM (1:1 direct messages)
+For focused exchanges: code review, task handoff, clarification.
+
+```
+reviewer → worker: "Line 42 has a race condition, use mutex"
+worker → reviewer: "Fixed, also added a test for it"
+reviewer → worker: "Approved"
+```
+
+All DMs persist in Flightdeck comms. Decision-relevant DMs auto-extracted to decision log.
+
+#### Group chat (freeform)
+For multi-agent discussions: design decisions, brainstorming, problem-solving.
 
 ```yaml
-discussion:
-  mode: structured
-  max_rounds: 5
-  on_no_consensus: planner_decides | lead_decides | human_decides
+group_chat:
+  max_messages: 30
+  max_duration: 20m
+  idle_timeout: 3m
+  cost_cap: $2
+  auto_summarize: true
+  extract_decisions: true
 ```
 
-Flow:
-1. Initiator (planner/lead) creates discussion with topic + participants
-2. Each round: Flightdeck sends topic + prior responses to all participants via ACP
-3. Collects all replies
-4. Checks convergence (participants agreeing)
-5. Converged → extract conclusion → write to decision log
-6. Not converged + rounds left → next round
-7. Max rounds reached → force conclusion per policy
-
-#### Freeform discussions
-Agents talk directly through a message channel. Flightdeck is the safety net.
-
-```yaml
-discussion:
-  mode: freeform
-  max_messages: 30          # hard cap
-  max_duration: 20m         # time cap
-  idle_timeout: 3m          # silence = done
-  cost_cap: $2              # spending cap
-  auto_summarize: true      # extract conclusions when done
-  extract_decisions: true   # write to decision log
+MCP tools:
+```
+flightdeck_msg_send(to, content)              # DM
+flightdeck_channel_send(channel, message)     # group chat
+flightdeck_channel_read(channel, since?)      # read group chat
+flightdeck_discuss(topic, invite, context)    # create a group chat
 ```
 
-MCP tools for agents:
-```
-flightdeck_channel_send(channel, message)
-flightdeck_channel_read(channel, since?)
-flightdeck_discuss(topic, invite, context)   # create a discussion
-```
-
-Agent checks for new messages on heartbeat or steer.
-
-#### When to use which
-| Scenario | Mode |
-|---|---|
-| Technical decision with clear options | structured |
-| Brainstorming / exploration | freeform |
-| Code review discussion | structured |
-| Creative / direction-setting | freeform |
-| Time-pressured decision | structured |
+No structured/moderated mode. Keep it simple: DM for review, group chat for discussion. Flightdeck provides the safety net (caps), not moderation.
 
 ---
 
@@ -476,10 +459,9 @@ Generated automatically at the configured cadence:
 - **FR-013a:** git_worktree: auto-create branch on task start, configurable merge strategy (auto/squash/pr/accumulate)
 - **FR-013b:** directory: each task gets its own subdirectory
 - **FR-013c:** Auto-detect project type and suggest isolation strategy
-- **FR-021:** System MUST support agent discussions (structured and freeform modes)
-- **FR-021a:** Structured: round-based, Flightdeck moderates, forced convergence
-- **FR-021b:** Freeform: agent-to-agent messaging with safety nets (max messages, duration, cost cap)
-- **FR-021c:** All discussions auto-summarized and conclusions written to decision log
+- **FR-021:** System MUST support agent communication via DM (1:1) and group chat (freeform)
+- **FR-021a:** Group chats have safety nets: max messages, duration, cost cap
+- **FR-021b:** All discussions auto-summarized and conclusions written to decision log
 - **FR-014:** System MUST provide CLI for all core operations
 - **FR-015:** System MUST support task compaction (summarize completed tasks to save context)
 - **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
