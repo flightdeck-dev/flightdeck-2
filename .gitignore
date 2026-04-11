@@ -1,0 +1,6 @@
+-e node_modules/
+dist/
+.flightdeck/
+*.db
+*.db-journal
+*.db-wal
