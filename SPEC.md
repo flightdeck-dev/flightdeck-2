@@ -62,7 +62,24 @@ Benefits of MCP-first:
 - **Works with any MCP-compatible CLI** — Claude Code, Codex, Gemini, Copilot, Cursor
 - **Minimal setup** — `flightdeck init` + start your CLI
 
-ACP is an optional enhancement for automation (auto-spawn agents, steer on stall, kill on budget). Not required for core functionality.
+ACP is an optional enhancement for power users who want manual control. For the default experience, Flightdeck handles everything via ACP automatically.
+
+### User Experience
+
+The user interacts with Flightdeck only. Never with individual agents.
+
+```
+$ flightdeck spec create "Add OAuth2 to the API"
+$ flightdeck start --profile autonomous
+
+(Flightdeck auto-spawns planner, workers, reviewers via ACP)
+(Agents communicate with Flightdeck via MCP)
+(Next morning)
+
+$ flightdeck report
+```
+
+Or via Discord / Web / any messaging surface. User never opens a terminal for agents, never configures MCP, never manages context. Flightdeck is the single interface.
 
 ---
 
