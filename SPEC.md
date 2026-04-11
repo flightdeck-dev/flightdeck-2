@@ -175,26 +175,113 @@ lead_notifications:
     - milestone_reached     # include in next report
 ```
 
-### Isolation Model: Git Worktrees (replaces file locking)
+### Isolation Model (replaces file locking)
 
-Agents don't lock files. Each agent works in its own git branch:
+Agents don't lock files. Isolation strategy depends on project type:
 
-```
-Task starts:
-  Flightdeck: git worktree add task-a1 -b task-a1   (from latest main)
-  Agent works in task-a1/ directory, edits whatever files it wants
+```yaml
+isolation:
+  strategy: git_worktree | directory | none
 
-Task completes + verified:
-  Flightdeck: git merge task-a1 into main
-    → clean merge → done, remove worktree
-    → conflict → escalate (planner resolves, or next agent resolves on top)
-
-DAG ordering handles the rest:
-  Sequential tasks (A→B): B starts after A merges, so B sees A's changes
-  Parallel tasks (A∥B): both branch from same main, merge conflicts handled at merge time
+  # git_worktree: code projects, one branch per task
+  # directory: non-code projects, one subdirectory per task
+  # none: shared workspace, rely on DAG ordering
 ```
 
-No file lock acquire/release. No file list declarations. Agents don't even know about isolation — they just work in the directory Flightdeck gives them.
+Auto-detection: `.git` exists → suggest `git_worktree`. No `.git` → suggest `directory`.
+
+#### git_worktree mode (code projects)
+```
+Task starts → Flightdeck: git worktree add task-a1 -b task-a1 (from main)
+Agent works in task-a1/ directory, edits whatever it wants
+Task completes + verified → Flightdeck handles merge
+```
+
+Merge strategy is configurable:
+```yaml
+git:
+  merge_strategy: auto_merge | squash | pr | accumulate
+  # auto_merge: direct merge to main (fastest)
+  # squash: one commit per task (clean history)
+  # pr: create PR, wait for review (team workflow)
+  # accumulate: collect all branches, merge at end
+  
+  overrides:
+    - task_type: hotfix
+      strategy: auto_merge
+    - task_type: architecture  
+      strategy: pr
+```
+
+Conflict handling:
+- Clean merge → auto, zero tokens
+- Conflict → give to next downstream agent, or spawn merge agent
+
+#### directory mode (non-code projects)
+```
+workspace/
+├── task-a1/    ← agent-1 works here
+├── task-a2/    ← agent-2 works here
+└── output/     ← final deliverables assembled here
+```
+
+#### none mode
+All agents share one workspace. DAG dependencies ensure ordering.
+
+### Agent Discussions
+
+Agents can discuss topics through Flightdeck-managed channels. Two modes:
+
+#### Structured discussions (default)
+Flightdeck is the moderator. Round-based, forced convergence.
+
+```yaml
+discussion:
+  mode: structured
+  max_rounds: 5
+  on_no_consensus: planner_decides | lead_decides | human_decides
+```
+
+Flow:
+1. Initiator (planner/lead) creates discussion with topic + participants
+2. Each round: Flightdeck sends topic + prior responses to all participants via ACP
+3. Collects all replies
+4. Checks convergence (participants agreeing)
+5. Converged → extract conclusion → write to decision log
+6. Not converged + rounds left → next round
+7. Max rounds reached → force conclusion per policy
+
+#### Freeform discussions
+Agents talk directly through a message channel. Flightdeck is the safety net.
+
+```yaml
+discussion:
+  mode: freeform
+  max_messages: 30          # hard cap
+  max_duration: 20m         # time cap
+  idle_timeout: 3m          # silence = done
+  cost_cap: $2              # spending cap
+  auto_summarize: true      # extract conclusions when done
+  extract_decisions: true   # write to decision log
+```
+
+MCP tools for agents:
+```
+flightdeck_channel_send(channel, message)
+flightdeck_channel_read(channel, since?)
+flightdeck_discuss(topic, invite, context)   # create a discussion
+```
+
+Agent checks for new messages on heartbeat or steer.
+
+#### When to use which
+| Scenario | Mode |
+|---|---|
+| Technical decision with clear options | structured |
+| Brainstorming / exploration | freeform |
+| Code review discussion | structured |
+| Creative / direction-setting | freeform |
+| Time-pressured decision | structured |
 
 ---
 
@@ -385,10 +472,14 @@ Generated automatically at the configured cadence:
 - **FR-011:** Verification default is claim-vs-reality (reviewer checks agent's claim matches output), not mandatory test execution
 - **FR-011a:** System MUST support optional custom checks that users can add per task type
 - **FR-012:** System MUST persist all state in SQLite (survive restarts)
-- **FR-013:** System MUST isolate concurrent agents using git worktrees/branches (one branch per task, Flightdeck manages merge)
-- **FR-013a:** On task start, Flightdeck auto-creates a branch from main
-- **FR-013b:** On task completion + verification, Flightdeck auto-merges back to main
-- **FR-013c:** On merge conflict, Flightdeck escalates to planner or next agent
+- **FR-013:** System MUST support pluggable isolation strategies (git_worktree, directory, none)
+- **FR-013a:** git_worktree: auto-create branch on task start, configurable merge strategy (auto/squash/pr/accumulate)
+- **FR-013b:** directory: each task gets its own subdirectory
+- **FR-013c:** Auto-detect project type and suggest isolation strategy
+- **FR-021:** System MUST support agent discussions (structured and freeform modes)
+- **FR-021a:** Structured: round-based, Flightdeck moderates, forced convergence
+- **FR-021b:** Freeform: agent-to-agent messaging with safety nets (max messages, duration, cost cap)
+- **FR-021c:** All discussions auto-summarized and conclusions written to decision log
 - **FR-014:** System MUST provide CLI for all core operations
 - **FR-015:** System MUST support task compaction (summarize completed tasks to save context)
 - **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
