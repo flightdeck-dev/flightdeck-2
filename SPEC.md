@@ -104,12 +104,76 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 | **specs/** | Requirements + plans | Specs and changes |
 | **comms/** | Message delivery | Messages and recipients |
 | **agents/** | Agent lifecycle | Agent sessions and health |
-| **verification/** | Code review process | Review requests and verdicts |
+| **verification/** | Claim vs reality check | Agent claims and artifacts |
 | **governance/** | Policy enforcement | Rules and decisions |
 | **decisions/** | Decision audit trail | Decisions and their context |
 | **orchestrator/** | Coordination | Everything (only module that subscribes to all events) |
 | **events/** | Internal pub/sub | Event types (no business logic) |
 | **persistence/** | Storage | SQL schema (no business logic) |
+
+### Agent Roles
+
+**Lead Agent** — the user's proxy. Always-on session that:
+- Receives and interprets user messages (fuzzy intent → concrete actions)
+- Judges impact of changes ("does this need a full re-plan or just a tweak?")
+- Handles escalations that need understanding, not just rules
+- Does NOT do scheduling, progress tracking, or task assignment (Flightdeck does that)
+- Pulls current state from Flightdeck via MCP on demand (not pushed every event)
+- Interrupted only on: user messages, critical failures, escalations, budget warnings
+
+**Planner Agent** — on-demand, not persistent. Spawned when:
+- Initial spec needs to be decomposed into a task DAG
+- A worker escalates that a task needs re-planning
+- User pivots and the DAG needs restructuring
+- All tasks complete and explore mode generates suggestions
+
+**Worker Agents** — stateless executors. Pick up tasks, do the work, submit results.
+
+**Reviewer Agent** — different model from the worker. Single job: check whether the worker's **claim** matches **reality**. Does not run tests or lint — just verifies "did the agent do what it said it did?"
+
+### Verification Model
+
+Default: **trust agents, verify claims.**
+
+When a worker says "I'm done":
+1. Worker submits: claim (what I did) + artifacts (diff, files, etc.)
+2. Flightdeck spawns a reviewer (different model)
+3. Reviewer checks ONE thing: does the artifact match the claim?
+4. If yes → task done. If no → feedback to worker, try again.
+
+No mandatory test runs, no lint enforcement, no coverage gates by default. Users can optionally add custom checks if they want, but the default posture is trust + verify claims.
+
+This matches how real teams work: your manager doesn't run your tests. But if you say "done" and it's not done, that's a problem.
+
+### Flightdeck Daemon Responsibilities (code, zero tokens)
+
+- Task state transitions (state machine)
+- Dependency resolution + ready promotion  
+- Auto-assign workers by role + priority
+- File lock management
+- ACP spawn/steer/kill agents
+- Cost tracking
+- Progress reporting
+- Event routing (escalations → lead or planner)
+
+### Lead Notification Policy
+
+```yaml
+lead_notifications:
+  # Interrupt lead immediately (via ACP steer)
+  immediate:
+    - user_message          # user said something
+    - critical_failure      # key task failed after retries
+    - escalation            # worker needs judgment
+    - budget_threshold      # spending near limit
+    - gate_needs_decision   # human-gated decision
+  
+  # Lead sees next time it checks status
+  deferred:
+    - task_completed        # normal, DAG auto-advances
+    - review_passed         # normal
+    - milestone_reached     # include in next report
+```
 
 ### External Interfaces
 
@@ -188,12 +252,12 @@ on_completion: explore | stop | ask
   # stop: final report, agents terminated
   # ask: notify user, wait for instructions
 
-# Cross-model verification
+# Verification (claim vs reality)
 verification:
-  enabled: true | false
-  writer_reviewer_same_model: false  # enforce different models
-  fresh_reviewer_on_retry: true
-  independent_test_validation: true  # orchestrator runs tests, not agent
+  enabled: true
+  fresh_reviewer_on_retry: true      # new reviewer on retry (prevent anchoring)
+  # Optional additional checks (not required by default)
+  additional_checks: []               # e.g. ["npm test", "npm run lint"]
 ```
 
 ### Decision Log
@@ -289,11 +353,14 @@ Generated automatically at the configured cadence:
 - **FR-004:** System MUST generate periodic reports at configured cadence
 - **FR-005:** System MUST expose MCP tools for agents to read/write state
 - **FR-006:** System MUST expose ACP interface to spawn/steer/kill agent sessions
-- **FR-007:** System MUST support cross-model verification (writer ≠ reviewer)
+- **FR-007:** System MUST support claim-vs-reality verification (reviewer checks whether agent's claim matches artifacts)
+- **FR-007a:** Reviewer MUST use a different model than the worker agent
+- **FR-007b:** Users MAY add optional custom checks (test commands, lint, etc.) but none are required by default
 - **FR-008:** System MUST detect spec changes and mark affected tasks as stale
 - **FR-009:** System MUST support task gating (human approval, CI check, timer, external)
 - **FR-010:** System MUST support multiple governance profiles (autonomous, collaborative, supervised, custom)
-- **FR-011:** System MUST NOT allow agents to self-certify test results (orchestrator validates independently)
+- **FR-011:** Verification default is claim-vs-reality (reviewer checks agent's claim matches output), not mandatory test execution
+- **FR-011a:** System MUST support optional custom checks that users can add per task type
 - **FR-012:** System MUST persist all state in SQLite (survive restarts)
 - **FR-013:** System MUST support concurrent agents on the same DAG with file-level conflict detection
 - **FR-014:** System MUST provide CLI for all core operations
