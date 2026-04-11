@@ -182,6 +182,12 @@ reporting:
     - cost_breakdown
     - next_steps
 
+# What to do when all tasks complete
+on_completion: explore | stop | ask
+  # explore: scout agent researches next steps, generates suggestions
+  # stop: final report, agents terminated
+  # ask: notify user, wait for instructions
+
 # Cross-model verification
 verification:
   enabled: true | false
@@ -310,6 +316,40 @@ Generated automatically at the configured cadence:
 - **SC-003:** Switching governance profile mid-run takes effect within 1 task cycle
 - **SC-004:** Daily report accurately reflects all work done, decisions made, and money spent
 - **SC-005:** A new user can go from `flightdeck init` to agents running in < 10 minutes
+
+---
+
+## Continuous Improvement Loop
+
+When all tasks in a DAG are complete, Flightdeck doesn't just stop. The `on_completion` policy determines what happens next:
+
+```yaml
+on_completion:
+  action: explore | stop | ask
+```
+
+### `explore` — Agents keep working
+
+1. DAG completes → Flightdeck spawns a "scout" agent
+2. Scout analyzes the completed work:
+   - Code quality gaps (test coverage, performance, security)
+   - Missing documentation
+   - Potential improvements or follow-up features
+   - Technical debt introduced during the sprint
+3. Scout generates a **suggestions list** with estimated effort + impact
+4. Suggestions appear in the daily report under "Next Steps"
+5. User reviews suggestions → approves some → Flightdeck generates new spec + DAG
+6. Cycle repeats: **Spec → Execute → Explore → Suggest → New Spec → ...**
+
+### `stop` — Clean finish
+
+DAG completes → final report generated → agents terminated. Done.
+
+### `ask` — Wait for human
+
+DAG completes → notification sent to user → agents idle until user decides (continue or stop).
+
+This turns Flightdeck from a task runner into a **continuous improvement engine**. A large project can run indefinitely — agents always have something useful to do, and users control the pace by approving or rejecting suggestions.
 
 ---
 
