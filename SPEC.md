@@ -696,6 +696,43 @@ This turns Flightdeck from a task runner into a **continuous improvement engine*
 
 ---
 
+## Competitive Positioning
+
+### vs Claude Code Agent Teams
+
+Claude Code Teams is Claude Code's built-in multi-agent mode: lead + teammates + shared task list + mailbox. Teammates communicate directly and self-claim tasks.
+
+**Flightdeck's differentiation:**
+- **Cross-runtime**: Claude Code Teams only orchestrates Claude Code. Flightdeck orchestrates any ACP-compatible agent (Claude Code, Codex, Gemini, Copilot, Cursor).
+- **Persistence**: Claude Code Teams lives within a session. Flightdeck is a daemon that runs for days.
+- **Governance**: Claude Code Teams relies on lead judgment. Flightdeck has configurable policy (approval gates, escalation rules, budgets).
+- **Spec-driven**: Claude Code Teams has no spec concept. Flightdeck traces every task to a spec requirement.
+- **Provider-agnostic**: Claude Code Teams is Anthropic-only. Flightdeck is provider-neutral.
+
+Claude Code Teams = "multi-agent mode for Claude Code"
+Flightdeck = "project management system for all coding agents"
+
+### vs Paperclip
+
+Paperclip models AI companies with org charts, roles, and reporting lines.
+
+**Flightdeck's differentiation:**
+- **Spec-driven vs org-chart-driven**: Flightdeck organizes around what needs to be built, not who reports to whom.
+- **Cross-model verification**: Paperclip has audit logs but no claim-vs-reality checking.
+- **Continuous exploration**: Flightdeck's explore mode generates next steps. Paperclip waits for new tasks.
+- **Zero-config storage**: SQLite vs Postgres.
+
+### vs MetaGPT / ChatDev
+
+Fixed-pipeline role simulations (CEO→CTO→Engineer).
+
+**Flightdeck's differentiation:**
+- **Flexible**: governance profiles vs fixed waterfall.
+- **Mid-run pivots**: spec change → stale detection → re-plan.
+- **Real coding agents**: MetaGPT uses LLM API directly. Flightdeck uses battle-tested coding CLIs.
+
+---
+
 ## Open Questions
 
 1. **Plan generation:** Should Flightdeck generate plans from specs using an LLM call, or should users/agents write plans manually? (Probably: LLM-assisted with human approval)
