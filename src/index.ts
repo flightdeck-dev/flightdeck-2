@@ -9,3 +9,5 @@ export * from './agents/index.js';
 export * from './verification/index.js';
 export * from './events/index.js';
 export * from './persistence/index.js';
+export { Flightdeck } from './facade.js';
+export type { FlightdeckOptions } from './facade.js';

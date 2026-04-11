@@ -83,7 +83,19 @@ Every layer maintains traceability to the one above. When a spec requirement cha
 - **Typed event system** with discriminated unions — exhaustive pattern matching in handlers.
 - **Async processing** with error isolation — one handler failure doesn't crash the pipeline.
 
-### 8. `persistence/` — Storage Layer
+### 8. `facade` — High-Level API
+
+The `Flightdeck` facade class wires all modules together with direct SQLite persistence. It's the single entry point for CLI and MCP server — a thin, stateless wrapper that opens the DB, executes operations, and returns results.
+
+### 9. `cli/` — Command-Line Interface
+
+A zero-dependency CLI using Node.js built-in `parseArgs`. All commands are thin wrappers over the facade. Supports human-readable and `--json` output.
+
+### 10. `mcp/` — MCP Server
+
+A stdio-based MCP server exposing Flightdeck operations as tools for AI agents. Uses `@modelcontextprotocol/sdk`.
+
+### 11. `persistence/` — Storage Layer
 
 **Key decisions:**
 - **SQLite via drizzle-orm** (same proven stack as Flightdeck 1.0).
