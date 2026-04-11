@@ -365,6 +365,11 @@ Generated automatically at the configured cadence:
 - **FR-013:** System MUST support concurrent agents on the same DAG with file-level conflict detection
 - **FR-014:** System MUST provide CLI for all core operations
 - **FR-015:** System MUST support task compaction (summarize completed tasks to save context)
+- **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
+- **FR-017:** System MUST support hierarchical DAGs for large projects (epics → sub-DAGs)
+- **FR-018:** Lead agent MUST be persistent (always-on session) and interrupt-driven
+- **FR-019:** Planner agent MUST be on-demand (spawned when needed, exits when done)
+- **FR-020:** System MUST run a periodic tick loop to check for stalls and unassigned tasks
 
 ### Non-Functional Requirements
 
@@ -383,6 +388,86 @@ Generated automatically at the configured cadence:
 - **SC-003:** Switching governance profile mid-run takes effect within 1 task cycle
 - **SC-004:** Daily report accurately reflects all work done, decisions made, and money spent
 - **SC-005:** A new user can go from `flightdeck init` to agents running in < 10 minutes
+
+### Stall Detection
+
+Flightdeck daemon runs a tick loop (every 5 minutes) that actively prevents stalls:
+
+```yaml
+stall_detection:
+  # Agent hasn't made any MCP call in this long → ping or restart
+  agent_silence_timeout: 30m
+  
+  # Task has been 'running' this long without submit → steer agent
+  task_running_timeout: 2h
+  
+  # No DAG state change in this long → alert lead
+  dag_idle_timeout: 1h
+```
+
+Stall response escalation:
+1. Agent silent → ACP heartbeat ping
+2. Still silent → kill + re-spawn on same task
+3. Task overtime → ACP steer: "please submit or report progress"
+4. Agent reports needs more time → reset timer
+5. DAG idle → check for unassigned ready tasks → auto-assign
+6. DAG truly stuck → notify lead with diagnosis
+
+**Principle: Flightdeck never waits passively.** It always has a timer ticking, and always has a next action if nothing happens.
+
+### Compaction (Memory Decay)
+
+As projects grow, completed tasks accumulate. Planner and lead can't review thousands of tasks. Flightdeck automatically compresses old completed work:
+
+```yaml
+compaction:
+  trigger: done_task_count > 100
+  group_by: spec_requirement        # group related tasks
+  keep_recent: 20                   # preserve last 20 done tasks as-is
+  summary_model: fast               # use cheap model for summaries
+```
+
+Before compaction (1000 done tasks in context):
+```
+task-a1: "Implement OAuth2 PKCE flow" [done]
+task-a2: "Add refresh token endpoint" [done]
+task-a3: "Write OAuth integration tests" [done]
+task-a4: "OAuth security audit" [done]
+... (996 more)
+```
+
+After compaction (20 milestone summaries):
+```
+milestone-1: "OAuth2 complete" [4 tasks done, decisions: chose PKCE, used jose library]
+milestone-2: "Database migration" [8 tasks done, decisions: chose Drizzle ORM]
+...
+```
+
+Planner sees: ~20 compacted milestones + ~50 active tasks. Never thousands.
+
+Original task data stays in SQLite forever (audit trail). Compaction only affects what's shown to agents.
+
+### Hierarchical DAGs (Large Projects)
+
+For projects that grow beyond ~100 active tasks, Flightdeck supports nested DAGs:
+
+```
+Top-level DAG (top planner manages):
+├── epic-1: "Auth system"      → Sub-DAG (sub-planner manages, 20 tasks)
+├── epic-2: "Payment system"   → Sub-DAG (sub-planner manages, 30 tasks)  
+└── epic-3: "Admin dashboard"  → Sub-DAG (sub-planner manages, 25 tasks)
+```
+
+Each level has its own planner. Cross-epic dependencies are managed at the parent level. Sub-planners only see their own scope.
+
+| Project scale | Structure |
+|---|---|
+| < 20 tasks | Single DAG, one planner |
+| 20-100 tasks | Single DAG + compaction |
+| 100-500 tasks | Two levels (epics + tasks) |
+| 500+ tasks | Multi-level tree |
+
+Flightdeck suggests splits based on task count; planner decides how to split.
 
 ---
 
