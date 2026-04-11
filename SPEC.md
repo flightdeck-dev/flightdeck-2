@@ -150,7 +150,7 @@ This matches how real teams work: your manager doesn't run your tests. But if yo
 - Task state transitions (state machine)
 - Dependency resolution + ready promotion  
 - Auto-assign workers by role + priority
-- File lock management
+- Git worktree creation + merge management
 - ACP spawn/steer/kill agents
 - Cost tracking
 - Progress reporting
@@ -174,6 +174,29 @@ lead_notifications:
     - review_passed         # normal
     - milestone_reached     # include in next report
 ```
+
+### Isolation Model: Git Worktrees (replaces file locking)
+
+Agents don't lock files. Each agent works in its own git branch:
+
+```
+Task starts:
+  Flightdeck: git worktree add task-a1 -b task-a1   (from latest main)
+  Agent works in task-a1/ directory, edits whatever files it wants
+
+Task completes + verified:
+  Flightdeck: git merge task-a1 into main
+    → clean merge → done, remove worktree
+    → conflict → escalate (planner resolves, or next agent resolves on top)
+
+DAG ordering handles the rest:
+  Sequential tasks (A→B): B starts after A merges, so B sees A's changes
+  Parallel tasks (A∥B): both branch from same main, merge conflicts handled at merge time
+```
+
+No file lock acquire/release. No file list declarations. Agents don't even know about isolation — they just work in the directory Flightdeck gives them.
+
+---
 
 ### External Interfaces
 
@@ -362,7 +385,10 @@ Generated automatically at the configured cadence:
 - **FR-011:** Verification default is claim-vs-reality (reviewer checks agent's claim matches output), not mandatory test execution
 - **FR-011a:** System MUST support optional custom checks that users can add per task type
 - **FR-012:** System MUST persist all state in SQLite (survive restarts)
-- **FR-013:** System MUST support concurrent agents on the same DAG with file-level conflict detection
+- **FR-013:** System MUST isolate concurrent agents using git worktrees/branches (one branch per task, Flightdeck manages merge)
+- **FR-013a:** On task start, Flightdeck auto-creates a branch from main
+- **FR-013b:** On task completion + verification, Flightdeck auto-merges back to main
+- **FR-013c:** On merge conflict, Flightdeck escalates to planner or next agent
 - **FR-014:** System MUST provide CLI for all core operations
 - **FR-015:** System MUST support task compaction (summarize completed tasks to save context)
 - **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
