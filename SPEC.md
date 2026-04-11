@@ -283,15 +283,34 @@ This means Flightdeck must use three strategies to ensure agents have the inform
 
 ### MCP Tool Injection via ACP
 
-Flightdeck's MCP server must be available to all agent runtimes. How this works depends on the runtime:
+Flightdeck's MCP server must be available to all agent runtimes. Each runtime has its own MCP configuration mechanism:
 
-*(TODO: Research how each ACP-compatible CLI supports MCP tool injection)*
+| Runtime | MCP Config Location | How to Add |
+|---|---|---|
+| **Claude Code** | `~/.claude.json` or project `.mcp.json` | `claude mcp add flightdeck -- npx flightdeck-mcp` |
+| **Codex CLI** | `~/.codex/config.toml` or project `.codex/config.toml` | `codex mcp add flightdeck -- npx flightdeck-mcp` |
+| **Gemini CLI** | `~/.gemini/settings.json` | Edit settings.json, add mcpServers entry |
+| **Copilot CLI** | Via `/mcp` command or config | `copilot /mcp add flightdeck` |
+| **Cursor** | Settings > MCP | Add server in IDE settings |
 
-- Claude Code: ?
-- Codex CLI: ?
-- Gemini CLI: ?
-- Copilot CLI: ?
-- Cursor: ?
+All runtimes support **stdio MCP servers** — Flightdeck's MCP server runs as a local process spawned by the runtime.
+
+**Key insight:** Flightdeck cannot inject MCP tools at spawn time via ACP. MCP configuration must be pre-configured in the agent runtime's config files, or in the project's config (e.g., `.mcp.json` for Claude Code, `.codex/config.toml` for Codex). 
+
+**Setup flow:**
+1. `flightdeck init` writes MCP config files to the project directory:
+   - `.mcp.json` (Claude Code)
+   - `.codex/config.toml` snippet (Codex)
+   - Instructions for Gemini/Copilot/Cursor
+2. Agent runtime picks up the MCP server config when it starts in that project directory
+3. Flightdeck's MCP tools are now available to the agent
+
+**Via OpenClaw ACP:** When OpenClaw spawns an ACP session (e.g., Codex), the runtime inherits MCP config from:
+- Global config (`~/.codex/config.toml`)
+- Project config (`.codex/config.toml` in the `cwd`)
+- The `cwd` passed via ACP spawn determines which project config is found
+
+So Flightdeck just needs to ensure the project directory has the right MCP config files. The ACP `cwd` parameter handles the rest.
 
 ---
 
