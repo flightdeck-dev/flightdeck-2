@@ -640,7 +640,8 @@ Generated automatically at the configured cadence:
 
 ### Non-Functional Requirements
 
-- **NFR-001:** Zero external dependencies beyond SQLite, Zod, and MCP SDK
+- **NFR-001:** Minimal external dependencies (SQLite for queries, no Postgres/Redis/etc.)
+- **NFR-001a:** Hybrid storage: SQLite for daemon queries, Markdown for agent/human reading, JSONL for append-only logs, JSON for structured config
 - **NFR-002:** Library-first architecture (CLI, MCP, ACP, Web are thin wrappers)
 - **NFR-003:** Modules communicate only through events (no direct cross-module calls)
 - **NFR-004:** State machine is the single source of truth for all state transitions
