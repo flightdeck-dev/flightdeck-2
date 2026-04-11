@@ -19,17 +19,50 @@ It does NOT include an LLM runtime, agent execution engine, context management, 
 Humans define *what* (specs) and *how much freedom* (governance). Flightdeck translates that into *tasks*, assigns agents, enforces quality, and reports back. Agents do the actual work through whatever coding tool they use.
 
 ### What Flightdeck IS
-- Daemon process (Node.js)
+- MCP server (agents read/write state through structured tool calls)
 - SQLite state store (tasks, specs, decisions, messages)
-- MCP server (agents read/write state through MCP tools)
-- ACP client (Flightdeck spawns/steers/kills coding agents)
-- CLI + Web UI + VSCode extension (human interfaces)
+- CLI (human interface)
+- Optionally: ACP client (auto-spawn/steer agents), Web UI, VSCode extension
 
 ### What Flightdeck is NOT
 - Not an LLM runtime (no direct model API calls for task execution)
 - Not a context manager (each agent runtime manages its own context)
 - Not a tool executor (agents run their own exec/read/write)
 - Not a coding agent (it orchestrates coding agents)
+
+### MCP-First Architecture
+
+Flightdeck's primary interface is MCP. Agents communicate with Flightdeck entirely through structured MCP tool calls — no text parsing, no ACP required.
+
+```
+Minimum viable Flightdeck:
+  1. MCP server (stdio, spawned by agent runtime)
+  2. SQLite database
+  3. CLI for humans
+
+That's it. No daemon, no ACP, no Agent SDK.
+```
+
+Agent workflow without ACP:
+```
+1. User runs: flightdeck init (writes .mcp.json + AGENTS.md)
+2. User starts Claude Code / Codex / any CLI in the project
+3. Agent reads AGENTS.md → knows about Flightdeck
+4. Agent calls: flightdeck_task_list() → sees available tasks
+5. Agent calls: flightdeck_task_claim(taskId) → claims a task
+6. Agent does the work (using its own tools)
+7. Agent calls: flightdeck_task_submit(taskId, claim, files) → structured result
+8. Flightdeck spawns reviewer → claim vs reality check
+9. Repeat
+```
+
+Benefits of MCP-first:
+- **Zero text parsing** — all agent→Flightdeck communication is structured tool calls
+- **Zero cost to user** — no Agent SDK, no ACP subscription, no extra API fees
+- **Works with any MCP-compatible CLI** — Claude Code, Codex, Gemini, Copilot, Cursor
+- **Minimal setup** — `flightdeck init` + start your CLI
+
+ACP is an optional enhancement for automation (auto-spawn agents, steer on stall, kill on budget). Not required for core functionality.
 
 ---
 
