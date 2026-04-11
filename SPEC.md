@@ -12,9 +12,24 @@ A multi-agent orchestration platform that lets agent teams work autonomously for
 
 ## Core Principle
 
-**Agents are the workers. Flightdeck is the project manager. Humans are the executives.**
+**Flightdeck is a stateful MCP server + ACP client. Nothing more.**
 
-Humans define *what* (specs) and *how much freedom* (governance). Flightdeck translates that into *tasks*, assigns agents, enforces quality, and reports back. Agents do the actual work through whatever coding tool they use (Claude Code, Codex, Cursor, etc.).
+It does NOT include an LLM runtime, agent execution engine, context management, or tool execution. Those are the job of existing coding agents (Claude Code, Codex, Gemini CLI, Copilot CLI, Cursor). Flightdeck orchestrates them.
+
+Humans define *what* (specs) and *how much freedom* (governance). Flightdeck translates that into *tasks*, assigns agents, enforces quality, and reports back. Agents do the actual work through whatever coding tool they use.
+
+### What Flightdeck IS
+- Daemon process (Node.js)
+- SQLite state store (tasks, specs, decisions, messages)
+- MCP server (agents read/write state through MCP tools)
+- ACP client (Flightdeck spawns/steers/kills coding agents)
+- CLI + Web UI + VSCode extension (human interfaces)
+
+### What Flightdeck is NOT
+- Not an LLM runtime (no direct model API calls for task execution)
+- Not a context manager (each agent runtime manages its own context)
+- Not a tool executor (agents run their own exec/read/write)
+- Not a coding agent (it orchestrates coding agents)
 
 ---
 
@@ -130,6 +145,37 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 **Worker Agents** — stateless executors. Pick up tasks, do the work, submit results.
 
 **Reviewer Agent** — different model from the worker. Single job: check whether the worker's **claim** matches **reality**. Does not run tests or lint — just verifies "did the agent do what it said it did?"
+
+### Agent Role Enforcement (three layers)
+
+Flightdeck controls agent behavior without building its own agent runtime, using three layers:
+
+**Layer 1: AGENTS.md (soft control)**
+Each agent's working directory gets a role-specific AGENTS.md:
+- Lead: "You coordinate, you don't code. Use flightdeck_* tools only."
+- Worker: "Complete your task. Submit via flightdeck_task_submit when done."
+- Reviewer: "Check if the worker's claim matches the artifacts."
+
+**Layer 2: MCP enabled_tools (hard control)**
+Per-agent MCP server config restricts which Flightdeck tools are available:
+```toml
+# Lead: management tools only
+[mcp_servers.flightdeck]
+enabled_tools = ["flightdeck_task_status", "flightdeck_task_add",
+                 "flightdeck_escalate", "flightdeck_msg_send"]
+
+# Worker: reporting tools only  
+[mcp_servers.flightdeck]
+enabled_tools = ["flightdeck_task_submit", "flightdeck_escalate",
+                 "flightdeck_msg_send", "flightdeck_memory_search"]
+```
+
+**Layer 3: MCP server-side auth (hardest control)**
+Flightdeck MCP server checks caller identity and rejects unauthorized calls:
+- Lead tries to submit a task → rejected
+- Worker tries to modify the DAG → rejected
+
+Three layers: prompt says no → client hides tool → server rejects call.
 
 ### Verification Model
 
