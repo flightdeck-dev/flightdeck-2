@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AcpAdapter, type AcpSession, type QueuedPrompt } from '../../src/agents/AcpAdapter.js';
 import type { RuntimeConfig } from '../../src/agents/SessionManager.js';
 
@@ -22,11 +22,21 @@ describe('AcpAdapter prompt queue', () => {
     // Manually set acpSessionId to null to simulate pre-initialization state
     session.acpSessionId = null;
 
-    const result = await adapter.steer(meta.sessionId, { content: 'hello' });
-    expect(result).toBe('');
+    // steer() now returns a pending promise; don't await it — just verify queuing
+    const promise = adapter.steer(meta.sessionId, { content: 'hello' });
+    // Give microtask a tick
+    await new Promise(r => setTimeout(r, 10));
+
     expect(session.promptQueue).toHaveLength(1);
     expect(session.promptQueue[0].content).toBe('hello');
     expect(session.promptQueue[0].priority).toBe(false);
+    // The promise should have resolve/reject callbacks
+    expect(typeof session.promptQueue[0].resolve).toBe('function');
+    expect(typeof session.promptQueue[0].reject).toBe('function');
+
+    // Manually resolve to avoid hanging
+    session.promptQueue[0].resolve!('test');
+    expect(await promise).toBe('test');
   });
 
   it('queues messages when session is currently prompting', async () => {
@@ -37,10 +47,16 @@ describe('AcpAdapter prompt queue', () => {
     session.acpSessionId = 'test-session-id';
     session.isPrompting = true;
 
-    const result = await adapter.steer(meta.sessionId, { content: 'queued message' });
-    expect(result).toBe('');
+    const promise = adapter.steer(meta.sessionId, { content: 'queued message' });
+    await new Promise(r => setTimeout(r, 10));
+
     expect(session.promptQueue).toHaveLength(1);
     expect(session.promptQueue[0].content).toBe('queued message');
+    expect(typeof session.promptQueue[0].resolve).toBe('function');
+
+    // Resolve to clean up
+    session.promptQueue[0].resolve!('response');
+    expect(await promise).toBe('response');
   });
 
   it('priority messages jump to front of queue', async () => {
@@ -50,12 +66,14 @@ describe('AcpAdapter prompt queue', () => {
     session.acpSessionId = 'test-session-id';
     session.isPrompting = true;
 
-    // Queue normal messages
-    await adapter.steer(meta.sessionId, { content: 'normal 1' });
-    await adapter.steer(meta.sessionId, { content: 'normal 2' });
+    // Queue normal messages (don't await — they return pending promises)
+    const p1 = adapter.steer(meta.sessionId, { content: 'normal 1' });
+    const p2 = adapter.steer(meta.sessionId, { content: 'normal 2' });
 
     // Queue an urgent message — should go to front
-    await adapter.steer(meta.sessionId, { content: 'urgent!', urgent: true });
+    const p3 = adapter.steer(meta.sessionId, { content: 'urgent!', urgent: true });
+
+    await new Promise(r => setTimeout(r, 10));
 
     expect(session.promptQueue).toHaveLength(3);
     // Priority item should be first
@@ -63,6 +81,10 @@ describe('AcpAdapter prompt queue', () => {
     expect(session.promptQueue[0].priority).toBe(true);
     expect(session.promptQueue[1].content).toBe('normal 1');
     expect(session.promptQueue[2].content).toBe('normal 2');
+
+    // Clean up
+    for (const item of session.promptQueue) item.resolve!('ok');
+    await Promise.all([p1, p2, p3]);
   });
 
   it('multiple priority messages maintain order among themselves', async () => {
@@ -72,14 +94,20 @@ describe('AcpAdapter prompt queue', () => {
     session.acpSessionId = 'test-session-id';
     session.isPrompting = true;
 
-    await adapter.steer(meta.sessionId, { content: 'normal' });
-    await adapter.steer(meta.sessionId, { content: 'urgent 1', urgent: true });
-    await adapter.steer(meta.sessionId, { content: 'urgent 2', urgent: true });
+    const p1 = adapter.steer(meta.sessionId, { content: 'normal' });
+    const p2 = adapter.steer(meta.sessionId, { content: 'urgent 1', urgent: true });
+    const p3 = adapter.steer(meta.sessionId, { content: 'urgent 2', urgent: true });
+
+    await new Promise(r => setTimeout(r, 10));
 
     expect(session.promptQueue).toHaveLength(3);
     expect(session.promptQueue[0].content).toBe('[URGENT] urgent 1');
     expect(session.promptQueue[1].content).toBe('[URGENT] urgent 2');
     expect(session.promptQueue[2].content).toBe('normal');
+
+    // Clean up
+    for (const item of session.promptQueue) item.resolve!('ok');
+    await Promise.all([p1, p2, p3]);
   });
 
   it('session has isPrompting and promptQueue initialized', async () => {
