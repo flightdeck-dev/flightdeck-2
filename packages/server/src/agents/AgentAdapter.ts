@@ -8,6 +8,8 @@ export interface SpawnOptions {
   systemPrompt?: string;
   /** MCP servers to inject into the agent session (ACP only). */
   mcpServers?: McpServer[];
+  /** Claude Code _meta.systemPrompt injection. String replaces default; { append } appends. */
+  systemPromptMeta?: string | { append: string };
 }
 
 export interface SteerMessage {

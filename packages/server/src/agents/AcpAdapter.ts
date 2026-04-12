@@ -375,7 +375,7 @@ export class AcpAdapter extends AgentAdapter {
     this.sessions.set(sessionLocalId, session);
 
     // Initialize + create session in background (don't block spawn)
-    this.initializeSession(session, prompt, opts.mcpServers).catch(err => {
+    this.initializeSession(session, prompt, opts.mcpServers, opts.systemPromptMeta).catch(err => {
       session.error = (session.error ?? '') + `\nACP init error: ${err.message}`;
     });
 
@@ -391,6 +391,7 @@ export class AcpAdapter extends AgentAdapter {
     session: AcpSession,
     prompt: string,
     mcpServers?: McpServer[],
+    systemPromptMeta?: string | { append: string },
   ): Promise<void> {
     try {
       const initResult = await session.connection.initialize({
@@ -408,6 +409,12 @@ export class AcpAdapter extends AgentAdapter {
       // Store agent capabilities for later use (e.g., loadSession support)
       session.agentCapabilities = initResult.agentCapabilities ?? null;
 
+      // Build _meta for runtime-specific extensions (e.g., Claude Code systemPrompt)
+      const meta: Record<string, unknown> = {};
+      if (systemPromptMeta) {
+        meta.systemPrompt = systemPromptMeta;
+      }
+
       const result = await session.connection.newSession({
         cwd: session.cwd,
         mcpServers: mcpServers ?? [
@@ -418,6 +425,7 @@ export class AcpAdapter extends AgentAdapter {
             env: { FLIGHTDECK_AGENT_ID: session.agentId },
           } as any,
         ],
+        ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
       });
 
       session.acpSessionId = result.sessionId;

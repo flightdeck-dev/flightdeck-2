@@ -508,12 +508,31 @@ No structured/moderated mode. Keep it simple: DM for review, group chat for disc
 
 ---
 
+### Runtime-Specific System Prompt Injection
+
+Claude Code's ACP adapter supports `_meta.systemPrompt` in `session/new`:
+- `_meta: { systemPrompt: "full custom prompt" }` — replaces default
+- `_meta: { systemPrompt: { append: "extra instructions" } }` — appends to default
+
+Flightdeck uses append mode when spawning Claude Code agents, injecting role-specific instructions directly into the system prompt. This provides stronger guidance than AGENTS.md alone (which can be ignored or compacted away).
+
+For other runtimes (Copilot CLI, Codex, Gemini CLI), Flightdeck relies on:
+1. AGENTS.md file in the working directory
+2. First ACP prompt message
+
+| Runtime | System Prompt Method |
+|---------|---------------------|
+| Claude Code | `_meta.systemPrompt.append` + AGENTS.md + first prompt |
+| Copilot CLI | AGENTS.md + first prompt |
+| Codex CLI | AGENTS.md + first prompt |
+| Gemini CLI | AGENTS.md + first prompt |
+
 ### Context Management Constraint
 
 Flightdeck does NOT manage agent context windows. The agent runtime (Claude Code, Codex, Gemini CLI, etc.) owns the context. Flightdeck cannot:
 - Know how much context space remains
 - Control when compaction happens
-- Inject into the system prompt
+- Inject into the system prompt (except via `_meta.systemPrompt` for Claude Code — see above)
 
 This means Flightdeck must use three strategies to ensure agents have the information they need:
 

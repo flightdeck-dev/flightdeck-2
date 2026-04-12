@@ -110,12 +110,16 @@ export class AgentManager {
     }
 
     // 5. Spawn via adapter
+    // For Claude Code runtime, inject role instructions via _meta.systemPrompt (append mode)
+    // This provides stronger guidance than AGENTS.md alone
+    const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-code';
     try {
       const meta = await this.adapter.spawn({
         role: opts.role,
         cwd: opts.cwd,
         model: opts.model,
         systemPrompt,
+        ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),
       });
 
       // 5. Update SQLite with session ID

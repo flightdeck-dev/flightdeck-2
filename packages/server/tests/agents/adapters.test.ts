@@ -63,6 +63,42 @@ describe('AcpAdapter', () => {
     expect(updated?.tokensOut).toBe(0);
     expect(updated?.turnCount).toBeDefined();
   });
+
+  it('passes systemPromptMeta to session initialization', async () => {
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
+
+    // Spawn with systemPromptMeta (append mode)
+    const meta = await adapter.spawn({
+      role: 'worker',
+      cwd: '/tmp',
+      systemPrompt: 'do stuff',
+      systemPromptMeta: { append: 'You are a specialized worker.' },
+    });
+    expect(meta.status).toBe('running');
+    expect(meta.sessionId).toMatch(/^acp-/);
+  });
+
+  it('passes systemPromptMeta as string (replace mode)', async () => {
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
+
+    const meta = await adapter.spawn({
+      role: 'worker',
+      cwd: '/tmp',
+      systemPromptMeta: 'Full custom system prompt',
+    });
+    expect(meta.status).toBe('running');
+  });
+
+  it('works without systemPromptMeta (backward compatible)', async () => {
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
+
+    const meta = await adapter.spawn({
+      role: 'worker',
+      cwd: '/tmp',
+      systemPrompt: 'do stuff',
+    });
+    expect(meta.status).toBe('running');
+  });
 });
 
 describe('PtyAdapter', () => {
