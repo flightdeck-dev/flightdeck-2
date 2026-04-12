@@ -63,8 +63,13 @@ export class Orchestrator {
           // Kill (cleanup) and re-spawn on same task
           await this.adapter.kill(task.acpSessionId);
 
-          // Reset task to ready so it can be re-claimed
-          this.store.updateTaskState(task.id, 'ready', null);
+          // Use state machine: running → failed, then failed → ready
+          this.dag.failTask(task.id);
+          // Reset to ready for re-assignment
+          const failedTask = this.dag.getTask(task.id);
+          if (failedTask && failedTask.state === 'failed') {
+            this.store.updateTaskState(task.id, 'ready', null);
+          }
           this.store.updateAgentStatus(task.assignedAgent, 'offline');
           result.restartedAgents.push(task.assignedAgent);
         }
@@ -85,7 +90,7 @@ export class Orchestrator {
       if (!agent) continue;
 
       // Check governance gate
-      if (this.governance.shouldGateTaskStart(task.state)) {
+      if (this.governance.shouldGateTaskStart(task.state, task.role)) {
         this.dag.gateTask(task.id);
         continue;
       }
