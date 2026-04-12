@@ -16,6 +16,8 @@ export { AgentAdapter } from './agents/AgentAdapter.js';
 export { AcpAdapter } from './agents/AcpAdapter.js';
 export { PtyAdapter } from './agents/PtyAdapter.js';
 export { AgentManager, buildSystemPrompt } from './agents/AgentManager.js';
+export { WorktreeManager } from './agents/WorktreeManager.js';
+export { detectFileConflicts } from './agents/fileConflicts.js';
 export { Flightdeck } from './facade.js';
 export { createMcpServer } from './mcp/server.js';
 export { RoleRegistry } from './roles/RoleRegistry.js';

@@ -1,9 +1,10 @@
-import type { AgentId, AgentRole, Agent } from '@flightdeck-ai/shared';
+import type { AgentId, AgentRole, Agent, IsolationStrategy } from '@flightdeck-ai/shared';
 import { agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { RoleRegistry } from '../roles/RoleRegistry.js';
 import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
 import type { SkillManager } from '../skills/SkillManager.js';
+import { WorktreeManager } from './WorktreeManager.js';
 import { writeFileSync } from 'node:fs';
 
 export interface SpawnAgentOptions {
@@ -13,6 +14,9 @@ export interface SpawnAgentOptions {
   cwd: string;
   runtime?: string;
   taskContext?: string;
+  taskId?: string;
+  isolation?: IsolationStrategy;
+  mergeStrategy?: 'auto' | 'squash' | 'pr';
 }
 
 /**
@@ -54,7 +58,10 @@ export class AgentManager {
   private sessionToAgent = new Map<string, AgentId>();
   /** agentId → sessionId mapping */
   private agentToSession = new Map<AgentId, string>();
+  /** agentId → worktree taskId for cleanup */
+  private agentWorktrees = new Map<AgentId, { taskId: string; mergeStrategy: 'auto' | 'squash' | 'pr' }>();
   private adapter: AgentAdapter;
+  private worktreeManager: WorktreeManager | null = null;
 
   private skillManager: SkillManager | null;
 
@@ -67,6 +74,13 @@ export class AgentManager {
   ) {
     this.adapter = adapter;
     this.skillManager = skillManager ?? null;
+  }
+
+  /**
+   * Set the WorktreeManager for git worktree isolation.
+   */
+  setWorktreeManager(wm: WorktreeManager): void {
+    this.worktreeManager = wm;
   }
 
   async spawnAgent(opts: SpawnAgentOptions): Promise<Agent> {
@@ -99,30 +113,48 @@ export class AgentManager {
       permissions,
     });
 
-    // 4. Write skill-based AGENTS.md and .mcp.json if SkillManager available
+    // 4. Set up worktree isolation if configured
+    let effectiveCwd = opts.cwd;
+    if (opts.isolation === 'git_worktree' && opts.taskId && this.worktreeManager) {
+      try {
+        if (this.worktreeManager.isGitRepo()) {
+          const wt = this.worktreeManager.create(opts.taskId);
+          effectiveCwd = wt.path;
+          this.agentWorktrees.set(newId, {
+            taskId: opts.taskId,
+            mergeStrategy: opts.mergeStrategy ?? 'auto',
+          });
+        }
+      } catch (err) {
+        // Worktree creation failed — fall back to shared cwd
+        // Log but don't block agent spawn
+      }
+    }
+
+    // 5. Write skill-based AGENTS.md and .mcp.json if SkillManager available
     if (this.skillManager) {
       try {
         const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
-        writeFileSync(`${opts.cwd}/AGENTS.md`, agentsMd);
+        writeFileSync(`${effectiveCwd}/AGENTS.md`, agentsMd);
         const mcpJson = this.skillManager.generateMcpJson(opts.role);
-        writeFileSync(`${opts.cwd}/.mcp.json`, mcpJson);
+        writeFileSync(`${effectiveCwd}/.mcp.json`, mcpJson);
       } catch { /* best effort — skills are optional */ }
     }
 
-    // 5. Spawn via adapter
+    // 6. Spawn via adapter
     // For Claude Code runtime, inject role instructions via _meta.systemPrompt (append mode)
     // This provides stronger guidance than AGENTS.md alone
     const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-code';
     try {
       const meta = await this.adapter.spawn({
         role: opts.role,
-        cwd: opts.cwd,
+        cwd: effectiveCwd,
         model: opts.model,
         systemPrompt,
         ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),
       });
 
-      // 5. Update SQLite with session ID
+      // 6a. Update SQLite with session ID
       this.store.updateAgentAcpSession(newId, meta.sessionId);
       this.store.updateAgentStatus(newId, 'busy');
       agent.acpSessionId = meta.sessionId;
@@ -156,8 +188,33 @@ export class AgentManager {
     }
     this.agentToSession.delete(agentId);
 
+    // Clean up worktree if one was created
+    await this.cleanupWorktree(agentId);
+
     this.store.updateAgentStatus(agentId, 'offline');
     this.store.updateAgentAcpSession(agentId, null);
+  }
+
+  /**
+   * Merge and clean up a worktree for an agent.
+   */
+  async cleanupWorktree(agentId: AgentId, merge = true): Promise<void> {
+    const wtInfo = this.agentWorktrees.get(agentId);
+    if (!wtInfo || !this.worktreeManager) return;
+
+    try {
+      if (merge) {
+        this.worktreeManager.merge(wtInfo.taskId, wtInfo.mergeStrategy);
+      }
+    } catch {
+      // Merge failed — still clean up the worktree
+    }
+
+    try {
+      this.worktreeManager.remove(wtInfo.taskId);
+    } catch { /* best effort */ }
+
+    this.agentWorktrees.delete(agentId);
   }
 
   async interruptAgent(agentId: AgentId, message: string): Promise<void> {
