@@ -100,11 +100,8 @@ describe('Hierarchical DAGs / Sub-tasks (FR-017)', () => {
 
     dag.claimTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
+    // completeTask internally calls resolveReady which should promote parent
     dag.completeTask(subs[0].id);
-
-    // resolveReady should promote the parent
-    const promoted = dag.resolveReady(subs[0].id);
-    expect(promoted).toContain(parent.id);
 
     const updated = dag.getTask(parent.id);
     expect(updated!.state).toBe('ready');

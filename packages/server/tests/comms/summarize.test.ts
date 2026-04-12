@@ -4,21 +4,23 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { MessageStore } from '../../src/comms/MessageStore.js';
 import { DecisionLog } from '../../src/storage/DecisionLog.js';
-import { createDatabase } from '../../src/db/database.js';
+import { SqliteStore } from '../../src/storage/SqliteStore.js';
 
 describe('Group Chat Auto-Summarize (FR-021b)', () => {
   let msgStore: MessageStore;
   let decisionLog: DecisionLog;
   let tmpDir: string;
+  let sqlStore: SqliteStore;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'fd-summarize-'));
-    const db = createDatabase(join(tmpDir, 'test.sqlite'));
-    msgStore = new MessageStore(db);
+    sqlStore = new SqliteStore(join(tmpDir, 'test.sqlite'));
+    msgStore = new MessageStore(sqlStore.db);
     decisionLog = new DecisionLog(join(tmpDir, 'decisions'));
   });
 
   afterEach(() => {
+    sqlStore.close();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
