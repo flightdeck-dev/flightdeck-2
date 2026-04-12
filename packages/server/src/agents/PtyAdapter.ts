@@ -41,9 +41,10 @@ export class PtyAdapter extends AgentAdapter {
     };
   }
 
-  async steer(sessionId: string, message: SteerMessage): Promise<void> {
+  async steer(sessionId: string, message: SteerMessage): Promise<string> {
     const prefix = message.urgent ? '[URGENT] ' : '';
     this.sessionManager.steer(sessionId, prefix + message.content);
+    return '';
   }
 
   async kill(sessionId: string): Promise<void> {

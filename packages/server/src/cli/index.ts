@@ -43,8 +43,8 @@ Commands:
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
   display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
   start [--profile X]     Start orchestrator (stub)
-  pause                   Pause orchestrator (stub)
-  resume                  Resume orchestrator (stub)
+  pause                   Pause orchestrator (stop claiming new tasks)
+  resume                  Resume orchestrator (start claiming tasks)
   tui                     Launch terminal UI
 
 Options:
@@ -285,6 +285,59 @@ switch (command) {
     orchestrator.start();
     console.error('Orchestrator running (5 min tick interval).');
 
+    // Wire user messages from WebSocket to Lead agent
+    if (wsServer) {
+      wsServer.on('user:message', (msg: any) => {
+        (async () => {
+          try {
+            const response = await leadManager.steerLead({ type: 'user_message', message: msg });
+            if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+              // Store Lead's response as a chat message
+              if (fd.chatMessages) {
+                const leadMsg = fd.chatMessages.createMessage({
+                  threadId: msg.thread_id ?? null,
+                  parentId: msg.id ?? null,
+                  taskId: null,
+                  authorType: 'lead',
+                  authorId: 'lead',
+                  content: response.trim(),
+                  metadata: null,
+                });
+                // Broadcast to all UI clients
+                wsServer.broadcast({ type: 'chat:message', message: leadMsg });
+              }
+            }
+          } catch (err) {
+            console.error('Failed to steer Lead with user message:', err);
+          }
+        })();
+      });
+
+      wsServer.on('task:comment', ({ taskId, message: msg }: { taskId: string; message: any }) => {
+        (async () => {
+          try {
+            const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
+            if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+              if (fd.chatMessages) {
+                const leadMsg = fd.chatMessages.createMessage({
+                  threadId: null,
+                  parentId: null,
+                  taskId,
+                  authorType: 'lead',
+                  authorId: 'lead',
+                  content: response.trim(),
+                  metadata: null,
+                });
+                wsServer.broadcast({ type: 'task:comment', task_id: taskId, message: leadMsg });
+              }
+            }
+          } catch (err) {
+            console.error('Failed to steer Lead with task comment:', err);
+          }
+        })();
+      });
+    }
+
     // Start HTTP + WebSocket server
     const { createServer } = await import('node:http');
     const { ModelConfig: ModelCfg, PRESET_NAMES: presetNames } = await import('../agents/ModelConfig.js');
@@ -407,6 +460,14 @@ switch (command) {
         } catch (e: any) {
           json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid request body' });
         }
+      } else if (url.pathname === '/api/orchestrator/pause' && method === 'POST') {
+        fd.orchestrator.pause();
+        json(200, { paused: true });
+      } else if (url.pathname === '/api/orchestrator/resume' && method === 'POST') {
+        fd.orchestrator.resume();
+        json(200, { paused: false });
+      } else if (url.pathname === '/api/orchestrator/status' && method === 'GET') {
+        json(200, { paused: fd.orchestrator.paused, running: fd.orchestrator.isRunning() });
       } else {
         res.writeHead(404);
         res.end('Not found');
@@ -461,12 +522,36 @@ switch (command) {
   }
 
   case 'pause': {
-    console.log('Pausing orchestrator... (stub)');
+    const pausePort = (values as any).port || '3000';
+    try {
+      const res = await fetch(`http://localhost:${pausePort}/api/orchestrator/pause`, { method: 'POST' });
+      if (res.ok) {
+        console.log('Orchestrator paused. In-progress tasks will continue but no new tasks will be claimed.');
+      } else {
+        console.error(`Failed to pause: ${res.status} ${res.statusText}`);
+        process.exit(1);
+      }
+    } catch {
+      console.error('Failed to pause — is the daemon running?');
+      process.exit(1);
+    }
     break;
   }
 
   case 'resume': {
-    console.log('Resuming orchestrator... (stub)');
+    const resumePort = (values as any).port || '3000';
+    try {
+      const res = await fetch(`http://localhost:${resumePort}/api/orchestrator/resume`, { method: 'POST' });
+      if (res.ok) {
+        console.log('Orchestrator resumed. New tasks will be claimed.');
+      } else {
+        console.error(`Failed to resume: ${res.status} ${res.statusText}`);
+        process.exit(1);
+      }
+    } catch {
+      console.error('Failed to resume — is the daemon running?');
+      process.exit(1);
+    }
     break;
   }
 

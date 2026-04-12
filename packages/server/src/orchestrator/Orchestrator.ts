@@ -38,6 +38,7 @@ export interface TickResult {
  */
 export class Orchestrator {
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private _paused = false;
   private adapter: AgentAdapter;
   private agentManager: AgentManager | null;
   private leadManager: LeadManager | null;
@@ -71,6 +72,27 @@ export class Orchestrator {
     this.governanceConfig = opts?.governanceConfig ?? {};
   }
 
+  /**
+   * Pause the orchestrator — stop claiming new tasks but let in-progress tasks finish.
+   */
+  pause(): void {
+    this._paused = true;
+  }
+
+  /**
+   * Resume the orchestrator — start claiming new tasks again.
+   */
+  resume(): void {
+    this._paused = false;
+  }
+
+  /**
+   * Whether the orchestrator is paused.
+   */
+  get paused(): boolean {
+    return this._paused;
+  }
+
   async tick(): Promise<TickResult> {
     const result: TickResult = {
       readyTasksAssigned: 0,
@@ -78,6 +100,10 @@ export class Orchestrator {
       completionsProcessed: 0,
       errorsHandled: 0,
     };
+
+    // When paused, skip the entire tick — let in-progress tasks finish naturally
+    // but don't promote, assign, or process anything new.
+    if (this._paused) return result;
 
     let stateChanged = false;
 

@@ -60,10 +60,120 @@ export class SqliteStore {
         spec_id TEXT,
         tokens_in INTEGER NOT NULL DEFAULT 0,
         tokens_out INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens INTEGER NOT NULL DEFAULT 0,
         cost_usd REAL NOT NULL DEFAULT 0,
         timestamp TEXT NOT NULL
       )
     `));
+
+    // ── New tables ──
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS file_locks (
+        file_path TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        agent_role TEXT NOT NULL,
+        reason TEXT DEFAULT '',
+        acquired_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        expires_at TEXT NOT NULL
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        agent_role TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        details TEXT DEFAULT '{}',
+        timestamp TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS message_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_agent_id TEXT NOT NULL,
+        source_agent_id TEXT,
+        message_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        delivered_at TEXT
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS collective_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        last_used_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        use_count INTEGER DEFAULT 0
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS knowledge (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        key TEXT NOT NULL,
+        content TEXT NOT NULL,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS session_retros (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data TEXT NOT NULL,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS active_delegations (
+        delegation_id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        context TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        completed_at TEXT,
+        result TEXT
+      )
+    `));
+
+    // ── Indexes ──
+
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_agent ON tasks(assigned_agent)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_spec ON tasks(spec_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_author_type ON messages(author_type)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_agent ON cost_entries(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_spec ON cost_entries(spec_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_file_locks_agent ON file_locks(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity_log(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(action_type)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_mq_target_status ON message_queue(target_agent_id, status)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_collective_memory_category ON collective_memory(category)`));
+    this._db.run(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS idx_collective_memory_cat_key ON collective_memory(category, key)`));
+    this._db.run(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_cat_key ON knowledge(category, key)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge(category)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_ad_agent_status ON active_delegations(agent_id, status)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_ad_status ON active_delegations(status)`));
 
     // Migrations for older databases
     const cols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
@@ -75,6 +185,15 @@ export class SqliteStore {
     }
     if (!cols.some(c => c.name === 'source')) {
       this._db.run(sql.raw("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'planned'"));
+    }
+
+    // Migrate cost_entries for older databases
+    const costCols = this._db.all(sql.raw("PRAGMA table_info(cost_entries)")) as { name: string }[];
+    if (!costCols.some(c => c.name === 'cache_read_tokens')) {
+      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0'));
+    }
+    if (!costCols.some(c => c.name === 'cache_write_tokens')) {
+      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0'));
     }
 
     // Messages + threads tables (Web UI chat)
@@ -313,6 +432,8 @@ export class SqliteStore {
       specId: entry.specId,
       tokensIn: entry.tokensIn,
       tokensOut: entry.tokensOut,
+      cacheReadTokens: entry.cacheReadTokens ?? 0,
+      cacheWriteTokens: entry.cacheWriteTokens ?? 0,
       costUsd: entry.costUsd,
       timestamp: entry.timestamp,
     }).run();

@@ -35,7 +35,7 @@ export abstract class AgentAdapter {
   abstract readonly runtime: AgentRuntime;
 
   abstract spawn(opts: SpawnOptions): Promise<AgentMetadata>;
-  abstract steer(sessionId: string, message: SteerMessage): Promise<void>;
+  abstract steer(sessionId: string, message: SteerMessage): Promise<string>;
   abstract kill(sessionId: string): Promise<void>;
   abstract getMetadata(sessionId: string): Promise<AgentMetadata | null>;
 }

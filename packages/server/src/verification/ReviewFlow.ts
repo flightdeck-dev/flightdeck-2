@@ -1,5 +1,5 @@
-import type { TaskId, AgentId, Task } from '@flightdeck-ai/shared';
-import type { AgentManager } from '../agents/AgentManager.js';
+import type { TaskId, AgentId } from '@flightdeck-ai/shared';
+import type { AgentAdapter, AgentMetadata } from '../agents/AgentAdapter.js';
 import type { SqliteStore } from '../storage/SqliteStore.js';
 
 export interface ReviewResult {
@@ -9,18 +9,134 @@ export interface ReviewResult {
   reviewerId?: AgentId;
 }
 
+export type ReviewVerdict = 'approve' | 'request-changes' | 'reject';
+
+export interface ParsedReview {
+  verdict: ReviewVerdict;
+  feedback: string;
+}
+
+/** Default timeout for reviewer agent (5 minutes). */
+const DEFAULT_REVIEW_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Poll interval when waiting for reviewer output. */
+const POLL_INTERVAL_MS = 2000;
+
 /**
- * Process a review for a task that's in_review state.
+ * Build the review prompt sent to the reviewer agent.
+ */
+export function buildReviewPrompt(task: {
+  id: TaskId;
+  title?: string;
+  claim?: string;
+  diff?: string;
+  artifacts?: string[];
+}): string {
+  const sections: string[] = [
+    `## Code Review Request`,
+    `**Task ID:** ${task.id}`,
+  ];
+  if (task.title) sections.push(`**Task:** ${task.title}`);
+  if (task.claim) sections.push(`**Agent's claim:** ${task.claim}`);
+  if (task.diff) sections.push(`\n### Changes\n\`\`\`diff\n${task.diff}\n\`\`\``);
+  if (task.artifacts?.length) {
+    sections.push(`\n### Artifacts\n${task.artifacts.map(a => `- ${a}`).join('\n')}`);
+  }
+  sections.push(`
+## Instructions
+Review the changes above. Respond with exactly one of these verdicts on the FIRST line:
+
+VERDICT: APPROVE
+VERDICT: REQUEST-CHANGES
+VERDICT: REJECT
+
+Then provide your reasoning and any feedback below the verdict line.
+Focus on: correctness, edge cases, security, and whether the claim matches the actual changes.`);
+  return sections.join('\n');
+}
+
+/**
+ * Parse a reviewer agent's output into a structured verdict.
+ */
+export function parseReviewerResponse(output: string): ParsedReview {
+  const lines = output.trim().split('\n');
+  const verdictLine = lines.find(l => /^\s*VERDICT:\s*/i.test(l));
+
+  if (!verdictLine) {
+    // No explicit verdict — try to infer from keywords
+    const lower = output.toLowerCase();
+    if (lower.includes('approve') && !lower.includes('not approve') && !lower.includes("don't approve")) {
+      return { verdict: 'approve', feedback: output.trim() };
+    }
+    if (lower.includes('reject')) {
+      return { verdict: 'reject', feedback: output.trim() };
+    }
+    // Default to request-changes if we can't parse
+    return { verdict: 'request-changes', feedback: output.trim() || 'Unable to parse reviewer response' };
+  }
+
+  const raw = verdictLine.replace(/^\s*VERDICT:\s*/i, '').trim().toLowerCase();
+  const feedbackStart = output.indexOf(verdictLine) + verdictLine.length;
+  const feedback = output.slice(feedbackStart).trim();
+
+  if (raw === 'approve' || raw === 'approved') {
+    return { verdict: 'approve', feedback };
+  }
+  if (raw.startsWith('request') || raw === 'changes-requested') {
+    return { verdict: 'request-changes', feedback };
+  }
+  if (raw === 'reject' || raw === 'rejected') {
+    return { verdict: 'reject', feedback };
+  }
+
+  return { verdict: 'request-changes', feedback: feedback || output.trim() };
+}
+
+/**
+ * Wait for a reviewer agent to finish and return its output.
+ * Polls getMetadata until the agent is idle/ended or timeout is reached.
+ */
+async function waitForReviewer(
+  adapter: AgentAdapter,
+  sessionId: string,
+  getOutput: () => string,
+  timeoutMs: number,
+): Promise<{ output: string; timedOut: boolean }> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const meta = await adapter.getMetadata(sessionId);
+    if (!meta || meta.status === 'ended' || meta.status === 'idle') {
+      return { output: getOutput(), timedOut: false };
+    }
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+  }
+
+  // Timed out — kill and return what we have
+  try { await adapter.kill(sessionId); } catch { /* best effort */ }
+  return { output: getOutput(), timedOut: true };
+}
+
+/**
+ * Process a review for a task in in_review state.
  *
- * This is called by the Orchestrator when a task transitions to in_review.
- * Currently auto-approves (stub); will be wired to spawn a real reviewer agent later.
+ * Spawns a reviewer agent via AcpAdapter, waits for its verdict,
+ * and transitions the task accordingly.
  */
 export async function processReview(
   taskId: TaskId,
   sqlite: SqliteStore,
-  agentManager?: AgentManager,
+  adapter?: AgentAdapter,
+  options?: {
+    timeoutMs?: number;
+    reviewerModel?: string;
+    diff?: string;
+    artifacts?: string[];
+    cwd?: string;
+    /** For testing: function to retrieve agent output */
+    getOutput?: (sessionId: string) => string;
+  },
 ): Promise<ReviewResult> {
-  // 1. Get the task's claim and artifacts
   const task = sqlite.getTask(taskId);
   if (!task) {
     return { taskId, passed: false, feedback: `Task ${taskId} not found` };
@@ -30,20 +146,96 @@ export async function processReview(
     return { taskId, passed: false, feedback: `Task ${taskId} is not in_review (current: ${task.state})` };
   }
 
-  // 2. In the future: spawn a reviewer agent (different model) via agentManager
-  //    const reviewer = await agentManager.spawnAgent({ role: 'reviewer', model: 'different-model', ... });
-  //    const verdict = await reviewer.review(task.claim, artifacts);
+  // If no adapter provided, fall back to auto-approve (backwards compatible)
+  if (!adapter) {
+    sqlite.updateTaskState(taskId, 'done');
+    return { taskId, passed: true };
+  }
 
-  // 3. For now: auto-approve (stub)
-  //    The data flow is correct — task goes in_review → processReview called → mark done
-  sqlite.updateTaskState(taskId, 'done');
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS;
+  const prompt = buildReviewPrompt({
+    id: taskId,
+    title: (task as any).title,
+    claim: (task as any).claim,
+    diff: options?.diff,
+    artifacts: options?.artifacts,
+  });
 
-  return {
-    taskId,
-    passed: true,
-    feedback: undefined,
-    reviewerId: undefined,
-  };
+  let meta: AgentMetadata;
+  try {
+    meta = await adapter.spawn({
+      role: 'reviewer' as any,
+      cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
+      model: options?.reviewerModel,
+      systemPrompt: prompt,
+    });
+  } catch (err: any) {
+    // Spawn failure — don't block the pipeline, return pending
+    return {
+      taskId,
+      passed: false,
+      feedback: `Failed to spawn reviewer: ${err.message}`,
+    };
+  }
+
+  // Wait for the reviewer to complete
+  const getOutput = options?.getOutput
+    ? () => options.getOutput!(meta.sessionId)
+    : () => {
+        // For AcpAdapter, access session output directly
+        const session = (adapter as any).getSession?.(meta.sessionId);
+        return session?.output ?? '';
+      };
+
+  const { output, timedOut } = await waitForReviewer(
+    adapter,
+    meta.sessionId,
+    getOutput,
+    timeoutMs,
+  );
+
+  if (timedOut && !output.trim()) {
+    // Total timeout with no output — leave in review for retry
+    return {
+      taskId,
+      passed: false,
+      feedback: 'Review timed out with no response',
+      reviewerId: meta.agentId,
+    };
+  }
+
+  const parsed = parseReviewerResponse(output);
+
+  switch (parsed.verdict) {
+    case 'approve':
+      sqlite.updateTaskState(taskId, 'done');
+      return {
+        taskId,
+        passed: true,
+        feedback: parsed.feedback || undefined,
+        reviewerId: meta.agentId,
+      };
+
+    case 'reject':
+      sqlite.updateTaskState(taskId, 'failed');
+      return {
+        taskId,
+        passed: false,
+        feedback: parsed.feedback || 'Rejected by reviewer',
+        reviewerId: meta.agentId,
+      };
+
+    case 'request-changes':
+    default:
+      // Return to running so worker can address feedback
+      sqlite.updateTaskState(taskId, 'running');
+      return {
+        taskId,
+        passed: false,
+        feedback: parsed.feedback || 'Changes requested by reviewer',
+        reviewerId: meta.agentId,
+      };
+  }
 }
 
 /**
@@ -59,7 +251,6 @@ export async function rejectReview(
     return { taskId, passed: false, feedback: `Task ${taskId} not found` };
   }
 
-  // Return to running state so worker can retry
   sqlite.updateTaskState(taskId, 'running');
 
   return {

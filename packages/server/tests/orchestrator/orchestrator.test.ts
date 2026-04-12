@@ -217,6 +217,46 @@ describe('Orchestrator', () => {
     orchWithLead.stop();
   });
 
+  it('pause prevents tick from doing work', async () => {
+    dag.addTask({ title: 'Ready task', role: 'worker' });
+    store.insertAgent({
+      id: 'agent-w1' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: null,
+      status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+
+    orch.pause();
+    expect(orch.paused).toBe(true);
+
+    const result = await orch.tick();
+    expect(result.readyTasksAssigned).toBe(0);
+    expect(result.stallsDetected).toBe(0);
+    expect(result.completionsProcessed).toBe(0);
+    expect(result.errorsHandled).toBe(0);
+  });
+
+  it('resume allows tick to work again after pause', async () => {
+    dag.addTask({ title: 'Ready task', role: 'worker' });
+    store.insertAgent({
+      id: 'agent-w1' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: null,
+      status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+
+    orch.pause();
+    expect(orch.paused).toBe(true);
+
+    orch.resume();
+    expect(orch.paused).toBe(false);
+
+    const result = await orch.tick();
+    expect(result.readyTasksAssigned).toBe(1);
+  });
+
+  it('paused defaults to false', () => {
+    expect(orch.paused).toBe(false);
+  });
+
   it('start/stop lifecycle', () => {
     expect(orch.isRunning()).toBe(false);
     orch.start(60000);

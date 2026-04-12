@@ -94,12 +94,13 @@ export class LeadManager {
     return meta.sessionId;
   }
 
-  /** Send an event steer to Lead */
-  async steerLead(event: LeadEvent): Promise<void> {
-    if (!this.leadSessionId) return;
+  /** Send an event steer to Lead and return its response text */
+  async steerLead(event: LeadEvent): Promise<string> {
+    if (!this.leadSessionId) return '';
     const steer = this.buildSteer(event);
-    await this.acpAdapter.steer(this.leadSessionId, { content: steer });
+    const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer });
     this.lastSteerAt = new Date().toISOString();
+    return response;
   }
 
   /** Build a self-contained steer message with context */

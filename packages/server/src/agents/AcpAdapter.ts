@@ -596,7 +596,7 @@ export class AcpAdapter extends AgentAdapter {
     return this.sessions.get(sessionId)?.acpSessionId ?? null;
   }
 
-  async steer(sessionId: string, message: SteerMessage): Promise<void> {
+  async steer(sessionId: string, message: SteerMessage): Promise<string> {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
     if (session.status === 'ended') throw new Error(`Session already ended: ${sessionId}`);
@@ -608,6 +608,9 @@ export class AcpAdapter extends AgentAdapter {
     const prefix = message.urgent ? '[URGENT] ' : '';
     session.turnCount++;
     session.status = 'prompting';
+
+    // Capture output length before prompt to extract only the new response
+    const outputBefore = session.output.length;
 
     try {
       await session.connection.prompt({
@@ -623,6 +626,9 @@ export class AcpAdapter extends AgentAdapter {
       }
     }
     session.lastActivityAt = new Date();
+
+    // Return the text generated during this steer call
+    return session.output.slice(outputBefore);
   }
 
   async kill(sessionId: string): Promise<void> {
