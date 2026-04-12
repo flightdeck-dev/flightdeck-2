@@ -105,12 +105,12 @@ export function mergeDisplayConfig(
 ): DisplayConfig {
   let toolOverrides = base.toolOverrides;
   if (partial.toolOverrides !== undefined) {
-    toolOverrides = { ...base.toolOverrides, ...partial.toolOverrides };
+    const merged = { ...base.toolOverrides, ...partial.toolOverrides };
     // Remove keys set to null
-    for (const [key, val] of Object.entries(toolOverrides)) {
-      if (val === null) delete toolOverrides[key];
+    for (const [key, val] of Object.entries(merged)) {
+      if (val === null) delete merged[key];
     }
-    if (Object.keys(toolOverrides).length === 0) toolOverrides = undefined;
+    toolOverrides = Object.keys(merged).length === 0 ? undefined : (merged as Record<string, ToolVisibility>);
   }
   return {
     thinking: partial.thinking ?? base.thinking,

@@ -7,5 +7,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./display": "./src/display.ts"
+  },
+  "typesVersions": {
+    "*": {
+      "display": ["src/display.ts"],
+      "core/types": ["src/core/types.ts"],
+      "core/ids": ["src/core/ids.ts"]
+    }
   }
 }
