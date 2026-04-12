@@ -1,0 +1,33 @@
+{
+  "name": "@flightdeck-ai/server",
+  "version": "2.0.0-alpha.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "flightdeck": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "tsx src/cli/index.ts",
+    "mcp": "tsx src/mcp/server.ts"
+  },
+  "dependencies": {
+    "@flightdeck-ai/shared": "workspace:*",
+    "@agentclientprotocol/sdk": "^0.18.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "better-sqlite3": "^11.8.1",
+    "drizzle-orm": "^0.44.7",
+    "yaml": "^2.8.3",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.2",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}

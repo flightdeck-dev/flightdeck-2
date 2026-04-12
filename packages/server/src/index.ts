@@ -1,0 +1,21 @@
+// Public API exports
+export * from '@flightdeck-ai/shared';
+export { ProjectStore } from './storage/ProjectStore.js';
+export { SqliteStore } from './storage/SqliteStore.js';
+export { SpecStore } from './storage/SpecStore.js';
+export { DecisionLog } from './storage/DecisionLog.js';
+export { MemoryStore } from './storage/MemoryStore.js';
+export { MessageLog } from './storage/MessageLog.js';
+export { ReportStore } from './storage/ReportStore.js';
+export { TaskDAG } from './dag/TaskDAG.js';
+export { GovernanceEngine } from './governance/GovernanceEngine.js';
+export { Verifier } from './verification/Verifier.js';
+export { Orchestrator } from './orchestrator/Orchestrator.js';
+export { AgentAdapter } from './agents/AgentAdapter.js';
+export { AcpAdapter } from './agents/AcpAdapter.js';
+export { PtyAdapter } from './agents/PtyAdapter.js';
+export { Flightdeck } from './facade.js';
+export { createMcpServer } from './mcp/server.js';
+export { RoleRegistry } from './roles/RoleRegistry.js';
+export { LearningsStore } from './storage/LearningsStore.js';
+export { TimerManager } from './orchestrator/TimerManager.js';
