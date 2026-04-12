@@ -34,7 +34,8 @@ describe('AgentConfigs', () => {
     const configs = generateAgentConfigs('worker');
     const parsed = JSON.parse(configs.mcpJson);
     expect(parsed.mcpServers.flightdeck.command).toBe('npx');
-    expect(parsed.mcpServers.flightdeck.args).toContain('flightdeck-mcp');
+    expect(parsed.mcpServers.flightdeck.args[0]).toBe('tsx');
+    expect(parsed.mcpServers.flightdeck.args[1]).toContain('server.ts');
   });
 
   it('generates codex config snippet', () => {

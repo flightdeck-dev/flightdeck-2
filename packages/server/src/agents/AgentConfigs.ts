@@ -126,12 +126,16 @@ Use \`flightdeck_*\` tools to interact with Flightdeck:
 
 // ── MCP config for Claude Code (.mcp.json) ──
 
+function mcpServerPath(): string {
+  return new URL('../mcp/server.ts', import.meta.url).pathname;
+}
+
 function mcpJsonContent(): string {
   return JSON.stringify({
     mcpServers: {
       flightdeck: {
         command: 'npx',
-        args: ['flightdeck-mcp'],
+        args: ['tsx', mcpServerPath()],
       },
     },
   }, null, 2);
@@ -143,7 +147,7 @@ function codexConfigSnippet(): string {
   return `# Add this to .codex/config.toml or ~/.codex/config.toml
 [mcp_servers.flightdeck]
 command = "npx"
-args = ["flightdeck-mcp"]
+args = ["tsx", "${mcpServerPath()}"]
 `;
 }
 
@@ -156,7 +160,7 @@ function geminiInstructions(): string {
 #   "mcpServers": {
 #     "flightdeck": {
 #       "command": "npx",
-#       "args": ["flightdeck-mcp"]
+#       "args": ["tsx", "${mcpServerPath()}"]
 #     }
 #   }
 # }
@@ -165,7 +169,7 @@ function geminiInstructions(): string {
 
 function copilotInstructions(): string {
   return `# Copilot CLI Setup
-# Run: copilot /mcp add flightdeck -- npx flightdeck-mcp
+# Run: copilot /mcp add flightdeck -- npx tsx ${mcpServerPath()}
 `;
 }
 

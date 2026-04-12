@@ -251,7 +251,7 @@ mcp:
       expect(config).toContain('mcp:');
       expect(config).toContain('flightdeck-basics');
       expect(config).toContain('task-workflow');
-      expect(config).toContain('npx flightdeck-mcp');
+      expect(config).toContain('npx tsx');
     });
   });
 

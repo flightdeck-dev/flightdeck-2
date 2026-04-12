@@ -7,6 +7,16 @@ import type { AgentRole } from '@flightdeck-ai/shared';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULTS_DIR = join(__dirname, 'defaults');
 
+/** Resolve absolute path to the MCP server entry point (works for both .ts and compiled .js). */
+function resolveMcpServerPath(): string {
+  const tsPath = join(__dirname, '..', 'mcp', 'server.ts');
+  if (existsSync(tsPath)) return tsPath;
+  const jsPath = join(__dirname, '..', 'mcp', 'server.js');
+  if (existsSync(jsPath)) return jsPath;
+  // Fallback — return ts path and let tsx handle it
+  return tsPath;
+}
+
 export interface SkillInfo {
   name: string;
   description: string;
@@ -275,7 +285,7 @@ skills:
 mcp:
   global:
     flightdeck:
-      command: "npx flightdeck-mcp"
+      command: "npx tsx ${resolveMcpServerPath()}"
   roles:
     lead: {}
     worker: {}
