@@ -1,0 +1,111 @@
+{
+  "name": "flightdeck",
+  "displayName": "Flightdeck",
+  "description": "Multi-agent orchestration for coding agents",
+  "version": "0.1.0",
+  "publisher": "flightdeck",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "extensionKind": ["ui"],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:.flightdeck.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Flightdeck",
+      "properties": {
+        "flightdeck.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:4600",
+          "description": "Flightdeck server URL"
+        },
+        "flightdeck.pollInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Poll interval in seconds"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "flightdeck.createSpec",
+        "title": "Flightdeck: Create Spec"
+      },
+      {
+        "command": "flightdeck.createTask",
+        "title": "Flightdeck: Create Task"
+      },
+      {
+        "command": "flightdeck.showStatus",
+        "title": "Flightdeck: Show Status"
+      },
+      {
+        "command": "flightdeck.openDashboard",
+        "title": "Flightdeck: Open Dashboard"
+      },
+      {
+        "command": "flightdeck.initProject",
+        "title": "Flightdeck: Initialize Project"
+      },
+      {
+        "command": "flightdeck.refresh",
+        "title": "Flightdeck: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "flightdeck",
+          "title": "Flightdeck",
+          "icon": "$(rocket)"
+        }
+      ]
+    },
+    "views": {
+      "flightdeck": [
+        {
+          "id": "flightdeck.overview",
+          "name": "Overview"
+        },
+        {
+          "id": "flightdeck.specs",
+          "name": "Specs & Tasks"
+        },
+        {
+          "id": "flightdeck.agents",
+          "name": "Agents"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "flightdeck.refresh",
+          "when": "view =~ /^flightdeck\\./",
+          "group": "navigation"
+        },
+        {
+          "command": "flightdeck.createSpec",
+          "when": "view == flightdeck.specs"
+        },
+        {
+          "command": "flightdeck.createTask",
+          "when": "view == flightdeck.specs"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
