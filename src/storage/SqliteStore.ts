@@ -24,6 +24,7 @@ export class SqliteStore {
         priority INTEGER NOT NULL DEFAULT 0,
         assigned_agent TEXT,
         acp_session_id TEXT,
+        claim TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -49,6 +50,11 @@ export class SqliteStore {
         timestamp TEXT NOT NULL
       );
     `);
+    // Add claim column if missing (migration)
+    const cols = this.db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+    if (!cols.some(c => c.name === 'claim')) {
+      this.db.exec('ALTER TABLE tasks ADD COLUMN claim TEXT');
+    }
   }
 
   // ── Tasks ──
@@ -99,6 +105,18 @@ export class SqliteStore {
       stats[row.state] = row.count;
     }
     return stats as Record<TaskState, number>;
+  }
+
+  updateTaskClaim(id: TaskId, claim: string): void {
+    const now = new Date().toISOString();
+    this.db.prepare('UPDATE tasks SET claim = ?, updated_at = ? WHERE id = ?')
+      .run(claim, now, id);
+  }
+
+  clearTaskAssignment(id: TaskId): void {
+    const now = new Date().toISOString();
+    this.db.prepare('UPDATE tasks SET assigned_agent = NULL, updated_at = ? WHERE id = ?')
+      .run(now, id);
   }
 
   private rowToTask(row: Record<string, unknown>): Task {
