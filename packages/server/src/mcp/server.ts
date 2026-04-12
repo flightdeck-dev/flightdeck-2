@@ -14,8 +14,10 @@ import { decisionId as makeDecisionId } from '@flightdeck-ai/shared';
 import { modelRegistry } from '../agents/ModelTiers.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
 import { ModelConfig } from '../agents/ModelConfig.js';
+import { getToolsForRole } from './toolPermissions.js';
 
 const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
+const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
 
 function errorResponse(text: string) {
   return { content: [{ type: 'text' as const, text }] };
@@ -72,6 +74,7 @@ export interface McpServerOptions {
   projectName?: string;
   agentManager?: AgentManager;
   acpAdapter?: AcpAdapter;
+  agentRole?: string;
 }
 
 export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): McpServer {
@@ -80,6 +83,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     : projectNameOrOpts ?? {};
   const name = opts.projectName ?? ProjectStore.resolve(process.cwd());
   const acpAdapter = opts.acpAdapter ?? null;
+  const agentRole = opts.agentRole ?? ENV_AGENT_ROLE ?? undefined;
   if (!name) {
     throw new Error('No Flightdeck project found. Run `flightdeck init` first or pass --project.');
   }
@@ -874,6 +878,31 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       return errorResponse(`Failed to set model: ${(err as Error).message}`);
     }
   });
+
+  // ── Tools available (self-discovery) ──
+
+  server.tool('flightdeck_tools_available', 'List the MCP tools available to the calling agent', {}, async () => {
+    if (agentRole) {
+      const tools = getToolsForRole(agentRole);
+      return jsonResponse({ role: agentRole, tools });
+    }
+    // No role filtering — return all tool names
+    const allTools = Object.keys((server as any)._registeredTools ?? {});
+    return jsonResponse({ role: null, tools: allTools });
+  });
+
+  // ── Per-role tool filtering ──
+  if (agentRole) {
+    const allowed = new Set(getToolsForRole(agentRole));
+    const registered = (server as any)._registeredTools as Record<string, unknown> | undefined;
+    if (registered) {
+      for (const toolName of Object.keys(registered)) {
+        if (!allowed.has(toolName)) {
+          delete registered[toolName];
+        }
+      }
+    }
+  }
 
   return server;
 }
