@@ -204,6 +204,10 @@ export class SqliteStore {
     this.db.update(agents).set({ status }).where(eq(agents.id, id)).run();
   }
 
+  updateAgentAcpSession(id: AgentId, acpSessionId: string | null): void {
+    this.db.update(agents).set({ acpSessionId }).where(eq(agents.id, id)).run();
+  }
+
   updateAgentHeartbeat(id: AgentId): void {
     this.db.update(agents)
       .set({ lastHeartbeat: new Date().toISOString() })

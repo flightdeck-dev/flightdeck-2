@@ -14,6 +14,7 @@ export { Orchestrator } from './orchestrator/Orchestrator.js';
 export { AgentAdapter } from './agents/AgentAdapter.js';
 export { AcpAdapter } from './agents/AcpAdapter.js';
 export { PtyAdapter } from './agents/PtyAdapter.js';
+export { AgentManager, buildSystemPrompt } from './agents/AgentManager.js';
 export { Flightdeck } from './facade.js';
 export { createMcpServer } from './mcp/server.js';
 export { RoleRegistry } from './roles/RoleRegistry.js';

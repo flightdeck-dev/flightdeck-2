@@ -2,6 +2,8 @@
 import { parseArgs } from 'node:util';
 import { Flightdeck } from '../facade.js';
 import { ProjectStore } from '../storage/ProjectStore.js';
+import { createMcpServer } from '../mcp/server.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -62,6 +64,7 @@ if (values.help || !command) {
   process.exit(0);
 }
 
+(async () => {
 switch (command) {
   case 'init': {
     const name = positionals[1];
@@ -197,11 +200,27 @@ switch (command) {
   case 'start': {
     const fd = new Flightdeck(resolveProject());
     const profile = values.profile ?? fd.status().config.governance;
-    console.log(`Starting orchestrator with profile: ${profile}...`);
+    console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
+
+    // Start orchestrator tick loop
     fd.orchestrator.start();
-    console.log('Orchestrator running. Press Ctrl+C to stop.');
+    console.error('Orchestrator running (5 min tick interval).');
+
+    // Start MCP server on stdio with AgentManager wired in
+    const server = createMcpServer({
+      projectName: resolveProject(),
+      agentManager: fd.agentManager,
+    });
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('MCP server listening on stdio.');
+
     process.on('SIGINT', () => {
-      console.log('\nStopping orchestrator...');
+      console.error('\nStopping Flightdeck...');
+      fd.close();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
       fd.close();
       process.exit(0);
     });
@@ -223,3 +242,4 @@ switch (command) {
     usage();
     process.exit(1);
 }
+})().catch(err => { console.error(err); process.exit(1); });

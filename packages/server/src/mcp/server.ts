@@ -6,6 +6,7 @@ import { ProjectStore } from '../storage/ProjectStore.js';
 import type { TaskId, AgentId, SpecId, Message, MessageId, Agent, AgentRole } from '@flightdeck-ai/shared';
 import { messageId, agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { LearningCategory } from '../storage/LearningsStore.js';
+import type { AgentManager } from '../agents/AgentManager.js';
 
 const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 
@@ -60,14 +61,23 @@ function permError(agentId: string, role: string, toolName: string, permission: 
   );
 }
 
-export function createMcpServer(projectName?: string): McpServer {
-  const name = projectName ?? ProjectStore.resolve(process.cwd());
+export interface McpServerOptions {
+  projectName?: string;
+  agentManager?: AgentManager;
+}
+
+export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): McpServer {
+  const opts = typeof projectNameOrOpts === 'string'
+    ? { projectName: projectNameOrOpts }
+    : projectNameOrOpts ?? {};
+  const name = opts.projectName ?? ProjectStore.resolve(process.cwd());
   if (!name) {
     throw new Error('No Flightdeck project found. Run `flightdeck init` first or pass --project.');
   }
 
   const fd = new Flightdeck(name);
   const roleRegistry = fd.roles;
+  const agentManager = opts.agentManager ?? null;
   const server = new McpServer({ name: 'flightdeck', version: '2.0.0' });
 
   // Helper: check permission
@@ -340,6 +350,21 @@ export function createMcpServer(projectName?: string): McpServer {
       return errorResponse(`Error: Agent limit reached (${activeCount}/${maxAgents}). Terminate an agent first.`);
     }
 
+    if (agentManager) {
+      try {
+        const newAgent = await agentManager.spawnAgent({
+          role: params.role as AgentRole,
+          model: params.model,
+          task: params.task,
+          cwd: params.cwd ?? process.cwd(),
+        });
+        return jsonResponse(newAgent);
+      } catch (err) {
+        return errorResponse(`Error spawning agent: ${(err as Error).message}`);
+      }
+    }
+
+    // Fallback: SQLite-only registration (no real process)
     const newId = makeAgentId(params.role, Date.now().toString());
     const newAgent: Agent = {
       id: newId,
@@ -365,7 +390,15 @@ export function createMcpServer(projectName?: string): McpServer {
     if (permErr) return permErr;
     const target = fd.sqlite.getAgent(params.targetAgentId as AgentId);
     if (!target) return errorResponse(`Agent '${params.targetAgentId}' not found.`);
-    fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'offline');
+    if (agentManager) {
+      try {
+        await agentManager.terminateAgent(params.targetAgentId as AgentId);
+      } catch (err) {
+        return errorResponse(`Error terminating agent: ${(err as Error).message}`);
+      }
+    } else {
+      fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'offline');
+    }
     return jsonResponse({ status: 'terminated', agentId: params.targetAgentId });
   });
 
@@ -383,6 +416,14 @@ export function createMcpServer(projectName?: string): McpServer {
     if (permErr) return permErr;
     const target = fd.sqlite.getAgent(params.targetAgentId as AgentId);
     if (!target) return errorResponse(`Agent '${params.targetAgentId}' not found.`);
+    if (agentManager) {
+      try {
+        const restarted = await agentManager.restartAgent(params.targetAgentId as AgentId);
+        return jsonResponse({ status: 'restarted', agentId: params.targetAgentId, agent: restarted });
+      } catch (err) {
+        return errorResponse(`Error restarting agent: ${(err as Error).message}`);
+      }
+    }
     fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'idle');
     return jsonResponse({ status: 'restarted', agentId: params.targetAgentId });
   });
@@ -396,6 +437,14 @@ export function createMcpServer(projectName?: string): McpServer {
     if (error) return error;
     const permErr = checkPerm(agent!, 'agent_spawn', 'flightdeck_agent_interrupt');
     if (permErr) return permErr;
+    if (agentManager) {
+      try {
+        await agentManager.interruptAgent(params.targetAgentId as AgentId, params.message);
+        return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
+      } catch (err) {
+        return errorResponse(`Error interrupting agent: ${(err as Error).message}`);
+      }
+    }
     const msg: Message = {
       id: messageId(params.agentId, params.targetAgentId, Date.now().toString()),
       from: params.agentId as AgentId,

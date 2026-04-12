@@ -1,0 +1,55 @@
+{
+  "name": "flightdeck-vscode",
+  "displayName": "Flightdeck",
+  "description": "Multi-agent orchestration for AI coding agents",
+  "version": "0.1.0",
+  "publisher": "flightdeck-ai",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "flightdeck",
+          "title": "Flightdeck",
+          "icon": "$(rocket)"
+        }
+      ]
+    },
+    "views": {
+      "flightdeck": [
+        { "id": "flightdeck.tasks", "name": "Tasks" },
+        { "id": "flightdeck.agents", "name": "Agents" }
+      ]
+    },
+    "commands": [
+      { "command": "flightdeck.init", "title": "Flightdeck: Init Project" },
+      { "command": "flightdeck.status", "title": "Flightdeck: Status" },
+      { "command": "flightdeck.taskList", "title": "Flightdeck: Task List" },
+      { "command": "flightdeck.agentSpawn", "title": "Flightdeck: Spawn Agent" },
+      { "command": "flightdeck.start", "title": "Flightdeck: Start" },
+      { "command": "flightdeck.stop", "title": "Flightdeck: Stop" }
+    ],
+    "menus": {
+      "view/item/context": [
+        { "command": "flightdeck.agentTerminate", "when": "viewItem == agent", "group": "agent@1" },
+        { "command": "flightdeck.agentInterrupt", "when": "viewItem == agent", "group": "agent@2" },
+        { "command": "flightdeck.agentRestart", "when": "viewItem == agent", "group": "agent@3" }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
+  }
+}

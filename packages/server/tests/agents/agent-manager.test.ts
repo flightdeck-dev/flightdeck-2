@@ -1,0 +1,183 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { existsSync, rmSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { AgentManager, buildSystemPrompt } from '../../src/agents/AgentManager.js';
+import { SqliteStore } from '../../src/storage/SqliteStore.js';
+import { RoleRegistry } from '../../src/roles/RoleRegistry.js';
+import type { AgentAdapter, SpawnOptions, SteerMessage, AgentMetadata } from '../../src/agents/AgentAdapter.js';
+import type { AgentId, AgentRuntime } from '@flightdeck-ai/shared';
+
+/** Minimal mock adapter for testing */
+class MockAdapter implements AgentAdapter {
+  readonly runtime: AgentRuntime = 'acp';
+  spawnCalls: SpawnOptions[] = [];
+  killCalls: string[] = [];
+  steerCalls: { sessionId: string; message: SteerMessage }[] = [];
+  private sessionCounter = 0;
+  shouldFail = false;
+
+  async spawn(opts: SpawnOptions): Promise<AgentMetadata> {
+    if (this.shouldFail) throw new Error('spawn failed');
+    this.spawnCalls.push(opts);
+    const sessionId = `mock-session-${++this.sessionCounter}`;
+    return {
+      agentId: `${opts.role}-mock` as AgentId,
+      sessionId,
+      status: 'running',
+      model: opts.model,
+    };
+  }
+
+  async steer(sessionId: string, message: SteerMessage): Promise<void> {
+    this.steerCalls.push({ sessionId, message });
+  }
+
+  async kill(sessionId: string): Promise<void> {
+    this.killCalls.push(sessionId);
+  }
+
+  async getMetadata(sessionId: string): Promise<AgentMetadata | null> {
+    return { agentId: 'test' as AgentId, sessionId, status: 'running' };
+  }
+}
+
+describe('AgentManager', () => {
+  const projectName = `test-agent-mgr-${Date.now()}`;
+  const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+  let store: SqliteStore;
+  let roles: RoleRegistry;
+  let adapter: MockAdapter;
+  let manager: AgentManager;
+
+  beforeEach(() => {
+    mkdirSync(projDir, { recursive: true });
+    store = new SqliteStore(join(projDir, 'state.sqlite'));
+    roles = new RoleRegistry(projectName);
+    adapter = new MockAdapter();
+    manager = new AgentManager(adapter, store, roles, projectName);
+  });
+
+  afterEach(() => {
+    store.close();
+    if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
+  });
+
+  it('spawnAgent registers in SQLite and calls adapter', async () => {
+    const agent = await manager.spawnAgent({
+      role: 'worker',
+      cwd: '/tmp',
+      model: 'gpt-4',
+    });
+
+    expect(agent.role).toBe('worker');
+    expect(agent.status).toBe('busy');
+    expect(agent.acpSessionId).toBe('mock-session-1');
+    expect(adapter.spawnCalls).toHaveLength(1);
+    expect(adapter.spawnCalls[0].role).toBe('worker');
+
+    // Verify in SQLite
+    const dbAgent = store.getAgent(agent.id);
+    expect(dbAgent).not.toBeNull();
+    expect(dbAgent!.status).toBe('busy');
+    expect(dbAgent!.acpSessionId).toBe('mock-session-1');
+  });
+
+  it('spawnAgent marks agent errored on adapter failure', async () => {
+    adapter.shouldFail = true;
+    await expect(manager.spawnAgent({
+      role: 'worker',
+      cwd: '/tmp',
+    })).rejects.toThrow('spawn failed');
+
+    // Agent should exist in SQLite but be errored
+    const agents = store.listAgents();
+    expect(agents).toHaveLength(1);
+    expect(agents[0].status).toBe('errored');
+  });
+
+  it('terminateAgent kills adapter session and updates SQLite', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    await manager.terminateAgent(agent.id);
+
+    expect(adapter.killCalls).toHaveLength(1);
+    expect(adapter.killCalls[0]).toBe('mock-session-1');
+
+    const dbAgent = store.getAgent(agent.id);
+    expect(dbAgent!.status).toBe('offline');
+    expect(dbAgent!.acpSessionId).toBeNull();
+  });
+
+  it('interruptAgent sends urgent steer', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    await manager.interruptAgent(agent.id, 'Stop what you are doing!');
+
+    expect(adapter.steerCalls).toHaveLength(1);
+    expect(adapter.steerCalls[0].message.content).toBe('Stop what you are doing!');
+    expect(adapter.steerCalls[0].message.urgent).toBe(true);
+  });
+
+  it('restartAgent kills and re-spawns', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const restarted = await manager.restartAgent(agent.id);
+
+    expect(adapter.killCalls).toHaveLength(1);
+    expect(adapter.spawnCalls).toHaveLength(2);
+    expect(restarted.status).toBe('busy');
+    expect(restarted.acpSessionId).toBe('mock-session-2');
+  });
+
+  it('terminateAgent throws for unknown agent', async () => {
+    await expect(manager.terminateAgent('nonexistent' as AgentId))
+      .rejects.toThrow('Agent not found');
+  });
+
+  it('interruptAgent throws when no session', async () => {
+    // Insert agent without session
+    store.insertAgent({
+      id: 'bare-1' as AgentId,
+      role: 'worker',
+      runtime: 'acp',
+      acpSessionId: null,
+      status: 'idle',
+      currentSpecId: null,
+      costAccumulated: 0,
+      lastHeartbeat: null,
+    });
+    await expect(manager.interruptAgent('bare-1' as AgentId, 'hello'))
+      .rejects.toThrow('No active session');
+  });
+});
+
+describe('buildSystemPrompt', () => {
+  it('includes role name, agent ID, and instructions', () => {
+    const prompt = buildSystemPrompt({
+      roleName: 'Worker',
+      roleInstructions: 'Write clean code.',
+      agentId: 'worker-123',
+      projectName: 'my-project',
+      permissions: { task_claim: true, task_submit: true, memory_write: true },
+    });
+
+    expect(prompt).toContain('Worker agent');
+    expect(prompt).toContain('worker-123');
+    expect(prompt).toContain('my-project');
+    expect(prompt).toContain('Write clean code.');
+    expect(prompt).toContain('flightdeck_task_claim');
+    expect(prompt).toContain('flightdeck_task_submit');
+    expect(prompt).toContain('flightdeck_memory_write');
+  });
+
+  it('excludes denied permissions', () => {
+    const prompt = buildSystemPrompt({
+      roleName: 'Worker',
+      roleInstructions: '',
+      agentId: 'w-1',
+      projectName: 'p',
+      permissions: { task_claim: true, agent_spawn: false },
+    });
+
+    expect(prompt).toContain('flightdeck_task_claim');
+    expect(prompt).not.toContain('flightdeck_agent_spawn');
+  });
+});

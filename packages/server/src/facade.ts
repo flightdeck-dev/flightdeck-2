@@ -18,6 +18,7 @@ import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
 import { LearningsStore, type LearningCategory } from './storage/LearningsStore.js';
 import { TimerManager, type TimerCallback } from './orchestrator/TimerManager.js';
+import { AgentManager } from './agents/AgentManager.js';
 
 /**
  * High-level facade wrapping all Flightdeck subsystems.
@@ -39,6 +40,7 @@ export class Flightdeck {
   readonly roles: RoleRegistry;
   readonly learnings: LearningsStore;
   readonly timers: TimerManager;
+  readonly agentManager: AgentManager;
 
   constructor(projectName: string) {
     this.project = new ProjectStore(projectName);
@@ -64,6 +66,8 @@ export class Flightdeck {
     this.timers = new TimerManager((_agentId, _message) => {
       // Default callback — messages can be wired to agent queues later
     });
+    const acpAdapter = new AcpAdapter();
+    this.agentManager = new AgentManager(acpAdapter, this.sqlite, this.roles, projectName);
   }
 
   // ── Task operations ──
