@@ -90,6 +90,8 @@ export interface CostEntry {
   specId: SpecId | null;
   tokensIn: number;
   tokensOut: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   costUsd: number;
   timestamp: string;
 }

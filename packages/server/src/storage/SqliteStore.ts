@@ -106,97 +106,7 @@ export class SqliteStore {
       )
     `));
 
-    this._db.run(sql.raw(`
-      CREATE TABLE IF NOT EXISTS collective_memory (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category TEXT NOT NULL,
-        key TEXT NOT NULL,
-        value TEXT NOT NULL,
-        source TEXT NOT NULL,
-        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        last_used_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        use_count INTEGER DEFAULT 0
-      )
-    `));
-
-    this._db.run(sql.raw(`
-      CREATE TABLE IF NOT EXISTS knowledge (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category TEXT NOT NULL,
-        key TEXT NOT NULL,
-        content TEXT NOT NULL,
-        metadata TEXT,
-        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-      )
-    `));
-
-    this._db.run(sql.raw(`
-      CREATE TABLE IF NOT EXISTS session_retros (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-      )
-    `));
-
-    this._db.run(sql.raw(`
-      CREATE TABLE IF NOT EXISTS active_delegations (
-        delegation_id TEXT PRIMARY KEY,
-        agent_id TEXT NOT NULL,
-        task TEXT NOT NULL,
-        context TEXT,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        completed_at TEXT,
-        result TEXT
-      )
-    `));
-
-    // ── Indexes ──
-
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_agent ON tasks(assigned_agent)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_spec ON tasks(spec_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_author_type ON messages(author_type)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_agent ON cost_entries(agent_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_spec ON cost_entries(spec_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_file_locks_agent ON file_locks(agent_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity_log(agent_id)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(action_type)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_mq_target_status ON message_queue(target_agent_id, status)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_collective_memory_category ON collective_memory(category)`));
-    this._db.run(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS idx_collective_memory_cat_key ON collective_memory(category, key)`));
-    this._db.run(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_cat_key ON knowledge(category, key)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge(category)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_ad_agent_status ON active_delegations(agent_id, status)`));
-    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_ad_status ON active_delegations(status)`));
-
-    // Migrations for older databases
-    const cols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
-    if (!cols.some(c => c.name === 'claim')) {
-      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN claim TEXT'));
-    }
-    if (!cols.some(c => c.name === 'cost')) {
-      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0'));
-    }
-    if (!cols.some(c => c.name === 'source')) {
-      this._db.run(sql.raw("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'planned'"));
-    }
-
-    // Migrate cost_entries for older databases
-    const costCols = this._db.all(sql.raw("PRAGMA table_info(cost_entries)")) as { name: string }[];
-    if (!costCols.some(c => c.name === 'cache_read_tokens')) {
-      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0'));
-    }
-    if (!costCols.some(c => c.name === 'cache_write_tokens')) {
-      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0'));
-    }
-
-    // Messages + threads tables (Web UI chat)
+    // Messages + threads tables (Web UI chat) — must be before indexes that reference them
     this._db.run(sql.raw(`
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
@@ -224,6 +134,44 @@ export class SqliteStore {
         FOREIGN KEY (origin_id) REFERENCES messages(id)
       )
     `));
+
+    // ── Indexes ──
+
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_agent ON tasks(assigned_agent)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_tasks_spec ON tasks(spec_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_messages_author_type ON messages(author_type)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_agent ON cost_entries(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_cost_entries_spec ON cost_entries(spec_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_file_locks_agent ON file_locks(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity_log(agent_id)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(action_type)`));
+    this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_mq_target_status ON message_queue(target_agent_id, status)`));
+
+    // Migrations for older databases
+    const cols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
+    if (!cols.some(c => c.name === 'claim')) {
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN claim TEXT'));
+    }
+    if (!cols.some(c => c.name === 'cost')) {
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0'));
+    }
+    if (!cols.some(c => c.name === 'source')) {
+      this._db.run(sql.raw("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'planned'"));
+    }
+
+    // Migrate cost_entries for older databases
+    const costCols = this._db.all(sql.raw("PRAGMA table_info(cost_entries)")) as { name: string }[];
+    if (!costCols.some(c => c.name === 'cache_read_tokens')) {
+      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0'));
+    }
+    if (!costCols.some(c => c.name === 'cache_write_tokens')) {
+      this._db.run(sql.raw('ALTER TABLE cost_entries ADD COLUMN cache_write_tokens INTEGER NOT NULL DEFAULT 0'));
+    }
   }
 
   // ── Tasks ──
