@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
+import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
 import type { ChatMessage, Thread } from '../lib/types.ts';
@@ -42,12 +43,12 @@ const MessageBubble = memo(function MessageBubble({ msg, onReply }: { msg: ChatM
             {new Date(msg.createdAt).toLocaleTimeString()}
           </span>
         </div>
-        <div className={`inline-block mt-1 px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words max-w-[85%] ${
+        <div className={`inline-block mt-1 px-3 py-2 rounded-2xl text-sm break-words max-w-[85%] ${
           isUser
-            ? 'bg-[var(--color-status-ready)] text-white rounded-br-sm'
+            ? 'bg-[var(--color-status-ready)] text-white rounded-br-sm whitespace-pre-wrap'
             : 'bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
-          {msg.content}
+          {isUser ? msg.content : <Markdown content={msg.content} />}
         </div>
       </div>
       <button
@@ -111,7 +112,7 @@ function StreamingBubble({ content, chunks, displayConfig }: {
                 ? displayConfig.flightdeckTools : displayConfig.toolCalls;
               return <ToolResultBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
             }
-            return <span key={i} className="text-sm whitespace-pre-wrap break-words">{section.content}</span>;
+            return <div key={i} className="text-sm break-words"><Markdown content={section.content} /></div>;
           })}
           <span className="animate-pulse">▊</span>
         </div>

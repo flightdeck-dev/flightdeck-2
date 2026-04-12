@@ -1,5 +1,6 @@
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
+import { Markdown } from '../components/Markdown.tsx';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const PIPELINE_COLUMNS: { state: TaskState; label: string; icon: string }[] = [
@@ -122,7 +123,7 @@ export default function Dashboard() {
           <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">Lead's Last Message</h2>
           {leadMessage ? (
             <div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-              <p className="text-sm whitespace-pre-wrap line-clamp-4">{leadMessage.content}</p>
+              <div className="text-sm line-clamp-4"><Markdown content={leadMessage.content} /></div>
               <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
                 {new Date(leadMessage.createdAt).toLocaleString()}
               </p>
