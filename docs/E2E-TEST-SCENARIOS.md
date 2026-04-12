@@ -85,16 +85,26 @@
 | 8.2 | Prompt queuing | Second prompt handled after first completes | |
 | 8.3 | Interrupt/redirect | Agent stops current work, handles new prompt | |
 
-## 9. Lead Integration (Claw as Lead)
+## 9. Claw as Supervisor (Justin's proxy)
+
+Claw (OpenClaw) sits between Justin and the Lead agent. Claw translates Justin's intent, steers Lead, monitors all agents, and escalates to Justin when needed.
+
+```
+Justin → Claw (supervisor) → Lead (agent) → Workers (agents)
+```
 
 | # | Scenario | Expected | Status |
 |---|----------|----------|--------|
-| 9.1 | Claw spawns worker via ACP | Worker session created | |
-| 9.2 | Claw steers worker | Worker receives and acts on steer | |
-| 9.3 | Worker reports back via MCP | Task status updated in SQLite | |
-| 9.4 | Claw reads status via MCP | Claw sees worker's progress | |
-| 9.5 | Claw sends message to worker | Message delivered | |
-| 9.6 | Worker escalates to Claw | Escalation received | |
+| 9.1 | Claw spawns Lead via ACP | Lead session created, persistent | |
+| 9.2 | Claw steers Lead with user intent | Lead receives and acts on steer | |
+| 9.3 | Lead spawns Worker via Flightdeck | Worker session created | |
+| 9.4 | Worker completes task → Lead notified | Task status updated, Lead gets event | |
+| 9.5 | Claw monitors via flightdeck_status | Sees all agents + tasks | |
+| 9.6 | Lead escalates to Claw | Claw receives escalation, decides action | |
+| 9.7 | Claw relays escalation to Justin | Justin gets message via Discord | |
+| 9.8 | Justin replies → Claw steers Lead | Lead gets updated instruction | |
+| 9.9 | Claw detects Lead stall | Kill + respawn Lead | |
+| 9.10 | Heartbeat: Claw triggers Lead heartbeat | Lead checks status, reports back | |
 
 ## 10. Error Handling
 
