@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSy
 import { join, relative } from 'node:path';
 import type Database from 'better-sqlite3';
 
+type DatabaseInstance = Database.Database;
+
 export interface MemorySearchResult {
   filename: string;
   line: number;
@@ -9,19 +11,19 @@ export interface MemorySearchResult {
 }
 
 export class MemoryStore {
-  private db: InstanceType<typeof import('better-sqlite3').default> | null = null;
+  private db: DatabaseInstance | null = null;
 
   constructor(
     private memoryDir: string,
-    dbPathOrDb?: string | InstanceType<typeof import('better-sqlite3').default>,
+    dbPathOrDb?: string | DatabaseInstance,
   ) {
     if (dbPathOrDb) {
       if (typeof dbPathOrDb === 'string') {
         // Lazy-import to avoid hard dependency when not using FTS
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const BetterSqlite3 = require('better-sqlite3') as typeof import('better-sqlite3').default;
-        this.db = new BetterSqlite3(dbPathOrDb);
-        this.db.pragma('journal_mode = WAL');
+        const BetterSqlite3 = require('better-sqlite3') as any;
+        this.db = new BetterSqlite3(dbPathOrDb) as DatabaseInstance;
+        this.db!.pragma('journal_mode = WAL');
       } else {
         this.db = dbPathOrDb;
       }

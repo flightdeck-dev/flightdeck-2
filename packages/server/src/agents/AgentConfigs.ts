@@ -8,6 +8,9 @@ import type { AgentRole } from '@flightdeck-ai/shared';
 // ── AGENTS.md content per role ──
 
 const AGENTS_MD: Record<AgentRole, string> = {
+  'product-thinker': `# AGENTS.md — Product Thinker\n\nYou are the Product Thinker agent. Evaluate features from the user's perspective.`,
+  'qa-tester': `# AGENTS.md — QA Tester\n\nYou are the QA Tester agent. Write and verify tests for correctness.`,
+  'tech-writer': `# AGENTS.md — Tech Writer\n\nYou are the Tech Writer agent. Write clear documentation and guides.`,
   lead: `# AGENTS.md — Lead Agent
 
 ## Your Role

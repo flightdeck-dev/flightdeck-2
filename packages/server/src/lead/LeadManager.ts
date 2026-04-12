@@ -70,22 +70,22 @@ export class LeadManager {
 
   /** Start Lead ACP session */
   async spawnLead(): Promise<string> {
-    const sessionId = await this.acpAdapter.spawn({
+    const meta = await this.acpAdapter.spawn({
       role: 'lead',
       cwd: process.cwd(),
     });
-    this.leadSessionId = sessionId;
+    this.leadSessionId = meta.sessionId;
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
     }
-    return sessionId;
+    return meta.sessionId;
   }
 
   /** Send an event steer to Lead */
   async steerLead(event: LeadEvent): Promise<void> {
     if (!this.leadSessionId) return;
     const steer = this.buildSteer(event);
-    await this.acpAdapter.steer(this.leadSessionId, steer);
+    await this.acpAdapter.steer(this.leadSessionId, { content: steer });
     this.lastSteerAt = new Date().toISOString();
   }
 
@@ -209,12 +209,12 @@ export class LeadManager {
 
   /** Spawn Planner as a persistent ACP session */
   async spawnPlanner(): Promise<string> {
-    const sessionId = await this.acpAdapter.spawn({
+    const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: process.cwd(),
     });
-    this.plannerSessionId = sessionId;
-    return sessionId;
+    this.plannerSessionId = meta.sessionId;
+    return meta.sessionId;
   }
 
   /** Steer the persistent Planner with a request */

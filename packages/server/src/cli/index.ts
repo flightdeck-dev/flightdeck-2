@@ -54,7 +54,7 @@ Options:
 }
 
 function resolveProject(): string {
-  if (values.project) return values.project;
+  if (values.project) return values.project as string;
   const name = ProjectStore.resolve(process.cwd());
   if (!name) {
     console.error('No Flightdeck project found. Run `flightdeck init <name>` first.');

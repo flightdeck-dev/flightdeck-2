@@ -9,7 +9,7 @@ import type { LearningCategory } from '../storage/LearningsStore.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import { SkillManager } from '../skills/SkillManager.js';
 import { DailyReport } from '../reporting/DailyReport.js';
-import type { DecisionId } from '@flightdeck-ai/shared';
+import type { DecisionId, DecisionStatus } from '@flightdeck-ai/shared';
 import { decisionId as makeDecisionId } from '@flightdeck-ai/shared';
 import { modelRegistry } from '../agents/ModelTiers.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
@@ -752,7 +752,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       confidence: params.confidence,
       reversible: params.reversible,
       timestamp: new Date().toISOString(),
-      status: 'pending_review' as const,
+      status: 'pending_review' as DecisionStatus,
     };
     // Let governance evaluate
     const result = fd.governance.evaluateDecision(decision);
