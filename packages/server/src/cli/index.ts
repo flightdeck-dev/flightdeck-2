@@ -233,7 +233,7 @@ switch (command) {
     const { LeadManager } = await import('../lead/LeadManager.js');
     const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
 
-    const acpAdapter = new AcpAdapterClass();
+    const acpAdapter = new AcpAdapterClass(undefined, 'copilot');
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
       project: fd.project,
@@ -263,13 +263,23 @@ switch (command) {
 
     // Spawn Lead agent (persistent ACP session)
     console.error('Spawning Lead agent (persistent session)...');
-    // TODO: Actually spawn via ACP — stub for now
-    console.error('  Would spawn Lead agent via ACP');
+    try {
+      const leadSessionId = await leadManager.spawnLead();
+      console.error(`  Lead agent spawned (session: ${leadSessionId})`);
+    } catch (err: any) {
+      console.error(`  Failed to spawn Lead agent: ${err.message}`);
+      console.error('  Daemon will continue without Lead — spawn manually via API.');
+    }
 
     // Spawn Planner agent (persistent ACP session)
     console.error('Spawning Planner agent (persistent session)...');
-    // TODO: Actually spawn via ACP — stub for now
-    console.error('  Would spawn Planner agent via ACP');
+    try {
+      const plannerSessionId = await leadManager.spawnPlanner();
+      console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
+    } catch (err: any) {
+      console.error(`  Failed to spawn Planner agent: ${err.message}`);
+      console.error('  Daemon will continue without Planner — spawn manually via API.');
+    }
 
     // Start orchestrator tick loop
     orchestrator.start();
@@ -438,6 +448,8 @@ switch (command) {
       console.error('\nStopping Flightdeck...');
       orchestrator.stop();
       leadManager.stop();
+      // Kill all active ACP agent sessions
+      acpAdapter.clear();
       if ((httpServer as any).__wss) (httpServer as any).__wss.close();
       httpServer.close();
       fd.close();

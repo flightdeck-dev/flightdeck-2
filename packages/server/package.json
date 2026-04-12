@@ -18,8 +18,10 @@
     "@agentclientprotocol/sdk": "^0.18.2",
     "@flightdeck-ai/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/ws": "^8.18.1",
     "better-sqlite3": "^11.8.1",
     "drizzle-orm": "^0.44.7",
+    "ws": "^8.20.0",
     "yaml": "^2.8.3",
     "zod": "^3.24.4"
   },
