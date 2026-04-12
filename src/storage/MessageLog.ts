@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Message } from '../core/types.js';
 
@@ -24,8 +24,8 @@ export class MessageLog {
 
   channels(): string[] {
     if (!existsSync(this.messagesDir)) return [];
-    const { readdirSync } = require('node:fs') as typeof import('node:fs');
-    return readdirSync(this.messagesDir)
+    const files = readdirSync(this.messagesDir);
+    return files
       .filter((f: string) => f.endsWith('.jsonl'))
       .map((f: string) => f.replace('.jsonl', ''));
   }
