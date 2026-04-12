@@ -70,4 +70,101 @@ describe('GovernanceEngine', () => {
     expect(result.allowed).toBe(true);
     expect(result.action).toBe('log');
   });
+
+  // New tests for profile defaults
+  describe('profileDefaults', () => {
+    it('returns autonomous profile with correct gates', () => {
+      const config = GovernanceEngine.profileDefaults('autonomous');
+      expect(config.profile).toBe('autonomous');
+      expect(config.approvalGates).toHaveLength(2);
+      expect(config.approvalGates.map(g => g.trigger)).toContain('public_api_change');
+      expect(config.approvalGates.map(g => g.trigger)).toContain('security_sensitive');
+      expect(config.escalation.consecutiveFailures).toBe(5);
+      expect(config.escalation.costThresholdPerDay).toBe(50);
+      expect(config.onCompletion).toBe('explore');
+    });
+
+    it('returns collaborative profile with propose_and_wait for implementation_start', () => {
+      const config = GovernanceEngine.profileDefaults('collaborative');
+      expect(config.profile).toBe('collaborative');
+      const implGate = config.approvalGates.find(g => g.trigger === 'implementation_start');
+      expect(implGate?.action).toBe('propose_and_wait');
+      expect(config.escalation.consecutiveFailures).toBe(2);
+      expect(config.escalation.costThresholdPerDay).toBe(10);
+    });
+
+    it('returns supervised profile that gates everything', () => {
+      const config = GovernanceEngine.profileDefaults('supervised');
+      expect(config.profile).toBe('supervised');
+      expect(config.approvalGates.length).toBeGreaterThanOrEqual(5);
+      expect(config.escalation.consecutiveFailures).toBe(1);
+      expect(config.onCompletion).toBe('stop');
+    });
+
+    it('returns custom profile with empty gates', () => {
+      const config = GovernanceEngine.profileDefaults('custom');
+      expect(config.profile).toBe('custom');
+      expect(config.approvalGates).toHaveLength(0);
+    });
+  });
+
+  // Gate checking
+  describe('checkGate', () => {
+    it('approves unknown actions', () => {
+      const engine = new GovernanceEngine(makeConfig('autonomous'));
+      const result = engine.checkGate('random_action');
+      expect(result.allowed).toBe(true);
+      expect(result.action).toBe('approve');
+    });
+
+    it('gates public_api_change in autonomous mode', () => {
+      const engine = new GovernanceEngine(makeConfig('autonomous'));
+      const result = engine.checkGate('public_api_change');
+      expect(result.allowed).toBe(false);
+      expect(result.action).toBe('gate_human');
+    });
+
+    it('propose_and_wait for implementation_start in collaborative mode', () => {
+      const engine = new GovernanceEngine(makeConfig('collaborative'));
+      const result = engine.checkGate('implementation_start');
+      expect(result.allowed).toBe(false);
+      expect(result.action).toBe('propose_and_wait');
+    });
+
+    it('blocks cost_exceeds in supervised mode', () => {
+      const engine = new GovernanceEngine(makeConfig('supervised'));
+      const result = engine.checkGate('cost_exceeds');
+      expect(result.allowed).toBe(false);
+      expect(result.action).toBe('block');
+    });
+  });
+
+  // Escalation
+  describe('checkEscalation', () => {
+    it('escalates when failure count exceeds threshold', () => {
+      const engine = new GovernanceEngine(makeConfig('autonomous'));
+      const result = engine.checkEscalation('task-1', 5, 10);
+      expect(result.escalate).toBe(true);
+      expect(result.reason).toContain('5 consecutive failures');
+    });
+
+    it('escalates when cost exceeds threshold', () => {
+      const engine = new GovernanceEngine(makeConfig('autonomous'));
+      const result = engine.checkEscalation('task-1', 1, 60);
+      expect(result.escalate).toBe(true);
+      expect(result.reason).toContain('cost');
+    });
+
+    it('does not escalate when within thresholds', () => {
+      const engine = new GovernanceEngine(makeConfig('autonomous'));
+      const result = engine.checkEscalation('task-1', 2, 10);
+      expect(result.escalate).toBe(false);
+    });
+
+    it('supervised mode escalates on first failure', () => {
+      const engine = new GovernanceEngine(makeConfig('supervised'));
+      const result = engine.checkEscalation('task-1', 1, 0);
+      expect(result.escalate).toBe(true);
+    });
+  });
 });

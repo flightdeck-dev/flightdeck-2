@@ -8,6 +8,9 @@ import { messageId, agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { LearningCategory } from '../storage/LearningsStore.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import { SkillManager } from '../skills/SkillManager.js';
+import { DailyReport } from '../reporting/DailyReport.js';
+import type { DecisionId } from '@flightdeck-ai/shared';
+import { decisionId as makeDecisionId } from '@flightdeck-ai/shared';
 
 const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 
@@ -713,6 +716,72 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Skill tools ──
 
   const skillManager = new SkillManager(process.cwd());
+
+  // ── Decision tools ──
+
+  server.tool('flightdeck_decision_log', 'Record a decision', {
+    taskId: z.string(),
+    agentId: z.string(),
+    type: z.enum(['architecture', 'implementation', 'dependency', 'api_design', 'tradeoff']),
+    title: z.string(),
+    reasoning: z.string(),
+    alternatives: z.array(z.string()).optional(),
+    confidence: z.number().min(0).max(1),
+    reversible: z.boolean(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_decision_log');
+    if (error) return error;
+    const id = makeDecisionId(params.taskId, params.title, Date.now().toString());
+    const decision = {
+      id: id as DecisionId,
+      taskId: params.taskId as TaskId,
+      agentId: params.agentId as AgentId,
+      type: params.type as any,
+      title: params.title,
+      reasoning: params.reasoning,
+      alternatives: params.alternatives ?? [],
+      confidence: params.confidence,
+      reversible: params.reversible,
+      timestamp: new Date().toISOString(),
+      status: 'pending_review' as const,
+    };
+    // Let governance evaluate
+    const result = fd.governance.evaluateDecision(decision);
+    if (result.allowed && result.action === 'approve') {
+      decision.status = 'auto_approved';
+    }
+    fd.decisions.append(decision);
+    return jsonResponse(decision);
+  });
+
+  server.tool('flightdeck_decision_list', 'List recent decisions', {
+    taskId: z.string().optional(),
+    type: z.string().optional(),
+    status: z.string().optional(),
+    since: z.string().optional(),
+    limit: z.number().optional(),
+  }, async (params) => {
+    const decisions = fd.decisions.list({
+      taskId: params.taskId,
+      type: params.type,
+      status: params.status,
+      since: params.since,
+      limit: params.limit,
+    });
+    return jsonResponse(decisions);
+  });
+
+  // ── Report tool ──
+
+  server.tool('flightdeck_report', 'Generate daily report', {
+    since: z.string().optional(),
+  }, async (params) => {
+    const report = new DailyReport(fd.sqlite, fd.decisions);
+    const markdown = report.generate({ since: params.since });
+    return { content: [{ type: 'text' as const, text: markdown }] };
+  });
+
+  // ── Skill tools ──
 
   server.tool('flightdeck_skill_list', 'List available skills and their role assignments', {}, async () => {
     skillManager.loadProjectConfig();

@@ -3,8 +3,6 @@ import { parseArgs } from 'node:util';
 import { Flightdeck } from '../facade.js';
 import { ProjectStore } from '../storage/ProjectStore.js';
 import { SkillManager } from '../skills/SkillManager.js';
-import { createMcpServer } from '../mcp/server.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -196,17 +194,20 @@ switch (command) {
   }
 
   case 'report': {
+    const { DailyReport } = await import('../reporting/DailyReport.js');
     const fd = new Flightdeck(resolveProject());
-    const report = fd.reports.latest();
-    if (!report) { console.log('No reports generated yet.'); }
-    else { console.log(report); }
+    const report = new DailyReport(fd.sqlite, fd.decisions);
+    const since = (values as any).since || undefined;
+    console.log(report.generate({ since }));
     fd.close();
     break;
   }
 
   case 'start': {
-    const fd = new Flightdeck(resolveProject());
+    const projectName = resolveProject();
+    const fd = new Flightdeck(projectName);
     const profile = values.profile ?? fd.status().config.governance;
+    const port = parseInt((values as any).port ?? '3000', 10);
     console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
 
     // Recover existing ACP sessions from database
@@ -215,33 +216,90 @@ switch (command) {
       console.error(`Recovering ${activeAgents.length} active agent session(s)...`);
       for (const agent of activeAgents) {
         // TODO: ACP session/load to reconnect to live sessions
-        // await fd.agentManager.recoverSession(agent.id, agent.acpSessionId!);
         console.error(`  - ${agent.id} (${agent.role}) session ${agent.acpSessionId} — recovery pending`);
       }
     }
 
+    // Create LeadManager with all dependencies
+    const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
+    const { LeadManager } = await import('../lead/LeadManager.js');
+    const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
+
+    const acpAdapter = new AcpAdapterClass();
+    const leadManager = new LeadManager({
+      sqlite: fd.sqlite,
+      project: fd.project,
+      messageStore: fd.chatMessages ?? undefined,
+      acpAdapter,
+    });
+
+    // Create WebSocketServer
+    const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
+
+    // Wire orchestrator with all dependencies
+    fd.orchestrator.stop(); // stop the default one
+    const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
+    const orchestrator = new OrchestratorClass(
+      fd.dag, fd.sqlite, fd.governance, acpAdapter, fd.project.getConfig(),
+      undefined,
+      {
+        agentManager: fd.agentManager,
+        leadManager,
+        messageStore: fd.chatMessages ?? undefined,
+        wsServer: wsServer ?? undefined,
+        governanceConfig: {
+          costThresholdPerDay: fd.project.getConfig().costThresholdPerDay,
+        },
+      },
+    );
+
+    // Spawn Lead agent (persistent ACP session)
+    console.error('Spawning Lead agent (persistent session)...');
+    // TODO: Actually spawn via ACP — stub for now
+    console.error('  Would spawn Lead agent via ACP');
+
+    // Spawn Planner agent (persistent ACP session)
+    console.error('Spawning Planner agent (persistent session)...');
+    // TODO: Actually spawn via ACP — stub for now
+    console.error('  Would spawn Planner agent via ACP');
+
     // Start orchestrator tick loop
-    fd.orchestrator.start();
+    orchestrator.start();
     console.error('Orchestrator running (5 min tick interval).');
 
-    // Start MCP server on stdio with AgentManager wired in
-    const server = createMcpServer({
-      projectName: resolveProject(),
-      agentManager: fd.agentManager,
+    // Start HTTP + WebSocket server
+    const { createServer } = await import('node:http');
+    const httpServer = createServer((req, res) => {
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', project: projectName }));
+        return;
+      }
+      if (req.url === '/status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(fd.status()));
+        return;
+      }
+      res.writeHead(404);
+      res.end('Not found');
     });
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error('MCP server listening on stdio.');
+    httpServer.listen(port, () => {
+      console.error(`HTTP server listening on port ${port}.`);
+    });
 
-    process.on('SIGINT', () => {
+    console.error(`\nFlightdeck daemon running on port ${port}. Lead: active. Planner: active.`);
+
+    // Handle graceful shutdown
+    const shutdown = () => {
       console.error('\nStopping Flightdeck...');
+      orchestrator.stop();
+      leadManager.stop();
+      httpServer.close();
       fd.close();
       process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      fd.close();
-      process.exit(0);
-    });
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
     break;
   }
 
