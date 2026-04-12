@@ -1,10 +1,27 @@
 import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from './types.ts';
+import type { DisplayConfig } from '@flightdeck-ai/shared/display';
 
 const BASE = '';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`GET ${path}: ${res.status}`);
+  return res.json();
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PUT ${path}: ${res.status}`);
+  return res.json();
+}
+
+async function post<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
   return res.json();
 }
 
@@ -26,4 +43,7 @@ export const api = {
     if (!res.ok) return 'No report available.';
     return res.text();
   },
+  getDisplayConfig: () => get<DisplayConfig>('/api/display'),
+  updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
+  applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),
 };

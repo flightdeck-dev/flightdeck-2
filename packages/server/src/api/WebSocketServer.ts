@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { MessageStore, ChatMessage, Thread } from '../comms/MessageStore.js';
+import { type DisplayConfig, DEFAULT_DISPLAY, DISPLAY_PRESETS, type DisplayPreset, mergeDisplayConfig, isValidDisplayConfig, type ContentType } from '@flightdeck-ai/shared';
 
 /**
  * WebSocket event types flowing between UI and server.
@@ -26,7 +27,12 @@ export interface TaskCommentSendEvent {
   parent_id?: string;
 }
 
-export type IncomingEvent = ChatSendEvent | ThreadCreateEvent | TaskCommentSendEvent;
+export interface DisplayConfigUpdateEvent {
+  type: 'display:config';
+  config: Partial<DisplayConfig>;
+}
+
+export type IncomingEvent = ChatSendEvent | ThreadCreateEvent | TaskCommentSendEvent | DisplayConfigUpdateEvent;
 
 // Server → UI
 export interface ChatMessageEvent {
@@ -39,6 +45,15 @@ export interface ChatStreamEvent {
   message_id: string;
   delta: string;
   done: boolean;
+  /** Content classification for display filtering */
+  content_type?: ContentType;
+  /** Tool name when content_type is tool-related */
+  tool_name?: string;
+}
+
+export interface DisplayConfigSyncEvent {
+  type: 'display:config';
+  config: DisplayConfig;
 }
 
 export interface ThreadCreatedEvent {
@@ -52,7 +67,7 @@ export interface TaskCommentReceivedEvent {
   message: ChatMessage;
 }
 
-export type OutgoingEvent = ChatMessageEvent | ChatStreamEvent | ThreadCreatedEvent | TaskCommentReceivedEvent;
+export type OutgoingEvent = ChatMessageEvent | ChatStreamEvent | ThreadCreatedEvent | TaskCommentReceivedEvent | DisplayConfigSyncEvent;
 
 export interface WebSocketClient {
   id: string;
@@ -67,6 +82,7 @@ export interface WebSocketClient {
  */
 export class WebSocketServer extends EventEmitter {
   private clients = new Map<string, WebSocketClient>();
+  private clientDisplayConfigs = new Map<string, DisplayConfig>();
 
   constructor(private messageStore: MessageStore) {
     super();
@@ -75,11 +91,15 @@ export class WebSocketServer extends EventEmitter {
   /** Register a connected client */
   addClient(client: WebSocketClient): void {
     this.clients.set(client.id, client);
+    this.clientDisplayConfigs.set(client.id, { ...DEFAULT_DISPLAY });
+    // Send current display config to new client
+    this.sendTo(client.id, { type: 'display:config', config: this.clientDisplayConfigs.get(client.id)! });
   }
 
   /** Remove a disconnected client */
   removeClient(clientId: string): void {
     this.clients.delete(clientId);
+    this.clientDisplayConfigs.delete(clientId);
   }
 
   /** Handle an incoming event from a UI client */
@@ -94,7 +114,20 @@ export class WebSocketServer extends EventEmitter {
       case 'task:comment':
         this.handleTaskComment(event);
         break;
+      case 'display:config':
+        this.handleDisplayConfig(clientId, event);
+        break;
     }
+  }
+
+  /** Get display config for a client */
+  getDisplayConfig(clientId: string): DisplayConfig {
+    return this.clientDisplayConfigs.get(clientId) ?? { ...DEFAULT_DISPLAY };
+  }
+
+  /** Set display config for a client */
+  setDisplayConfig(clientId: string, config: DisplayConfig): void {
+    this.clientDisplayConfigs.set(clientId, config);
   }
 
   /** Broadcast an event to all connected clients */
@@ -114,12 +147,14 @@ export class WebSocketServer extends EventEmitter {
   }
 
   /** Stream a Lead response chunk to all clients */
-  streamChunk(messageId: string, delta: string, done: boolean): void {
+  streamChunk(messageId: string, delta: string, done: boolean, contentType?: ContentType, toolName?: string): void {
     this.broadcast({
       type: 'chat:stream',
       message_id: messageId,
       delta,
       done,
+      content_type: contentType,
+      tool_name: toolName,
     });
   }
 
@@ -153,6 +188,15 @@ export class WebSocketServer extends EventEmitter {
 
     this.broadcast({ type: 'thread:created', thread });
     this.emit('thread:created', thread);
+  }
+
+  private handleDisplayConfig(clientId: string, event: DisplayConfigUpdateEvent): void {
+    if (!isValidDisplayConfig(event.config)) return;
+    const current = this.clientDisplayConfigs.get(clientId) ?? { ...DEFAULT_DISPLAY };
+    const updated = mergeDisplayConfig(current, event.config);
+    this.clientDisplayConfigs.set(clientId, updated);
+    this.sendTo(clientId, { type: 'display:config', config: updated });
+    this.emit('display:config', { clientId, config: updated });
   }
 
   private handleTaskComment(event: TaskCommentSendEvent): void {

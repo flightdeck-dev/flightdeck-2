@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
+import { DisplaySettings } from './DisplaySettings.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 
 export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const { status, connected } = useFlightdeck();
 
   return (
@@ -23,8 +25,19 @@ export function Layout() {
           <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
                 title={connected ? 'Connected' : 'Disconnected'} />
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDisplaySettings(!showDisplaySettings)}
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+            title="Display settings"
+          >
+            ⚙
+          </button>
+          <ThemeToggle />
+        </div>
       </header>
+
+      {showDisplaySettings && <DisplaySettings onClose={() => setShowDisplaySettings(false)} />}
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />

@@ -128,6 +128,34 @@ export function registerCommands(
         await client.restartAgent(id);
         agentTree.refresh();
       }
-    )
+    ),
+
+    vscode.commands.registerCommand("flightdeck.displayPreset", async () => {
+      const presets = ["minimal", "summary", "detail", "debug"];
+      const descriptions: Record<string, string> = {
+        minimal: "Final answers only",
+        summary: "Tool names + brief results",
+        detail: "Thinking + full tool details",
+        debug: "Everything visible",
+      };
+      const picked = await vscode.window.showQuickPick(
+        presets.map(p => ({ label: p, description: descriptions[p] })),
+        { placeHolder: "Select display preset" }
+      );
+      if (!picked) return;
+      const config = vscode.workspace.getConfiguration("flightdeck.display");
+      const presetMap: Record<string, { thinking: boolean; toolCalls: string; flightdeckTools: string }> = {
+        minimal: { thinking: false, toolCalls: "off", flightdeckTools: "off" },
+        summary: { thinking: false, toolCalls: "summary", flightdeckTools: "off" },
+        detail: { thinking: true, toolCalls: "detail", flightdeckTools: "summary" },
+        debug: { thinking: true, toolCalls: "detail", flightdeckTools: "detail" },
+      };
+      const preset = presetMap[picked.label];
+      await config.update("thinking", preset.thinking, true);
+      await config.update("toolCalls", preset.toolCalls, true);
+      await config.update("flightdeckTools", preset.flightdeckTools, true);
+      await config.update("preset", picked.label, true);
+      vscode.window.showInformationMessage(`Display preset: ${picked.label}`);
+    })
   );
 }

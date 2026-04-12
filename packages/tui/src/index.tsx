@@ -6,6 +6,9 @@ import { parseArgs } from 'node:util';
 
 // ── Types ──────────────────────────────────────────────────────
 
+import type { DisplayConfig, DisplayPreset, ToolVisibility, ContentType } from '@flightdeck-ai/shared';
+import { DEFAULT_DISPLAY, DISPLAY_PRESETS, DISPLAY_PRESET_NAMES, shouldShow, isFlightdeckTool } from '@flightdeck-ai/shared';
+
 interface StatusData {
   project?: string;
   profile?: string;
@@ -71,6 +74,7 @@ function useFlightdeckClient(baseUrl: string, wsUrl: string) {
   const [taskCounts, setTaskCounts] = useState<TaskCounts>({ done: 0, running: 0, ready: 0, blocked: 0, failed: 0, total: 0 });
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [displayConfig, setDisplayConfig] = useState<DisplayConfig>({ ...DEFAULT_DISPLAY });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -177,6 +181,17 @@ function useFlightdeckClient(baseUrl: string, wsUrl: string) {
     }
   }, []);
 
+  const sendDisplayUpdate = useCallback((config: Partial<DisplayConfig>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'display:config', config }));
+    }
+    setDisplayConfig(prev => ({ ...prev, ...config }));
+  }, []);
+
+  const applyPreset = useCallback((preset: DisplayPreset) => {
+    sendDisplayUpdate({ ...DISPLAY_PRESETS[preset] });
+  }, [sendDisplayUpdate]);
+
   const fetchJson = useCallback(async (path: string) => {
     try {
       return await fetch(`${baseUrl}${path}`).then(r => r.json());
@@ -191,7 +206,7 @@ function useFlightdeckClient(baseUrl: string, wsUrl: string) {
     };
   }, [connect]);
 
-  return { status, taskCounts, activities, chatMessages, sendMessage, fetchJson };
+  return { status, taskCounts, activities, chatMessages, sendMessage, fetchJson, displayConfig, sendDisplayUpdate, applyPreset };
 }
 
 // ── Components ─────────────────────────────────────────────────
@@ -271,7 +286,7 @@ function CommandOutput({ lines }: { lines: string[] }) {
 // ── Main App ───────────────────────────────────────────────────
 
 function App({ baseUrl, wsUrl }: { baseUrl: string; wsUrl: string }) {
-  const { status, taskCounts, activities, chatMessages, sendMessage, fetchJson } = useFlightdeckClient(baseUrl, wsUrl);
+  const { status, taskCounts, activities, chatMessages, sendMessage, fetchJson, displayConfig, sendDisplayUpdate, applyPreset } = useFlightdeckClient(baseUrl, wsUrl);
   const [input, setInput] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
   const [cmdOutput, setCmdOutput] = useState<string[]>([]);
@@ -296,13 +311,17 @@ function App({ baseUrl, wsUrl }: { baseUrl: string; wsUrl: string }) {
         case '/help':
           setCmdOutput([
             'Commands:',
-            '  /tasks   — List all tasks',
-            '  /agents  — List active agents',
-            '  /report  — Show daily report',
-            '  /models  — Show model config',
-            '  /status  — Detailed project status',
-            '  /help    — This help message',
-            '  /quit    — Exit (or Ctrl+C)',
+            '  /tasks    — List all tasks',
+            '  /agents   — List active agents',
+            '  /report   — Show daily report',
+            '  /models   — Show model config',
+            '  /status   — Detailed project status',
+            '  /display  — Show display config',
+            '  /display <preset>        — Apply preset (minimal|summary|detail|debug)',
+            '  /display thinking on|off — Toggle thinking',
+            '  /display tools <level>   — Set tool visibility (off|summary|detail)',
+            '  /help     — This help message',
+            '  /quit     — Exit (or Ctrl+C)',
           ]);
           return;
         case '/tasks': {
@@ -340,6 +359,53 @@ function App({ baseUrl, wsUrl }: { baseUrl: string; wsUrl: string }) {
           const s = await fetchJson('/api/status');
           if (!s) { setCmdOutput(['Failed to fetch status']); return; }
           setCmdOutput(Object.entries(s).map(([k, v]) => `  ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`));
+          return;
+        }
+        case '/display': {
+          if (args.length === 0) {
+            setCmdOutput([
+              'Display Configuration:',
+              `  thinking:        ${displayConfig.thinking ? 'on' : 'off'}`,
+              `  toolCalls:       ${displayConfig.toolCalls}`,
+              `  flightdeckTools: ${displayConfig.flightdeckTools}`,
+              '',
+              `Presets: ${DISPLAY_PRESET_NAMES.join(' | ')}`,
+            ]);
+            return;
+          }
+          const sub = args[0];
+          if (DISPLAY_PRESET_NAMES.includes(sub as any)) {
+            applyPreset(sub as DisplayPreset);
+            setCmdOutput([`Applied display preset: ${sub}`]);
+            return;
+          }
+          if (sub === 'thinking') {
+            const val = args[1] === 'on' || args[1] === 'true';
+            sendDisplayUpdate({ thinking: val });
+            setCmdOutput([`Thinking: ${val ? 'on' : 'off'}`]);
+            return;
+          }
+          if (sub === 'tools') {
+            const level = args[1] as ToolVisibility;
+            if (['off', 'summary', 'detail'].includes(level)) {
+              sendDisplayUpdate({ toolCalls: level });
+              setCmdOutput([`Tool calls: ${level}`]);
+            } else {
+              setCmdOutput(['Usage: /display tools <off|summary|detail>']);
+            }
+            return;
+          }
+          if (sub === 'flightdeck-tools') {
+            const level = args[1] as ToolVisibility;
+            if (['off', 'summary', 'detail'].includes(level)) {
+              sendDisplayUpdate({ flightdeckTools: level });
+              setCmdOutput([`Flightdeck tools: ${level}`]);
+            } else {
+              setCmdOutput(['Usage: /display flightdeck-tools <off|summary|detail>']);
+            }
+            return;
+          }
+          setCmdOutput(['Usage: /display [preset|thinking|tools|flightdeck-tools] [value]']);
           return;
         }
         default:

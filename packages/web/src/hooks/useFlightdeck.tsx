@@ -2,6 +2,13 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { api } from '../lib/api.ts';
 import { wsClient, type WsEvent } from '../lib/ws.ts';
 import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from '../lib/types.ts';
+import { type DisplayConfig, type DisplayPreset, DEFAULT_DISPLAY, DISPLAY_PRESETS, type ContentType } from '@flightdeck-ai/shared/display';
+
+export interface StreamChunk {
+  content: string;
+  contentType?: ContentType;
+  toolName?: string;
+}
 
 interface FlightdeckState {
   status: ProjectStatus | null;
@@ -10,10 +17,14 @@ interface FlightdeckState {
   decisions: Decision[];
   messages: ChatMessage[];
   streamingMessages: Map<string, string>;
+  streamingChunks: Map<string, StreamChunk[]>;
+  displayConfig: DisplayConfig;
   connected: boolean;
   loading: boolean;
   sendChat: (content: string, parentId?: string, threadId?: string) => void;
   sendTaskComment: (taskId: string, content: string) => void;
+  setDisplayConfig: (config: Partial<DisplayConfig>) => void;
+  applyDisplayPreset: (preset: DisplayPreset) => void;
   refresh: () => void;
 }
 
@@ -27,8 +38,16 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [displayConfig, setDisplayConfigState] = useState<DisplayConfig>(() => {
+    try {
+      const stored = localStorage.getItem('flightdeck:display');
+      return stored ? JSON.parse(stored) : { ...DEFAULT_DISPLAY };
+    } catch { return { ...DEFAULT_DISPLAY }; }
+  });
   const streamingRef = useRef(new Map<string, string>());
+  const streamingChunksRef = useRef(new Map<string, StreamChunk[]>());
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
+  const [streamingChunks, setStreamingChunks] = useState(new Map<string, StreamChunk[]>());
 
   const fetchAll = useCallback(async () => {
     try {
@@ -64,11 +83,20 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
           const current = streamingRef.current.get(event.message_id) ?? '';
           streamingRef.current.set(event.message_id, current + event.delta);
           setStreamingMessages(new Map(streamingRef.current));
+          // Track chunks with metadata
+          const chunks = streamingChunksRef.current.get(event.message_id) ?? [];
+          chunks.push({ content: event.delta, contentType: event.content_type, toolName: event.tool_name });
+          streamingChunksRef.current.set(event.message_id, chunks);
+          setStreamingChunks(new Map(streamingChunksRef.current));
           if (event.done) {
             // done — will get a chat:message with full content
           }
           break;
         }
+        case 'display:config':
+          setDisplayConfigState(event.config);
+          localStorage.setItem('flightdeck:display', JSON.stringify(event.config));
+          break;
         case 'task:comment':
           // Could update task activity
           break;
@@ -94,10 +122,26 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
     wsClient.sendTaskComment(taskId, content);
   }, []);
 
+  const setDisplayConfig = useCallback((config: Partial<DisplayConfig>) => {
+    wsClient.sendDisplayConfig(config);
+    // Optimistically update local state
+    setDisplayConfigState(prev => {
+      const merged = { ...prev, ...config };
+      localStorage.setItem('flightdeck:display', JSON.stringify(merged));
+      return merged;
+    });
+  }, []);
+
+  const applyDisplayPreset = useCallback((preset: DisplayPreset) => {
+    const config = DISPLAY_PRESETS[preset];
+    setDisplayConfig({ ...config });
+  }, [setDisplayConfig]);
+
   return (
     <Ctx.Provider value={{
-      status, tasks, agents, decisions, messages, streamingMessages,
-      connected, loading, sendChat, sendTaskComment, refresh: fetchAll,
+      status, tasks, agents, decisions, messages, streamingMessages, streamingChunks,
+      displayConfig, connected, loading, sendChat, sendTaskComment,
+      setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
     }}>
       {children}
     </Ctx.Provider>

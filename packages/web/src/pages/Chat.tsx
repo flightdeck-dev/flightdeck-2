@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
 import type { ChatMessage } from '../lib/types.ts';
+import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
 
 const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string }> = {
   user: { label: 'You', color: 'var(--color-status-ready)', bg: 'color-mix(in srgb, var(--color-status-ready) 10%, transparent)' },
@@ -49,7 +51,15 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (m: ChatMe
   );
 }
 
-function StreamingBubble({ messageId, content }: { messageId: string; content: string }) {
+function StreamingBubble({ messageId, content, chunks, displayConfig }: {
+  messageId: string;
+  content: string;
+  chunks?: StreamChunk[];
+  displayConfig: import('@flightdeck-ai/shared').DisplayConfig;
+}) {
+  // Group chunks by content type for filtered rendering
+  const sections = groupChunks(chunks ?? [{ content, contentType: 'text' }]);
+
   return (
     <div className="flex gap-3 py-2 px-3">
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0"
@@ -61,14 +71,118 @@ function StreamingBubble({ messageId, content }: { messageId: string; content: s
           <span className="text-sm font-medium" style={{ color: AUTHOR_STYLES.lead.color }}>Lead</span>
           <span className="text-xs text-[var(--color-text-tertiary)]">typing...</span>
         </div>
-        <div className="text-sm mt-0.5 whitespace-pre-wrap break-words">{content}<span className="animate-pulse">▊</span></div>
+        <div className="mt-0.5 space-y-1">
+          {sections.map((section, i) => {
+            if (!shouldShow(displayConfig, section.contentType, section.toolName)) return null;
+            if (section.contentType === 'thinking') {
+              return <ThinkingBlock key={i} content={section.content} />;
+            }
+            if (section.contentType === 'tool_call' || section.contentType === 'flightdeck_tool_call') {
+              const level = section.contentType === 'flightdeck_tool_call'
+                ? displayConfig.flightdeckTools : displayConfig.toolCalls;
+              return <ToolCallBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
+            }
+            if (section.contentType === 'tool_result' || section.contentType === 'flightdeck_tool_result') {
+              const level = section.contentType === 'flightdeck_tool_result'
+                ? displayConfig.flightdeckTools : displayConfig.toolCalls;
+              return <ToolResultBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
+            }
+            return <span key={i} className="text-sm whitespace-pre-wrap break-words">{section.content}</span>;
+          })}
+          <span className="animate-pulse">▊</span>
+        </div>
       </div>
     </div>
   );
 }
 
+interface ChunkSection {
+  contentType: ContentType;
+  toolName?: string;
+  content: string;
+}
+
+function groupChunks(chunks: StreamChunk[]): ChunkSection[] {
+  const sections: ChunkSection[] = [];
+  for (const chunk of chunks) {
+    const ct = chunk.contentType ?? 'text';
+    const last = sections[sections.length - 1];
+    if (last && last.contentType === ct && last.toolName === chunk.toolName) {
+      last.content += chunk.content;
+    } else {
+      sections.push({ contentType: ct, toolName: chunk.toolName, content: chunk.content });
+    }
+  }
+  return sections;
+}
+
+function ThinkingBlock({ content }: { content: string }) {
+  const preview = content.split('\n').slice(0, 2).join('\n');
+  const isLong = content.length > 200;
+  return (
+    <details className="rounded bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
+      <summary className="px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] italic font-mono cursor-pointer select-none">
+        🧠 {isLong ? preview.slice(0, 120) + '...' : preview}
+      </summary>
+      <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)] italic font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">
+        {content}
+      </div>
+    </details>
+  );
+}
+
+function ToolCallBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
+  if (level === 'off') return null;
+  if (level === 'summary') {
+    const brief = content.slice(0, 80).replace(/\n/g, ' ');
+    return (
+      <details className="inline-block">
+        <summary className="text-xs px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--color-status-running)_15%,transparent)] text-[var(--color-status-running)] cursor-pointer select-none">
+          🔧 {toolName ?? 'tool'}({brief})
+        </summary>
+        <div className="mt-1 px-3 py-2 text-xs font-mono bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded max-h-48 overflow-y-auto whitespace-pre-wrap">
+          {content}
+        </div>
+      </details>
+    );
+  }
+  // detail
+  return (
+    <details open className="rounded border border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+      <summary className="px-3 py-1.5 text-xs font-medium cursor-pointer select-none">
+        🔧 {toolName ?? 'tool'}
+      </summary>
+      <div className="px-3 py-2 text-xs font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">
+        {content}
+      </div>
+    </details>
+  );
+}
+
+function ToolResultBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
+  if (level === 'off') return null;
+  if (level === 'summary') {
+    const brief = content.slice(0, 60).replace(/\n/g, ' ');
+    return (
+      <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
+        → {brief}{content.length > 60 ? '...' : ''}
+      </span>
+    );
+  }
+  return (
+    <details className="rounded border border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+      <summary className="px-3 py-1.5 text-xs text-[var(--color-text-secondary)] cursor-pointer select-none">
+        Result from {toolName ?? 'tool'}
+      </summary>
+      <div className="px-3 py-2 text-xs font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">
+        {content}
+      </div>
+    </details>
+  );
+}
+
 export default function Chat() {
-  const { messages, streamingMessages, sendChat, connected } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, displayConfig, sendChat, connected } = useFlightdeck();
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -123,7 +237,13 @@ export default function Chat() {
           <MessageBubble key={msg.id} msg={msg} onReply={setReplyTo} />
         ))}
         {streamEntries.map(([id, content]) => (
-          <StreamingBubble key={id} messageId={id} content={content} />
+          <StreamingBubble
+            key={id}
+            messageId={id}
+            content={content}
+            chunks={streamingChunks.get(id)}
+            displayConfig={displayConfig}
+          />
         ))}
         <div ref={bottomRef} />
       </div>

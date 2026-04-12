@@ -37,8 +37,37 @@
       { "command": "flightdeck.taskList", "title": "Flightdeck: Task List" },
       { "command": "flightdeck.agentSpawn", "title": "Flightdeck: Spawn Agent" },
       { "command": "flightdeck.start", "title": "Flightdeck: Start" },
-      { "command": "flightdeck.stop", "title": "Flightdeck: Stop" }
+      { "command": "flightdeck.stop", "title": "Flightdeck: Stop" },
+      { "command": "flightdeck.displayPreset", "title": "Flightdeck: Set Display Preset" }
     ],
+    "configuration": {
+      "title": "Flightdeck",
+      "properties": {
+        "flightdeck.display.thinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show agent thinking/reasoning blocks"
+        },
+        "flightdeck.display.toolCalls": {
+          "type": "string",
+          "enum": ["off", "summary", "detail"],
+          "default": "summary",
+          "description": "Tool call visibility level"
+        },
+        "flightdeck.display.flightdeckTools": {
+          "type": "string",
+          "enum": ["off", "summary", "detail"],
+          "default": "off",
+          "description": "Flightdeck internal tool call visibility"
+        },
+        "flightdeck.display.preset": {
+          "type": "string",
+          "enum": ["minimal", "summary", "detail", "debug"],
+          "default": "summary",
+          "description": "Display preset (overrides individual settings when changed)"
+        }
+      }
+    },
     "menus": {
       "view/item/context": [
         { "command": "flightdeck.agentTerminate", "when": "viewItem == agent", "group": "agent@1" },

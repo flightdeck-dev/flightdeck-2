@@ -38,6 +38,9 @@ Commands:
   models set <role> <m>   Set model for a role (tier or model ID)
   log                     View decision log
   report                  View latest report
+  display                 Show current display config
+  display preset <name>   Apply display preset (minimal|summary|detail|debug)
+  display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
   start [--profile X]     Start orchestrator (stub)
   pause                   Pause orchestrator (stub)
   resume                  Resume orchestrator (stub)
@@ -276,6 +279,8 @@ switch (command) {
     const { ModelConfig: ModelCfg, PRESET_NAMES: presetNames } = await import('../agents/ModelConfig.js');
     const { modelRegistry: modRegistry } = await import('../agents/ModelTiers.js');
     const modelCfg = new ModelCfg(process.cwd());
+    const { DEFAULT_DISPLAY: defaultDisplay, DISPLAY_PRESETS: displayPresets, DISPLAY_PRESET_NAMES: displayPresetNames, mergeDisplayConfig: mergeDisplay, isValidDisplayConfig: isValidDisplay } = await import('@flightdeck-ai/shared');
+    let serverDisplayConfig = { ...defaultDisplay };
 
     const httpServer = createServer(async (req, res) => {
       const url = new URL(req.url ?? '/', `http://localhost:${port}`);
@@ -347,6 +352,23 @@ switch (command) {
           json(200, { success: true, roles: modelCfg.getRoleConfigs() });
         } else {
           json(400, { error: `Unknown preset: ${preset}. Available: ${presetNames.join(', ')}` });
+        }
+      } else if (url.pathname === '/api/display' && method === 'GET') {
+        json(200, serverDisplayConfig);
+      } else if (url.pathname === '/api/display' && method === 'PUT') {
+        try {
+          const body = await readBody();
+          if (!isValidDisplay(body)) { json(400, { error: 'Invalid display config' }); return; }
+          serverDisplayConfig = mergeDisplay(serverDisplayConfig, body);
+          json(200, serverDisplayConfig);
+        } catch { json(400, { error: 'Invalid JSON' }); }
+      } else if (url.pathname.match(/^\/api\/display\/preset\/[^/]+$/) && method === 'POST') {
+        const preset = url.pathname.split('/').pop()!;
+        if (preset in displayPresets) {
+          serverDisplayConfig = { ...displayPresets[preset as keyof typeof displayPresets] };
+          json(200, serverDisplayConfig);
+        } else {
+          json(400, { error: `Unknown preset: ${preset}. Available: ${displayPresetNames.join(', ')}` });
         }
       } else if (url.pathname.match(/^\/api\/models\/[^/]+$/) && method === 'PUT') {
         const role = url.pathname.split('/').pop()!;
@@ -486,6 +508,83 @@ switch (command) {
       }
     } else {
       console.error('Usage: flightdeck models [list|set|set-default|preset]');
+    }
+    break;
+  }
+
+  case 'display': {
+    const { DEFAULT_DISPLAY, DISPLAY_PRESETS, DISPLAY_PRESET_NAMES, mergeDisplayConfig } = await import('@flightdeck-ai/shared');
+    const displayPort = (values as any).port || '3000';
+    const displayBase = `http://localhost:${displayPort}`;
+
+    if (!subcommand) {
+      // Show current display config
+      try {
+        const res = await fetch(`${displayBase}/api/display`);
+        const config = await res.json();
+        console.log('\nDisplay Configuration\n');
+        console.log(`  thinking:        ${config.thinking ? 'on' : 'off'}`);
+        console.log(`  toolCalls:       ${config.toolCalls}`);
+        console.log(`  flightdeckTools: ${config.flightdeckTools}`);
+        if (config.toolOverrides && Object.keys(config.toolOverrides).length > 0) {
+          console.log('  toolOverrides:');
+          for (const [k, v] of Object.entries(config.toolOverrides)) {
+            console.log(`    ${k}: ${v}`);
+          }
+        }
+      } catch {
+        console.log('\nDisplay Configuration (defaults — daemon not running)\n');
+        console.log(`  thinking:        ${DEFAULT_DISPLAY.thinking ? 'on' : 'off'}`);
+        console.log(`  toolCalls:       ${DEFAULT_DISPLAY.toolCalls}`);
+        console.log(`  flightdeckTools: ${DEFAULT_DISPLAY.flightdeckTools}`);
+      }
+    } else if (subcommand === 'preset') {
+      const preset = positionals[2];
+      if (!preset || !DISPLAY_PRESET_NAMES.includes(preset as any)) {
+        console.error(`Usage: flightdeck display preset <${DISPLAY_PRESET_NAMES.join('|')}>`);
+        process.exit(1);
+      }
+      try {
+        const res = await fetch(`${displayBase}/api/display/preset/${preset}`, { method: 'POST' });
+        const config = await res.json();
+        console.log(`Applied display preset: ${preset}`);
+        console.log(`  thinking: ${config.thinking ? 'on' : 'off'}, toolCalls: ${config.toolCalls}, flightdeckTools: ${config.flightdeckTools}`);
+      } catch {
+        console.error('Failed to apply preset — is the daemon running?');
+        process.exit(1);
+      }
+    } else if (subcommand === 'set') {
+      const key = positionals[2];
+      const val = positionals[3];
+      if (!key || !val) {
+        console.error('Usage: flightdeck display set <thinking|tools|flightdeck-tools> <on|off|summary|detail>');
+        process.exit(1);
+      }
+      const body: Record<string, unknown> = {};
+      if (key === 'thinking') {
+        body.thinking = val === 'on' || val === 'true';
+      } else if (key === 'tools') {
+        body.toolCalls = val;
+      } else if (key === 'flightdeck-tools') {
+        body.flightdeckTools = val;
+      } else {
+        console.error(`Unknown display key: ${key}. Use: thinking, tools, flightdeck-tools`);
+        process.exit(1);
+      }
+      try {
+        const res = await fetch(`${displayBase}/api/display`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const config = await res.json();
+        console.log(`Updated: thinking=${config.thinking ? 'on' : 'off'}, toolCalls=${config.toolCalls}, flightdeckTools=${config.flightdeckTools}`);
+      } catch {
+        console.error('Failed to update display — is the daemon running?');
+        process.exit(1);
+      }
+    } else {
+      console.error('Usage: flightdeck display [preset <name> | set <key> <value>]');
     }
     break;
   }

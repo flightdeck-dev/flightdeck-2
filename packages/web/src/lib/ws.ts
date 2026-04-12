@@ -1,10 +1,12 @@
 import type { ChatMessage, Thread } from './types.ts';
+import type { DisplayConfig, ContentType } from '@flightdeck-ai/shared/display';
 
 export type WsEvent =
   | { type: 'chat:message'; message: ChatMessage }
-  | { type: 'chat:stream'; message_id: string; delta: string; done: boolean }
+  | { type: 'chat:stream'; message_id: string; delta: string; done: boolean; content_type?: ContentType; tool_name?: string }
   | { type: 'thread:created'; thread: Thread }
-  | { type: 'task:comment'; task_id: string; message: ChatMessage };
+  | { type: 'task:comment'; task_id: string; message: ChatMessage }
+  | { type: 'display:config'; config: DisplayConfig };
 
 type EventHandler = (event: WsEvent) => void;
 
@@ -70,6 +72,10 @@ export class WebSocketClient {
 
   sendTaskComment(taskId: string, content: string): void {
     this.send({ type: 'task:comment', task_id: taskId, content });
+  }
+
+  sendDisplayConfig(config: Partial<DisplayConfig>): void {
+    this.send({ type: 'display:config', config });
   }
 
   createThread(originId: string, title?: string): void {
