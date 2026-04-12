@@ -659,29 +659,22 @@ Generated automatically at the configured cadence:
 
 ### Stall Detection
 
-Flightdeck daemon runs a tick loop (every 5 minutes) that actively prevents stalls:
+Flightdeck daemon runs a tick loop that checks ACP session state. **Never use wall-clock timeouts** — an agent can run for hours and that's fine as long as its session is active.
 
-```yaml
-stall_detection:
-  # Agent hasn't made any MCP call in this long → ping or restart
-  agent_silence_timeout: 30m
+```
+For each running task:
+  session = check ACP session state(agent)
   
-  # Task has been 'running' this long without submit → steer agent
-  task_running_timeout: 2h
-  
-  # No DAG state change in this long → alert lead
-  dag_idle_timeout: 1h
+  Active + no submit  = working, DO NOT DISTURB
+  Idle + no submit    = possible stall → light ACP ping
+  Ended + no submit   = definite stall → kill + re-spawn on same task
 ```
 
-Stall response escalation:
-1. Agent silent → ACP heartbeat ping
-2. Still silent → kill + re-spawn on same task
-3. Task overtime → ACP steer: "please submit or report progress"
-4. Agent reports needs more time → reset timer
-5. DAG idle → check for unassigned ready tasks → auto-assign
-6. DAG truly stuck → notify lead with diagnosis
+The tick loop also checks for:
+- Ready tasks with no assigned agent → auto-assign
+- DAG with no active tasks and no ready tasks → check if stuck or complete
 
-**Principle: Flightdeck never waits passively.** It always has a timer ticking, and always has a next action if nothing happens.
+**Principle: only ACP session state determines stall, never elapsed time.**
 
 ### Compaction (Memory Decay)
 
