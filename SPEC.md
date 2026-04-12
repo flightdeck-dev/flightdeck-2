@@ -792,6 +792,64 @@ DAG completes → notification sent to user → agents idle until user decides (
 
 This turns Flightdeck from a task runner into a **continuous improvement engine**. A large project can run indefinitely — agents always have something useful to do, and users control the pace by approving or rejecting suggestions.
 
+### Customizable Workflows
+
+Different projects and users have different processes. Flightdeck enforces workflows automatically — agents don't need to "remember" the process.
+
+```yaml
+# .flightdeck/workflow.yaml
+
+# Pipeline for each task (after worker completes)
+task_pipeline:
+  - step: implement
+    role: worker
+  - step: lint
+    run: "npm run lint"              # Flightdeck runs this, not agents
+    on_fail: return_to_worker
+  - step: review
+    role: reviewer
+  - step: second_review              # Optional: multiple review rounds
+    role: reviewer
+    require_different_agent: true
+  - step: done
+
+# Pipeline for starting a new spec
+spec_pipeline:
+  - step: ideate
+    role: planner
+  - step: discuss_with_lead
+    type: discussion
+    participants: [lead, planner]
+  - step: plan
+    role: planner
+    output: task_dag
+  - step: approve
+    role: lead
+  - step: execute
+
+# Hooks: automatic checks at lifecycle points
+hooks:
+  on_task_submit:
+    - run: "npm run lint"
+      on_fail: reject_with_feedback
+    - run: "npm test"
+      on_fail: warn
+  on_spec_start:
+    - run: "git status"
+```
+
+Flightdeck executes the pipeline. Agents only do their step. "Always run linter" is a hook, not a memory — it runs automatically every time, regardless of what any agent remembers.
+
+### Web UI Design
+
+Simple, clean, functional. Reference: Notion + Claude Code desktop app.
+- Large whitespace, clean typography
+- Sidebar navigation (projects, specs, agents)
+- Block-based content areas
+- No excessive animations or decorative elements
+- Monospace for code/data, sans-serif for UI text
+- Information-dense but not cluttered
+
 ---
 
 ## Competitive Positioning
