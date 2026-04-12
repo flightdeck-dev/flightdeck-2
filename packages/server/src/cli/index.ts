@@ -600,6 +600,18 @@ switch (command) {
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+
+    // Catch crashes to clean up orphan child processes
+    process.on('uncaughtException', (err) => {
+      console.error('\nFatal uncaught exception:', err);
+      try { acpAdapter.clear(); } catch {}
+      process.exit(1);
+    });
+    process.on('unhandledRejection', (reason) => {
+      console.error('\nFatal unhandled rejection:', reason);
+      try { acpAdapter.clear(); } catch {}
+      process.exit(1);
+    });
     break;
   }
 

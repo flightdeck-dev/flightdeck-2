@@ -330,11 +330,12 @@ export class AcpAdapter extends AgentAdapter {
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
     const aid = agentId(opts.role, Date.now().toString());
 
-    // Spawn the agent process
+    // Spawn the agent process (detached: false ensures children die with parent)
     const child = cpSpawn(runtime.command, args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
+      detached: false,
     });
 
     const now = new Date();
@@ -504,6 +505,7 @@ export class AcpAdapter extends AgentAdapter {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
+      detached: false,
     });
 
     const now = new Date();

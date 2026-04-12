@@ -1,0 +1,48 @@
+# Flightdeck Project Configuration
+
+agents:
+  default_runtime: copilot
+  default_model: high          # fallback for any role not specified
+
+  roles:
+    lead:
+      runtime: copilot
+      model: medium
+    planner:
+      runtime: copilot
+      model: medium
+    worker:
+      runtime: copilot
+      model: high
+    reviewer:
+      runtime: copilot
+      model: high
+    product-thinker:
+      runtime: copilot
+      model: medium
+    qa-tester:
+      runtime: copilot
+      model: high
+    tech-writer:
+      runtime: copilot
+      model: medium
+
+skills:
+  global:
+    - flightdeck-basics
+    - task-workflow
+  roles:
+    lead:
+      - memory-management
+    worker: []
+    reviewer: []
+    planner: []
+
+mcp:
+  global:
+    flightdeck:
+      command: "npx tsx /home/chuby9726/clawspace/flightdeck-2/packages/server/src/mcp/server.ts"
+  roles:
+    lead: {}
+    worker: {}
+    reviewer: {}
