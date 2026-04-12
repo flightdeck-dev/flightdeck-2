@@ -9,35 +9,32 @@ const TEST_RUNTIMES: Record<string, RuntimeConfig> = {
 };
 
 describe('AcpAdapter', () => {
-  let mgr: SessionManager;
   let adapter: AcpAdapter;
 
-  afterEach(() => mgr?.clear());
+  afterEach(() => adapter?.clear());
 
   it('spawns and returns metadata', async () => {
-    mgr = new SessionManager(TEST_RUNTIMES);
-    adapter = new AcpAdapter(mgr, 'codex');
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
 
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp', systemPrompt: 'do stuff' });
     expect(meta.status).toBe('running');
-    expect(meta.sessionId).toMatch(/^session-/);
+    expect(meta.sessionId).toMatch(/^acp-/);
     expect(meta.agentId).toMatch(/^agent-/);
   });
 
   it('getMetadata returns ended after process exits', async () => {
-    mgr = new SessionManager(TEST_RUNTIMES);
-    adapter = new AcpAdapter(mgr, 'codex');
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
 
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp' });
-    await new Promise(r => setTimeout(r, 200));
+    // echo exits immediately — process will end
+    await new Promise(r => setTimeout(r, 500));
 
     const updated = await adapter.getMetadata(meta.sessionId);
     expect(updated?.status).toBe('ended');
   });
 
   it('getMetadata returns null for unknown session', async () => {
-    mgr = new SessionManager(TEST_RUNTIMES);
-    adapter = new AcpAdapter(mgr, 'codex');
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
 
     const meta = await adapter.getMetadata('nonexistent');
     expect(meta).toBeNull();
@@ -47,15 +44,24 @@ describe('AcpAdapter', () => {
     const runtimes: Record<string, RuntimeConfig> = {
       codex: { command: 'sleep', args: ['30'], adapter: 'acp' },
     };
-    mgr = new SessionManager(runtimes);
-    adapter = new AcpAdapter(mgr, 'codex');
+    adapter = new AcpAdapter(runtimes, 'codex');
 
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp' });
     await adapter.kill(meta.sessionId);
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 500));
 
     const updated = await adapter.getMetadata(meta.sessionId);
     expect(updated?.status).toBe('ended');
+  });
+
+  it('tracks token usage in metadata', async () => {
+    adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
+
+    const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp' });
+    const updated = await adapter.getMetadata(meta.sessionId);
+    expect(updated?.tokensIn).toBe(0);
+    expect(updated?.tokensOut).toBe(0);
+    expect(updated?.turnCount).toBeDefined();
   });
 });
 
@@ -83,8 +89,9 @@ describe('PtyAdapter', () => {
 
 describe('Adapter selection', () => {
   it('AcpAdapter has acp runtime', () => {
-    const adapter = new AcpAdapter(new SessionManager(TEST_RUNTIMES), 'codex');
+    const adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
     expect(adapter.runtime).toBe('acp');
+    adapter.clear();
   });
 
   it('PtyAdapter has pty runtime', () => {
