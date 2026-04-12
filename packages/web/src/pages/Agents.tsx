@@ -1,17 +1,18 @@
-import { useOutletContext } from 'react-router-dom';
+import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { Agent } from '../lib/types.ts';
-
-type Ctx = { agents: Agent[] };
 
 const ROLE_ICONS: Record<string, string> = {
   lead: '👑',
   developer: '💻',
+  worker: '💻',
   reviewer: '🔍',
+  planner: '📋',
 };
 
 function AgentCard({ agent }: { agent: Agent }) {
-  const statusColor = agent.status === 'working' ? 'var(--color-status-running)' : agent.status === 'idle' ? 'var(--color-status-done)' : 'var(--color-status-cancelled)';
-  const uptime = Math.floor((Date.now() - new Date(agent.sessionStart).getTime()) / 60000);
+  const statusColor = agent.status === 'busy' || agent.status === 'working'
+    ? 'var(--color-status-running)'
+    : agent.status === 'idle' ? 'var(--color-status-done)' : 'var(--color-status-cancelled)';
 
   return (
     <div className="p-5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4">
@@ -31,26 +32,20 @@ function AgentCard({ agent }: { agent: Agent }) {
 
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div>
-          <p className="text-[var(--color-text-tertiary)]">Model</p>
-          <p className="font-mono mt-0.5">{agent.model}</p>
+          <p className="text-[var(--color-text-tertiary)]">Runtime</p>
+          <p className="font-mono mt-0.5">{agent.runtime ?? 'acp'}</p>
         </div>
         <div>
           <p className="text-[var(--color-text-tertiary)]">Cost</p>
-          <p className="mt-0.5">${agent.cost.toFixed(2)}</p>
+          <p className="mt-0.5">${(agent.cost ?? 0).toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-[var(--color-text-tertiary)]">Uptime</p>
-          <p className="mt-0.5">{uptime}m</p>
+          <p className="text-[var(--color-text-tertiary)]">Task</p>
+          <p className="font-mono mt-0.5 truncate">{agent.currentTask ?? agent.current_task ?? '—'}</p>
         </div>
       </div>
 
-      {agent.currentTask && (
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          Working on <span className="font-mono">{agent.currentTask}</span>
-        </p>
-      )}
-
-      {agent.status !== 'terminated' && (
+      {agent.status !== 'terminated' && agent.status !== 'ended' && (
         <div className="flex gap-2">
           <button className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">
             Interrupt
@@ -65,7 +60,9 @@ function AgentCard({ agent }: { agent: Agent }) {
 }
 
 export default function Agents() {
-  const { agents } = useOutletContext<Ctx>();
+  const { agents, loading } = useFlightdeck();
+
+  if (loading) return <div className="text-[var(--color-text-secondary)]">Loading...</div>;
 
   if (agents.length === 0) {
     return (
@@ -82,9 +79,9 @@ export default function Agents() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <h1 className="text-xl font-semibold">Agents</h1>
+      <h1 className="text-xl font-semibold">Agents ({agents.length})</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.map((a) => <AgentCard key={a.id} agent={a} />)}
+        {agents.map(a => <AgentCard key={a.id} agent={a} />)}
       </div>
     </div>
   );

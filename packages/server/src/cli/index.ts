@@ -292,10 +292,46 @@ switch (command) {
         res.end(JSON.stringify(body));
       };
 
+      // CORS headers for dev
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
       if (url.pathname === '/health') {
         json(200, { status: 'ok', project: projectName });
-      } else if (url.pathname === '/status') {
+      } else if (url.pathname === '/api/status' || url.pathname === '/status') {
         json(200, fd.status());
+      } else if (url.pathname === '/api/messages' && method === 'GET') {
+        const threadId = url.searchParams.get('thread_id') ?? undefined;
+        const taskId = url.searchParams.get('task_id') ?? undefined;
+        const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+        const msgs = fd.chatMessages?.listMessages({ threadId, taskId, limit }) ?? [];
+        json(200, msgs.reverse());
+      } else if (url.pathname === '/api/tasks' && method === 'GET') {
+        json(200, fd.listTasks());
+      } else if (url.pathname.match(/^\/api\/tasks\/[^/]+$/) && method === 'GET') {
+        const taskId = url.pathname.split('/').pop()!;
+        const tasks = fd.listTasks();
+        const task = tasks.find(t => t.id === taskId);
+        if (task) json(200, task);
+        else json(404, { error: 'Task not found' });
+      } else if (url.pathname === '/api/agents' && method === 'GET') {
+        json(200, fd.listAgents());
+      } else if (url.pathname === '/api/decisions' && method === 'GET') {
+        const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+        const decisions = fd.decisions.readAll().slice(0, limit);
+        json(200, decisions);
+      } else if (url.pathname === '/api/report' && method === 'GET') {
+        try {
+          const { DailyReport } = await import('../reporting/DailyReport.js');
+          const report = new DailyReport(fd.sqlite, fd.decisions);
+          res.writeHead(200, { 'Content-Type': 'text/markdown' });
+          res.end(report.generate({}));
+        } catch { json(200, { report: 'No report available yet.' }); }
+      } else if (url.pathname === '/api/threads' && method === 'GET') {
+        const threads = fd.chatMessages?.listThreads() ?? [];
+        json(200, threads);
       } else if (url.pathname === '/api/models' && method === 'GET') {
         json(200, { roles: modelCfg.getRoleConfigs(), presets: presetNames });
       } else if (url.pathname === '/api/models/available' && method === 'GET') {
@@ -327,6 +363,24 @@ switch (command) {
         res.end('Not found');
       }
     });
+    // Wire WebSocket to HTTP server upgrade
+    if (wsServer) {
+      const { WebSocketServer: WsLib } = await import('ws');
+      const wss = new WsLib({ server: httpServer });
+      let clientCounter = 0;
+      wss.on('connection', (socket: any) => {
+        const clientId = `ws-client-${++clientCounter}`;
+        wsServer.addClient({ id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } });
+        socket.on('message', (raw: any) => {
+          try {
+            const event = JSON.parse(raw.toString());
+            wsServer.handleEvent(clientId, event);
+          } catch {}
+        });
+        socket.on('close', () => wsServer.removeClient(clientId));
+      });
+    }
+
     httpServer.listen(port, () => {
       console.error(`HTTP server listening on port ${port}.`);
     });

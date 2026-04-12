@@ -1,4 +1,6 @@
-export type TaskState = 'ready' | 'running' | 'in_review' | 'done' | 'failed' | 'cancelled';
+// Types matching server-side data structures
+
+export type TaskState = 'pending' | 'ready' | 'running' | 'in_review' | 'done' | 'failed' | 'cancelled' | 'paused' | 'skipped';
 export type DecisionStatus = 'recorded' | 'confirmed' | 'rejected';
 
 export interface Task {
@@ -7,23 +9,32 @@ export interface Task {
   state: TaskState;
   role: string;
   assignedAgent?: string;
+  assigned_agent?: string;
   priority: number;
   source: string;
   description: string;
   claim?: string;
-  dependsOn: string[];
-  createdAt: string;
-  updatedAt: string;
+  dependsOn?: string[];
+  depends_on?: string;
+  spec_id?: string;
+  cost?: number;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Agent {
   id: string;
   role: string;
-  status: 'idle' | 'working' | 'terminated';
-  model: string;
-  cost: number;
-  sessionStart: string;
+  status: string;
+  runtime?: string;
+  model?: string;
+  cost?: number;
+  acp_session_id?: string;
+  current_task?: string;
   currentTask?: string;
+  sessionStart?: string;
 }
 
 export interface Decision {
@@ -37,24 +48,48 @@ export interface Decision {
 
 export interface Spec {
   id: string;
-  name: string;
-  path: string;
+  name?: string;
+  filename?: string;
+  title?: string;
+  path?: string;
   content: string;
-  updatedAt: string;
+  updatedAt?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  threadId: string | null;
+  parentId: string | null;
+  taskId: string | null;
+  authorType: 'user' | 'lead' | 'agent' | 'system';
+  authorId: string | null;
+  content: string;
+  metadata: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface Thread {
+  id: string;
+  title: string | null;
+  originId: string | null;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export interface ProjectStatus {
+  config: { name: string; governance: string; [k: string]: unknown };
+  taskStats: Record<string, number>;
+  agentCount: number;
+  totalCost: number;
 }
 
 export interface Activity {
   id: string;
   taskId: string;
   taskTitle: string;
-  from: TaskState | 'created';
-  to: TaskState;
+  from: string;
+  to: string;
   agent?: string;
   timestamp: string;
-}
-
-export interface ProjectInfo {
-  name: string;
-  governance: string;
-  totalCost: number;
 }

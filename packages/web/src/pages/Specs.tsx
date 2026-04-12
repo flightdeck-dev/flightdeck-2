@@ -1,51 +1,66 @@
-import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import type { Spec } from '../lib/types.ts';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api.ts';
 
-type Ctx = { specs: Spec[] };
+interface Spec {
+  id: string;
+  filename?: string;
+  title?: string;
+  content?: string;
+}
 
 export default function Specs() {
-  const { specs } = useOutletContext<Ctx>();
+  const [specs, setSpecs] = useState<Spec[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const activeSpec = specs.find((s) => s.id === selected);
+  const [report, setReport] = useState<string>('');
+
+  useEffect(() => {
+    // Specs aren't in the main API yet — show report instead
+    api.getReport().then(setReport).catch(() => {});
+  }, []);
+
+  const activeSpec = specs.find(s => s.id === selected);
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-xl font-semibold">Specs</h1>
-      <div className="flex gap-6">
-        <div className="w-56 shrink-0 space-y-1">
-          {specs.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSelected(s.id)}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                selected === s.id
-                  ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] font-medium'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
-              }`}
-            >
-              <p>{s.name}</p>
-              <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{s.path}</p>
-            </button>
-          ))}
+      <h1 className="text-xl font-semibold">Specs & Reports</h1>
+
+      {specs.length > 0 ? (
+        <div className="flex gap-6">
+          <div className="w-56 shrink-0 space-y-1">
+            {specs.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setSelected(s.id)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                  selected === s.id
+                    ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] font-medium'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
+                }`}
+              >
+                <p>{s.filename ?? s.title ?? s.id}</p>
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 min-w-0">
+            {activeSpec?.content ? (
+              <div className="p-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+                <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">{activeSpec.content}</pre>
+              </div>
+            ) : (
+              <div className="text-center py-16 text-[var(--color-text-secondary)]">Select a spec.</div>
+            )}
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          {activeSpec ? (
-            <div className="p-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-              <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-[var(--color-text-primary)]">
-                {activeSpec.content}
-              </pre>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-4">
-                Updated: {new Date(activeSpec.updatedAt).toLocaleString()}
-              </p>
-            </div>
-          ) : (
-            <div className="text-center py-16 text-[var(--color-text-secondary)]">
-              <p>Select a spec to view its content.</p>
-            </div>
-          )}
+      ) : (
+        <div>
+          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">Daily Report</h2>
+          <div className="p-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
+              {report || 'No report available yet. Start the daemon to generate reports.'}
+            </pre>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

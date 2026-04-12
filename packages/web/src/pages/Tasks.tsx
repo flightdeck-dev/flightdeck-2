@@ -1,56 +1,60 @@
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import type { Task, TaskState } from '../lib/types.ts';
-
-type Ctx = { tasks: Task[] };
+import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import type { TaskState } from '../lib/types.ts';
 
 const STATE_COLORS: Record<string, string> = {
+  pending: 'var(--color-status-ready)',
   ready: 'var(--color-status-ready)',
   running: 'var(--color-status-running)',
   in_review: 'var(--color-status-in-review)',
   done: 'var(--color-status-done)',
   failed: 'var(--color-status-failed)',
   cancelled: 'var(--color-status-cancelled)',
+  paused: 'var(--color-text-tertiary)',
+  skipped: 'var(--color-text-tertiary)',
 };
 
-const STATES: TaskState[] = ['ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
+const STATES: TaskState[] = ['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
 
 function Badge({ state }: { state: TaskState }) {
+  const color = STATE_COLORS[state] ?? 'var(--color-text-tertiary)';
   return (
-    <span
-      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
-      style={{ backgroundColor: `color-mix(in srgb, ${STATE_COLORS[state]} 15%, transparent)`, color: STATE_COLORS[state] }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATE_COLORS[state] }} />
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+          style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
       {state.replace('_', ' ')}
     </span>
   );
 }
 
 export default function Tasks() {
-  const { tasks } = useOutletContext<Ctx>();
+  const { tasks, sendTaskComment, loading } = useFlightdeck();
   const [filter, setFilter] = useState<TaskState | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
 
-  const filtered = filter === 'all' ? tasks : tasks.filter((t) => t.state === filter);
+  if (loading) return <div className="text-[var(--color-text-secondary)]">Loading...</div>;
+
+  const filtered = filter === 'all' ? tasks : tasks.filter(t => t.state === filter);
+
+  const handleComment = (taskId: string) => {
+    if (!comment.trim()) return;
+    sendTaskComment(taskId, comment.trim());
+    setComment('');
+  };
 
   return (
     <div className="max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Tasks</h1>
+        <h1 className="text-xl font-semibold">Tasks ({tasks.length})</h1>
         <div className="flex gap-1">
-          <button
-            onClick={() => setFilter('all')}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${filter === 'all' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}
-          >
+          <button onClick={() => setFilter('all')}
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${filter === 'all' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
             All
           </button>
-          {STATES.map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${filter === s ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}
-            >
+          {STATES.map(s => (
+            <button key={s} onClick={() => setFilter(s)}
+              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${filter === s ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
               {s.replace('_', ' ')}
             </button>
           ))}
@@ -66,49 +70,56 @@ export default function Tasks() {
               <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Role</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Agent</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Priority</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Source</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((task) => (
-              <>
-                <tr
-                  key={task.id}
-                  onClick={() => setExpanded(expanded === task.id ? null : task.id)}
-                  className="border-b border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-2.5">
-                    <div className="font-medium">{task.title}</div>
-                    <div className="font-mono text-xs text-[var(--color-text-tertiary)]">{task.id}</div>
-                  </td>
-                  <td className="px-4 py-2.5"><Badge state={task.state} /></td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-secondary)]">{task.role}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-[var(--color-text-secondary)]">{task.assignedAgent ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-secondary)]">P{task.priority}</td>
-                  <td className="px-4 py-2.5 text-[var(--color-text-secondary)]">{task.source}</td>
-                </tr>
-                {expanded === task.id && (
-                  <tr key={`${task.id}-detail`} className="border-b border-[var(--color-border)]">
-                    <td colSpan={6} className="px-4 py-4 bg-[var(--color-surface-secondary)]">
+            {filtered.map(task => (
+              <tr key={task.id}>
+                <td colSpan={5} className="p-0">
+                  <div
+                    onClick={() => setExpanded(expanded === task.id ? null : task.id)}
+                    className="flex border-b border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] cursor-pointer transition-colors"
+                  >
+                    <div className="flex-[3] px-4 py-2.5">
+                      <div className="font-medium">{task.title}</div>
+                      <div className="font-mono text-xs text-[var(--color-text-tertiary)]">{task.id}</div>
+                    </div>
+                    <div className="flex-[1] px-4 py-2.5"><Badge state={task.state} /></div>
+                    <div className="flex-[1] px-4 py-2.5 text-[var(--color-text-secondary)]">{task.role}</div>
+                    <div className="flex-[1] px-4 py-2.5 font-mono text-xs text-[var(--color-text-secondary)]">{task.assignedAgent ?? task.assigned_agent ?? '—'}</div>
+                    <div className="flex-[0.5] px-4 py-2.5 text-[var(--color-text-secondary)]">P{task.priority}</div>
+                  </div>
+                  {expanded === task.id && (
+                    <div className="px-4 py-4 bg-[var(--color-surface-secondary)] border-b border-[var(--color-border)]">
                       <div className="space-y-2 text-sm">
                         <p>{task.description}</p>
                         {task.claim && (
                           <p className="text-[var(--color-text-secondary)]"><span className="font-medium">Claim:</span> {task.claim}</p>
                         )}
-                        {task.dependsOn.length > 0 && (
+                        {(task.dependsOn?.length ?? 0) > 0 && (
                           <p className="text-[var(--color-text-secondary)]">
                             <span className="font-medium">Depends on:</span>{' '}
-                            {task.dependsOn.map((d) => <span key={d} className="font-mono text-xs">{d} </span>)}
+                            {(task.dependsOn ?? []).map(d => <span key={d} className="font-mono text-xs">{d} </span>)}
                           </p>
                         )}
-                        <p className="text-xs text-[var(--color-text-tertiary)]">
-                          Created: {new Date(task.createdAt).toLocaleString()} · Updated: {new Date(task.updatedAt).toLocaleString()}
-                        </p>
+                        <div className="flex gap-2 mt-3">
+                          <input
+                            value={comment}
+                            onChange={e => setComment(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleComment(task.id); }}
+                            placeholder="Add a comment..."
+                            className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none"
+                          />
+                          <button onClick={() => handleComment(task.id)}
+                            className="text-xs px-3 py-1 rounded bg-[var(--color-status-ready)] text-white hover:opacity-90">
+                            Comment
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </>
+                    </div>
+                  )}
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>

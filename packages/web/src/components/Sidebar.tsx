@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◻' },
+  { to: '/chat', label: 'Chat', icon: '💬' },
   { to: '/tasks', label: 'Tasks', icon: '☰' },
   { to: '/agents', label: 'Agents', icon: '●' },
   { to: '/specs', label: 'Specs', icon: '◇' },
@@ -52,16 +53,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
-
-      <div className="border-t border-[var(--color-border)] py-2">
-        <NavLink
-          to="/settings"
-          className="flex items-center gap-3 px-3 py-1.5 mx-1 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
-        >
-          <span className="w-5 text-center text-xs">⚙</span>
-          {!collapsed && <span>Settings</span>}
-        </NavLink>
-      </div>
     </aside>
   );
 }
