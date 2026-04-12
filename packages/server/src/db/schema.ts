@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 /** ISO 8601 UTC timestamp with Z suffix — use instead of datetime('now') to avoid timezone ambiguity */
@@ -134,57 +134,3 @@ export const messageQueue = sqliteTable('message_queue', {
   index('idx_mq_target_status').on(table.targetAgentId, table.status),
 ]);
 
-// ── Collective Memory (cross-session knowledge persistence) ─────────
-
-export const collectiveMemory = sqliteTable('collective_memory', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  category: text('category').notNull(),  // pattern | decision | expertise | gotcha
-  key: text('key').notNull(),
-  value: text('value').notNull(),
-  source: text('source').notNull(),      // agentId who discovered it
-  createdAt: text('created_at').default(utcNow),
-  lastUsedAt: text('last_used_at').default(utcNow),
-  useCount: integer('use_count').default(0),
-}, (table) => [
-  index('idx_collective_memory_category').on(table.category),
-  uniqueIndex('idx_collective_memory_cat_key').on(table.category, table.key),
-]);
-
-// ── Knowledge (4-tier memory) ───────────────────────────────────────
-
-export const knowledge = sqliteTable('knowledge', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  category: text('category').notNull(), // 'core' | 'episodic' | 'procedural' | 'semantic'
-  key: text('key').notNull(),
-  content: text('content').notNull(),
-  metadata: text('metadata'), // JSON: { source, confidence, tags, ... }
-  createdAt: text('created_at').notNull().default(utcNow),
-  updatedAt: text('updated_at').notNull().default(utcNow),
-}, (table) => [
-  uniqueIndex('idx_knowledge_cat_key').on(table.category, table.key),
-  index('idx_knowledge_category').on(table.category),
-]);
-
-// ── Session Retrospectives ──────────────────────────────────────────
-
-export const sessionRetros = sqliteTable('session_retros', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  data: text('data').notNull(),        // JSON blob with full retro
-  createdAt: text('created_at').default(utcNow),
-});
-
-// ── Active Delegations ──────────────────────────────────────────────
-
-export const activeDelegations = sqliteTable('active_delegations', {
-  delegationId: text('delegation_id').primaryKey(),
-  agentId: text('agent_id').notNull(),
-  task: text('task').notNull(),
-  context: text('context'),
-  status: text('status').notNull().default('active'), // 'active' | 'completed' | 'failed' | 'cancelled'
-  createdAt: text('created_at').notNull().default(utcNow),
-  completedAt: text('completed_at'),
-  result: text('result'), // JSON blob
-}, (table) => [
-  index('idx_ad_agent_status').on(table.agentId, table.status),
-  index('idx_ad_status').on(table.status),
-]);
