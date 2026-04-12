@@ -1,10 +1,13 @@
 import type { AgentId, AgentRole, AgentRuntime } from '../core/types.js';
+import type { McpServer } from '@agentclientprotocol/sdk';
 
 export interface SpawnOptions {
   role: AgentRole;
   cwd: string;
   model?: string;
   systemPrompt?: string;
+  /** MCP servers to inject into the agent session (ACP only). */
+  mcpServers?: McpServer[];
 }
 
 export interface SteerMessage {
