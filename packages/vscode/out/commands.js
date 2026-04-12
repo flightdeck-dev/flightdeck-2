@@ -1,0 +1,152 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.registerCommands = registerCommands;
+const vscode = __importStar(require("vscode"));
+const display_1 = require("@flightdeck-ai/shared/display");
+const ROLES = ["architect", "frontend", "backend", "reviewer", "devops"];
+const MODELS = [
+    "claude-sonnet-4-20250514",
+    "gpt-4o",
+    "gemini-2.5-pro",
+    "o3",
+];
+function registerCommands(context, client, taskTree, agentTree, outputChannel) {
+    context.subscriptions.push(vscode.commands.registerCommand("flightdeck.init", async () => {
+        try {
+            await client.init();
+            vscode.window.showInformationMessage("Flightdeck project initialized.");
+        }
+        catch (e) {
+            vscode.window.showErrorMessage(`Init failed: ${e.message}`);
+        }
+    }), vscode.commands.registerCommand("flightdeck.status", async () => {
+        try {
+            const status = await client.getStatus();
+            outputChannel.clear();
+            outputChannel.appendLine(JSON.stringify(status, null, 2));
+            outputChannel.show();
+        }
+        catch (e) {
+            vscode.window.showErrorMessage(`Status failed: ${e.message}`);
+        }
+    }), vscode.commands.registerCommand("flightdeck.taskList", () => {
+        taskTree.refresh();
+    }), vscode.commands.registerCommand("flightdeck.taskDetail", (task) => {
+        const panel = vscode.window.createWebviewPanel("flightdeckTask", `Task: ${task.title}`, vscode.ViewColumn.One, {});
+        panel.webview.html = `<!DOCTYPE html>
+<html><body>
+<h1>${task.title}</h1>
+<p><strong>ID:</strong> ${task.id}</p>
+<p><strong>Role:</strong> ${task.role}</p>
+<p><strong>Agent:</strong> ${task.assignedAgent ?? "unassigned"}</p>
+<p><strong>State:</strong> ${task.state}</p>
+</body></html>`;
+    }), vscode.commands.registerCommand("flightdeck.agentSpawn", async () => {
+        const role = await vscode.window.showQuickPick(ROLES, {
+            placeHolder: "Select agent role",
+        });
+        if (!role)
+            return;
+        const model = await vscode.window.showQuickPick(MODELS, {
+            placeHolder: "Select model",
+        });
+        if (!model)
+            return;
+        try {
+            await client.spawnAgent(role, model);
+            vscode.window.showInformationMessage(`Spawned ${role} agent with ${model}`);
+            agentTree.refresh();
+        }
+        catch (e) {
+            vscode.window.showErrorMessage(`Spawn failed: ${e.message}`);
+        }
+    }), vscode.commands.registerCommand("flightdeck.start", async () => {
+        try {
+            await client.start();
+            vscode.window.showInformationMessage("Flightdeck orchestrator started.");
+        }
+        catch (e) {
+            vscode.window.showErrorMessage(`Start failed: ${e.message}`);
+        }
+    }), vscode.commands.registerCommand("flightdeck.stop", async () => {
+        try {
+            await client.stop();
+            vscode.window.showInformationMessage("Flightdeck orchestrator stopped.");
+        }
+        catch (e) {
+            vscode.window.showErrorMessage(`Stop failed: ${e.message}`);
+        }
+    }), 
+    // Agent context menu commands
+    vscode.commands.registerCommand("flightdeck.agentTerminate", async (item) => {
+        const id = item?.agent?.id;
+        if (!id)
+            return;
+        await client.terminateAgent(id);
+        agentTree.refresh();
+    }), vscode.commands.registerCommand("flightdeck.agentInterrupt", async (item) => {
+        const id = item?.agent?.id;
+        if (!id)
+            return;
+        await client.interruptAgent(id);
+        agentTree.refresh();
+    }), vscode.commands.registerCommand("flightdeck.agentRestart", async (item) => {
+        const id = item?.agent?.id;
+        if (!id)
+            return;
+        await client.restartAgent(id);
+        agentTree.refresh();
+    }), vscode.commands.registerCommand("flightdeck.displayPreset", async () => {
+        const presets = ["minimal", "summary", "detail", "debug"];
+        const descriptions = {
+            minimal: "Final answers only",
+            summary: "Tool names + brief results",
+            detail: "Thinking + full tool details",
+            debug: "Everything visible",
+        };
+        const picked = await vscode.window.showQuickPick(presets.map(p => ({ label: p, description: descriptions[p] })), { placeHolder: "Select display preset" });
+        if (!picked)
+            return;
+        const config = vscode.workspace.getConfiguration("flightdeck.display");
+        const preset = display_1.DISPLAY_PRESETS[picked.label];
+        await config.update("thinking", preset.thinking, true);
+        await config.update("toolCalls", preset.toolCalls, true);
+        await config.update("flightdeckTools", preset.flightdeckTools, true);
+        await config.update("preset", picked.label, true);
+        vscode.window.showInformationMessage(`Display preset: ${picked.label}`);
+    }));
+}
+//# sourceMappingURL=commands.js.map

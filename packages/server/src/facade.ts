@@ -54,7 +54,7 @@ export class Flightdeck {
     this.sqlite = new SqliteStore(this.project.subpath('state.sqlite'));
     this.specs = new SpecStore(this.project.subpath('specs'));
     this.decisions = new DecisionLog(this.project.subpath('decisions'));
-    this.memory = new MemoryStore(this.project.subpath('memory'));
+    this.memory = new MemoryStore(this.project.subpath('memory'), this.project.subpath('state.sqlite'));
     this.messages = new MessageLog(this.project.subpath('messages'));
     this.reports = new ReportStore(this.project.subpath('reports'));
     this.dag = new TaskDAG(this.sqlite);
@@ -170,8 +170,8 @@ export class Flightdeck {
 
   // ── Memory ──
 
-  searchMemory(query: string) {
-    return this.memory.search(query);
+  searchMemory(query: string, limit?: number) {
+    return this.memory.search(query, limit);
   }
 
   writeMemory(filename: string, content: string): void {

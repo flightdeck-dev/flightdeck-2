@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import type Database from 'better-sqlite3';
 
 export interface MemorySearchResult {
   filename: string;
@@ -8,7 +9,61 @@ export interface MemorySearchResult {
 }
 
 export class MemoryStore {
-  constructor(private memoryDir: string) {}
+  private db: InstanceType<typeof import('better-sqlite3').default> | null = null;
+
+  constructor(
+    private memoryDir: string,
+    dbPathOrDb?: string | InstanceType<typeof import('better-sqlite3').default>,
+  ) {
+    if (dbPathOrDb) {
+      if (typeof dbPathOrDb === 'string') {
+        // Lazy-import to avoid hard dependency when not using FTS
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const BetterSqlite3 = require('better-sqlite3') as typeof import('better-sqlite3').default;
+        this.db = new BetterSqlite3(dbPathOrDb);
+        this.db.pragma('journal_mode = WAL');
+      } else {
+        this.db = dbPathOrDb;
+      }
+      this.initFts();
+      this.reindex();
+    }
+  }
+
+  private initFts(): void {
+    if (!this.db) return;
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+        filename,
+        line_number,
+        content,
+        tokenize='porter unicode61'
+      )
+    `);
+  }
+
+  /** Reindex all .md files into the FTS5 table. */
+  reindex(): void {
+    if (!this.db) return;
+    const files = this.listAllMd();
+    this.db.exec('DELETE FROM memory_fts');
+    const insert = this.db.prepare(
+      'INSERT INTO memory_fts (filename, line_number, content) VALUES (?, ?, ?)',
+    );
+    const tx = this.db.transaction(() => {
+      for (const filepath of files) {
+        const content = readFileSync(filepath, 'utf-8');
+        const lines = content.split('\n');
+        const relPath = relative(this.memoryDir, filepath);
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim()) {
+            insert.run(relPath, String(i + 1), lines[i]);
+          }
+        }
+      }
+    });
+    tx();
+  }
 
   list(): string[] {
     if (!existsSync(this.memoryDir)) return [];
@@ -24,6 +79,7 @@ export class MemoryStore {
   write(filename: string, content: string): void {
     mkdirSync(this.memoryDir, { recursive: true });
     writeFileSync(join(this.memoryDir, filename), content);
+    this.reindex();
   }
 
   /** Recursively collect all .md files under memoryDir */
@@ -44,10 +100,60 @@ export class MemoryStore {
   }
 
   /**
-   * Full-text search across all memory/*.md and memory/**\/*.md files.
-   * Returns matching snippets with file path and line numbers.
+   * FTS5-powered search with bm25 ranking.
+   * Returns matching snippets with context lines.
    */
-  search(query: string): MemorySearchResult[] {
+  searchFts(query: string, limit = 20): MemorySearchResult[] {
+    if (!this.db) return [];
+    // Sanitize query for FTS5: escape double quotes, wrap terms
+    const sanitized = query
+      .replace(/"/g, '""')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(term => `"${term}"`)
+      .join(' ');
+    if (!sanitized) return [];
+
+    const rows = this.db
+      .prepare(
+        `SELECT filename, line_number, content
+         FROM memory_fts
+         WHERE content MATCH ?
+         ORDER BY bm25(memory_fts)
+         LIMIT ?`,
+      )
+      .all(sanitized, limit) as { filename: string; line_number: string; content: string }[];
+
+    // Build snippets with ±1 line context
+    return rows.map(row => {
+      const lineNum = parseInt(row.line_number, 10);
+      const filepath = join(this.memoryDir, row.filename);
+      let snippet = row.content;
+      try {
+        const lines = readFileSync(filepath, 'utf-8').split('\n');
+        const start = Math.max(0, lineNum - 2); // -1 for 0-index, -1 for context
+        const end = Math.min(lines.length, lineNum + 1); // +1 for context
+        snippet = lines.slice(start, end).join('\n');
+      } catch {
+        // file may have been deleted; use indexed content
+      }
+      return { filename: row.filename, line: lineNum, snippet };
+    });
+  }
+
+  /**
+   * Full-text search across all memory/*.md and memory/**\/*.md files.
+   * Uses FTS5 when available, falls back to substring grep.
+   */
+  search(query: string, limit?: number): MemorySearchResult[] {
+    if (this.db) {
+      return this.searchFts(query, limit);
+    }
+    return this.searchGrep(query);
+  }
+
+  /** Original grep-based search (fallback). */
+  private searchGrep(query: string): MemorySearchResult[] {
     const results: MemorySearchResult[] = [];
     const files = this.listAllMd();
     const lowerQuery = query.toLowerCase();

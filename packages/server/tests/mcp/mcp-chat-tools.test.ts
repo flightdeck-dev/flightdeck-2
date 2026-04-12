@@ -94,6 +94,7 @@ describe('MCP chat & memory tools', () => {
     const retroDir = join(homedir(), '.flightdeck', 'projects', projectName, 'memory', 'retrospectives');
     mkdirSync(retroDir, { recursive: true });
     writeFileSync(join(retroDir, 'auth-spec.md'), '# Auth Retrospective\n\nPKCE was the right choice.\n');
+    fd.memory.reindex();
 
     const result = await callTool(server, 'flightdeck_memory_search', { query: 'PKCE' });
     const results = JSON.parse(getText(result));

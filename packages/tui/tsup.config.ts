@@ -8,7 +8,7 @@ export default defineConfig({
   clean: true,
   banner: { js: '#!/usr/bin/env node' },
   // Externalize react/ink so they resolve from node_modules at runtime
-  external: ['react', 'ink', 'ink-text-input'],
+  external: ['react', 'ink', 'ink-text-input', '@flightdeck-ai/shared', '@flightdeck-ai/shared/display'],
   esbuildOptions(options) {
     options.jsx = 'automatic';
   },
