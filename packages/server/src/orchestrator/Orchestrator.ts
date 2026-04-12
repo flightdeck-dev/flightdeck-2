@@ -1,7 +1,7 @@
 import type { TaskId, AgentId, ProjectConfig } from '@flightdeck-ai/shared';
-import { TaskDAG } from '../dag/TaskDAG.js';
-import { SqliteStore } from '../storage/SqliteStore.js';
-import { GovernanceEngine } from '../governance/GovernanceEngine.js';
+import { type TaskDAG } from '../dag/TaskDAG.js';
+import { type SqliteStore } from '../storage/SqliteStore.js';
+import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
 import type { AgentAdapter, AgentMetadata } from '../agents/AgentAdapter.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { LeadManager } from '../lead/LeadManager.js';
@@ -186,7 +186,7 @@ export class Orchestrator {
    */
   private processCompletions(): number {
     const allTasks = this.dag.listTasks();
-    let completed = 0;
+    const completed = 0;
 
     for (const task of allTasks) {
       if (task.state !== 'in_review') continue;

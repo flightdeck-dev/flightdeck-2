@@ -4,7 +4,7 @@ import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { RoleRegistry } from '../roles/RoleRegistry.js';
 import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
 import type { SkillManager } from '../skills/SkillManager.js';
-import { WorktreeManager } from './WorktreeManager.js';
+import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
 import { writeFileSync } from 'node:fs';
 

@@ -5,5 +5,11 @@
     "build": "pnpm -r build",
     "cli": "pnpm --filter @flightdeck-ai/server cli",
     "mcp": "pnpm --filter @flightdeck-ai/server mcp"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "eslint": "^10.2.0",
+    "typescript-eslint": "^8.58.1"
   }
 }

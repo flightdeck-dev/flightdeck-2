@@ -1,7 +1,7 @@
 import type { Task, TaskId, TaskState, AgentId, SpecId, AgentRole, SideEffect } from '@flightdeck-ai/shared';
 import { transition } from '@flightdeck-ai/shared';
 import { taskId } from '@flightdeck-ai/shared';
-import { SqliteStore } from '../storage/SqliteStore.js';
+import { type SqliteStore } from '../storage/SqliteStore.js';
 
 export class TaskDAG {
   private adjacency = new Map<TaskId, Set<TaskId>>(); // parent -> children (dependents)
