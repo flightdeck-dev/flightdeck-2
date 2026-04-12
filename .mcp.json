@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "flightdeck": {
+      "command": "npx",
+      "args": [
+        "flightdeck-mcp"
+      ]
+    }
+  }
+}

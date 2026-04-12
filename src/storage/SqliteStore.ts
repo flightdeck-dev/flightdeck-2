@@ -55,6 +55,9 @@ export class SqliteStore {
     if (!cols.some(c => c.name === 'claim')) {
       this.db.exec('ALTER TABLE tasks ADD COLUMN claim TEXT');
     }
+    if (!cols.some(c => c.name === 'cost')) {
+      this.db.exec('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0');
+    }
   }
 
   // ── Tasks ──
@@ -119,6 +122,12 @@ export class SqliteStore {
       .run(now, id);
   }
 
+  updateTaskDependsOn(id: TaskId, deps: TaskId[]): void {
+    const now = new Date().toISOString();
+    this.db.prepare('UPDATE tasks SET depends_on = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(deps), now, id);
+  }
+
   private rowToTask(row: Record<string, unknown>): Task {
     return {
       id: row.id as TaskId,
@@ -162,6 +171,34 @@ export class SqliteStore {
   updateAgentHeartbeat(id: AgentId): void {
     this.db.prepare('UPDATE agents SET last_heartbeat = ? WHERE id = ?')
       .run(new Date().toISOString(), id);
+  }
+
+  deleteAgent(id: AgentId): boolean {
+    const result = this.db.prepare('DELETE FROM agents WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  getActiveAgentCount(): number {
+    const row = this.db.prepare("SELECT COUNT(*) as count FROM agents WHERE status IN ('idle', 'busy')").get() as { count: number };
+    return row.count;
+  }
+
+  recordCost(agentId: AgentId, amount: number): void {
+    this.db.prepare('UPDATE agents SET cost_accumulated = cost_accumulated + ? WHERE id = ?')
+      .run(amount, agentId);
+  }
+
+  getCostByAgent(): Array<{ agentId: string; cost: number }> {
+    return this.db.prepare('SELECT id as agentId, cost_accumulated as cost FROM agents ORDER BY cost DESC').all() as Array<{ agentId: string; cost: number }>;
+  }
+
+  getCostByTask(): Array<{ taskId: string; cost: number }> {
+    return this.db.prepare('SELECT id as taskId, COALESCE(cost, 0) as cost FROM tasks ORDER BY cost DESC').all() as Array<{ taskId: string; cost: number }>;
+  }
+
+  recordTaskCost(taskId: TaskId, amount: number): void {
+    this.db.prepare('UPDATE tasks SET cost = COALESCE(cost, 0) + ? WHERE id = ?')
+      .run(amount, taskId);
   }
 
   private rowToAgent(row: Record<string, unknown>): Agent {

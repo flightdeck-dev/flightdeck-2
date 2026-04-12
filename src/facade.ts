@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { Task, TaskId, AgentId, SpecId, Agent, ProjectConfig, Decision, Message } from './core/types.js';
+import type { AgentRole } from './core/types.js';
 import { ProjectStore } from './storage/ProjectStore.js';
 import { SqliteStore } from './storage/SqliteStore.js';
 import { SpecStore, type SpecFile } from './storage/SpecStore.js';
@@ -12,9 +13,11 @@ import { TaskDAG } from './dag/TaskDAG.js';
 import { GovernanceEngine } from './governance/GovernanceEngine.js';
 import { Orchestrator } from './orchestrator/Orchestrator.js';
 import { AcpAdapter } from './agents/AcpAdapter.js';
-import type { AgentRole } from './core/types.js';
 import { WorkflowStore, type WorkflowConfig } from './storage/WorkflowStore.js';
 import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
+import { RoleRegistry } from './roles/RoleRegistry.js';
+import { LearningsStore, type LearningCategory } from './storage/LearningsStore.js';
+import { TimerManager, type TimerCallback } from './orchestrator/TimerManager.js';
 
 /**
  * High-level facade wrapping all Flightdeck subsystems.
@@ -33,6 +36,9 @@ export class Flightdeck {
   readonly orchestrator: Orchestrator;
   readonly workflowStore: WorkflowStore;
   readonly workflow: WorkflowEngine;
+  readonly roles: RoleRegistry;
+  readonly learnings: LearningsStore;
+  readonly timers: TimerManager;
 
   constructor(projectName: string) {
     this.project = new ProjectStore(projectName);
@@ -53,6 +59,11 @@ export class Flightdeck {
     this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, new AcpAdapter(), config);
     this.workflowStore = new WorkflowStore(this.project.subpath('.'));
     this.workflow = new WorkflowEngine(this.workflowStore.load());
+    this.roles = new RoleRegistry(projectName);
+    this.learnings = new LearningsStore(this.project.subpath('.'));
+    this.timers = new TimerManager((_agentId, _message) => {
+      // Default callback — messages can be wired to agent queues later
+    });
   }
 
   // ── Task operations ──
@@ -75,6 +86,30 @@ export class Flightdeck {
 
   failTask(taskId: TaskId): Task {
     return this.dag.failTask(taskId);
+  }
+
+  cancelTask(taskId: TaskId): Task {
+    return this.dag.cancelTask(taskId);
+  }
+
+  pauseTask(taskId: TaskId): Task {
+    return this.dag.pauseTask(taskId);
+  }
+
+  skipTask(taskId: TaskId): Task {
+    return this.dag.skipTask(taskId);
+  }
+
+  reopenTask(taskId: TaskId): Task {
+    return this.dag.reopenTask(taskId);
+  }
+
+  retryTask(taskId: TaskId): Task {
+    return this.dag.retryTask(taskId);
+  }
+
+  declareTasks(tasks: Parameters<TaskDAG['declareTasks']>[0]): Task[] {
+    return this.dag.declareTasks(tasks);
   }
 
   listTasks(specId?: SpecId): Task[] {
@@ -160,6 +195,7 @@ export class Flightdeck {
 
   close(): void {
     this.orchestrator.stop();
+    this.timers.clearAll();
     this.sqlite.close();
   }
 }

@@ -116,6 +116,93 @@ export class TaskDAG {
     return { ...task, state: 'ready', assignedAgent: null };
   }
 
+  cancelTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'cancelled', { taskId: id });
+    this.store.updateTaskState(id, 'cancelled', null);
+    this.processEffects(result.effects);
+    return { ...task, state: 'cancelled', assignedAgent: null };
+  }
+
+  pauseTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'paused', { taskId: id });
+    this.store.updateTaskState(id, 'paused');
+    this.processEffects(result.effects);
+    return { ...task, state: 'paused' };
+  }
+
+  skipTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'skipped', { taskId: id });
+    this.store.updateTaskState(id, 'skipped');
+    this.processEffects(result.effects);
+    return { ...task, state: 'skipped' };
+  }
+
+  reopenTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'ready', { taskId: id });
+    this.store.updateTaskState(id, 'ready', null);
+    this.processEffects(result.effects);
+    return { ...task, state: 'ready', assignedAgent: null };
+  }
+
+  declareTasks(tasks: Array<{
+    title: string;
+    description?: string;
+    specId?: SpecId;
+    role?: AgentRole;
+    dependsOn?: string[];
+    priority?: number;
+  }>): Task[] {
+    // First pass: create all tasks, mapping temp keys to real IDs
+    const idMap = new Map<string, TaskId>();
+    const results: Task[] = [];
+    for (const t of tasks) {
+      const task = this.addTask({
+        title: t.title,
+        description: t.description,
+        specId: t.specId as SpecId | undefined,
+        role: t.role,
+        priority: t.priority,
+      });
+      idMap.set(t.title, task.id);
+      results.push(task);
+    }
+    // Second pass: wire up dependencies
+    for (let i = 0; i < tasks.length; i++) {
+      const deps = tasks[i].dependsOn;
+      if (deps && deps.length > 0) {
+        const resolvedDeps = deps.map(d => idMap.get(d) ?? d as TaskId);
+        // Update in store
+        this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
+        results[i] = { ...results[i], dependsOn: resolvedDeps };
+        // Check if should be pending
+        const allDone = resolvedDeps.every(d => {
+          const t = this.store.getTask(d);
+          return t?.state === 'done';
+        });
+        if (!allDone) {
+          this.store.updateTaskState(results[i].id, 'pending');
+          results[i] = { ...results[i], state: 'pending' };
+        }
+        // Update adjacency
+        for (const dep of resolvedDeps) {
+          if (!this.adjacency.has(dep)) this.adjacency.set(dep, new Set());
+          this.adjacency.get(dep)!.add(results[i].id);
+          if (!this.reverseAdj.has(results[i].id)) this.reverseAdj.set(results[i].id, new Set());
+          this.reverseAdj.get(results[i].id)!.add(dep);
+        }
+      }
+    }
+    return results;
+  }
+
   gateTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);
@@ -169,10 +256,10 @@ export class TaskDAG {
     for (const depId of dependents) {
       const depTask = this.store.getTask(depId);
       if (!depTask || depTask.state !== 'pending') continue;
-      // Check if ALL dependencies are done
+      // Check if ALL dependencies are done or skipped
       const allDone = depTask.dependsOn.every(d => {
         const t = this.store.getTask(d);
-        return t?.state === 'done';
+        return t?.state === 'done' || t?.state === 'skipped';
       });
       if (allDone) {
         this.store.updateTaskState(depId, 'ready');

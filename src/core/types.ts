@@ -12,7 +12,7 @@ export type MessageId = Brand<string, 'MessageId'>;
 // Task states
 export const TASK_STATES = [
   'pending', 'ready', 'running', 'in_review', 'done',
-  'failed', 'blocked', 'paused', 'skipped', 'gated',
+  'failed', 'blocked', 'paused', 'skipped', 'cancelled', 'gated',
 ] as const;
 export type TaskState = typeof TASK_STATES[number];
 
@@ -21,7 +21,7 @@ export const GATE_TYPES = ['human_approval', 'ci_check', 'timer', 'external'] as
 export type GateType = typeof GATE_TYPES[number];
 
 // Agent roles
-export const AGENT_ROLES = ['lead', 'planner', 'worker', 'reviewer'] as const;
+export const AGENT_ROLES = ['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer'] as const;
 export type AgentRole = typeof AGENT_ROLES[number];
 
 // Agent runtime types
@@ -121,6 +121,7 @@ export interface ProjectConfig {
   isolation: IsolationStrategy;
   onCompletion: OnCompletionAction;
   costThresholdPerDay?: number;
+  maxConcurrentAgents?: number;
 }
 
 export interface FlightdeckJson {
@@ -135,13 +136,16 @@ const VALID_TRANSITIONS = new Set<TransitionKey>([
   'pending->ready',
   'pending->blocked',
   'pending->skipped',
+  'ready->skipped',
   'ready->running',
   'ready->gated',
   'ready->paused',
+  'ready->cancelled',
   'running->in_review',
   'running->failed',
   'running->paused',
   'running->blocked',
+  'running->cancelled',
   'in_review->done',
   'in_review->running', // reviewer rejects, back to worker
   'in_review->failed',
@@ -153,6 +157,7 @@ const VALID_TRANSITIONS = new Set<TransitionKey>([
   'gated->ready',
   'gated->running',
   'skipped->pending',
+  'done->ready', // reopen
 ]);
 
 // Side effects emitted on transitions
@@ -198,6 +203,16 @@ export function transition(
     effects.push({ type: 'clear_assignment', taskId: context.taskId });
   }
   if ((target === 'ready' && current === 'failed') && context?.taskId) {
+    effects.push({ type: 'clear_assignment', taskId: context.taskId });
+  }
+  if (target === 'cancelled' && context?.taskId) {
+    effects.push({ type: 'clear_assignment', taskId: context.taskId });
+    effects.push({ type: 'block_dependents', taskId: context.taskId });
+  }
+  if (target === 'skipped' && context?.taskId) {
+    effects.push({ type: 'resolve_dependents', taskId: context.taskId });
+  }
+  if (target === 'ready' && current === 'done' && context?.taskId) {
     effects.push({ type: 'clear_assignment', taskId: context.taskId });
   }
 

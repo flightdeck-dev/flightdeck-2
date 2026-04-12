@@ -96,7 +96,7 @@ Add to your MCP client config (e.g. OpenClaw, Claude Desktop):
       "command": "npx",
       "args": ["tsx", "/path/to/flightdeck-2/src/mcp/server.ts"],
       "env": {
-        "FLIGHTDECK_DB": "/path/to/project/.flightdeck/flightdeck.db"
+        "FLIGHTDECK_AGENT_ID": "worker-1"
       }
     }
   }
@@ -114,7 +114,8 @@ Available MCP tools:
 ```typescript
 import { Flightdeck } from '@flightdeck/core';
 
-const fd = new Flightdeck({ dbPath: '.flightdeck/flightdeck.db' });
+const fd = new Flightdeck('my-project');
+// Data stored at ~/.flightdeck/projects/my-project/
 
 const task = fd.addTask({ title: 'Build auth', role: 'backend' });
 fd.registerAgent('coder-1', 'backend');

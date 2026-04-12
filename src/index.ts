@@ -17,3 +17,6 @@ export { AcpAdapter } from './agents/AcpAdapter.js';
 export { PtyAdapter } from './agents/PtyAdapter.js';
 export { Flightdeck } from './facade.js';
 export { createMcpServer } from './mcp/server.js';
+export { RoleRegistry } from './roles/RoleRegistry.js';
+export { LearningsStore } from './storage/LearningsStore.js';
+export { TimerManager } from './orchestrator/TimerManager.js';
