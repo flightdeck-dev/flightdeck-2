@@ -2,6 +2,8 @@
 
 A next-generation multi-agent orchestration engine with CLI and MCP server.
 
+> 📐 **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Deep dive into the system design, data flow, and module responsibilities.
+
 ## Install
 
 ```bash
