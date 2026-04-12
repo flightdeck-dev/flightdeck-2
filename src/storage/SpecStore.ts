@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
+import { join, basename, dirname } from 'node:path';
 import type { SpecId } from '../core/types.js';
 import { specId } from '../core/ids.js';
 
@@ -34,6 +34,7 @@ export class SpecStore {
 
   write(filename: string, content: string): SpecFile {
     const filepath = join(this.specsDir, filename);
+    mkdirSync(dirname(filepath), { recursive: true });
     writeFileSync(filepath, content);
     const title = this.extractTitle(content) || basename(filename, '.md');
     return { id: specId(filename), filename, title, content };
