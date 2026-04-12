@@ -2,6 +2,7 @@
 import { parseArgs } from 'node:util';
 import { Flightdeck } from '../facade.js';
 import { ProjectStore } from '../storage/ProjectStore.js';
+import { SkillManager } from '../skills/SkillManager.js';
 import { createMcpServer } from '../mcp/server.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
@@ -74,6 +75,12 @@ switch (command) {
     ProjectStore.writeFlightdeckJson(process.cwd(), name);
     // Generate default AGENTS.md (worker role) and .mcp.json
     ProjectStore.writeAgentFiles(process.cwd(), 'worker');
+    // Copy built-in skills and generate default config
+    SkillManager.copyDefaults(process.cwd());
+    const { writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const configPath = join(process.cwd(), '.flightdeck', 'config.yaml');
+    writeFileSync(configPath, SkillManager.generateDefaultConfig());
     console.log(`Project "${name}" initialized.`);
     console.log(`Created .flightdeck.json in ${process.cwd()}`);
     console.log(`Created AGENTS.md (worker role)`);

@@ -3,6 +3,8 @@ import { agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { RoleRegistry } from '../roles/RoleRegistry.js';
 import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
+import type { SkillManager } from '../skills/SkillManager.js';
+import { writeFileSync } from 'node:fs';
 
 export interface SpawnAgentOptions {
   role: AgentRole;
@@ -10,6 +12,7 @@ export interface SpawnAgentOptions {
   task?: string;
   cwd: string;
   runtime?: string;
+  taskContext?: string;
 }
 
 /**
@@ -51,13 +54,20 @@ export class AgentManager {
   private sessionToAgent = new Map<string, AgentId>();
   /** agentId → sessionId mapping */
   private agentToSession = new Map<AgentId, string>();
+  private adapter: AgentAdapter;
+
+  private skillManager: SkillManager | null;
 
   constructor(
-    private adapter: AgentAdapter,
+    adapter: AgentAdapter,
     private store: SqliteStore,
     private roleRegistry: RoleRegistry,
     private projectName: string,
-  ) {}
+    skillManager?: SkillManager,
+  ) {
+    this.adapter = adapter;
+    this.skillManager = skillManager ?? null;
+  }
 
   async spawnAgent(opts: SpawnAgentOptions): Promise<Agent> {
     // 1. Get role from registry
@@ -89,7 +99,17 @@ export class AgentManager {
       permissions,
     });
 
-    // 4. Spawn via adapter
+    // 4. Write skill-based AGENTS.md and .mcp.json if SkillManager available
+    if (this.skillManager) {
+      try {
+        const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
+        writeFileSync(`${opts.cwd}/AGENTS.md`, agentsMd);
+        const mcpJson = this.skillManager.generateMcpJson(opts.role);
+        writeFileSync(`${opts.cwd}/.mcp.json`, mcpJson);
+      } catch { /* best effort — skills are optional */ }
+    }
+
+    // 5. Spawn via adapter
     try {
       const meta = await this.adapter.spawn({
         role: opts.role,

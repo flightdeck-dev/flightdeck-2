@@ -7,6 +7,7 @@ import type { TaskId, AgentId, SpecId, Message, MessageId, Agent, AgentRole } fr
 import { messageId, agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { LearningCategory } from '../storage/LearningsStore.js';
 import type { AgentManager } from '../agents/AgentManager.js';
+import { SkillManager } from '../skills/SkillManager.js';
 
 const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 
@@ -707,6 +708,37 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     };
     fd.sendMessage(initMsg, channel);
     return jsonResponse({ channel, topic: params.topic, invitees: params.invitees ?? [], createdAt: now });
+  });
+
+  // ── Skill tools ──
+
+  const skillManager = new SkillManager(process.cwd());
+
+  server.tool('flightdeck_skill_list', 'List available skills and their role assignments', {}, async () => {
+    skillManager.loadProjectConfig();
+    const installed = skillManager.listInstalledSkills();
+    const config = skillManager.loadProjectConfig();
+    const roleAssignments: Record<string, string[]> = {};
+    const allRoles = ['lead', 'planner', 'worker', 'reviewer'] as const;
+    for (const role of allRoles) {
+      roleAssignments[role] = skillManager.getSkillsForRole(role);
+    }
+    return jsonResponse({ installed, roleAssignments });
+  });
+
+  server.tool('flightdeck_skill_install', 'Install a skill from a source directory', {
+    source: z.string().describe('Path to skill directory containing SKILL.md'),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_skill_install');
+    if (error) return error;
+    // Only lead can install skills
+    if (agent!.role !== 'lead') {
+      return permError(params.agentId, agent!.role, 'flightdeck_skill_install', 'skill_install');
+    }
+    const result = skillManager.installSkill(params.source);
+    if (!result) return errorResponse('Failed to install skill. Check that the source directory exists and contains a SKILL.md.');
+    return jsonResponse(result);
   });
 
   return server;

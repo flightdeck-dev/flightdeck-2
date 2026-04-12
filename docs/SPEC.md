@@ -264,6 +264,132 @@ Flightdeck MCP server checks caller identity and rejects unauthorized calls:
 
 Three layers: prompt says no → client hides tool → server rejects call.
 
+### Skills & MCP Configuration
+
+Flightdeck supports project-level skills and MCP server configuration, inspired by OpenClaw's skill system. Skills teach agents *how* to do things (procedures, patterns, domain knowledge). MCP servers give agents *tools* (structured APIs). Both are configured per-role — each agent only gets what it needs.
+
+#### Skill Structure
+
+Same format as OpenClaw/ClawHub skills:
+
+```
+.flightdeck/skills/
+├── flightdeck-basics/       # built-in: how to use Flightdeck MCP tools
+│   └── SKILL.md
+├── task-workflow/            # built-in: claim → execute → submit
+│   └── SKILL.md
+├── memory-management/       # built-in: how to manage project memory
+│   └── SKILL.md
+├── deploy-aws/              # project-level: user-written
+│   ├── SKILL.md
+│   └── scripts/deploy.sh
+└── advanced-testing/        # external: installed via clawhub/npm
+    └── SKILL.md
+```
+
+Each SKILL.md has YAML frontmatter (name, description) and markdown instructions. Only descriptions are injected into agent context at spawn time. Full SKILL.md is read on-demand by the agent when needed (lazy loading, saves context).
+
+#### Skill Sources (three layers)
+
+| Source | How | Who writes |
+|--------|-----|------------|
+| Built-in | `flightdeck init` generates | Flightdeck team |
+| Project-level | User creates in `.flightdeck/skills/` | User or Lead agent |
+| External | `clawhub install` or npm | Community |
+
+#### Configuration
+
+```yaml
+# .flightdeck/config.yaml
+
+skills:
+  # Global: available to all roles
+  global:
+    - flightdeck-basics
+    - task-workflow
+
+  # Per-role: user decides what each role gets
+  roles:
+    lead:
+      - memory-management
+      - report-writing
+    worker:
+      - deploy-aws
+      - testing-patterns
+    reviewer:
+      - code-review
+    planner: []
+
+mcp:
+  # Global: all agents connect to these
+  global:
+    flightdeck:
+      command: "npx flightdeck-mcp"
+      # auto-configured, users don't need to touch this
+
+  # Per-role: user decides what tools each role gets
+  roles:
+    lead:
+      memory-db:
+        command: "npx @memory-mcp/server"
+        args: ["--db", ".flightdeck/memory.db"]
+    worker:
+      postgres:
+        command: "npx @mcp/server-postgres"
+        args: ["postgresql://localhost/mydb"]
+      github:
+        command: "npx @mcp/server-github"
+    reviewer: {}
+```
+
+Users have full control over which skills and MCP servers each role receives. If not configured, agents only get built-in Flightdeck skills and the Flightdeck MCP server.
+
+#### Injection at Spawn Time
+
+When Flightdeck spawns an agent, it generates two files in the agent's working directory:
+
+**1. AGENTS.md — includes skill descriptions for the role**
+
+```markdown
+# AGENTS.md (auto-generated for worker)
+
+You are a Flightdeck worker agent.
+
+## Available Skills
+When a skill matches your current task, read its SKILL.md for detailed instructions.
+
+- **flightdeck-basics**: How to use Flightdeck MCP tools
+  → .flightdeck/skills/flightdeck-basics/SKILL.md
+- **task-workflow**: How to claim, execute, and submit tasks
+  → .flightdeck/skills/task-workflow/SKILL.md
+- **deploy-aws**: AWS deployment procedures and safety checks
+  → .flightdeck/skills/deploy-aws/SKILL.md
+```
+
+**2. .mcp.json — includes MCP servers for the role**
+
+```json
+{
+  "mcpServers": {
+    "flightdeck": { "command": "npx", "args": ["flightdeck-mcp"] },
+    "postgres": { "command": "npx", "args": ["@mcp/server-postgres", "postgresql://localhost/mydb"] },
+    "github": { "command": "npx", "args": ["@mcp/server-github"] }
+  }
+}
+```
+
+The agent runtime (Claude Code, Codex, Copilot, etc.) picks up both files automatically.
+
+#### Lead Can Install Skills
+
+Lead agent can install or create new skills during operation:
+- Install from ClawHub: `clawhub install docker-deploy`
+- Create project-specific: write new SKILL.md to `.flightdeck/skills/`
+- Update config.yaml to assign to roles
+- New skills take effect on next agent spawn
+
+This enables continuous improvement: Lead notices workers struggling with deployment → creates a deployment skill → future workers benefit.
+
 ### Verification Model
 
 Default: **trust agents, verify claims.**
