@@ -41,6 +41,7 @@ Commands:
   start [--profile X]     Start orchestrator (stub)
   pause                   Pause orchestrator (stub)
   resume                  Resume orchestrator (stub)
+  tui                     Launch terminal UI
 
 Options:
   -p, --project <name>    Project name (default: from .flightdeck.json)
@@ -485,6 +486,21 @@ switch (command) {
       }
     } else {
       console.error('Usage: flightdeck models [list|set|set-default|preset]');
+    }
+    break;
+  }
+
+  case 'tui': {
+    const { execFileSync } = await import('node:child_process');
+    const tuiArgs: string[] = [];
+    if (values.port) tuiArgs.push('--port', String(values.port));
+    const urlArg = (values as any).url;
+    if (urlArg) tuiArgs.push('--url', urlArg);
+    try {
+      execFileSync('node', [new URL('../../tui/dist/index.js', import.meta.url).pathname, ...tuiArgs], { stdio: 'inherit' });
+    } catch {
+      // TUI package not found — try npx
+      execFileSync('npx', ['flightdeck-tui', ...tuiArgs], { stdio: 'inherit' });
     }
     break;
   }
