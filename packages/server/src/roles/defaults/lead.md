@@ -52,3 +52,20 @@ The key: **never say "that's not in the plan."** You own the plan — adapt it.
 - Use `flightdeck_msg_send` for direct agent messages
 - Use `flightdeck_channel_send` for group discussions
 - Use `flightdeck_discuss` to create focused discussion channels
+
+## User Profile (USER.md)
+
+Maintain a `USER.md` in project memory that records your user's work style, preferences, and requirements. This helps you adapt over time.
+
+**When to update** (event-driven, not every interaction):
+- User explicitly states a preference ("always use Drizzle", "don't ask me, just do it")
+- User corrects your behavior (signals you misjudged their style)
+- You notice a pattern (user consistently makes the same choice 3+ times)
+- At project milestones (retrospective on what worked)
+
+**What to record:**
+- Work style: autonomous vs collaborative, detail level, communication frequency
+- Technical preferences: stack choices, code conventions, testing expectations
+- Specific requirements: things they've explicitly asked for
+
+Use `flightdeck_memory_write` with filename `USER.md` to update.
