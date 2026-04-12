@@ -5,10 +5,16 @@ import { ProjectStore } from '../storage/ProjectStore.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
+  strict: false,
   options: {
     project: { type: 'string', short: 'p' },
     profile: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
+    role: { type: 'string' },
+    spec: { type: 'string' },
+    status: { type: 'string' },
+    json: { type: 'boolean' },
+    reason: { type: 'string' },
   },
 });
 
@@ -139,8 +145,15 @@ switch (command) {
       for (const t of tasks) {
         console.log(`  [${t.state.padEnd(10)}] ${t.id}  ${t.title}`);
       }
+    } else if (subcommand === 'add') {
+      const title = positionals.slice(2).join(' ');
+      if (!title) { console.error('Usage: flightdeck task add <title> --role <role> [--spec <specId>]'); break; }
+      const role = (values as any).role || 'worker';
+      const specId = (values as any).spec || undefined;
+      const task = fd.addTask({ title, role, specId });
+      console.log(`Task created: ${task.id} [${task.state}] ${task.title}`);
     } else {
-      console.error('Usage: flightdeck task list');
+      console.error('Usage: flightdeck task <list|add>');
     }
     fd.close();
     break;
