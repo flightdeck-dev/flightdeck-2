@@ -134,9 +134,9 @@ export class AcpAdapter extends AgentAdapter {
         }
       }
     };
-    process.on('exit', cleanup);
-    process.on('SIGINT', () => { cleanup(); process.exit(130); });
-    process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+    process.once('exit', cleanup);
+    process.once('SIGINT', () => { cleanup(); process.exit(130); });
+    process.once('SIGTERM', () => { cleanup(); process.exit(143); });
   }
 
   /**
@@ -248,7 +248,7 @@ export class AcpAdapter extends AgentAdapter {
 
         child.stdout?.on('data', appendOutput);
         child.stderr?.on('data', appendOutput);
-        child.on('close', (code, signal) => {
+        child.once('close', (code, signal) => {
           terminal.exitCode = code;
           terminal.signal = signal;
         });
@@ -293,7 +293,7 @@ export class AcpAdapter extends AgentAdapter {
 
         // Wait for exit
         return new Promise((resolve) => {
-          terminal.process.on('close', (code, signal) => {
+          terminal.process.once('close', (code, signal) => {
             resolve({ exitCode: code, signal });
           });
         });
@@ -359,12 +359,12 @@ export class AcpAdapter extends AgentAdapter {
       session.error = (session.error ?? '') + data.toString();
     });
 
-    child.on('close', (code) => {
+    child.once('close', (code) => {
       session.status = 'ended';
       session.exitCode = code;
     });
 
-    child.on('error', (err: NodeJS.ErrnoException) => {
+    child.once('error', (err: NodeJS.ErrnoException) => {
       session.status = 'ended';
       session.exitCode = -1;
       session.error = (session.error ?? '') + `\nProcess error: ${err.message}`;
@@ -530,11 +530,11 @@ export class AcpAdapter extends AgentAdapter {
     child.stderr?.on('data', (data: Buffer) => {
       session.error = (session.error ?? '') + data.toString();
     });
-    child.on('close', (code) => {
+    child.once('close', (code) => {
       session.status = 'ended';
       session.exitCode = code;
     });
-    child.on('error', (err: NodeJS.ErrnoException) => {
+    child.once('error', (err: NodeJS.ErrnoException) => {
       session.status = 'ended';
       session.exitCode = -1;
       session.error = (session.error ?? '') + `\nProcess error: ${err.message}`;
@@ -720,13 +720,18 @@ export class AcpAdapter extends AgentAdapter {
     if (!session) throw new Error(`Session not found: ${sessionId}`);
     if (session.status === 'ended') return;
 
-    // Release all terminals
+    // Release all terminals and remove listeners
     for (const terminal of session.terminals.values()) {
+      terminal.process.removeAllListeners();
       if (!terminal.released && terminal.exitCode === null) {
         try { terminal.process.kill('SIGTERM'); } catch { /* */ }
       }
     }
     session.terminals.clear();
+
+    // Remove listeners from session process
+    session.process.removeAllListeners();
+    session.status = 'ended';
 
     // Try to cancel via ACP first
     if (session.acpSessionId) {
@@ -742,7 +747,7 @@ export class AcpAdapter extends AgentAdapter {
         if (session.status !== 'ended') {
           try { session.process.kill('SIGKILL'); } catch { /* already dead */ }
         }
-      }, 5000);
+      }, 10_000);
     } catch { /* already dead */ }
   }
 
@@ -801,7 +806,9 @@ export class AcpAdapter extends AgentAdapter {
       if (session.status !== 'ended') {
         try { session.process.kill('SIGTERM'); } catch { /* */ }
       }
+      session.process.removeAllListeners();
       for (const terminal of session.terminals.values()) {
+        terminal.process.removeAllListeners();
         if (!terminal.released && terminal.exitCode === null) {
           try { terminal.process.kill('SIGTERM'); } catch { /* */ }
         }

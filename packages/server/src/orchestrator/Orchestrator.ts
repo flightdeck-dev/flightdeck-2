@@ -121,6 +121,9 @@ export class Orchestrator {
           authorId: 'orchestrator',
           content: effect.message,
           taskId: null,
+          threadId: null,
+          parentId: null,
+          metadata: null,
         });
         break;
       }

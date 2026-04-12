@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { readFile, writeFile, readdir, mkdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type Database from 'better-sqlite3';
 
@@ -74,16 +75,59 @@ export class MemoryStore {
     return readdirSync(this.memoryDir).filter(f => f.endsWith('.md'));
   }
 
+  async listAsync(): Promise<string[]> {
+    try {
+      const entries = await readdir(this.memoryDir);
+      return entries.filter(f => f.endsWith('.md'));
+    } catch {
+      return [];
+    }
+  }
+
   read(filename: string): string | null {
     const filepath = join(this.memoryDir, filename);
     if (!existsSync(filepath)) return null;
     return readFileSync(filepath, 'utf-8');
   }
 
+  async readAsync(filename: string): Promise<string | null> {
+    const filepath = join(this.memoryDir, filename);
+    try {
+      return await readFile(filepath, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
   write(filename: string, content: string): void {
     mkdirSync(this.memoryDir, { recursive: true });
     writeFileSync(join(this.memoryDir, filename), content);
-    this.reindex();
+    this.reindexFile(filename, content);
+  }
+
+  async writeAsync(filename: string, content: string): Promise<void> {
+    await mkdir(this.memoryDir, { recursive: true });
+    await writeFile(join(this.memoryDir, filename), content);
+    this.reindexFile(filename, content);
+  }
+
+  /** Incrementally reindex a single file in the FTS5 table. */
+  private reindexFile(filename: string, content: string): void {
+    if (!this.db) return;
+    const relPath = filename; // already relative for direct writes
+    this.db.exec(`DELETE FROM memory_fts WHERE filename = '${relPath.replace(/'/g, "''")}'`);
+    const insert = this.db.prepare(
+      'INSERT INTO memory_fts (filename, line_number, content) VALUES (?, ?, ?)',
+    );
+    const lines = content.split('\n');
+    const tx = this.db.transaction(() => {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          insert.run(relPath, String(i + 1), lines[i]);
+        }
+      }
+    });
+    tx();
   }
 
   /** Recursively collect all .md files under memoryDir */

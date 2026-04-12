@@ -7,30 +7,42 @@ on:
 
 jobs:
   build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - run: pnpm test
+
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Server unit tests with coverage
-        run: pnpm --filter @flightdeck-ai/server test:coverage
 
-      - name: Upload server coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
-        with:
-          files: packages/server/coverage/lcov.info
-          flags: server
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - run: pnpm build
+
+      - run: npx eslint .

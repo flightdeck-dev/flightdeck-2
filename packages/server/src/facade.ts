@@ -42,7 +42,7 @@ export class Flightdeck {
   readonly agentManager: AgentManager;
   readonly chatMessages: MessageStore | null;
 
-  constructor(projectName: string) {
+  constructor(projectName: string, acpAdapter?: AcpAdapter | null) {
     this.project = new ProjectStore(projectName);
     if (!this.project.exists()) {
       this.project.init(projectName);
@@ -58,7 +58,9 @@ export class Flightdeck {
     this.dag = new TaskDAG(this.sqlite);
     const config = this.project.getConfig();
     this.governance = new GovernanceEngine(config);
-    this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, new AcpAdapter(), config);
+    // Use a shared AcpAdapter instance (or null placeholder for daemon override)
+    const sharedAdapter = acpAdapter ?? new AcpAdapter();
+    this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config);
     this.workflowStore = new WorkflowStore(this.project.subpath('.'));
     this.workflow = new WorkflowEngine(this.workflowStore.load());
     this.roles = new RoleRegistry(projectName);
@@ -66,8 +68,7 @@ export class Flightdeck {
     this.timers = new TimerManager((_agentId, _message) => {
       // Default callback — messages can be wired to agent queues later
     });
-    const acpAdapter = new AcpAdapter();
-    this.agentManager = new AgentManager(acpAdapter, this.sqlite, this.roles, projectName);
+    this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName);
 
     // Initialize chat MessageStore (SQLite-backed)
     try {

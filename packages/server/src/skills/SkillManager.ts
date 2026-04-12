@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, existsSync, mkdirSync, cpSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import type { AgentRole } from '@flightdeck-ai/shared';
@@ -209,7 +209,7 @@ export class SkillManager {
 
     const content = readFileSync(skillMd, 'utf-8');
     const { name, description } = parseSkillFrontmatter(content);
-    const skillName = name || source.split('/').pop()!;
+    const skillName = name || basename(source);
 
     const destDir = join(skillsDir, skillName);
     cpSync(source, destDir, { recursive: true });

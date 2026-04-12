@@ -179,7 +179,7 @@ export async function processReview(
     return {
       taskId,
       passed: false,
-      feedback: `Failed to spawn reviewer: ${err.message}`,
+      feedback: `Failed to spawn reviewer: ${(err as Error).message}`,
     };
   }
 
