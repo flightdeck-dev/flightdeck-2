@@ -61,6 +61,8 @@ interface ManagedTerminal {
 export interface QueuedPrompt {
   content: string;
   priority: boolean;
+  resolve?: (text: string) => void;
+  reject?: (err: Error) => void;
 }
 
 export interface AcpSession {
@@ -626,8 +628,9 @@ export class AcpAdapter extends AgentAdapter {
     if (!session.acpSessionId) {
       // Session not yet initialized — queue the message for later
       const prefix = message.urgent ? '[URGENT] ' : '';
-      session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent });
-      return '';
+      return new Promise<string>((resolve, reject) => {
+        session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent, resolve, reject });
+      });
     }
 
     const prefix = message.urgent ? '[URGENT] ' : '';
@@ -635,14 +638,16 @@ export class AcpAdapter extends AgentAdapter {
 
     // If a prompt is already in-flight, queue the message instead of interrupting
     if (session.isPrompting) {
-      if (message.urgent) {
-        // Priority messages go to the front of the queue
-        const priorityCount = session.promptQueue.filter(q => q.priority).length;
-        session.promptQueue.splice(priorityCount, 0, { content: text, priority: true });
-      } else {
-        session.promptQueue.push({ content: text, priority: false });
-      }
-      return '';
+      return new Promise<string>((resolve, reject) => {
+        const entry: QueuedPrompt = { content: text, priority: !!message.urgent, resolve, reject };
+        if (message.urgent) {
+          // Priority messages go to the front of the queue
+          const priorityCount = session.promptQueue.filter(q => q.priority).length;
+          session.promptQueue.splice(priorityCount, 0, entry);
+        } else {
+          session.promptQueue.push(entry);
+        }
+      });
     }
 
     return this.sendPrompt(session, text);
@@ -699,7 +704,17 @@ export class AcpAdapter extends AgentAdapter {
 
     const merged = ordered.map(i => i.content).join('\n\n---\n\n');
 
-    await this.sendPrompt(session, merged);
+    try {
+      const responseText = await this.sendPrompt(session, merged);
+      // Resolve all queued promises with the combined response
+      for (const item of ordered) {
+        item.resolve?.(responseText);
+      }
+    } catch (err: any) {
+      for (const item of ordered) {
+        item.reject?.(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
   }
 
   async kill(sessionId: string): Promise<void> {
