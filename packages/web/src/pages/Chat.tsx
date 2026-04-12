@@ -55,7 +55,7 @@ function StreamingBubble({ messageId, content, chunks, displayConfig }: {
   messageId: string;
   content: string;
   chunks?: StreamChunk[];
-  displayConfig: import('@flightdeck-ai/shared').DisplayConfig;
+  displayConfig: import('@flightdeck-ai/shared/display').DisplayConfig;
 }) {
   // Group chunks by content type for filtered rendering
   const sections = groupChunks(chunks ?? [{ content, contentType: 'text' }]);
@@ -256,8 +256,10 @@ export default function Chat() {
   };
 
   // Streaming messages not yet in messages list
+  const messageIds = useMemo(() => new Set(messages.map(m => m.id)), [messages]);
+
   const streamEntries = [...streamingMessages.entries()].filter(
-    ([id]) => !messages.some(m => m.id === id)
+    ([id]) => !messageIds.has(id)
   );
 
   return (

@@ -6,8 +6,8 @@ import { parseArgs } from 'node:util';
 
 // ── Types ──────────────────────────────────────────────────────
 
-import type { DisplayConfig, DisplayPreset, ToolVisibility, ContentType } from '@flightdeck-ai/shared';
-import { DEFAULT_DISPLAY, DISPLAY_PRESETS, DISPLAY_PRESET_NAMES, shouldShow, isFlightdeckTool } from '@flightdeck-ai/shared';
+import type { DisplayConfig, DisplayPreset, ToolVisibility, ContentType } from '@flightdeck-ai/shared/display';
+import { DEFAULT_DISPLAY, DISPLAY_PRESETS, DISPLAY_PRESET_NAMES, shouldShow, isFlightdeckTool } from '@flightdeck-ai/shared/display';
 
 interface StatusData {
   project?: string;

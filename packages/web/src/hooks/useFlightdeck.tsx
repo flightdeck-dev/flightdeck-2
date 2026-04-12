@@ -5,6 +5,30 @@ import { wsClient, type WsEvent } from '../lib/ws.ts';
 import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from '../lib/types.ts';
 import { type DisplayConfig, type DisplayPreset, DEFAULT_DISPLAY, DISPLAY_PRESETS, type ContentType } from '@flightdeck-ai/shared/display';
 
+const STORAGE_KEY = 'flightdeck:display';
+const STORAGE_VERSION = 1;
+const STORAGE_VERSION_KEY = 'flightdeck:display:version';
+
+function loadDisplayConfig(): DisplayConfig {
+  try {
+    const ver = localStorage.getItem(STORAGE_VERSION_KEY);
+    if (ver !== String(STORAGE_VERSION)) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
+      return { ...DEFAULT_DISPLAY };
+    }
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : { ...DEFAULT_DISPLAY };
+  } catch { return { ...DEFAULT_DISPLAY }; }
+}
+
+function saveDisplayConfig(config: DisplayConfig): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_VERSION));
+  } catch {}
+}
+
 export interface StreamChunk {
   content: string;
   contentType?: ContentType;
@@ -39,12 +63,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [displayConfig, setDisplayConfigState] = useState<DisplayConfig>(() => {
-    try {
-      const stored = localStorage.getItem('flightdeck:display');
-      return stored ? JSON.parse(stored) : { ...DEFAULT_DISPLAY };
-    } catch { return { ...DEFAULT_DISPLAY }; }
-  });
+  const [displayConfig, setDisplayConfigState] = useState<DisplayConfig>(loadDisplayConfig);
   const streamingRef = useRef(new Map<string, string>());
   const streamingChunksRef = useRef(new Map<string, StreamChunk[]>());
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
@@ -110,7 +129,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
         }
         case 'display:config':
           setDisplayConfigState(event.config);
-          localStorage.setItem('flightdeck:display', JSON.stringify(event.config));
+          saveDisplayConfig(event.config);
           break;
         case 'task:comment':
           // Could update task activity
@@ -141,7 +160,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
     // Optimistically update local state
     setDisplayConfigState(prev => {
       const merged = { ...prev, ...config };
-      localStorage.setItem('flightdeck:display', JSON.stringify(merged));
+      saveDisplayConfig(merged);
       return merged;
     });
   }, []);
