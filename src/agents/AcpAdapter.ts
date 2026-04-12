@@ -410,7 +410,14 @@ export class AcpAdapter extends AgentAdapter {
 
       const result = await session.connection.newSession({
         cwd: session.cwd,
-        mcpServers: mcpServers ?? [],
+        mcpServers: mcpServers ?? [
+          {
+            name: 'flightdeck',
+            command: 'npx',
+            args: ['tsx', new URL('../mcp/server.ts', import.meta.url).pathname],
+            env: { FLIGHTDECK_AGENT_ID: session.agentId },
+          } as any,
+        ],
       });
 
       session.acpSessionId = result.sessionId;

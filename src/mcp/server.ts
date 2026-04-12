@@ -6,6 +6,9 @@ import { ProjectStore } from '../storage/ProjectStore.js';
 import type { TaskId, AgentId, SpecId, Message, MessageId } from '../core/types.js';
 import { messageId } from '../core/ids.js';
 
+// Agent ID from environment — set by Flightdeck when spawning via ACP
+const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
+
 function errorResponse(text: string) {
   return { content: [{ type: 'text' as const, text }] };
 }
