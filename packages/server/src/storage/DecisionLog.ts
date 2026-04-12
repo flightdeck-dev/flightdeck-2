@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Decision, DecisionId, TaskId } from '@flightdeck-ai/shared';
+import type { Decision } from '@flightdeck-ai/shared';
 
 export interface DecisionListOptions {
   taskId?: string;

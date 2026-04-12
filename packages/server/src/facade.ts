@@ -1,6 +1,4 @@
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import type { Task, TaskId, AgentId, SpecId, Agent, ProjectConfig, Decision, Message } from '@flightdeck-ai/shared';
+import type { Task, TaskId, AgentId, SpecId, Agent, ProjectConfig, Message } from '@flightdeck-ai/shared';
 import type { AgentRole } from '@flightdeck-ai/shared';
 import { ProjectStore } from './storage/ProjectStore.js';
 import { SqliteStore } from './storage/SqliteStore.js';
@@ -16,8 +14,8 @@ import { AcpAdapter } from './agents/AcpAdapter.js';
 import { WorkflowStore, type WorkflowConfig } from './storage/WorkflowStore.js';
 import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
-import { LearningsStore, type LearningCategory } from './storage/LearningsStore.js';
-import { TimerManager, type TimerCallback } from './orchestrator/TimerManager.js';
+import { LearningsStore } from './storage/LearningsStore.js';
+import { TimerManager } from './orchestrator/TimerManager.js';
 import { AgentManager } from './agents/AgentManager.js';
 import { MessageStore } from './comms/MessageStore.js';
 

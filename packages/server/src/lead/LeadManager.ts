@@ -1,4 +1,4 @@
-import type { AgentId, TaskId } from '@flightdeck-ai/shared';
+
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
@@ -264,7 +264,7 @@ export class LeadManager {
    * Handle a Lead response and decide whether to forward to the user.
    * Returns null if the response should be suppressed (IDLE/NO_REPLY).
    */
-  handleLeadResponse(response: string, eventType?: LeadEvent['type']): string | null {
+  handleLeadResponse(response: string, _eventType?: LeadEvent['type']): string | null {
     const trimmed = response.trim();
 
     // FLIGHTDECK_IDLE on heartbeat → don't forward, just log

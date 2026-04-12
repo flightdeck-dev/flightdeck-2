@@ -1,6 +1,5 @@
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { DecisionLog } from '../storage/DecisionLog.js';
-import type { Task, TaskState, Decision } from '@flightdeck-ai/shared';
 
 export interface DailyReportOptions {
   since?: string; // ISO date string, defaults to start of today

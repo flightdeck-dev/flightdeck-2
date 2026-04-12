@@ -1,4 +1,4 @@
-import type { GovernanceProfile, Decision, TaskState, ProjectConfig, TaskId, DecisionId, AgentId } from '@flightdeck-ai/shared';
+import type { GovernanceProfile, Decision, TaskState, ProjectConfig } from '@flightdeck-ai/shared';
 import type { SqliteStore } from '../storage/SqliteStore.js';
 
 export interface ApprovalGate {

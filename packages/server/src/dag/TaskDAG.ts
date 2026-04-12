@@ -1,14 +1,22 @@
-import type { Task, TaskId, TaskState, AgentId, SpecId, AgentRole, SideEffect } from '@flightdeck-ai/shared';
+import type { Task, TaskId, AgentId, SpecId, AgentRole, SideEffect } from '@flightdeck-ai/shared';
 import { transition } from '@flightdeck-ai/shared';
 import { taskId } from '@flightdeck-ai/shared';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 
+export type EffectHandler = (effect: SideEffect) => void;
+
 export class TaskDAG {
   private adjacency = new Map<TaskId, Set<TaskId>>(); // parent -> children (dependents)
   private reverseAdj = new Map<TaskId, Set<TaskId>>(); // child -> parents (dependencies)
+  private effectHandler: EffectHandler | null = null;
 
   constructor(private store: SqliteStore) {
     this.rebuild();
+  }
+
+  /** Register a handler for effects that TaskDAG can't process internally */
+  setEffectHandler(handler: EffectHandler): void {
+    this.effectHandler = handler;
   }
 
   private rebuild(): void {
@@ -249,15 +257,14 @@ export class TaskDAG {
           // Timestamps are already updated by updateTaskState
           break;
         case 'spawn_reviewer':
-          // For now, no-op — real reviewer spawning comes in Phase 2
-          break;
         case 'escalate':
-          // For now, no-op — real escalation comes in Phase 2
-          break;
         case 'notify_agent':
         case 'update_dag':
         case 'log_decision':
-          // No-ops for now
+          // Delegate to external handler (Orchestrator) which has AgentManager, MessageStore, etc.
+          if (this.effectHandler) {
+            this.effectHandler(effect);
+          }
           break;
       }
     }

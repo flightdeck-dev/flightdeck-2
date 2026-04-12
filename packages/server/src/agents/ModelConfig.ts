@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { RoleModelConfig, AgentsConfig } from '@flightdeck-ai/shared';
+import type { AgentsConfig } from '@flightdeck-ai/shared';
 import { AGENT_ROLES } from '@flightdeck-ai/shared';
 
 export interface ResolvedRoleConfig {

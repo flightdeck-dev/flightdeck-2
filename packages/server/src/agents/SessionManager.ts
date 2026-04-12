@@ -63,16 +63,13 @@ export const DEFAULT_RUNTIMES: Record<string, RuntimeConfig> = {
   },
 };
 
-function interpolateArgs(args: string[], vars: Record<string, string>): string[] {
-  return args.map(a => {
-    let result = a;
-    for (const [k, v] of Object.entries(vars)) {
-      result = result.replaceAll(`{${k}}`, v);
-    }
-    return result;
-  });
-}
+import { interpolateArgs } from './interpolateArgs.js';
 
+/**
+ * Simple PTY-based session backend used by PtyAdapter.
+ * Not used in the daemon startup path (which uses AcpAdapter instead),
+ * but retained as the lightweight/non-ACP agent backend.
+ */
 export class SessionManager {
   private sessions = new Map<string, AgentSession>();
   private cleanupRegistered = false;

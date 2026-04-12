@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { MessageStore, ChatMessage, Thread } from '../comms/MessageStore.js';
-import { type DisplayConfig, DEFAULT_DISPLAY, DISPLAY_PRESETS, type DisplayPreset, mergeDisplayConfig, isValidDisplayConfig, shouldShow, type ContentType } from '@flightdeck-ai/shared';
+import { type DisplayConfig, DEFAULT_DISPLAY, mergeDisplayConfig, isValidDisplayConfig, shouldShow, type ContentType } from '@flightdeck-ai/shared';
 
 /**
  * WebSocket event types flowing between UI and server.

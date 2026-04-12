@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 export interface WorktreeInfo {
   path: string;

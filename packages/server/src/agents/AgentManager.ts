@@ -136,7 +136,7 @@ export class AgentManager {
             mergeStrategy: opts.mergeStrategy ?? 'auto',
           });
         }
-      } catch (err) {
+      } catch {
         // Worktree creation failed — fall back to shared cwd
         // Log but don't block agent spawn
       }
@@ -147,7 +147,7 @@ export class AgentManager {
         effectiveCwd = wd.path;
         this.agentWorkdirs.set(newId, opts.taskId);
         if (!this.directoryManager) this.directoryManager = dm;
-      } catch (err) {
+      } catch {
         // Directory creation failed — fall back to shared cwd
       }
     }

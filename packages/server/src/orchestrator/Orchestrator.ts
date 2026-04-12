@@ -1,13 +1,14 @@
-import type { TaskId, AgentId, ProjectConfig } from '@flightdeck-ai/shared';
+import type { TaskId, SideEffect, ProjectConfig } from '@flightdeck-ai/shared';
 import { type TaskDAG } from '../dag/TaskDAG.js';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
-import type { AgentAdapter, AgentMetadata } from '../agents/AgentAdapter.js';
+import type { AgentAdapter } from '../agents/AgentAdapter.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { LeadManager } from '../lead/LeadManager.js';
 import type { MessageStore } from '../comms/MessageStore.js';
 import type { WebSocketServer } from '../api/WebSocketServer.js';
-import type { SessionManager, SessionHealth } from '../agents/SessionManager.js';
+import type { SessionManager } from '../agents/SessionManager.js';
+import type { DecisionLog } from '../storage/DecisionLog.js';
 
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
@@ -51,8 +52,9 @@ export class Orchestrator {
   private governanceConfig: GovernanceConfig;
   private sessionManager: SessionManager | null;
   private retryCount = new Map<TaskId, number>();
-  /** Track specs we've already triggered retrospectives for */
-  private retrospectivesDone = new Set<string>();
+  /** Tracks which specs have had retrospectives triggered. Bounded: entries older than 24h are pruned. */
+  private retrospectivesDone = new Map<string, number>();
+  private decisionLog: DecisionLog | null;
 
   constructor(
     private dag: TaskDAG,
@@ -67,6 +69,7 @@ export class Orchestrator {
       messageStore?: MessageStore;
       wsServer?: WebSocketServer;
       governanceConfig?: GovernanceConfig;
+      decisionLog?: DecisionLog;
     },
   ) {
     this.adapter = adapter;
@@ -76,6 +79,64 @@ export class Orchestrator {
     this.messageStore = opts?.messageStore ?? null;
     this.wsServer = opts?.wsServer ?? null;
     this.governanceConfig = opts?.governanceConfig ?? {};
+    this.decisionLog = opts?.decisionLog ?? null;
+
+    // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
+    this.dag.setEffectHandler((effect) => this.handleEffect(effect));
+  }
+
+  /**
+   * Handle side effects delegated from TaskDAG that require external services
+   * (spawning agents, sending messages, logging decisions).
+   */
+  private handleEffect(effect: SideEffect): void {
+    switch (effect.type) {
+      case 'spawn_reviewer': {
+        if (!this.agentManager) break;
+        const task = this.dag.getTask(effect.taskId);
+        if (!task) break;
+        this.agentManager.spawnAgent({
+          role: 'reviewer',
+          taskId: effect.taskId as string,
+          cwd: process.cwd(),
+        }).catch(() => {
+          // If reviewer spawn fails, Lead can retry
+        });
+        break;
+      }
+      case 'escalate': {
+        const escalatedTask = this.dag.getTask(effect.taskId);
+        this.leadManager?.steerLead({
+          type: 'escalation',
+          taskId: effect.taskId as string,
+          agentId: (escalatedTask?.assignedAgent as string) ?? 'unknown',
+          reason: effect.reason,
+        });
+        break;
+      }
+      case 'notify_agent': {
+        if (!this.messageStore) break;
+        this.messageStore.createMessage({
+          authorType: 'system',
+          authorId: 'orchestrator',
+          content: effect.message,
+          taskId: null,
+        });
+        break;
+      }
+      case 'update_dag': {
+        this.broadcastStateChange();
+        break;
+      }
+      case 'log_decision': {
+        if (this.decisionLog) {
+          this.decisionLog.append(effect.decision);
+        } else {
+          this.governance.recordDecision(effect.decision);
+        }
+        break;
+      }
+    }
   }
 
   /**
@@ -181,21 +242,30 @@ export class Orchestrator {
   }
 
   /**
-   * Process tasks in in_review that have been approved → mark done.
-   * Also record completions for Lead heartbeat tracking.
+   * Process tasks in in_review:
+   * - If verification is disabled in governance, auto-complete them.
+   * - If verification is enabled, reviewer agents handle the transition
+   *   via the spawn_reviewer effect → completeTask/failTask.
    */
   private processCompletions(): number {
+    const verificationEnabled = this.governance.governanceConfig.verification.enabled;
+    if (verificationEnabled) {
+      // Reviewer agents handle completion directly via MCP tools
+      return 0;
+    }
+
+    // Auto-approve: verification disabled, complete all in_review tasks
     const allTasks = this.dag.listTasks();
-    const completed = 0;
+    let completed = 0;
 
     for (const task of allTasks) {
       if (task.state !== 'in_review') continue;
-
-      // Check if review passed (stored as metadata in task or via external flag)
-      // For now: tasks that have been in in_review and have a review result
-      // The verifier sets tasks to done directly, so this catches edge cases
-      // where completeTask needs to be called
-      // In practice, the Verifier calls dag.completeTask() directly
+      try {
+        this.dag.completeTask(task.id);
+        completed++;
+      } catch {
+        // Task may have already transitioned
+      }
     }
 
     return completed;
@@ -258,7 +328,7 @@ export class Orchestrator {
           this.store.updateAgentStatus(task.assignedAgent, 'offline');
           detected++;
         }
-      } catch (err) {
+      } catch {
         errors++;
       }
     }
@@ -311,7 +381,7 @@ export class Orchestrator {
         this.dag.claimTask(task.id, agent.id);
         this.store.updateAgentStatus(agent.id, 'busy');
         assigned++;
-      } catch (err) {
+      } catch {
         // Skip
       }
     }
@@ -367,7 +437,12 @@ export class Orchestrator {
             summary: `All ${counts.total} tasks complete.`,
           });
           this.leadManager?.recordTaskCompletion();
-          this.retrospectivesDone.add(specId);
+          this.retrospectivesDone.set(specId, Date.now());
+          // Prune entries older than 24 hours to prevent unbounded growth
+          const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+          for (const [id, ts] of this.retrospectivesDone) {
+            if (ts < cutoff) this.retrospectivesDone.delete(id);
+          }
           retrospectives++;
         }
       }
