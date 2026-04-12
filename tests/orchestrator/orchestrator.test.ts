@@ -68,7 +68,7 @@ describe('Orchestrator', () => {
     const task = dag.addTask({ title: 'Working on it', role: 'worker' });
     dag.claimTask(task.id, 'agent-w1' as AgentId);
     // Manually set acpSessionId in DB
-    store['db'].prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
+    store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-active', task.id);
     store.insertAgent({
       id: 'agent-w1' as AgentId,
@@ -93,7 +93,7 @@ describe('Orchestrator', () => {
   it('pings idle ACP session with unsubmitted task', async () => {
     const task = dag.addTask({ title: 'Idle agent task', role: 'worker' });
     dag.claimTask(task.id, 'agent-w1' as AgentId);
-    store['db'].prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
+    store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-idle', task.id);
     store.insertAgent({
       id: 'agent-w1' as AgentId,
@@ -118,7 +118,7 @@ describe('Orchestrator', () => {
   it('restarts agent when ACP session ended without submit', async () => {
     const task = dag.addTask({ title: 'Crashed task', role: 'worker' });
     dag.claimTask(task.id, 'agent-w1' as AgentId);
-    store['db'].prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
+    store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-ended', task.id);
     store.insertAgent({
       id: 'agent-w1' as AgentId,

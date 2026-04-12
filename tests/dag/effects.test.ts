@@ -56,7 +56,7 @@ describe('TaskDAG effect processing', () => {
     dag.submitTask(t.id, 'I implemented the OAuth2 PKCE flow');
 
     // Verify claim is stored in DB
-    const row = store['db'].prepare('SELECT claim FROM tasks WHERE id = ?').get(t.id) as { claim: string };
+    const row = store['db'].$client.prepare('SELECT claim FROM tasks WHERE id = ?').get(t.id) as { claim: string };
     expect(row.claim).toBe('I implemented the OAuth2 PKCE flow');
   });
 
