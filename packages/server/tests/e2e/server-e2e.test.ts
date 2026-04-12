@@ -90,10 +90,8 @@ describe('Task Management (scenario 3)', () => {
     fd.claimTask(task.id, agentId);
     const paused = fd.pauseTask(task.id);
     expect(paused.state).toBe('paused');
-    // paused → ready via reopenTask, then claim again
-    const readied = fd.reopenTask(task.id);
-    expect(readied.state).toBe('ready');
-    const resumed = fd.claimTask(task.id, agentId);
+    // paused → running directly via resumeTask
+    const resumed = fd.resumeTask(task.id);
     expect(resumed.state).toBe('running');
   });
 
@@ -126,9 +124,8 @@ describe('Task Management (scenario 3)', () => {
     const paused = fd.pauseTask(task.id);
     expect(paused.state).toBe('paused');
 
-    // paused → ready → running
-    fd.reopenTask(task.id);
-    const resumed = fd.claimTask(task.id, agentId);
+    // paused → running directly
+    const resumed = fd.resumeTask(task.id);
     expect(resumed.state).toBe('running');
 
     const submitted = fd.submitTask(task.id);

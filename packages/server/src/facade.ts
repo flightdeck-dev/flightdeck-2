@@ -109,6 +109,10 @@ export class Flightdeck {
     return this.dag.pauseTask(taskId);
   }
 
+  resumeTask(taskId: TaskId): Task {
+    return this.dag.resumeTask(taskId);
+  }
+
   skipTask(taskId: TaskId): Task {
     return this.dag.skipTask(taskId);
   }

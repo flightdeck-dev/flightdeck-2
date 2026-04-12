@@ -53,6 +53,7 @@ function permError(agentId: string, role: string, toolName: string, permission: 
     discuss: 'lead/planner',
     task_cancel: 'lead/worker',
     task_pause: 'lead',
+    task_resume: 'lead',
     task_retry: 'lead',
     task_skip: 'lead/planner',
     task_complete: 'lead/reviewer',
@@ -230,6 +231,22 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if (permErr) return permErr;
     try {
       const task = fd.pauseTask(params.taskId as TaskId);
+      return jsonResponse(task);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_task_resume', 'Resume a paused task (paused → running)', {
+    taskId: z.string(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_resume');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'task_resume', 'flightdeck_task_resume');
+    if (permErr) return permErr;
+    try {
+      const task = fd.resumeTask(params.taskId as TaskId);
       return jsonResponse(task);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);

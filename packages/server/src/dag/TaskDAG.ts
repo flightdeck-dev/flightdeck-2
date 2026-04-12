@@ -136,6 +136,15 @@ export class TaskDAG {
     return { ...task, state: 'paused' };
   }
 
+  resumeTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'running', { taskId: id });
+    this.store.updateTaskState(id, 'running');
+    this.processEffects(result.effects);
+    return { ...task, state: 'running' };
+  }
+
   skipTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);

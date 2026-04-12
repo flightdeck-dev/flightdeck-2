@@ -43,6 +43,16 @@ describe('TaskDAG new operations', () => {
     expect(paused.state).toBe('paused');
   });
 
+  it('resumes a paused task directly to running', () => {
+    const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
+    fd.registerAgent(worker);
+    const task = fd.addTask({ title: 'resume me' });
+    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.pauseTask(task.id);
+    const resumed = fd.resumeTask(task.id);
+    expect(resumed.state).toBe('running');
+  });
+
   it('skips a pending task and unblocks dependents', () => {
     const t1 = fd.addTask({ title: 'skip me' });
     // Create dependent manually
