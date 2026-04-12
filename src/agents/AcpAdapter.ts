@@ -219,9 +219,18 @@ export class AcpAdapter extends AgentAdapter {
         clientCapabilities: {},
       });
 
+      // Inject Flightdeck MCP server so agents automatically have our tools
+      const mcpServerPath = new URL('../mcp/server.ts', import.meta.url).pathname;
       const result = await session.connection.newSession({
         cwd: session.cwd,
-        mcpServers: [],
+        mcpServers: [
+          {
+            name: 'flightdeck',
+            command: 'npx',
+            args: ['tsx', mcpServerPath],
+            env: {},
+          } as any,
+        ],
       });
 
       session.acpSessionId = result.sessionId;
