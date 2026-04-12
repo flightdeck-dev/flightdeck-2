@@ -34,6 +34,7 @@ Commands:
   status                  Project status
   task list               List tasks
   agent list              List agents
+  chat <message>          Send a message to the Lead agent
   models                  Show current model config per role
   models list             List available models grouped by tier
   models set <role> <m>   Set model for a role (tier or model ID)
@@ -389,6 +390,58 @@ switch (command) {
         const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
         const msgs = fd.chatMessages?.listMessages({ threadId, taskId, limit }) ?? [];
         json(200, msgs.reverse());
+      } else if (url.pathname === '/api/messages' && method === 'POST') {
+        try {
+          const body = await readBody();
+          if (!body.content || typeof body.content !== 'string') { json(400, { error: 'Missing required field: content' }); return; }
+          // Store user message
+          let userMsg = null;
+          if (fd.chatMessages) {
+            userMsg = fd.chatMessages.createMessage({
+              threadId: null,
+              parentId: null,
+              taskId: null,
+              authorType: 'user',
+              authorId: 'http-api',
+              content: body.content,
+              metadata: null,
+            });
+            if (wsServer) wsServer.broadcast({ type: 'chat:message', message: userMsg });
+          }
+          // Steer Lead
+          let leadResponse: string | null = null;
+          let leadMsg = null;
+          try {
+            const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
+            if (raw && raw.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
+              leadResponse = raw.trim();
+              if (fd.chatMessages) {
+                leadMsg = fd.chatMessages.createMessage({
+                  threadId: null,
+                  parentId: userMsg?.id ?? null,
+                  taskId: null,
+                  authorType: 'lead',
+                  authorId: 'lead',
+                  content: leadResponse,
+                  metadata: null,
+                });
+                if (wsServer) wsServer.broadcast({ type: 'chat:message', message: leadMsg });
+              }
+            }
+          } catch (err: any) {
+            console.error('Failed to steer Lead:', err.message);
+          }
+          json(200, { message: userMsg, response: leadMsg ?? leadResponse });
+        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
+      } else if (url.pathname === '/api/tasks' && method === 'POST') {
+        try {
+          const body = await readBody();
+          if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
+          const role = body.role || 'worker';
+          const task = fd.addTask({ title: body.title, description: body.description, role });
+          if (wsServer) wsServer.broadcast({ type: 'chat:message', message: task as any });
+          json(201, task);
+        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
       } else if (url.pathname === '/api/tasks' && method === 'GET') {
         json(200, fd.listTasks());
       } else if (url.pathname.match(/^\/api\/tasks\/[^/]+$/) && method === 'GET') {
@@ -518,6 +571,35 @@ switch (command) {
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    break;
+  }
+
+  case 'chat': {
+    const chatPort = (values as any).port || '3000';
+    const chatMessage = positionals.slice(1).join(' ');
+    if (!chatMessage) { console.error('Usage: flightdeck chat <message>'); process.exit(1); }
+    try {
+      const res = await fetch(`http://localhost:${chatPort}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: chatMessage }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        console.error(`Error: ${(err as any).error ?? res.statusText}`);
+        process.exit(1);
+      }
+      const data = await res.json() as { message: any; response: any };
+      if (data.response) {
+        const content = typeof data.response === 'string' ? data.response : data.response.content;
+        console.log(content);
+      } else {
+        console.log('(No response from Lead)');
+      }
+    } catch {
+      console.error('Failed to send message — is the daemon running?');
+      process.exit(1);
+    }
     break;
   }
 
