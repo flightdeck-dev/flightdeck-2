@@ -34,6 +34,7 @@ export class TaskDAG {
     role?: AgentRole;
     dependsOn?: TaskId[];
     priority?: number;
+    source?: Task['source'];
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -49,6 +50,7 @@ export class TaskDAG {
       priority: opts.priority ?? 0,
       assignedAgent: null,
       acpSessionId: null,
+      source: opts.source ?? 'planned',
       createdAt: now,
       updatedAt: now,
     };

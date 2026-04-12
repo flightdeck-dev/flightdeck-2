@@ -25,6 +25,7 @@ export class SqliteStore {
         assigned_agent TEXT,
         acp_session_id TEXT,
         claim TEXT,
+        source TEXT NOT NULL DEFAULT 'planned',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -64,12 +65,12 @@ export class SqliteStore {
 
   insertTask(task: Task): void {
     this.db.prepare(`
-      INSERT INTO tasks (id, spec_id, title, description, state, role, depends_on, priority, assigned_agent, acp_session_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (id, spec_id, title, description, state, role, depends_on, priority, assigned_agent, acp_session_id, source, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       task.id, task.specId, task.title, task.description, task.state, task.role,
       JSON.stringify(task.dependsOn), task.priority, task.assignedAgent, task.acpSessionId,
-      task.createdAt, task.updatedAt,
+      task.source || 'planned', task.createdAt, task.updatedAt,
     );
   }
 
@@ -140,6 +141,7 @@ export class SqliteStore {
       priority: row.priority as number,
       assignedAgent: (row.assigned_agent ?? null) as AgentId | null,
       acpSessionId: (row.acp_session_id ?? null) as string | null,
+      source: (row.source as Task['source']) || 'planned',
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     };

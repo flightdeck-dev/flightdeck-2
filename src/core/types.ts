@@ -56,6 +56,8 @@ export type OnCompletionAction = typeof ON_COMPLETION_ACTIONS[number];
 
 // ── Data types ──
 
+export type TaskSource = 'planned' | 'adhoc' | 'escalation';
+
 export interface Task {
   id: TaskId;
   specId: SpecId | null;
@@ -67,6 +69,7 @@ export interface Task {
   priority: number;
   assignedAgent: AgentId | null;
   acpSessionId: string | null;
+  source: TaskSource;
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }
