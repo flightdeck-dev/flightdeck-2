@@ -657,6 +657,34 @@ Generated automatically at the configured cadence:
 - **SC-004:** Daily report accurately reflects all work done, decisions made, and money spent
 - **SC-005:** A new user can go from `flightdeck init` to agents running in < 10 minutes
 
+### Project Memory System
+
+Three-layer memory, mirroring OpenClaw's agent memory design but at project level:
+
+**Layer 1: Auto-injected project context**
+Every agent spawn includes these files in context:
+- `memory/PROJECT.md` — project overview, architecture, key decisions
+- `memory/current.md` — current specs in progress, active priorities
+- `memory/decisions.md` — recent 20 decision summaries
+
+**Layer 2: Searchable project knowledge base**
+Agents query via MCP `flightdeck_memory_search(query)`:
+- `memory/context/*.md` — domain knowledge per module
+- `memory/retrospectives/*.md` — learnings from completed specs
+- `decisions/*.jsonl` — full decision log
+
+**Layer 3: Automatic memory maintenance**
+- Before lead session compacts → lead saves important state to memory files
+- After spec completes → Flightdeck triggers retrospective:
+  - Spawn agent to review: what worked, what didn’t, key learnings
+  - Write to `memory/retrospectives/{spec-name}.md`
+  - Future agents working on similar specs find this via memory search
+- Periodic: summarize recent decisions into `memory/decisions.md`
+
+**Key principle: memory belongs to the project, not to any agent session.** Agents come and go, knowledge stays.
+
+---
+
 ### Stall Detection
 
 Flightdeck daemon runs a tick loop that checks ACP session state. **Never use wall-clock timeouts** — an agent can run for hours and that's fine as long as its session is active.
