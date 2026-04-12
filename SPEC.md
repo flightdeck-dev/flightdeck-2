@@ -810,6 +810,7 @@ Fixed-pipeline role simulations (CEO→CTO→Engineer).
 3. **Multi-repo support:** One Flightdeck instance per repo, or one instance managing multiple repos?
 4. **Pricing model:** If this becomes a product, how to price? (Per agent-hour? Per task? Flat rate?)
 5. **Offline mode:** Should agents be able to work without Flightdeck connection and sync later?
+6. **A2A protocol:** Future integration with Google's Agent2Agent protocol for remote agent discovery and cross-network collaboration. A2A enables: Agent Cards (capability self-description for auto-matching), remote agent invocation (HTTP-based, agents on different machines), third-party agent services. Not a current priority — focus on local MCP + ACP first, add A2A when the local story is solid.
 
 ---
 
