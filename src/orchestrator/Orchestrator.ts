@@ -6,15 +6,21 @@ import type { AgentAdapter } from '../agents/AgentAdapter.js';
 
 export interface TickResult {
   assignedTasks: TaskId[];
-  stalledAgents: AgentId[];
+  pingedAgents: AgentId[];    // idle session, no submit — light ping sent
+  restartedAgents: AgentId[]; // ended session, no submit — killed + re-spawned
   errors: string[];
 }
 
 /**
  * The orchestrator runs a periodic tick loop that:
- * 1. Finds ready tasks and assigns them to available agents
- * 2. Detects stalled agents (silence timeout, task overtime)
- * 3. Promotes pending tasks whose dependencies are met
+ * 1. For each running task, checks agent ACP session state
+ *    - active → skip (do not disturb)
+ *    - idle + no submit → light ping via ACP steer
+ *    - ended + no submit → kill + re-spawn on same task
+ * 2. Finds ready tasks with no assigned agent → auto-assign
+ *
+ * NO time-based stall thresholds. An agent can run for hours
+ * as long as its ACP session is active.
  */
 export class Orchestrator {
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
@@ -28,15 +34,52 @@ export class Orchestrator {
   ) {}
 
   async tick(): Promise<TickResult> {
-    const result: TickResult = { assignedTasks: [], stalledAgents: [], errors: [] };
+    const result: TickResult = { assignedTasks: [], pingedAgents: [], restartedAgents: [], errors: [] };
 
-    // 1. Find ready, unassigned tasks
+    // 1. Check ACP session state for all running tasks
+    const runningTasks = this.dag.listTasks().filter(t => t.state === 'running');
+    for (const task of runningTasks) {
+      if (!task.assignedAgent || !task.acpSessionId) continue;
+
+      try {
+        const meta = await this.adapter.getMetadata(task.acpSessionId);
+        if (!meta) continue; // can't check, skip
+
+        if (meta.status === 'running') {
+          // Active session — do not disturb
+          continue;
+        }
+
+        if (meta.status === 'idle') {
+          // Idle session, task not submitted — light ping
+          await this.adapter.steer(task.acpSessionId, {
+            content: `Task ${task.id} ("${task.title}") is still assigned to you. Please submit progress or report if you're blocked.`,
+          });
+          result.pingedAgents.push(task.assignedAgent);
+        }
+
+        if (meta.status === 'ended') {
+          // Session ended without submit — definite stall
+          // Kill (cleanup) and re-spawn on same task
+          await this.adapter.kill(task.acpSessionId);
+
+          // Reset task to ready so it can be re-claimed
+          this.store.updateTaskState(task.id, 'ready', null);
+          this.store.updateAgentStatus(task.assignedAgent, 'offline');
+          result.restartedAgents.push(task.assignedAgent);
+        }
+      } catch (err) {
+        result.errors.push(`Session check failed for ${task.id}: ${(err as Error).message}`);
+      }
+    }
+
+    // 2. Find ready, unassigned tasks
     const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent);
 
-    // 2. Find idle agents
+    // 3. Find idle agents
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
 
-    // 3. Match tasks to agents by role
+    // 4. Match tasks to agents by role
     for (const task of readyTasks) {
       const agent = agents.find(a => a.role === task.role && a.status === 'idle');
       if (!agent) continue;
@@ -53,17 +96,6 @@ export class Orchestrator {
         result.assignedTasks.push(task.id);
       } catch (err) {
         result.errors.push(`Failed to assign ${task.id}: ${(err as Error).message}`);
-      }
-    }
-
-    // 4. Detect stalled agents
-    const stallTimeout = (this.config.stallDetection?.agentSilenceTimeoutMin ?? 30) * 60 * 1000;
-    const now = Date.now();
-    for (const agent of this.store.listAgents()) {
-      if (agent.status !== 'busy' || !agent.lastHeartbeat) continue;
-      const lastBeat = new Date(agent.lastHeartbeat).getTime();
-      if (now - lastBeat > stallTimeout) {
-        result.stalledAgents.push(agent.id);
       }
     }
 

@@ -28,11 +28,6 @@ export class ProjectStore {
       governance: 'autonomous',
       isolation: 'none',
       onCompletion: 'ask',
-      stallDetection: {
-        agentSilenceTimeoutMin: 30,
-        taskRunningTimeoutMin: 120,
-        dagIdleTimeoutMin: 60,
-      },
     };
     this.setConfig(defaultConfig);
   }

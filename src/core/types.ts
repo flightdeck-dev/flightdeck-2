@@ -121,11 +121,6 @@ export interface ProjectConfig {
   isolation: IsolationStrategy;
   onCompletion: OnCompletionAction;
   costThresholdPerDay?: number;
-  stallDetection?: {
-    agentSilenceTimeoutMin: number;
-    taskRunningTimeoutMin: number;
-    dagIdleTimeoutMin: number;
-  };
 }
 
 export interface FlightdeckJson {
