@@ -264,4 +264,48 @@ describe('Orchestrator', () => {
     orch.stop();
     expect(orch.isRunning()).toBe(false);
   });
+
+  describe('processCompletions (via tick)', () => {
+    it('auto-completes in_review tasks when verification disabled', async () => {
+      // Override governance to disable verification
+      const gov = new GovernanceEngine(config);
+      gov.setGovernanceConfig({
+        ...gov.governanceConfig,
+        verification: { enabled: false, freshReviewerOnRetry: false, additionalChecks: [] },
+      });
+      const noVerOrch = new Orchestrator(dag, store, gov, adapter, config);
+
+      const task = dag.addTask({ title: 'Review me', role: 'worker' });
+      store.insertAgent({
+        id: 'agent-w1' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+      dag.claimTask(task.id, 'agent-w1' as AgentId);
+      dag.submitTask(task.id);
+
+      const result = await noVerOrch.tick();
+      expect(result.completionsProcessed).toBeGreaterThan(0);
+
+      const updated = dag.getTask(task.id);
+      expect(updated?.state).toBe('done');
+      noVerOrch.stop();
+    });
+
+    it('does not auto-complete when verification is enabled', async () => {
+      // Default autonomous config has verification enabled
+      const task = dag.addTask({ title: 'Review me', role: 'worker' });
+      store.insertAgent({
+        id: 'agent-w2' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+      dag.claimTask(task.id, 'agent-w2' as AgentId);
+      dag.submitTask(task.id);
+
+      await orch.tick();
+      const updated = dag.getTask(task.id);
+      expect(updated?.state).toBe('in_review');
+    });
+  });
 });

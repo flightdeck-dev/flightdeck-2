@@ -16,6 +16,7 @@ const { values, positionals } = parseArgs({
     status: { type: 'string' },
     json: { type: 'boolean' },
     reason: { type: 'string' },
+    port: { type: 'string' },
     'cors-origin': { type: 'string' },
     'no-recover': { type: 'boolean', default: false },
     'fresh': { type: 'boolean', default: false },
@@ -219,420 +220,19 @@ switch (command) {
   }
 
   case 'start': {
+    const { startDaemon } = await import('./daemon.js');
     const projectName = resolveProject();
     const fd = new Flightdeck(projectName);
-    const profile = values.profile ?? fd.status().config.governance;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const port = parseInt((values as any).port ?? '3000', 10);
-    console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
-
-    // Clean up stale agents before spawning new ones
+    const port = parseInt(String(values.port ?? '3000'), 10);
+    const corsOrigin = (values['cors-origin'] as string | undefined) ?? '*';
     const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
-    const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
-
-    const markAgentsOffline = (agents: typeof activeAgents, reason: string) => {
-      for (const agent of agents) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
-        console.error(`  - ${agent.id} (${agent.role}) marked offline (${reason})`);
-      }
-    };
-
-    if (noRecover) {
-      if (activeAgents.length > 0) {
-        console.error(`Session recovery disabled (--no-recover). Marking ${activeAgents.length} existing agents as offline.`);
-        markAgentsOffline(activeAgents, '--no-recover');
-      } else {
-        console.error('Session recovery disabled (--no-recover). No existing agents to clean up.');
-      }
-    } else if (activeAgents.length > 0) {
-      // TODO: implement ACP session/load to truly reconnect to live sessions
-      console.error(`Found ${activeAgents.length} active agent(s). True session resume not yet implemented — marking offline and spawning fresh.`);
-      markAgentsOffline(activeAgents, 'session resume not yet implemented');
-    }
-
-    // Create LeadManager with all dependencies
-    const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
-    const { LeadManager } = await import('../lead/LeadManager.js');
-    const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
-
-    const acpAdapter = new AcpAdapterClass(undefined, 'copilot');
-    const leadManager = new LeadManager({
-      sqlite: fd.sqlite,
-      project: fd.project,
-      messageStore: fd.chatMessages ?? undefined,
-      acpAdapter,
-    });
-
-    // Create WebSocketServer
-    const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
-
-    // Wire orchestrator with all dependencies
-    fd.orchestrator.stop(); // stop the default one
-    const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
-    const orchestrator = new OrchestratorClass(
-      fd.dag, fd.sqlite, fd.governance, acpAdapter, fd.project.getConfig(),
-      undefined,
-      {
-        agentManager: fd.agentManager,
-        leadManager,
-        messageStore: fd.chatMessages ?? undefined,
-        wsServer: wsServer ?? undefined,
-        governanceConfig: {
-          costThresholdPerDay: fd.project.getConfig().costThresholdPerDay,
-        },
-      },
-    );
-
-    // Spawn Lead agent if none active
-    const postCleanupAgents = fd.listAgents();
-    const hasActiveLead = postCleanupAgents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
-    const hasActivePlanner = postCleanupAgents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
-
-    if (hasActiveLead) {
-      console.error('Lead agent already active — skipping spawn.');
-    } else {
-      console.error('Spawning Lead agent (persistent session)...');
-      try {
-        const leadSessionId = await leadManager.spawnLead();
-        console.error(`  Lead agent spawned (session: ${leadSessionId})`);
-      } catch (err: unknown) {
-        console.error(`  Failed to spawn Lead agent: ${err instanceof Error ? err.message : String(err)}`);
-        console.error('  Daemon will continue without Lead — spawn manually via API.');
-      }
-    }
-
-    // Spawn Planner agent if none active
-    if (hasActivePlanner) {
-      console.error('Planner agent already active — skipping spawn.');
-    } else {
-      console.error('Spawning Planner agent (persistent session)...');
-      try {
-        const plannerSessionId = await leadManager.spawnPlanner();
-        console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
-      } catch (err: unknown) {
-        console.error(`  Failed to spawn Planner agent: ${err instanceof Error ? err.message : String(err)}`);
-        console.error('  Daemon will continue without Planner — spawn manually via API.');
-      }
-    }
-
-    // Start orchestrator tick loop
-    orchestrator.start();
-    console.error('Orchestrator running (5 min tick interval).');
-
-    // Wire user messages from WebSocket to Lead agent
-    if (wsServer) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-      wsServer.on('user:message', (msg: any) => {
-        (async () => {
-          try {
-            const response = await leadManager.steerLead({ type: 'user_message', message: msg });
-            if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-              // Store Lead's response as a chat message
-              if (fd.chatMessages) {
-                const leadMsg = fd.chatMessages.createMessage({
-                  threadId: msg.thread_id ?? null,
-                  parentId: msg.id ?? null,
-                  taskId: null,
-                  authorType: 'lead',
-                  authorId: 'lead',
-                  content: response.trim(),
-                  metadata: null,
-                });
-                // Broadcast to all UI clients
-                wsServer.broadcast({ type: 'chat:message', message: leadMsg });
-              }
-            }
-          } catch (err) {
-            console.error('Failed to steer Lead with user message:', err);
-          }
-        })();
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-      wsServer.on('task:comment', ({ taskId, message: msg }: { taskId: string; message: any }) => {
-        (async () => {
-          try {
-            const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
-            if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-              if (fd.chatMessages) {
-                const leadMsg = fd.chatMessages.createMessage({
-                  threadId: null,
-                  parentId: null,
-                  taskId,
-                  authorType: 'lead',
-                  authorId: 'lead',
-                  content: response.trim(),
-                  metadata: null,
-                });
-                wsServer.broadcast({ type: 'task:comment', task_id: taskId, message: leadMsg });
-              }
-            }
-          } catch (err) {
-            console.error('Failed to steer Lead with task comment:', err);
-          }
-        })();
-      });
-    }
-
-    // Start HTTP + WebSocket server
-    const { createServer } = await import('node:http');
-    const { ModelConfig: ModelCfg, PRESET_NAMES: presetNames } = await import('../agents/ModelConfig.js');
-    const { modelRegistry: modRegistry } = await import('../agents/ModelTiers.js');
-    const modelCfg = new ModelCfg(process.cwd());
-    const { DEFAULT_DISPLAY: defaultDisplay, DISPLAY_PRESETS: displayPresets, DISPLAY_PRESET_NAMES: displayPresetNames, mergeDisplayConfig: mergeDisplay, isValidDisplayConfig: isValidDisplay } = await import('@flightdeck-ai/shared');
-    let serverDisplayConfig = { ...defaultDisplay };
-
-    const httpServer = createServer(async (req, res) => {
-      const url = new URL(req.url ?? '/', `http://localhost:${port}`);
-      const method = req.method ?? 'GET';
-
-      // Helper to read JSON body (1MB limit)
-      const MAX_BODY = 1024 * 1024; // 1MB
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic body parser returns arbitrary JSON
-      const readBody = (): Promise<any> => new Promise((resolve, reject) => {
-        let size = 0;
-        let data = '';
-        req.on('data', (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > MAX_BODY) {
-            req.destroy();
-            reject(new Error('Body too large'));
-            return;
-          }
-          data += chunk.toString();
-        });
-        req.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
-      });
-
-      const json = (status: number, body: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(body));
-      };
-
-      // CORS headers
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-      const corsOrigin = (values as any)['cors-origin'] ?? '*';
-      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-
-      if (url.pathname === '/health') {
-        json(200, { status: 'ok', project: projectName });
-      } else if (url.pathname === '/api/status' || url.pathname === '/status') {
-        json(200, fd.status());
-      } else if (url.pathname === '/api/messages' && method === 'GET') {
-        const threadId = url.searchParams.get('thread_id') ?? undefined;
-        const taskId = url.searchParams.get('task_id') ?? undefined;
-        const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-        const msgs = fd.chatMessages?.listMessages({ threadId, taskId, limit }) ?? [];
-        json(200, msgs.reverse());
-      } else if (url.pathname === '/api/messages' && method === 'POST') {
-        try {
-          const body = await readBody();
-          if (!body.content || typeof body.content !== 'string') { json(400, { error: 'Missing required field: content' }); return; }
-          // Store user message
-          let userMsg = null;
-          if (fd.chatMessages) {
-            userMsg = fd.chatMessages.createMessage({
-              threadId: null,
-              parentId: null,
-              taskId: null,
-              authorType: 'user',
-              authorId: 'http-api',
-              content: body.content,
-              metadata: null,
-            });
-            if (wsServer) wsServer.broadcast({ type: 'chat:message', message: userMsg });
-          }
-          // Steer Lead
-          let leadResponse: string | null = null;
-          let leadMsg = null;
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-            const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
-            if (raw && raw.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
-              leadResponse = raw.trim();
-              if (fd.chatMessages) {
-                leadMsg = fd.chatMessages.createMessage({
-                  threadId: null,
-                  parentId: userMsg?.id ?? null,
-                  taskId: null,
-                  authorType: 'lead',
-                  authorId: 'lead',
-                  content: leadResponse,
-                  metadata: null,
-                });
-                if (wsServer) wsServer.broadcast({ type: 'chat:message', message: leadMsg });
-              }
-            }
-          } catch (err: unknown) {
-            console.error('Failed to steer Lead:', err instanceof Error ? err.message : String(err));
-          }
-          json(200, { message: userMsg, response: leadMsg ?? leadResponse });
-        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
-      } else if (url.pathname === '/api/tasks' && method === 'POST') {
-        try {
-          const body = await readBody();
-          if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
-          const role = body.role || 'worker';
-          const task = fd.addTask({ title: body.title, description: body.description, role });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-          if (wsServer) wsServer.broadcast({ type: 'chat:message', message: task as any });
-          json(201, task);
-        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
-      } else if (url.pathname === '/api/tasks' && method === 'GET') {
-        json(200, fd.listTasks());
-      } else if (url.pathname.match(/^\/api\/tasks\/[^/]+$/) && method === 'GET') {
-        const taskId = url.pathname.split('/').pop()!;
-        const tasks = fd.listTasks();
-        const task = tasks.find(t => t.id === taskId);
-        if (task) json(200, task);
-        else json(404, { error: 'Task not found' });
-      } else if (url.pathname === '/api/agents' && method === 'GET') {
-        json(200, fd.listAgents());
-      } else if (url.pathname === '/api/decisions' && method === 'GET') {
-        const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
-        const decisions = fd.decisions.readAll().slice(0, limit);
-        json(200, decisions);
-      } else if (url.pathname === '/api/report' && method === 'GET') {
-        try {
-          const { DailyReport } = await import('../reporting/DailyReport.js');
-          const report = new DailyReport(fd.sqlite, fd.decisions);
-          res.writeHead(200, { 'Content-Type': 'text/markdown' });
-          res.end(report.generate({}));
-        } catch { json(200, { report: 'No report available yet.' }); }
-      } else if (url.pathname === '/api/threads' && method === 'GET') {
-        const threads = fd.chatMessages?.listThreads() ?? [];
-        json(200, threads);
-      } else if (url.pathname === '/api/models' && method === 'GET') {
-        json(200, { roles: modelCfg.getRoleConfigs(), presets: presetNames });
-      } else if (url.pathname === '/api/models/available' && method === 'GET') {
-        const result: Record<string, unknown> = {};
-        for (const rt of modRegistry.getRuntimes()) {
-          result[rt] = modRegistry.getModelsGrouped(rt);
-        }
-        json(200, result);
-      } else if (url.pathname.startsWith('/api/models/preset/') && method === 'POST') {
-        const preset = url.pathname.split('/').pop()!;
-        if (modelCfg.applyPreset(preset)) {
-          json(200, { success: true, roles: modelCfg.getRoleConfigs() });
-        } else {
-          json(400, { error: `Unknown preset: ${preset}. Available: ${presetNames.join(', ')}` });
-        }
-      } else if (url.pathname === '/api/display' && method === 'GET') {
-        json(200, serverDisplayConfig);
-      } else if (url.pathname === '/api/display' && method === 'PUT') {
-        try {
-          const body = await readBody();
-          if (!isValidDisplay(body)) { json(400, { error: 'Invalid display config' }); return; }
-          serverDisplayConfig = mergeDisplay(serverDisplayConfig, body);
-          // Broadcast updated server config to all WS clients
-          if (wsServer) {
-            wsServer.broadcast({ type: 'display:config', config: serverDisplayConfig });
-          }
-          json(200, serverDisplayConfig);
-        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
-      } else if (url.pathname.match(/^\/api\/display\/preset\/[^/]+$/) && method === 'POST') {
-        const preset = url.pathname.split('/').pop()!;
-        if (preset in displayPresets) {
-          serverDisplayConfig = { ...displayPresets[preset as keyof typeof displayPresets] };
-          json(200, serverDisplayConfig);
-        } else {
-          json(400, { error: `Unknown preset: ${preset}. Available: ${displayPresetNames.join(', ')}` });
-        }
-      } else if (url.pathname.match(/^\/api\/models\/[^/]+$/) && method === 'PUT') {
-        const role = url.pathname.split('/').pop()!;
-        try {
-          const body = await readBody();
-          if (body.runtime) modelCfg.setRole(role, `${body.runtime}:${body.model ?? 'medium'}`);
-          else if (body.model) modelCfg.setRole(role, body.model);
-          else { json(400, { error: 'Provide runtime and/or model' }); return; }
-          json(200, { success: true, config: modelCfg.getRoleConfig(role) });
-        } catch (e: unknown) {
-          json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid request body' });
-        }
-      } else if (url.pathname === '/api/orchestrator/pause' && method === 'POST') {
-        fd.orchestrator.pause();
-        json(200, { paused: true });
-      } else if (url.pathname === '/api/orchestrator/resume' && method === 'POST') {
-        fd.orchestrator.resume();
-        json(200, { paused: false });
-      } else if (url.pathname === '/api/orchestrator/status' && method === 'GET') {
-        json(200, { paused: fd.orchestrator.paused, running: fd.orchestrator.isRunning() });
-      } else {
-        res.writeHead(404);
-        res.end('Not found');
-      }
-    });
-    // Wire WebSocket to HTTP server upgrade
-    if (wsServer) {
-      const { WebSocketServer: WsLib } = await import('ws');
-      const wss = new WsLib({ server: httpServer });
-      let clientCounter = 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-      wss.on('connection', (socket: any) => {
-        const clientId = `ws-client-${++clientCounter}`;
-        const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
-        wsServer.addClient(client);
-        // Inherit server display config
-        wsServer.setDisplayConfig(clientId, { ...serverDisplayConfig });
-        wsServer.sendTo(clientId, { type: 'display:config', config: serverDisplayConfig });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-        socket.on('message', (raw: any) => {
-          try {
-            const event = JSON.parse(raw.toString());
-            wsServer.handleEvent(clientId, event);
-          } catch {}
-        });
-        socket.on('close', () => wsServer.removeClient(clientId));
-      });
-
-      // Store wss for shutdown
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-      (httpServer as any).__wss = wss;
-    }
-
-    httpServer.listen(port, () => {
-      console.error(`HTTP server listening on port ${port}.`);
-    });
-
-    console.error(`\nFlightdeck daemon running on port ${port}. Lead: active. Planner: active.`);
-
-    // Handle graceful shutdown
-    const shutdown = () => {
-      console.error('\nStopping Flightdeck...');
-      orchestrator.stop();
-      leadManager.stop();
-      // Kill all active ACP agent sessions
-      acpAdapter.clear();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-      if ((httpServer as any).__wss) (httpServer as any).__wss.close();
-      httpServer.close();
-      fd.close();
-      process.exit(0);
-    };
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-
-    // Catch crashes to clean up orphan child processes
-    process.on('uncaughtException', (err) => {
-      console.error('\nFatal uncaught exception:', err);
-      try { acpAdapter.clear(); } catch {}
-      process.exit(1);
-    });
-    process.on('unhandledRejection', (reason) => {
-      console.error('\nFatal unhandled rejection:', reason);
-      try { acpAdapter.clear(); } catch {}
-      process.exit(1);
-    });
+    await startDaemon({ fd, projectName, port, corsOrigin, noRecover });
     break;
   }
 
   case 'chat': {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const chatPort = (values as any).port || '3000';
+    const chatPort = values.port || '3000';
     const chatMessage = positionals.slice(1).join(' ');
     if (!chatMessage) { console.error('Usage: flightdeck chat <message>'); process.exit(1); }
     try {
@@ -664,7 +264,7 @@ switch (command) {
 
   case 'pause': {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const pausePort = (values as any).port || '3000';
+    const pausePort = values.port || '3000';
     try {
       const res = await fetch(`http://localhost:${pausePort}/api/orchestrator/pause`, { method: 'POST' });
       if (res.ok) {
@@ -682,7 +282,7 @@ switch (command) {
 
   case 'resume': {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const resumePort = (values as any).port || '3000';
+    const resumePort = values.port || '3000';
     try {
       const res = await fetch(`http://localhost:${resumePort}/api/orchestrator/resume`, { method: 'POST' });
       if (res.ok) {
@@ -779,7 +379,7 @@ switch (command) {
   case 'display': {
     const { DEFAULT_DISPLAY, DISPLAY_PRESET_NAMES, } = await import('@flightdeck-ai/shared');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const displayPort = (values as any).port || '3000';
+    const displayPort = values.port || '3000';
     const displayBase = `http://localhost:${displayPort}`;
 
     if (!subcommand) {

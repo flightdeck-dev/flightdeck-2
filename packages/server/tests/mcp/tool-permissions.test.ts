@@ -1,0 +1,55 @@
+import { describe, it, expect } from 'vitest';
+import { getToolsForRole, ROLE_TOOLS } from '../../src/mcp/toolPermissions.js';
+
+describe('toolPermissions', () => {
+  it('returns correct tools for known roles', () => {
+    expect(getToolsForRole('lead')).toBe(ROLE_TOOLS.lead);
+    expect(getToolsForRole('worker')).toBe(ROLE_TOOLS.worker);
+    expect(getToolsForRole('reviewer')).toBe(ROLE_TOOLS.reviewer);
+    expect(getToolsForRole('planner')).toBe(ROLE_TOOLS.planner);
+  });
+
+  it('falls back to worker tools for unknown roles', () => {
+    expect(getToolsForRole('unknown-role')).toBe(ROLE_TOOLS.worker);
+    expect(getToolsForRole('')).toBe(ROLE_TOOLS.worker);
+  });
+
+  it('lead has more tools than worker', () => {
+    expect(ROLE_TOOLS.lead.length).toBeGreaterThan(ROLE_TOOLS.worker.length);
+  });
+
+  it('all roles include flightdeck_status', () => {
+    for (const [role, tools] of Object.entries(ROLE_TOOLS)) {
+      expect(tools, `${role} should have flightdeck_status`).toContain('flightdeck_status');
+    }
+  });
+
+  it('all roles include flightdeck_tools_available', () => {
+    for (const [role, tools] of Object.entries(ROLE_TOOLS)) {
+      expect(tools, `${role} should have flightdeck_tools_available`).toContain('flightdeck_tools_available');
+    }
+  });
+
+  it('all roles include flightdeck_escalate', () => {
+    for (const [role, tools] of Object.entries(ROLE_TOOLS)) {
+      expect(tools, `${role} should have flightdeck_escalate`).toContain('flightdeck_escalate');
+    }
+  });
+
+  it('only lead can spawn/terminate agents', () => {
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_spawn');
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_terminate');
+    expect(ROLE_TOOLS.worker).not.toContain('flightdeck_agent_spawn');
+    expect(ROLE_TOOLS.reviewer).not.toContain('flightdeck_agent_spawn');
+  });
+
+  it('worker can claim and submit tasks', () => {
+    expect(ROLE_TOOLS.worker).toContain('flightdeck_task_claim');
+    expect(ROLE_TOOLS.worker).toContain('flightdeck_task_submit');
+  });
+
+  it('reviewer can complete and fail tasks', () => {
+    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_complete');
+    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_fail');
+  });
+});
