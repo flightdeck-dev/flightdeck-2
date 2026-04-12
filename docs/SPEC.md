@@ -1024,73 +1024,59 @@ Worker     ❌      ✅       ❌         -
 
 ### Lead Context Window Management
 
-Lead is the highest-risk role for context overflow. It handles user conversation, planner proposals, worker reports, task comments, and status changes. Mitigation:
+Lead is the highest-risk role for context overflow. It handles user conversation, planner proposals, worker reports, task comments, and status changes.
 
-**1. Layered context injection (not "dump everything")**
+**Key constraint:** Flightdeck does NOT control the Lead's context window. The agent runtime (Copilot CLI, Codex, etc.) owns compaction. Flightdeck cannot compress, cannot know remaining capacity, cannot evict messages. See "Context Management Constraint" section.
 
-```
-Lead context window:
-┌──────────────────────────────────────┐
-│ System prompt (role definition)       │  Fixed, ~500 tokens
-├──────────────────────────────────────┤
-│ User profile (USER.md summary)        │  Fixed, ~200 tokens
-├──────────────────────────────────────┤
-│ Project state (auto-generated)        │  Dynamic, ~300 tokens
-│ "12 tasks: 3 done, 5 running..."     │
-├──────────────────────────────────────┤
-│ Current conversation (user ↔ lead)    │  Rolling window
-├──────────────────────────────────────┤
-│ On-demand context (injected/removed)  │  Only when processing
-│ (task detail, worker report, etc.)    │
-└──────────────────────────────────────┘
-```
+**Therefore: the only strategy is to minimize what goes IN.**
 
-**2. Worker reports do NOT enter Lead conversation**
+**1. Worker reports do NOT enter Lead conversation**
 
-Worker completes task → writes to SQLite (status + report). Lead is NOT notified in conversation. Lead pulls details on demand via `flightdeck_task_get()`. Only these events interrupt Lead:
+Worker completes task → writes to SQLite (status + report). Lead is NOT notified via ACP steer. Lead pulls details on demand via `flightdeck_task_get()` MCP tool. Only these events trigger an ACP steer to Lead:
 
-| Event | What Lead sees |
-|-------|----------------|
-| User message | Full message |
+| Event | What Lead receives |
+|-------|--------------------|
+| User message | Full message (self-contained) |
 | Task failure (after retries) | One-line summary |
-| All tasks complete | One-line summary |
+| All tasks in spec complete | One-line summary |
 | Worker escalation | Worker's question |
 
-Everything else (task in progress, worker coding) → silent.
+Everything else (task in progress, worker coding, review passed) → silent. Lead doesn't see it unless it asks.
 
-**3. Project state = auto-compressed dashboard**
+**2. Project state lives in files, not conversation**
 
-Every time Lead receives a message, Flightdeck auto-injects a ~200 token project summary:
-```
-## Project: flightdeck-2
+Flightdeck daemon maintains `.flightdeck/status.md` (auto-updated on every state change). Lead reads this file when it needs context — Flightdeck does NOT inject it into conversation.
+
+```markdown
+# .flightdeck/status.md (auto-generated, always current)
 Tasks: 3/12 done, 5 running, 2 ready, 2 blocked
 Active agents: worker-1 (task_003), worker-2 (task_005)
 Recent: task_001 ✅, task_002 ✅, task_004 failed
 Pending decisions: 0
 ```
 
-**4. Conversation compaction**
+Files survive agent compaction. Conversation doesn't.
 
-Old messages are compressed. User messages are preserved with highest priority; Lead's own replies are compressed first.
+**3. Every steer is self-contained**
+
+When Flightdeck sends a steer to Lead (e.g., "user commented on task_017"), the steer includes all necessary context. Never assume Lead remembers previous steers.
 
 ```
-Before:
-  [msg_001] user: Add dark mode          ← keep (original requirement)
-  [msg_002] lead: OK, planning            ← compress
-  [msg_003] lead: Split into 5 tasks      ← compress
-  [msg_004] user: Change port to 8443     ← keep (user instruction)
-  ...20 more exchanges...
+[steer]
+User commented on task_017 "Deploy staging" (status: in_progress, agent: worker-3):
+"Change port to 8443"
 
-After:
-  [msg_001] user: Add dark mode
-  [summary] Lead planned 5 tasks, 3 done, 2 running
-  [msg_004] user: Change port to 8443
-  [msg_042] user: What's the status?      ← recent messages kept full
+For full task history: flightdeck_task_get("task_017")
+For project status: read .flightdeck/status.md
 ```
 
-**5. Task context injected on-demand, then removed**
+**4. Task context lives in files**
 
-User comments on task_017 → Lead receives message with task context injected → Lead processes it → task context removed from window. Not persistent.
+Each task gets a file: `.flightdeck/tasks/task_017.md` with full context (description, comments, agent reports). Lead reads the file when processing a task-related event. This is durable — even after compaction, the file is still there.
+
+**5. No conversation compaction by Flightdeck**
+
+Flightdeck does NOT attempt to compress Lead's conversation history. That's the agent runtime's job. Flightdeck's job is to keep the input stream lean enough that compaction is rarely needed.
 
 ---
 
