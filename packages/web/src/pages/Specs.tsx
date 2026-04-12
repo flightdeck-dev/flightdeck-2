@@ -9,7 +9,7 @@ interface Spec {
 }
 
 export default function Specs() {
-  const [specs, setSpecs] = useState<Spec[]>([]);
+  const [specs] = useState<Spec[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [report, setReport] = useState<string>('');
 

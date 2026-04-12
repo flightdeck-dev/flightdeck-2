@@ -19,8 +19,12 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-async function post<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'POST' });
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: body != null ? { 'Content-Type': 'application/json' } : {},
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
   return res.json();
 }
@@ -46,4 +50,10 @@ export const api = {
   getDisplayConfig: () => get<DisplayConfig>('/api/display'),
   updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
   applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),
+  createTask: (task: { title: string; description?: string; role?: string; priority?: number; depends_on?: string[] }) =>
+    post<import('./types.ts').Task>('/api/tasks', task),
+  getThreads: () => get<import('./types.ts').Thread[]>('/api/threads'),
+  getModels: () => get<Record<string, unknown>>('/api/models'),
+  sendMessage: (content: string, opts?: { thread_id?: string }) =>
+    post<import('./types.ts').ChatMessage>('/api/messages', { content, ...opts }),
 };

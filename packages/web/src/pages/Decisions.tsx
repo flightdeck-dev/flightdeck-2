@@ -1,18 +1,82 @@
 import { useState } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-import type { DecisionStatus } from '../lib/types.ts';
+import type { Decision, DecisionStatus } from '../lib/types.ts';
 
-const STATUS_STYLES: Record<DecisionStatus, { bg: string; text: string }> = {
-  confirmed: { bg: 'color-mix(in srgb, var(--color-status-done) 15%, transparent)', text: 'var(--color-status-done)' },
-  recorded: { bg: 'color-mix(in srgb, var(--color-status-ready) 15%, transparent)', text: 'var(--color-status-ready)' },
-  rejected: { bg: 'color-mix(in srgb, var(--color-status-failed) 15%, transparent)', text: 'var(--color-status-failed)' },
+const STATUS_STYLES: Record<DecisionStatus, { bg: string; text: string; icon: string }> = {
+  confirmed: { bg: 'color-mix(in srgb, var(--color-status-done) 15%, transparent)', text: 'var(--color-status-done)', icon: '✓' },
+  recorded: { bg: 'color-mix(in srgb, var(--color-status-ready) 15%, transparent)', text: 'var(--color-status-ready)', icon: '○' },
+  rejected: { bg: 'color-mix(in srgb, var(--color-status-failed) 15%, transparent)', text: 'var(--color-status-failed)', icon: '✕' },
 };
+
+const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
+  architecture: { color: 'var(--color-status-in-review)', icon: '🏗' },
+  implementation: { color: 'var(--color-status-running)', icon: '⚡' },
+  dependency: { color: 'var(--color-status-ready)', icon: '📦' },
+  design: { color: 'var(--color-status-done)', icon: '🎨' },
+};
+
+function DecisionCard({ decision, isExpanded, onToggle }: { decision: Decision; isExpanded: boolean; onToggle: () => void }) {
+  const statusStyle = STATUS_STYLES[decision.status] ?? STATUS_STYLES.recorded;
+  const catStyle = CATEGORY_STYLES[decision.category] ?? { color: 'var(--color-text-tertiary)', icon: '📌' };
+
+  return (
+    <div className="relative pl-8">
+      {/* Timeline dot */}
+      <div className="absolute left-0 top-3 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px]"
+           style={{ borderColor: statusStyle.text, backgroundColor: statusStyle.bg, color: statusStyle.text }}>
+        {statusStyle.icon}
+      </div>
+
+      <div className={`border border-[var(--color-border)] rounded-lg overflow-hidden hover:border-[var(--color-text-tertiary)] transition-colors cursor-pointer ${isExpanded ? 'bg-[var(--color-surface)]' : ''}`}
+           onClick={onToggle}>
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">{decision.title}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: `color-mix(in srgb, ${catStyle.color} 15%, transparent)`, color: catStyle.color }}>
+                  {catStyle.icon} {decision.category}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}>
+                  {decision.status}
+                </span>
+              </div>
+            </div>
+            <span className="text-xs text-[var(--color-text-tertiary)] shrink-0">
+              {new Date(decision.timestamp).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+        {isExpanded && (
+          <div className="px-4 pb-4 pt-0 border-t border-[var(--color-border)]">
+            <p className="text-sm text-[var(--color-text-secondary)] mt-3 whitespace-pre-wrap">{decision.rationale}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
+              {new Date(decision.timestamp).toLocaleString()}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Decisions() {
   const { decisions, loading } = useFlightdeck();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
 
-  if (loading) return <div className="text-[var(--color-text-secondary)]">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-4xl space-y-4">
+        <div className="h-8 w-40 bg-[var(--color-surface-secondary)] rounded animate-pulse" />
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-24 bg-[var(--color-surface-secondary)] rounded-lg animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   if (decisions.length === 0) {
     return (
@@ -21,52 +85,42 @@ export default function Decisions() {
         <div className="text-center py-16 text-[var(--color-text-secondary)]">
           <p className="text-4xl mb-4">⚖</p>
           <p>No decisions logged yet.</p>
+          <p className="text-sm mt-1 text-[var(--color-text-tertiary)]">Decisions will appear here as the Lead makes architectural and implementation choices.</p>
         </div>
       </div>
     );
   }
 
+  const categories = [...new Set(decisions.map(d => d.category))];
+  const filtered = categoryFilter === 'all' ? decisions : decisions.filter(d => d.category === categoryFilter);
+
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-xl font-semibold">Decisions ({decisions.length})</h1>
-      <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Title</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Category</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Status</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--color-text-secondary)]">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {decisions.map(d => (
-              <tr key={d.id} className="border-b border-[var(--color-border)]">
-                <td colSpan={4} className="p-0">
-                  <div onClick={() => setExpanded(expanded === d.id ? null : d.id)}
-                       className="flex hover:bg-[var(--color-surface-hover)] cursor-pointer transition-colors">
-                    <div className="flex-[2] px-4 py-2.5 font-medium">{d.title}</div>
-                    <div className="flex-1 px-4 py-2.5 text-[var(--color-text-secondary)]">{d.category}</div>
-                    <div className="flex-1 px-4 py-2.5">
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                            style={{ backgroundColor: STATUS_STYLES[d.status]?.bg, color: STATUS_STYLES[d.status]?.text }}>
-                        {d.status}
-                      </span>
-                    </div>
-                    <div className="flex-1 px-4 py-2.5 text-xs text-[var(--color-text-tertiary)]">
-                      {new Date(d.timestamp).toLocaleString()}
-                    </div>
-                  </div>
-                  {expanded === d.id && (
-                    <div className="px-4 py-4 bg-[var(--color-surface-secondary)] text-sm text-[var(--color-text-secondary)]">
-                      {d.rationale}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Decisions ({decisions.length})</h1>
+        <div className="flex gap-1">
+          <button onClick={() => setCategoryFilter('all')}
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${categoryFilter === 'all' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
+            All
+          </button>
+          {categories.map(c => (
+            <button key={c} onClick={() => setCategoryFilter(c)}
+              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${categoryFilter === c ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
+              {CATEGORY_STYLES[c]?.icon ?? '📌'} {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="relative space-y-3">
+        {/* Timeline line */}
+        <div className="absolute left-[7px] top-0 bottom-0 w-0.5 bg-[var(--color-border)]" />
+
+        {filtered.map(d => (
+          <DecisionCard key={d.id} decision={d} isExpanded={expanded === d.id}
+            onToggle={() => setExpanded(expanded === d.id ? null : d.id)} />
+        ))}
       </div>
     </div>
   );

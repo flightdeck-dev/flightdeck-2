@@ -1,17 +1,86 @@
-import { useState, useCallback } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 
+const COMMANDS = [
+  { label: 'Go to Dashboard', path: '/', keys: ['g', 'd'] },
+  { label: 'Go to Chat', path: '/chat', keys: ['g', 'c'] },
+  { label: 'Go to Tasks', path: '/tasks', keys: ['g', 't'] },
+  { label: 'Go to Agents', path: '/agents', keys: ['g', 'a'] },
+  { label: 'Go to Specs', path: '/specs', keys: ['g', 's'] },
+  { label: 'Go to Decisions', path: '/decisions', keys: ['g', 'e'] },
+  { label: 'Go to Settings', path: '/settings', keys: ['g', '⚙'] },
+];
+
+function CommandPalette({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const filtered = COMMANDS.filter(c =>
+    c.label.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const handleSelect = (path: string) => {
+    navigate(path);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-[var(--color-border)]">
+          <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') onClose();
+              if (e.key === 'Enter' && filtered.length > 0) handleSelect(filtered[0].path);
+            }}
+            placeholder="Type a command..."
+            className="w-full bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none" />
+        </div>
+        <div className="max-h-64 overflow-y-auto py-1">
+          {filtered.map(c => (
+            <button key={c.path} onClick={() => handleSelect(c.path)}
+              className="w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex items-center justify-between">
+              <span>{c.label}</span>
+              <kbd className="text-xs text-[var(--color-text-tertiary)] font-mono">{c.keys.join(' ')}</kbd>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-4 py-6 text-sm text-[var(--color-text-tertiary)] text-center">No commands found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const toggleCollapsed = useCallback(() => setCollapsed(c => !c), []);
   const toggleDisplaySettings = useCallback(() => setShowDisplaySettings(s => !s), []);
   const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
   const { status, connected } = useFlightdeck();
+
+  // Cmd+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowPalette(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
     <div className="h-screen flex flex-col">
@@ -29,6 +98,11 @@ export function Layout() {
                 title={connected ? 'Connected' : 'Disconnected'} />
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowPalette(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[var(--color-border)] text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors">
+            <span>Search</span>
+            <kbd className="text-[10px] px-1 py-0.5 rounded bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">⌘K</kbd>
+          </button>
           <button
             onClick={toggleDisplaySettings}
             className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -41,6 +115,7 @@ export function Layout() {
       </header>
 
       {showDisplaySettings && <DisplaySettings onClose={closeDisplaySettings} />}
+      {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
