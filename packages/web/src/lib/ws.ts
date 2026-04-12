@@ -1,5 +1,6 @@
 import type { ChatMessage, Thread } from './types.ts';
 import type { DisplayConfig, ContentType } from '@flightdeck-ai/shared/display';
+import { WS_INITIAL_BACKOFF_MS, WS_MAX_BACKOFF_MS } from './constants.ts';
 
 export type WsEvent =
   | { type: 'chat:message'; message: ChatMessage }
@@ -17,7 +18,7 @@ export class WebSocketClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url: string;
   private _connected = false;
-  private backoffMs = 1000;
+  private backoffMs = WS_INITIAL_BACKOFF_MS;
 
   constructor(url?: string) {
     const loc = window.location;
@@ -32,7 +33,7 @@ export class WebSocketClient {
       this.ws = new WebSocket(this.url);
       this.ws.onopen = () => {
         this._connected = true;
-        this.backoffMs = 1000;
+        this.backoffMs = WS_INITIAL_BACKOFF_MS;
         for (const h of this.connectionHandlers) h(true);
       };
       this.ws.onmessage = (e) => {
@@ -101,7 +102,7 @@ export class WebSocketClient {
       this.reconnectTimer = null;
       this.connect();
     }, this.backoffMs);
-    this.backoffMs = Math.min(this.backoffMs * 2, 30000);
+    this.backoffMs = Math.min(this.backoffMs * 2, WS_MAX_BACKOFF_MS);
   }
 }
 

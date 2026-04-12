@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
@@ -8,6 +8,9 @@ import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const toggleCollapsed = useCallback(() => setCollapsed(c => !c), []);
+  const toggleDisplaySettings = useCallback(() => setShowDisplaySettings(s => !s), []);
+  const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
   const { status, connected } = useFlightdeck();
 
   return (
@@ -27,7 +30,7 @@ export function Layout() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowDisplaySettings(!showDisplaySettings)}
+            onClick={toggleDisplaySettings}
             className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
             title="Display settings"
           >
@@ -37,10 +40,10 @@ export function Layout() {
         </div>
       </header>
 
-      {showDisplaySettings && <DisplaySettings onClose={() => setShowDisplaySettings(false)} />}
+      {showDisplaySettings && <DisplaySettings onClose={closeDisplaySettings} />}
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+        <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
         <main className="flex-1 overflow-y-auto p-8">
           <Outlet />
         </main>

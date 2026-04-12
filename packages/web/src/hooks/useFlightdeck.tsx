@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { api } from '../lib/api.ts';
+import { MAX_MESSAGES } from '../lib/constants.ts';
 import { wsClient, type WsEvent } from '../lib/ws.ts';
 import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from '../lib/types.ts';
 import { type DisplayConfig, type DisplayPreset, DEFAULT_DISPLAY, DISPLAY_PRESETS, type ContentType } from '@flightdeck-ai/shared/display';
@@ -78,7 +79,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
         case 'chat:message':
           setMessages(prev => {
             if (prev.some(m => m.id === event.message.id)) return prev;
-            return [...prev.slice(-499), event.message];
+            return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
           });
           // Clear streaming buffer for this message
           streamingRef.current.delete(event.message.id);

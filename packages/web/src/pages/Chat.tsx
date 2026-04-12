@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
 import type { ChatMessage } from '../lib/types.ts';
@@ -11,7 +11,7 @@ const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string }
   system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent' },
 };
 
-function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (m: ChatMessage) => void }) {
+const MessageBubble = memo(function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (m: ChatMessage) => void }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
 
   if (msg.authorType === 'system') {
@@ -49,7 +49,7 @@ function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (m: ChatMe
       </button>
     </div>
   );
-}
+});
 
 function StreamingBubble({ messageId, content, chunks, displayConfig }: {
   messageId: string;
@@ -220,21 +220,23 @@ export default function Chat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Filter to main thread only (no threadId, no taskId)
-  const mainMessages = messages.filter(m => !m.threadId && !m.taskId);
+  const mainMessages = useMemo(() => messages.filter(m => !m.threadId && !m.taskId), [messages]);
+
+  const handleReply = useCallback((m: ChatMessage) => setReplyTo(m), []);
 
   // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mainMessages.length, streamingMessages.size]);
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text) return;
     sendChat(text, replyTo?.id);
     setInput('');
     setReplyTo(null);
     inputRef.current?.focus();
-  };
+  }, [input, replyTo, sendChat]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -273,7 +275,7 @@ export default function Chat() {
           </div>
         )}
         {mainMessages.map(msg => (
-          <MessageBubble key={msg.id} msg={msg} onReply={setReplyTo} />
+          <MessageBubble key={msg.id} msg={msg} onReply={handleReply} />
         ))}
         {streamEntries.map(([id, content]) => (
           <StreamingBubble

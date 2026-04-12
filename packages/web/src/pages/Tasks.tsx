@@ -1,18 +1,7 @@
 import { useState } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { STATE_COLORS } from '../lib/constants.ts';
 import type { TaskState } from '../lib/types.ts';
-
-const STATE_COLORS: Record<string, string> = {
-  pending: 'var(--color-status-ready)',
-  ready: 'var(--color-status-ready)',
-  running: 'var(--color-status-running)',
-  in_review: 'var(--color-status-in-review)',
-  done: 'var(--color-status-done)',
-  failed: 'var(--color-status-failed)',
-  cancelled: 'var(--color-status-cancelled)',
-  paused: 'var(--color-text-tertiary)',
-  skipped: 'var(--color-text-tertiary)',
-};
 
 const STATES: TaskState[] = ['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
 
@@ -31,16 +20,17 @@ export default function Tasks() {
   const { tasks, sendTaskComment, loading } = useFlightdeck();
   const [filter, setFilter] = useState<TaskState | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [comment, setComment] = useState('');
+  const [commentByTask, setCommentByTask] = useState<Record<string, string>>({});
 
   if (loading) return <div className="text-[var(--color-text-secondary)]">Loading...</div>;
 
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.state === filter);
 
   const handleComment = (taskId: string) => {
-    if (!comment.trim()) return;
-    sendTaskComment(taskId, comment.trim());
-    setComment('');
+    const text = (commentByTask[taskId] ?? '').trim();
+    if (!text) return;
+    sendTaskComment(taskId, text);
+    setCommentByTask(prev => ({ ...prev, [taskId]: '' }));
   };
 
   return (
@@ -104,8 +94,8 @@ export default function Tasks() {
                         )}
                         <div className="flex gap-2 mt-3">
                           <input
-                            value={comment}
-                            onChange={e => setComment(e.target.value)}
+                            value={commentByTask[task.id] ?? ''}
+                            onChange={e => setCommentByTask(prev => ({ ...prev, [task.id]: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter') handleComment(task.id); }}
                             placeholder="Add a comment..."
                             className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-2 py-1 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none"

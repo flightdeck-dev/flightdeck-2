@@ -1,14 +1,5 @@
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-
-const STATE_COLORS: Record<string, string> = {
-  pending: 'var(--color-status-ready)',
-  ready: 'var(--color-status-ready)',
-  running: 'var(--color-status-running)',
-  in_review: 'var(--color-status-in-review)',
-  done: 'var(--color-status-done)',
-  failed: 'var(--color-status-failed)',
-  cancelled: 'var(--color-status-cancelled)',
-};
+import { STATE_COLORS } from '../lib/constants.ts';
 
 function StatCard({ label, count, color }: { label: string; count: number; color: string }) {
   return (

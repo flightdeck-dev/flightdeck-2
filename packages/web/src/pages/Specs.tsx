@@ -14,8 +14,10 @@ export default function Specs() {
   const [report, setReport] = useState<string>('');
 
   useEffect(() => {
+    let cancelled = false;
     // Specs aren't in the main API yet — show report instead
-    api.getReport().then(setReport).catch(() => {});
+    api.getReport().then(r => { if (!cancelled) setReport(r); }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   const activeSpec = specs.find(s => s.id === selected);
