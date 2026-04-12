@@ -233,15 +233,38 @@ export class SkillManager {
    */
   static generateDefaultConfig(): string {
     return `# Flightdeck Project Configuration
-# Skills and MCP servers are configured per-role.
+
+agents:
+  default_runtime: copilot
+  default_model: high          # fallback for any role not specified
+
+  roles:
+    lead:
+      runtime: copilot
+      model: medium
+    planner:
+      runtime: copilot
+      model: medium
+    worker:
+      runtime: copilot
+      model: high
+    reviewer:
+      runtime: copilot
+      model: high
+    product-thinker:
+      runtime: copilot
+      model: medium
+    qa-tester:
+      runtime: copilot
+      model: high
+    tech-writer:
+      runtime: copilot
+      model: medium
 
 skills:
-  # Global: available to all roles
   global:
     - flightdeck-basics
     - task-workflow
-
-  # Per-role: add role-specific skills here
   roles:
     lead:
       - memory-management
@@ -250,12 +273,9 @@ skills:
     planner: []
 
 mcp:
-  # Global: all agents connect to these
   global:
     flightdeck:
       command: "npx flightdeck-mcp"
-
-  # Per-role: add role-specific MCP servers here
   roles:
     lead: {}
     worker: {}

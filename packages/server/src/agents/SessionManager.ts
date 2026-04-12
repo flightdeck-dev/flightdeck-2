@@ -51,6 +51,16 @@ export const DEFAULT_RUNTIMES: Record<string, RuntimeConfig> = {
     args: ['{prompt}'],
     adapter: 'acp',
   },
+  copilot: {
+    command: 'copilot',
+    args: ['--acp', '--stdio', '--allow-all'],
+    adapter: 'acp',
+  },
+  'claude-code': {
+    command: 'claude-agent-acp',
+    args: [],
+    adapter: 'acp',
+  },
 };
 
 function interpolateArgs(args: string[], vars: Record<string, string>): string[] {

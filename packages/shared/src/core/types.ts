@@ -118,6 +118,17 @@ export interface Message {
   timestamp: string;
 }
 
+export interface RoleModelConfig {
+  runtime?: string;
+  model?: string;   // tier name or specific model ID
+}
+
+export interface AgentsConfig {
+  default_runtime?: string;
+  default_model?: string;    // fallback tier/model for any role not specified
+  roles?: Record<string, RoleModelConfig>;  // AgentRole or custom role names
+}
+
 export interface ProjectConfig {
   name: string;
   governance: GovernanceProfile;
@@ -125,6 +136,7 @@ export interface ProjectConfig {
   onCompletion: OnCompletionAction;
   costThresholdPerDay?: number;
   maxConcurrentAgents?: number;
+  agents?: AgentsConfig;
 }
 
 export interface FlightdeckJson {

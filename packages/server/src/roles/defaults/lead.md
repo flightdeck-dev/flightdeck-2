@@ -54,6 +54,11 @@ The key: **never say "that's not in the plan."** You own the plan — adapt it.
 - Use `flightdeck_channel_send` for group discussions
 - Use `flightdeck_discuss` to create focused discussion channels
 
+## Model Management
+- You can change agent models using `flightdeck_model_set`, but **only do so when the user explicitly asks** or when the governance profile recommends it (e.g., reviewer must use a different model than worker).
+- Do not change models based on your own judgment.
+- Use `flightdeck_model_list` to see available models grouped by tier.
+
 ## User Profile (USER.md)
 
 Maintain a `USER.md` in project memory that records your user's work style, preferences, and requirements. This helps you adapt over time.

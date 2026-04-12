@@ -11,6 +11,9 @@ import { SkillManager } from '../skills/SkillManager.js';
 import { DailyReport } from '../reporting/DailyReport.js';
 import type { DecisionId } from '@flightdeck-ai/shared';
 import { decisionId as makeDecisionId } from '@flightdeck-ai/shared';
+import { modelRegistry } from '../agents/ModelTiers.js';
+import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import { ModelConfig } from '../agents/ModelConfig.js';
 
 const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 
@@ -68,6 +71,7 @@ function permError(agentId: string, role: string, toolName: string, permission: 
 export interface McpServerOptions {
   projectName?: string;
   agentManager?: AgentManager;
+  acpAdapter?: AcpAdapter;
 }
 
 export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): McpServer {
@@ -75,6 +79,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     ? { projectName: projectNameOrOpts }
     : projectNameOrOpts ?? {};
   const name = opts.projectName ?? ProjectStore.resolve(process.cwd());
+  const acpAdapter = opts.acpAdapter ?? null;
   if (!name) {
     throw new Error('No Flightdeck project found. Run `flightdeck init` first or pass --project.');
   }
@@ -808,6 +813,66 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const result = skillManager.installSkill(params.source);
     if (!result) return errorResponse('Failed to install skill. Check that the source directory exists and contains a SKILL.md.');
     return jsonResponse(result);
+  });
+
+  // ── Model tools ──
+
+  server.tool('flightdeck_model_list', 'List available models grouped by tier for all runtimes', {}, async () => {
+    const runtimes = modelRegistry.getRuntimes();
+    const result: Record<string, unknown> = {};
+    for (const rt of runtimes) {
+      result[rt] = modelRegistry.getModelsGrouped(rt);
+    }
+    return jsonResponse({ runtimes, models: result });
+  });
+
+  server.tool('flightdeck_model_config', 'Get current model configuration per role', {}, async () => {
+    const cwd = process.cwd();
+    const mc = new ModelConfig(cwd);
+    return jsonResponse({ roles: mc.getRoleConfigs() });
+  });
+
+  server.tool('flightdeck_model_set', 'Change a running agent\'s model (Lead only, user-requested)', {
+    agent_id: z.string().describe('Agent ID to change model for'),
+    model: z.string().describe('Tier name (high/medium/fast) or specific model ID'),
+    reason: z.string().optional().describe('Why the model is being changed (logged)'),
+    agentId: z.string().describe('Your agent ID (caller)'),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_model_set');
+    if (error) return error;
+    if (agent!.role !== 'lead') {
+      return permError(params.agentId, agent!.role, 'flightdeck_model_set', 'agent_spawn');
+    }
+    if (!acpAdapter) {
+      return errorResponse('Model changes require an ACP adapter. Start flightdeck with `flightdeck start`.');
+    }
+
+    // Find the target agent's session
+    const targetAgent = fd.sqlite.getAgent(params.agent_id as AgentId);
+    if (!targetAgent) return errorResponse(`Agent '${params.agent_id}' not found.`);
+
+    // Resolve tier to model ID if needed
+    const runtimes = modelRegistry.getRuntimes();
+    const runtimeName = runtimes[0]; // use first available runtime
+    const resolvedModel = modelRegistry.resolveModel(runtimeName ?? '', params.model);
+    if (!resolvedModel) {
+      return errorResponse(`Could not resolve model '${params.model}'. No models registered for runtime.`);
+    }
+
+    // Find session for target agent
+    const sessions = acpAdapter.getAllSessions();
+    const targetSession = sessions.find(s => s.agentId === params.agent_id);
+    if (!targetSession) {
+      return errorResponse(`No active session found for agent '${params.agent_id}'.`);
+    }
+
+    try {
+      await acpAdapter.setModel(targetSession.id, resolvedModel);
+      const logMsg = `Model changed for ${params.agent_id}: ${resolvedModel}${params.reason ? ` — ${params.reason}` : ''}`;
+      return jsonResponse({ success: true, model: resolvedModel, message: logMsg });
+    } catch (err) {
+      return errorResponse(`Failed to set model: ${(err as Error).message}`);
+    }
   });
 
   return server;

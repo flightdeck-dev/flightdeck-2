@@ -36,6 +36,7 @@ import type { AgentId, AgentRuntime } from '@flightdeck-ai/shared';
 import { agentId } from '@flightdeck-ai/shared';
 import type { RuntimeConfig } from './SessionManager.js';
 import { DEFAULT_RUNTIMES } from './SessionManager.js';
+import { modelRegistry } from './ModelTiers.js';
 
 export type AcpSessionStatus = 'initializing' | 'active' | 'prompting' | 'ended';
 
@@ -432,6 +433,11 @@ export class AcpAdapter extends AgentAdapter {
       session.status = 'active';
       session.lastActivityAt = new Date();
 
+      // Cache available models if returned
+      if ((result as any).models?.availableModels) {
+        modelRegistry.registerModels(this.runtimeName, (result as any).models.availableModels);
+      }
+
       // Send the initial prompt
       session.status = 'prompting';
       session.turnCount++;
@@ -678,6 +684,21 @@ export class AcpAdapter extends AgentAdapter {
 
   getAllSessions(): AcpSession[] {
     return [...this.sessions.values()];
+  }
+
+  /**
+   * Change the model for a running ACP session.
+   */
+  async setModel(sessionId: string, modelId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session?.connection || !session.acpSessionId) {
+      throw new Error(`Cannot set model: session ${sessionId} not initialized or not found`);
+    }
+    await (session.connection as any).unstable_setSessionModel({
+      sessionId: session.acpSessionId,
+      modelId,
+    });
+    session.model = modelId;
   }
 
   clear(): void {

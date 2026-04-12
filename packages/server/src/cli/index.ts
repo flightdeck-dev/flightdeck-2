@@ -33,6 +33,9 @@ Commands:
   status                  Project status
   task list               List tasks
   agent list              List agents
+  models                  Show current model config per role
+  models list             List available models grouped by tier
+  models set <role> <m>   Set model for a role (tier or model ID)
   log                     View decision log
   report                  View latest report
   start [--profile X]     Start orchestrator (stub)
@@ -269,19 +272,60 @@ switch (command) {
 
     // Start HTTP + WebSocket server
     const { createServer } = await import('node:http');
-    const httpServer = createServer((req, res) => {
-      if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', project: projectName }));
-        return;
+    const { ModelConfig: ModelCfg, PRESET_NAMES: presetNames } = await import('../agents/ModelConfig.js');
+    const { modelRegistry: modRegistry } = await import('../agents/ModelTiers.js');
+    const modelCfg = new ModelCfg(process.cwd());
+
+    const httpServer = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+      const method = req.method ?? 'GET';
+
+      // Helper to read JSON body
+      const readBody = (): Promise<any> => new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        req.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
+      });
+
+      const json = (status: number, body: unknown) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+
+      if (url.pathname === '/health') {
+        json(200, { status: 'ok', project: projectName });
+      } else if (url.pathname === '/status') {
+        json(200, fd.status());
+      } else if (url.pathname === '/api/models' && method === 'GET') {
+        json(200, { roles: modelCfg.getRoleConfigs(), presets: presetNames });
+      } else if (url.pathname === '/api/models/available' && method === 'GET') {
+        const result: Record<string, unknown> = {};
+        for (const rt of modRegistry.getRuntimes()) {
+          result[rt] = modRegistry.getModelsGrouped(rt);
+        }
+        json(200, result);
+      } else if (url.pathname.startsWith('/api/models/preset/') && method === 'POST') {
+        const preset = url.pathname.split('/').pop()!;
+        if (modelCfg.applyPreset(preset)) {
+          json(200, { success: true, roles: modelCfg.getRoleConfigs() });
+        } else {
+          json(400, { error: `Unknown preset: ${preset}. Available: ${presetNames.join(', ')}` });
+        }
+      } else if (url.pathname.match(/^\/api\/models\/[^/]+$/) && method === 'PUT') {
+        const role = url.pathname.split('/').pop()!;
+        try {
+          const body = await readBody();
+          if (body.runtime) modelCfg.setRole(role, `${body.runtime}:${body.model ?? 'medium'}`);
+          else if (body.model) modelCfg.setRole(role, body.model);
+          else { json(400, { error: 'Provide runtime and/or model' }); return; }
+          json(200, { success: true, config: modelCfg.getRoleConfig(role) });
+        } catch {
+          json(400, { error: 'Invalid request body' });
+        }
+      } else {
+        res.writeHead(404);
+        res.end('Not found');
       }
-      if (req.url === '/status') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(fd.status()));
-        return;
-      }
-      res.writeHead(404);
-      res.end('Not found');
     });
     httpServer.listen(port, () => {
       console.error(`HTTP server listening on port ${port}.`);
@@ -310,6 +354,84 @@ switch (command) {
 
   case 'resume': {
     console.log('Resuming orchestrator... (stub)');
+    break;
+  }
+
+  case 'models': {
+    const { ModelConfig: MC, PRESET_NAMES } = await import('../agents/ModelConfig.js');
+    const { modelRegistry: registry } = await import('../agents/ModelTiers.js');
+    const projectDir = process.cwd();
+    const mc = new MC(projectDir);
+
+    if (!subcommand || subcommand === 'show' || subcommand === 'status') {
+      const configs = mc.getRoleConfigs();
+      console.log('\nFlightdeck Model Configuration\n');
+      console.log('Role              Runtime      Model              Tier');
+      console.log('────────────────  ──────────   ────────────────   ──────');
+      for (const rc of configs) {
+        const tier = ['high', 'medium', 'fast'].includes(rc.model) ? rc.model : '';
+        console.log(
+          `${rc.role.padEnd(18)}${rc.runtime.padEnd(13)}${rc.model.padEnd(19)}${tier}`
+        );
+      }
+      console.log(`\nPresets: ${PRESET_NAMES.join(' | ')}`);
+      console.log('Run `flightdeck models list` to see available models.');
+    } else if (subcommand === 'list') {
+      const filterRuntime = positionals[2];
+      const runtimes = filterRuntime ? [filterRuntime] : registry.getRuntimes();
+      if (runtimes.length === 0) {
+        console.log('No models registered yet. Models are discovered when agents connect via ACP.');
+        console.log('Start flightdeck and connect an agent to populate the model list.');
+        break;
+      }
+      for (const rt of runtimes) {
+        const grouped = registry.getModelsGrouped(rt);
+        console.log(`\nAvailable Models (${rt})\n`);
+        console.log('Tier     Model ID              Display Name');
+        console.log('──────   ───────────────────   ─────────────────────');
+        for (const tier of ['high', 'medium', 'fast'] as const) {
+          for (const m of grouped[tier]) {
+            console.log(`${tier.padEnd(9)}${m.modelId.padEnd(22)}${m.displayName}`);
+          }
+        }
+      }
+    } else if (subcommand === 'set') {
+      const role = positionals[2];
+      const spec = positionals[3];
+      if (!role || !spec) {
+        console.error('Usage: flightdeck models set <role> <runtime:model>');
+        console.error('Examples:');
+        console.error('  flightdeck models set lead copilot:medium');
+        console.error('  flightdeck models set worker claude-code:high');
+        console.error('  flightdeck models set reviewer copilot:claude-opus-4-6');
+        process.exit(1);
+      }
+      mc.setRole(role, spec);
+      const updated = mc.getRoleConfig(role);
+      console.log(`Updated ${role}: runtime=${updated.runtime} model=${updated.model}`);
+    } else if (subcommand === 'set-default') {
+      const spec = positionals[2];
+      if (!spec) {
+        console.error('Usage: flightdeck models set-default <runtime:model>');
+        process.exit(1);
+      }
+      mc.setDefault(spec);
+      console.log(`Default set to: ${spec}`);
+    } else if (subcommand === 'preset') {
+      const preset = positionals[2];
+      if (!preset || !PRESET_NAMES.includes(preset)) {
+        console.error(`Usage: flightdeck models preset <${PRESET_NAMES.join('|')}>`);
+        process.exit(1);
+      }
+      mc.applyPreset(preset);
+      console.log(`Applied preset: ${preset}`);
+      const configs = mc.getRoleConfigs();
+      for (const rc of configs) {
+        console.log(`  ${rc.role.padEnd(18)}${rc.model}`);
+      }
+    } else {
+      console.error('Usage: flightdeck models [list|set|set-default|preset]');
+    }
     break;
   }
 
