@@ -1,4 +1,4 @@
-import type { Task, TaskId, TaskState, AgentId, SpecId, AgentRole } from '../core/types.js';
+import type { Task, TaskId, TaskState, AgentId, SpecId, AgentRole, SideEffect } from '../core/types.js';
 import { transition } from '../core/types.js';
 import { taskId } from '../core/ids.js';
 import { SqliteStore } from '../storage/SqliteStore.js';
@@ -70,35 +70,40 @@ export class TaskDAG {
     const task = this.store.getTask(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (task.state !== 'ready') throw new Error(`Task ${taskId} is not ready (state: ${task.state})`);
-    transition(task.state, 'running', { taskId, agentId });
+    const result = transition(task.state, 'running', { taskId, agentId });
     this.store.updateTaskState(taskId, 'running', agentId);
+    this.processEffects(result.effects);
     return { ...task, state: 'running', assignedAgent: agentId };
   }
 
-  submitTask(taskId: TaskId): Task {
+  submitTask(taskId: TaskId, claim?: string): Task {
     const task = this.store.getTask(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (task.state !== 'running') throw new Error(`Task ${taskId} is not running (state: ${task.state})`);
-    transition(task.state, 'in_review', { taskId });
+    const result = transition(task.state, 'in_review', { taskId });
     this.store.updateTaskState(taskId, 'in_review');
+    if (claim) {
+      this.store.updateTaskClaim(taskId, claim);
+    }
+    this.processEffects(result.effects);
     return { ...task, state: 'in_review' };
   }
 
   completeTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);
-    transition(task.state, 'done', { taskId: id });
+    const result = transition(task.state, 'done', { taskId: id });
     this.store.updateTaskState(id, 'done');
-    // Promote dependents
-    this.resolveReady(id);
+    this.processEffects(result.effects);
     return { ...task, state: 'done' };
   }
 
   failTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);
-    transition(task.state, 'failed', { taskId: id });
+    const result = transition(task.state, 'failed', { taskId: id });
     this.store.updateTaskState(id, 'failed');
+    this.processEffects(result.effects);
     return { ...task, state: 'failed' };
   }
 
@@ -108,6 +113,44 @@ export class TaskDAG {
     transition(task.state, 'gated', { taskId: id });
     this.store.updateTaskState(id, 'gated');
     return { ...task, state: 'gated' };
+  }
+
+  /** Process side effects emitted by state transitions */
+  private processEffects(effects: SideEffect[]): void {
+    for (const effect of effects) {
+      switch (effect.type) {
+        case 'resolve_dependents':
+          this.resolveReady(effect.taskId);
+          break;
+        case 'block_dependents': {
+          const dependents = this.adjacency.get(effect.taskId) ?? new Set();
+          for (const depId of dependents) {
+            const depTask = this.store.getTask(depId);
+            if (depTask && depTask.state === 'pending') {
+              this.store.updateTaskState(depId, 'blocked');
+            }
+          }
+          break;
+        }
+        case 'clear_assignment':
+          this.store.clearTaskAssignment(effect.taskId);
+          break;
+        case 'set_timestamp':
+          // Timestamps are already updated by updateTaskState
+          break;
+        case 'spawn_reviewer':
+          // For now, no-op — real reviewer spawning comes in Phase 2
+          break;
+        case 'escalate':
+          // For now, no-op — real escalation comes in Phase 2
+          break;
+        case 'notify_agent':
+        case 'update_dag':
+        case 'log_decision':
+          // No-ops for now
+          break;
+      }
+    }
   }
 
   /** After a task completes, check if its dependents are now ready */
@@ -149,6 +192,9 @@ export class TaskDAG {
         inDegree.set(dep, newDeg);
         if (newDeg === 0) queue.push(dep);
       }
+    }
+    if (sorted.length !== tasks.length) {
+      throw new Error(`Cycle detected in task DAG: sorted ${sorted.length} of ${tasks.length} tasks`);
     }
     return sorted;
   }
