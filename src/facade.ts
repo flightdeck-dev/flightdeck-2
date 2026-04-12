@@ -59,8 +59,8 @@ export class Flightdeck {
     return this.dag.claimTask(taskId, agentId);
   }
 
-  submitTask(taskId: TaskId): Task {
-    return this.dag.submitTask(taskId);
+  submitTask(taskId: TaskId, claim?: string): Task {
+    return this.dag.submitTask(taskId, claim);
   }
 
   completeTask(taskId: TaskId): Task {
