@@ -19,6 +19,7 @@ import { RoleRegistry } from './roles/RoleRegistry.js';
 import { LearningsStore, type LearningCategory } from './storage/LearningsStore.js';
 import { TimerManager, type TimerCallback } from './orchestrator/TimerManager.js';
 import { AgentManager } from './agents/AgentManager.js';
+import { MessageStore } from './comms/MessageStore.js';
 
 /**
  * High-level facade wrapping all Flightdeck subsystems.
@@ -41,6 +42,7 @@ export class Flightdeck {
   readonly learnings: LearningsStore;
   readonly timers: TimerManager;
   readonly agentManager: AgentManager;
+  readonly chatMessages: MessageStore | null;
 
   constructor(projectName: string) {
     this.project = new ProjectStore(projectName);
@@ -68,6 +70,13 @@ export class Flightdeck {
     });
     const acpAdapter = new AcpAdapter();
     this.agentManager = new AgentManager(acpAdapter, this.sqlite, this.roles, projectName);
+
+    // Initialize chat MessageStore (SQLite-backed)
+    try {
+      this.chatMessages = new MessageStore(this.sqlite.db);
+    } catch {
+      this.chatMessages = null;
+    }
   }
 
   // ── Task operations ──

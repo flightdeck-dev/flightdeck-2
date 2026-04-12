@@ -6,17 +6,21 @@ import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
 export class SqliteStore {
-  private db: FlightdeckDatabase;
+  private _db: FlightdeckDatabase;
+
+  get db(): FlightdeckDatabase {
+    return this._db;
+  }
 
   constructor(dbPath: string) {
-    this.db = createDatabase(dbPath);
+    this._db = createDatabase(dbPath);
     this.migrate();
   }
 
   private migrate(): void {
     // Use raw SQL for CREATE TABLE IF NOT EXISTS — Drizzle doesn't have a built-in "push" at runtime
     // We access the underlying better-sqlite3 instance via a raw query
-    this.db.run(sql.raw(`
+    this._db.run(sql.raw(`
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
         spec_id TEXT,
@@ -36,7 +40,7 @@ export class SqliteStore {
       )
     `));
 
-    this.db.run(sql.raw(`
+    this._db.run(sql.raw(`
       CREATE TABLE IF NOT EXISTS agents (
         id TEXT PRIMARY KEY,
         role TEXT NOT NULL,
@@ -49,7 +53,7 @@ export class SqliteStore {
       )
     `));
 
-    this.db.run(sql.raw(`
+    this._db.run(sql.raw(`
       CREATE TABLE IF NOT EXISTS cost_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -62,19 +66,48 @@ export class SqliteStore {
     `));
 
     // Migrations for older databases
-    const cols = this.db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
+    const cols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
     if (!cols.some(c => c.name === 'claim')) {
-      this.db.run(sql.raw('ALTER TABLE tasks ADD COLUMN claim TEXT'));
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN claim TEXT'));
     }
     if (!cols.some(c => c.name === 'cost')) {
-      this.db.run(sql.raw('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0'));
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0'));
     }
+
+    // Messages + threads tables (Web UI chat)
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT,
+        parent_id TEXT,
+        task_id TEXT,
+        author_type TEXT NOT NULL,
+        author_id TEXT,
+        content TEXT NOT NULL,
+        metadata TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        FOREIGN KEY (thread_id) REFERENCES threads(id),
+        FOREIGN KEY (parent_id) REFERENCES messages(id)
+      )
+    `));
+
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS threads (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        origin_id TEXT,
+        created_at TEXT NOT NULL,
+        archived_at TEXT,
+        FOREIGN KEY (origin_id) REFERENCES messages(id)
+      )
+    `));
   }
 
   // ── Tasks ──
 
   insertTask(task: Task): void {
-    this.db.insert(tasks).values({
+    this._db.insert(tasks).values({
       id: task.id,
       specId: task.specId,
       title: task.title,
@@ -92,26 +125,26 @@ export class SqliteStore {
   }
 
   getTask(id: TaskId): Task | null {
-    const row = this.db.select().from(tasks).where(eq(tasks.id, id)).get();
+    const row = this._db.select().from(tasks).where(eq(tasks.id, id)).get();
     return row ? this.rowToTask(row) : null;
   }
 
   listTasks(specId?: SpecId): Task[] {
     const query = specId
-      ? this.db.select().from(tasks).where(eq(tasks.specId, specId)).orderBy(sql`priority DESC, created_at ASC`)
-      : this.db.select().from(tasks).orderBy(sql`priority DESC, created_at ASC`);
+      ? this._db.select().from(tasks).where(eq(tasks.specId, specId)).orderBy(sql`priority DESC, created_at ASC`)
+      : this._db.select().from(tasks).orderBy(sql`priority DESC, created_at ASC`);
     return query.all().map(r => this.rowToTask(r));
   }
 
   updateTaskState(id: TaskId, state: TaskState, agentId?: AgentId | null): void {
     const now = new Date().toISOString();
     if (agentId !== undefined) {
-      this.db.update(tasks)
+      this._db.update(tasks)
         .set({ state, assignedAgent: agentId, updatedAt: now })
         .where(eq(tasks.id, id))
         .run();
     } else {
-      this.db.update(tasks)
+      this._db.update(tasks)
         .set({ state, updatedAt: now })
         .where(eq(tasks.id, id))
         .run();
@@ -119,11 +152,11 @@ export class SqliteStore {
   }
 
   getTasksByState(state: TaskState): Task[] {
-    return this.db.select().from(tasks).where(eq(tasks.state, state)).all().map(r => this.rowToTask(r));
+    return this._db.select().from(tasks).where(eq(tasks.state, state)).all().map(r => this.rowToTask(r));
   }
 
   getTaskStats(): Record<TaskState, number> {
-    const rows = this.db.select({
+    const rows = this._db.select({
       state: tasks.state,
       count: count(),
     }).from(tasks).groupBy(tasks.state).all();
@@ -136,7 +169,7 @@ export class SqliteStore {
 
   updateTaskClaim(id: TaskId, claim: string): void {
     const now = new Date().toISOString();
-    this.db.update(tasks)
+    this._db.update(tasks)
       .set({ claim, updatedAt: now })
       .where(eq(tasks.id, id))
       .run();
@@ -144,7 +177,7 @@ export class SqliteStore {
 
   clearTaskAssignment(id: TaskId): void {
     const now = new Date().toISOString();
-    this.db.update(tasks)
+    this._db.update(tasks)
       .set({ assignedAgent: null, updatedAt: now })
       .where(eq(tasks.id, id))
       .run();
@@ -152,7 +185,7 @@ export class SqliteStore {
 
   updateTaskDependsOn(id: TaskId, deps: TaskId[]): void {
     const now = new Date().toISOString();
-    this.db.update(tasks)
+    this._db.update(tasks)
       .set({ dependsOn: JSON.stringify(deps), updatedAt: now })
       .where(eq(tasks.id, id))
       .run();
@@ -179,7 +212,7 @@ export class SqliteStore {
   // ── Agents ──
 
   insertAgent(agent: Agent): void {
-    this.db.insert(agents).values({
+    this._db.insert(agents).values({
       id: agent.id,
       role: agent.role,
       runtime: agent.runtime,
@@ -192,36 +225,36 @@ export class SqliteStore {
   }
 
   getAgent(id: AgentId): Agent | null {
-    const row = this.db.select().from(agents).where(eq(agents.id, id)).get();
+    const row = this._db.select().from(agents).where(eq(agents.id, id)).get();
     return row ? this.rowToAgent(row) : null;
   }
 
   listAgents(): Agent[] {
-    return this.db.select().from(agents).all().map(r => this.rowToAgent(r));
+    return this._db.select().from(agents).all().map(r => this.rowToAgent(r));
   }
 
   updateAgentStatus(id: AgentId, status: Agent['status']): void {
-    this.db.update(agents).set({ status }).where(eq(agents.id, id)).run();
+    this._db.update(agents).set({ status }).where(eq(agents.id, id)).run();
   }
 
   updateAgentAcpSession(id: AgentId, acpSessionId: string | null): void {
-    this.db.update(agents).set({ acpSessionId }).where(eq(agents.id, id)).run();
+    this._db.update(agents).set({ acpSessionId }).where(eq(agents.id, id)).run();
   }
 
   updateAgentHeartbeat(id: AgentId): void {
-    this.db.update(agents)
+    this._db.update(agents)
       .set({ lastHeartbeat: new Date().toISOString() })
       .where(eq(agents.id, id))
       .run();
   }
 
   deleteAgent(id: AgentId): boolean {
-    const result = this.db.delete(agents).where(eq(agents.id, id)).run();
+    const result = this._db.delete(agents).where(eq(agents.id, id)).run();
     return result.changes > 0;
   }
 
   getActiveAgentCount(): number {
-    const row = this.db.select({ count: count() })
+    const row = this._db.select({ count: count() })
       .from(agents)
       .where(sql`${agents.status} IN ('idle', 'busy')`)
       .get();
@@ -229,28 +262,28 @@ export class SqliteStore {
   }
 
   recordCost(agentId: AgentId, amount: number): void {
-    this.db.update(agents)
+    this._db.update(agents)
       .set({ costAccumulated: sql`${agents.costAccumulated} + ${amount}` })
       .where(eq(agents.id, agentId))
       .run();
   }
 
   getCostByAgent(): Array<{ agentId: string; cost: number }> {
-    return this.db.select({
+    return this._db.select({
       agentId: agents.id,
       cost: agents.costAccumulated,
     }).from(agents).orderBy(sql`${agents.costAccumulated} DESC`).all();
   }
 
   getCostByTask(): Array<{ taskId: string; cost: number }> {
-    return this.db.select({
+    return this._db.select({
       taskId: tasks.id,
       cost: sql<number>`COALESCE(${tasks.cost}, 0)`,
     }).from(tasks).orderBy(sql`${tasks.cost} DESC`).all();
   }
 
   recordTaskCost(taskId: TaskId, amount: number): void {
-    this.db.update(tasks)
+    this._db.update(tasks)
       .set({ cost: sql`COALESCE(${tasks.cost}, 0) + ${amount}` })
       .where(eq(tasks.id, taskId))
       .run();
@@ -272,7 +305,7 @@ export class SqliteStore {
   // ── Cost ──
 
   insertCostEntry(entry: CostEntry): void {
-    this.db.insert(costEntries).values({
+    this._db.insert(costEntries).values({
       agentId: entry.agentId,
       specId: entry.specId,
       tokensIn: entry.tokensIn,
@@ -284,14 +317,14 @@ export class SqliteStore {
 
   getTotalCost(specId?: SpecId): number {
     const row = specId
-      ? this.db.select({ total: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)` })
+      ? this._db.select({ total: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)` })
           .from(costEntries).where(eq(costEntries.specId, specId)).get()
-      : this.db.select({ total: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)` })
+      : this._db.select({ total: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)` })
           .from(costEntries).get();
     return row?.total ?? 0;
   }
 
   close(): void {
-    (this.db as any).$client.close();
+    (this._db as any).$client.close();
   }
 }

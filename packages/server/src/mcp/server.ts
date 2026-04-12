@@ -515,11 +515,51 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Memory tools ──
 
-  server.tool('flightdeck_memory_search', 'Search project memory', {
+  server.tool('flightdeck_memory_search', 'Search project memory (full-text across memory/*.md)', {
     query: z.string(),
   }, async (params) => {
     const results = fd.searchMemory(params.query);
     return jsonResponse(results);
+  });
+
+  // ── Chat message tools (WebSocket-backed) ──
+
+  server.tool('flightdeck_msg_list', 'List chat messages', {
+    thread_id: z.string().optional(),
+    task_id: z.string().optional(),
+    limit: z.number().optional(),
+  }, async (params) => {
+    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const msgs = fd.chatMessages.listMessages({
+      threadId: params.thread_id,
+      taskId: params.task_id,
+      limit: params.limit,
+    });
+    return jsonResponse(msgs);
+  });
+
+  server.tool('flightdeck_thread_create', 'Create a chat thread from a message', {
+    origin_id: z.string(),
+    title: z.string().optional(),
+  }, async (params) => {
+    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const thread = fd.chatMessages.createThread({
+      originId: params.origin_id,
+      title: params.title,
+    });
+    return jsonResponse(thread);
+  });
+
+  server.tool('flightdeck_thread_list', 'List chat threads', {
+    archived: z.boolean().optional(),
+    limit: z.number().optional(),
+  }, async (params) => {
+    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const threads = fd.chatMessages.listThreads({
+      archived: params.archived,
+      limit: params.limit,
+    });
+    return jsonResponse(threads);
   });
 
   server.tool('flightdeck_memory_write', 'Write to project memory', {

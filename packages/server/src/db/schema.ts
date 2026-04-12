@@ -29,6 +29,27 @@ export const agents = sqliteTable('agents', {
   lastHeartbeat: text('last_heartbeat'),
 });
 
+export const messages = sqliteTable('messages', {
+  id: text('id').primaryKey(),
+  threadId: text('thread_id'),
+  parentId: text('parent_id'),
+  taskId: text('task_id'),
+  authorType: text('author_type').notNull(), // 'user' | 'lead' | 'agent' | 'system'
+  authorId: text('author_id'),
+  content: text('content').notNull(),
+  metadata: text('metadata'), // JSON
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at'),
+});
+
+export const threads = sqliteTable('threads', {
+  id: text('id').primaryKey(),
+  title: text('title'),
+  originId: text('origin_id'),
+  createdAt: text('created_at').notNull(),
+  archivedAt: text('archived_at'),
+});
+
 export const costEntries = sqliteTable('cost_entries', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   agentId: text('agent_id').notNull(),

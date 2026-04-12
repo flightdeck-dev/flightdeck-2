@@ -202,6 +202,17 @@ switch (command) {
     const profile = values.profile ?? fd.status().config.governance;
     console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
 
+    // Recover existing ACP sessions from database
+    const activeAgents = fd.listAgents().filter(a => a.status === 'busy' && a.acpSessionId);
+    if (activeAgents.length > 0) {
+      console.error(`Recovering ${activeAgents.length} active agent session(s)...`);
+      for (const agent of activeAgents) {
+        // TODO: ACP session/load to reconnect to live sessions
+        // await fd.agentManager.recoverSession(agent.id, agent.acpSessionId!);
+        console.error(`  - ${agent.id} (${agent.role}) session ${agent.acpSessionId} — recovery pending`);
+      }
+    }
+
     // Start orchestrator tick loop
     fd.orchestrator.start();
     console.error('Orchestrator running (5 min tick interval).');

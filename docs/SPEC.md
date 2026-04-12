@@ -1,4 +1,4 @@
-# Flightdeck 2.0 — Product Specification
+# Flightdeck 2.0 - Product Specification
 
 **Status:** Draft
 **Author:** Claw + Justin
@@ -8,7 +8,7 @@
 
 ## Vision
 
-A multi-agent orchestration platform that lets agent teams work autonomously for hours or days, with humans steering through specs, governance policies, and decision review — not micromanagement.
+A multi-agent orchestration platform that lets agent teams work autonomously for hours or days, with humans steering through specs, governance policies, and decision review - not micromanagement.
 
 ## Core Principle
 
@@ -32,7 +32,7 @@ Humans define *what* (specs) and *how much freedom* (governance). Flightdeck tra
 
 ### MCP-First Architecture
 
-Flightdeck's primary interface is MCP. Agents communicate with Flightdeck entirely through structured MCP tool calls — no text parsing, no ACP required.
+Flightdeck's primary interface is MCP. Agents communicate with Flightdeck entirely through structured MCP tool calls - no text parsing, no ACP required.
 
 ```
 Minimum viable Flightdeck:
@@ -57,10 +57,10 @@ Agent workflow without ACP:
 ```
 
 Benefits of MCP-first:
-- **Zero text parsing** — all agent→Flightdeck communication is structured tool calls
-- **Zero cost to user** — no Agent SDK, no ACP subscription, no extra API fees
-- **Works with any MCP-compatible CLI** — Claude Code, Codex, Gemini, Copilot, Cursor
-- **Minimal setup** — `flightdeck init` + start your CLI
+- **Zero text parsing** - all agent→Flightdeck communication is structured tool calls
+- **Zero cost to user** - no Agent SDK, no ACP subscription, no extra API fees
+- **Works with any MCP-compatible CLI** - Claude Code, Codex, Gemini, Copilot, Cursor
+- **Minimal setup** - `flightdeck init` + start your CLI
 
 ACP is an optional enhancement for power users who want manual control. For the default experience, Flightdeck handles everything via ACP automatically.
 
@@ -131,13 +131,50 @@ Or via Discord / Web / any messaging surface. User never opens a terminal for ag
 **User:** Team lead managing multiple repos/features.
 
 1. Multiple specs running in parallel, each with their own DAG
-2. Shared agent pool — Flightdeck assigns agents based on role + availability
+2. Shared agent pool - Flightdeck assigns agents based on role + availability
 3. Cross-project dependencies (Feature B depends on Feature A's API)
 4. Unified dashboard showing all projects
 
 ---
 
 ## Architecture
+
+### Daemon Resilience
+
+The Flightdeck daemon is designed to be restartable without losing agent sessions or state. Inspired by OpenClaw's gateway/router pattern.
+
+**On daemon restart:**
+1. Read SQLite → restore all project state (tasks, agents, specs, decisions)
+2. ACP `session/load` → reconnect to all active agent sessions (Lead, Workers, Reviewers)
+3. Start WebSocket server → UI clients auto-reconnect
+4. Restart heartbeat timers for all active projects
+5. Resume orchestrator tick loop
+
+**Why this works:**
+- All state is in SQLite (survives restart)
+- ACP sessions live in the agent runtime, not the daemon (survive daemon restart)
+- `session/load` is an ACP protocol feature for session recovery
+- UI state is derived from SQLite (reconnect = re-sync)
+
+**User experience:** Daemon restart = a few seconds of disconnection. No lost work, no re-spawned agents, no repeated tasks.
+
+### Multi-Surface Architecture
+
+The daemon is a hub. Any number of UI surfaces can connect:
+
+```
+Flightdeck Daemon (hub)
+  ├── WebSocket  → Web UI (React dashboard)
+  ├── WebSocket  → VSCode Extension
+  ├── HTTP API   → CLI (flightdeck status, flightdeck report)
+  ├── Webhook    → Discord bot (notifications, commands)
+  ├── Webhook    → Slack bot
+  └── (future)   → Mobile app, Telegram, etc.
+```
+
+All surfaces are equal — they connect to the same daemon, see the same state, and can send commands. A user can start a spec from CLI, monitor from Web UI, and get notifications in Discord, all simultaneously.
+
+This mirrors OpenClaw's architecture where the gateway routes between multiple channel plugins (Discord, Telegram, Signal, etc.) and the agent session.
 
 ### Three-Layer Model
 
@@ -178,7 +215,7 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 
 ### Agent Roles
 
-**Lead Agent** — the user's proxy. Always-on session that:
+**Lead Agent** - the user's proxy. Always-on session that:
 - Receives and interprets user messages (fuzzy intent → concrete actions)
 - Judges impact of changes ("does this need a full re-plan or just a tweak?")
 - Handles escalations that need understanding, not just rules
@@ -186,15 +223,15 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 - Pulls current state from Flightdeck via MCP on demand (not pushed every event)
 - Interrupted only on: user messages, critical failures, escalations, budget warnings
 
-**Planner Agent** — on-demand, not persistent. Spawned when:
+**Planner Agent** - on-demand, not persistent. Spawned when:
 - Initial spec needs to be decomposed into a task DAG
 - A worker escalates that a task needs re-planning
 - User pivots and the DAG needs restructuring
 - All tasks complete and explore mode generates suggestions
 
-**Worker Agents** — stateless executors. Pick up tasks, do the work, submit results.
+**Worker Agents** - stateless executors. Pick up tasks, do the work, submit results.
 
-**Reviewer Agent** — different model from the worker. Single job: check whether the worker's **claim** matches **reality**. Does not run tests or lint — just verifies "did the agent do what it said it did?"
+**Reviewer Agent** - different model from the worker. Single job: check whether the worker's **claim** matches **reality**. Does not run tests or lint - just verifies "did the agent do what it said it did?"
 
 ### Agent Role Enforcement (three layers)
 
@@ -214,7 +251,7 @@ Per-agent MCP server config restricts which Flightdeck tools are available:
 enabled_tools = ["flightdeck_task_status", "flightdeck_task_add",
                  "flightdeck_escalate", "flightdeck_msg_send"]
 
-# Worker: reporting tools only  
+# Worker: reporting tools only
 [mcp_servers.flightdeck]
 enabled_tools = ["flightdeck_task_submit", "flightdeck_escalate",
                  "flightdeck_msg_send", "flightdeck_memory_search"]
@@ -244,32 +281,13 @@ This matches how real teams work: your manager doesn't run your tests. But if yo
 ### Flightdeck Daemon Responsibilities (code, zero tokens)
 
 - Task state transitions (state machine)
-- Dependency resolution + ready promotion  
+- Dependency resolution + ready promotion
 - Auto-assign workers by role + priority
 - Git worktree creation + merge management
 - ACP spawn/steer/kill agents
 - Cost tracking
 - Progress reporting
 - Event routing (escalations → lead or planner)
-
-### Lead Notification Policy
-
-```yaml
-lead_notifications:
-  # Interrupt lead immediately (via ACP steer)
-  immediate:
-    - user_message          # user said something
-    - critical_failure      # key task failed after retries
-    - escalation            # worker needs judgment
-    - budget_threshold      # spending near limit
-    - gate_needs_decision   # human-gated decision
-  
-  # Lead sees next time it checks status
-  deferred:
-    - task_completed        # normal, DAG auto-advances
-    - review_passed         # normal
-    - milestone_reached     # include in next report
-```
 
 ### Isolation Model (replaces file locking)
 
@@ -301,11 +319,11 @@ git:
   # squash: one commit per task (clean history)
   # pr: create PR, wait for review (team workflow)
   # accumulate: collect all branches, merge at end
-  
+
   overrides:
     - task_type: hotfix
       strategy: auto_merge
-    - task_type: architecture  
+    - task_type: architecture
       strategy: pr
 ```
 
@@ -368,14 +386,14 @@ No structured/moderated mode. Keep it simple: DM for review, group chat for disc
 
 Flightdeck does NOT manage agent context windows. The agent runtime (Claude Code, Codex, Gemini CLI, etc.) owns the context. Flightdeck cannot:
 - Know how much context space remains
-- Control when compaction happens  
+- Control when compaction happens
 - Inject into the system prompt
 
 This means Flightdeck must use three strategies to ensure agents have the information they need:
 
-1. **Self-contained steer messages** — every ACP steer includes everything the agent needs for that interaction. Never assume the agent remembers previous steers.
-2. **File system as persistent context** — write `.flightdeck/PROJECT.md`, task context files, decision logs as markdown files in the agent's working directory. Files survive context compaction.
-3. **MCP tools for pull-based context** — agents call `flightdeck_task_status()`, `flightdeck_memory_search()` etc. to get current state on demand.
+1. **Self-contained steer messages** - every ACP steer includes everything the agent needs for that interaction. Never assume the agent remembers previous steers.
+2. **File system as persistent context** - write `.flightdeck/PROJECT.md`, task context files, decision logs as markdown files in the agent's working directory. Files survive context compaction.
+3. **MCP tools for pull-based context** - agents call `flightdeck_task_status()`, `flightdeck_memory_search()` etc. to get current state on demand.
 
 ### MCP Tool Injection via ACP
 
@@ -389,9 +407,9 @@ Flightdeck's MCP server must be available to all agent runtimes. Each runtime ha
 | **Copilot CLI** | Via `/mcp` command or config | `copilot /mcp add flightdeck` |
 | **Cursor** | Settings > MCP | Add server in IDE settings |
 
-All runtimes support **stdio MCP servers** — Flightdeck's MCP server runs as a local process spawned by the runtime.
+All runtimes support **stdio MCP servers** - Flightdeck's MCP server runs as a local process spawned by the runtime.
 
-**Key insight:** Flightdeck cannot inject MCP tools at spawn time via ACP. MCP configuration must be pre-configured in the agent runtime's config files, or in the project's config (e.g., `.mcp.json` for Claude Code, `.codex/config.toml` for Codex). 
+**Key insight:** Flightdeck cannot inject MCP tools at spawn time via ACP. MCP configuration must be pre-configured in the agent runtime's config files, or in the project's config (e.g., `.mcp.json` for Claude Code, `.codex/config.toml` for Codex).
 
 **Setup flow:**
 1. `flightdeck init` writes MCP config files to the project directory:
@@ -430,8 +448,8 @@ Not all runtimes support ACP natively. Flightdeck uses an adapter to normalize:
 ```
 Flightdeck
   → AgentAdapter (unified: spawn, steer, kill, getMetadata)
-    → AcpAdapter     (Codex, Gemini CLI, Copilot CLI — native ACP)
-    → PtyAdapter     (Claude Code — tmux/PTY, limited metadata)
+    → AcpAdapter     (Codex, Gemini CLI, Copilot CLI - native ACP)
+    → PtyAdapter     (Claude Code - tmux/PTY, limited metadata)
 ```
 
 ACP-native runtimes get full metadata. PTY-based runtimes get best-effort (process state, parsed output). MCP self-reporting supplements PTY gaps.
@@ -455,25 +473,25 @@ ACP-native runtimes get full metadata. PTY-based runtimes get best-effort (proce
 
 Pre-built governance profiles that users can select and customize:
 
-**`autonomous`** — Maximum agent freedom
+**`autonomous`** - Maximum agent freedom
 - Agents make all implementation decisions
 - Only gate on: public API changes, security-sensitive operations
 - Report: daily summary
 - Escalate: 5+ consecutive failures, cost > $50/day
 
-**`collaborative`** — Human in the loop
+**`collaborative`** - Human in the loop
 - Gate before starting each task (propose-and-wait)
 - Gate on: architecture decisions, dependency choices, API design
 - Report: per-milestone + real-time notifications
 - Escalate: 2+ failures, cost > $10/day
 
-**`supervised`** — Training wheels
+**`supervised`** - Training wheels
 - Gate on everything except trivial tasks (tests, formatting)
 - Human approves each step
 - Report: per-task
 - Escalate: any failure
 
-**`custom`** — User defines their own rules
+**`custom`** - User defines their own rules
 
 ### Governance Policy Schema
 
@@ -483,7 +501,7 @@ profile: autonomous | collaborative | supervised | custom
 
 # What requires human approval
 approval_gates:
-  - trigger: architecture_change | dependency_upgrade | public_api_change | 
+  - trigger: architecture_change | dependency_upgrade | public_api_change |
              security_sensitive | cost_exceeds | implementation_start
     action: gate_human | propose_and_wait | log_and_continue | block
     threshold: <optional, e.g., cost amount>
@@ -537,7 +555,7 @@ interface Decision {
   confidence: number;      // 0-1, agent self-reported
   reversible: boolean;     // Can this be undone easily?
   timestamp: Date;
-  
+
   // Governance response
   status: 'auto_approved' | 'pending_review' | 'human_approved' | 'human_rejected' | 'human_modified';
   humanFeedback?: string;
@@ -553,7 +571,7 @@ Users review decisions at their pace. High-confidence + reversible decisions aut
 Generated automatically at the configured cadence:
 
 ```markdown
-# Flightdeck Daily Report — 2026-04-11
+# Flightdeck Daily Report - 2026-04-11
 
 ## Summary
 - **Spec:** Add OAuth2 support to API
@@ -566,12 +584,12 @@ Generated automatically at the configured cadence:
 - ✅ task-c3d4: Implement PKCE flow (dev-1)
 - ✅ task-e5f6: Add token refresh endpoint (dev-2)
 - ✅ task-g7h8: Write integration tests (dev-1)
-- ✅ task-i9j0: Code review (reviewer-1)  
+- ✅ task-i9j0: Code review (reviewer-1)
 - ✅ task-k1l2: Update API documentation (dev-2)
 
 ## Blocked
 - ⏸ task-m3n4: Configure production OAuth provider
-  - **Gate:** human_approval — needs API client ID/secret
+  - **Gate:** human_approval - needs API client ID/secret
   - **Waiting since:** 14:30 UTC
 
 ## In Review
@@ -659,27 +677,38 @@ Generated automatically at the configured cadence:
 
 ### Project Memory System
 
-Three-layer memory, mirroring OpenClaw's agent memory design but at project level:
+Three-layer memory model. Each layer has a clear owner and update trigger.
 
-**Layer 1: Auto-injected project context**
-Every agent spawn includes these files in context:
+**Layer 1: Auto-generated (daemon, zero tokens)**
+Daemon maintains these files automatically on every state change:
+- `.flightdeck/status.md` — live project status (tasks, agents, costs)
+- `.flightdeck/tasks/*.md` — per-task context files (description, comments, agent reports)
+- `decisions/*.jsonl` — full decision log (append-only)
+
+Update triggers:
+- Task state change → daemon updates status.md + task file
+- Decision recorded → daemon appends to decisions/*.jsonl
+
+**Layer 2: Agent-maintained (Lead during heartbeat)**
+Lead writes and maintains these during heartbeat steers or spec completion:
 - `memory/PROJECT.md` — project overview, architecture, key decisions
-- `memory/current.md` — current specs in progress, active priorities
-- `memory/decisions.md` — recent 20 decision summaries
+- `memory/decisions.md` — recent decision summaries (compressed from full log)
+- `memory/learnings.md` — patterns, gotchas, lessons learned
+- `memory/retrospectives/*.md` — per-spec retrospective after completion
 
-**Layer 2: Searchable project knowledge base**
-Agents query via MCP `flightdeck_memory_search(query)`:
-- `memory/context/*.md` — domain knowledge per module
-- `memory/retrospectives/*.md` — learnings from completed specs
-- `decisions/*.jsonl` — full decision log
+Update triggers:
+- Spec complete → Lead steer to write retrospective + update PROJECT.md
+- Heartbeat → Lead compresses decisions.md, cleans stale info, updates learnings.md
+- User request → Lead does whatever asked
 
-**Layer 3: Automatic memory maintenance**
-- Before lead session compacts → lead saves important state to memory files
-- After spec completes → Flightdeck triggers retrospective:
-  - Spawn agent to review: what worked, what didn’t, key learnings
-  - Write to `memory/retrospectives/{spec-name}.md`
-  - Future agents working on similar specs find this via memory search
-- Periodic: summarize recent decisions into `memory/decisions.md`
+**Layer 3: User-written**
+Human-authored files that guide the project:
+- `specs/*.md` — requirements and feature descriptions
+- `.flightdeck/HEARTBEAT.md` — instructions for Lead during heartbeats (see Lead Heartbeat Prompt File)
+- `.flightdeck/governance.yaml` — governance policies
+
+**Searchable knowledge base:**
+Agents query via MCP `flightdeck_memory_search(query)` — full-text search across all `memory/*.md` and `memory/**/*.md` files. Returns matching snippets with file path and line numbers. No embeddings — simple case-insensitive text search.
 
 **Key principle: memory belongs to the project, not to any agent session.** Agents come and go, knowledge stays.
 
@@ -687,12 +716,12 @@ Agents query via MCP `flightdeck_memory_search(query)`:
 
 ### Stall Detection
 
-Flightdeck daemon runs a tick loop that checks ACP session state. **Never use wall-clock timeouts** — an agent can run for hours and that's fine as long as its session is active.
+Flightdeck daemon runs a tick loop that checks ACP session state. **Never use wall-clock timeouts** - an agent can run for hours and that's fine as long as its session is active.
 
 ```
 For each running task:
   session = check ACP session state(agent)
-  
+
   Active + no submit  = working, DO NOT DISTURB
   Idle + no submit    = possible stall → light ACP ping
   Ended + no submit   = definite stall → kill + re-spawn on same task
@@ -743,7 +772,7 @@ For projects that grow beyond ~100 active tasks, Flightdeck supports nested DAGs
 ```
 Top-level DAG (top planner manages):
 ├── epic-1: "Auth system"      → Sub-DAG (sub-planner manages, 20 tasks)
-├── epic-2: "Payment system"   → Sub-DAG (sub-planner manages, 30 tasks)  
+├── epic-2: "Payment system"   → Sub-DAG (sub-planner manages, 30 tasks)
 └── epic-3: "Admin dashboard"  → Sub-DAG (sub-planner manages, 25 tasks)
 ```
 
@@ -769,7 +798,7 @@ on_completion:
   action: explore | stop | ask
 ```
 
-### `explore` — Agents keep working
+### `explore` - Agents keep working
 
 1. DAG completes → Flightdeck spawns a "scout" agent
 2. Scout analyzes the completed work:
@@ -782,19 +811,19 @@ on_completion:
 5. User reviews suggestions → approves some → Flightdeck generates new spec + DAG
 6. Cycle repeats: **Spec → Execute → Explore → Suggest → New Spec → ...**
 
-### `stop` — Clean finish
+### `stop` - Clean finish
 
 DAG completes → final report generated → agents terminated. Done.
 
-### `ask` — Wait for human
+### `ask` - Wait for human
 
 DAG completes → notification sent to user → agents idle until user decides (continue or stop).
 
-This turns Flightdeck from a task runner into a **continuous improvement engine**. A large project can run indefinitely — agents always have something useful to do, and users control the pace by approving or rejecting suggestions.
+This turns Flightdeck from a task runner into a **continuous improvement engine**. A large project can run indefinitely - agents always have something useful to do, and users control the pace by approving or rejecting suggestions.
 
 ### Customizable Workflows
 
-Different projects and users have different processes. Flightdeck enforces workflows automatically — agents don't need to "remember" the process.
+Different projects and users have different processes. Flightdeck enforces workflows automatically - agents don't need to "remember" the process.
 
 ```yaml
 # .flightdeck/workflow.yaml
@@ -838,7 +867,7 @@ hooks:
     - run: "git status"
 ```
 
-Flightdeck executes the pipeline. Agents only do their step. "Always run linter" is a hook, not a memory — it runs automatically every time, regardless of what any agent remembers.
+Flightdeck executes the pipeline. Agents only do their step. "Always run linter" is a hook, not a memory - it runs automatically every time, regardless of what any agent remembers.
 
 ### Web UI Design
 
@@ -849,6 +878,34 @@ Simple, clean, functional. Reference: Notion + Claude Code desktop app.
 - No excessive animations or decorative elements
 - Monospace for code/data, sans-serif for UI text
 - Information-dense but not cluttered
+
+**Web UI Architecture:**
+```
+┌─────────┐     WebSocket      ┌──────────────┐
+│  Web UI │ ◄───────────────► │  FD Daemon   │
+│ (React) │    JSON messages   │  (server)    │
+└─────────┘                    └──────────────┘
+```
+
+The Web UI connects to the Flightdeck daemon via WebSocket. All user messages go through the daemon to Lead via ACP steer. Lead responses flow back through daemon to WebSocket to UI.
+
+**UI Layout:**
+```
+┌─ Sidebar ─────────┬─ Main Panel ──────────────────┬─ Detail Panel ────────┐
+│                    │                               │                       │
+│ Projects           │  [depends on selected view]   │  [contextual]         │
+│ ├─ flightdeck-2    │                               │                       │
+│ └─ my-app          │  Chat view:                   │  Thread / Task detail │
+│                    │   messages + streaming         │                       │
+│ Navigation         │                               │                       │
+│ ├─ Chat            │  Tasks view:                  │                       │
+│ ├─ Tasks           │   kanban or list              │                       │
+│ ├─ Specs           │                               │                       │
+│ ├─ Agents          │  Agents view:                 │                       │
+│ ├─ Decisions       │   agent cards + status        │                       │
+│ └─ Settings        │                               │                       │
+└────────────────────┴───────────────────────────────┴───────────────────────┘
+```
 
 ---
 
@@ -931,11 +988,11 @@ Three message types from one table:
 
 ### Reply (Lightweight)
 
-`parent_id` points to the replied-to message. UI shows a quote bar above the reply (click to jump). No recursive nesting — only show the direct parent, like Discord.
+`parent_id` points to the replied-to message. UI shows a quote bar above the reply (click to jump). No recursive nesting - only show the direct parent, like Discord.
 
 ### Threads (Heavyweight)
 
-A thread is spawned from any message (`origin_id`). Thread messages have `thread_id` set. Threads support replies within them (`thread_id` + `parent_id` both set). UI: right-side slide-out panel (Discord/Slack style). No nested threads — one level only.
+A thread is spawned from any message (`origin_id`). Thread messages have `thread_id` set. Threads support replies within them (`thread_id` + `parent_id` both set). UI: right-side slide-out panel (Discord/Slack style). No nested threads - one level only.
 
 ### Task Comments
 
@@ -1045,7 +1102,7 @@ Everything else (task in progress, worker coding, review passed) → silent. Lea
 
 **2. Project state lives in files, not conversation**
 
-Flightdeck daemon maintains `.flightdeck/status.md` (auto-updated on every state change). Lead reads this file when it needs context — Flightdeck does NOT inject it into conversation.
+Flightdeck daemon maintains `.flightdeck/status.md` (auto-updated on every state change). Lead reads this file when it needs context - Flightdeck does NOT inject it into conversation.
 
 ```markdown
 # .flightdeck/status.md (auto-generated, always current)
@@ -1072,11 +1129,142 @@ For project status: read .flightdeck/status.md
 
 **4. Task context lives in files**
 
-Each task gets a file: `.flightdeck/tasks/task_017.md` with full context (description, comments, agent reports). Lead reads the file when processing a task-related event. This is durable — even after compaction, the file is still there.
+Each task gets a file: `.flightdeck/tasks/task_017.md` with full context (description, comments, agent reports). Lead reads the file when processing a task-related event. This is durable - even after compaction, the file is still there.
 
 **5. No conversation compaction by Flightdeck**
 
 Flightdeck does NOT attempt to compress Lead's conversation history. That's the agent runtime's job. Flightdeck's job is to keep the input stream lean enough that compaction is rarely needed.
+
+### Lead Event-Driven Model
+
+Lead is purely event-driven. It has no polling loop, no always-on processing. Lead's ACP session stays idle until Flightdeck daemon sends a steer.
+
+Three types of steers:
+
+1. **Event steers** - triggered by specific events (user message, failure, escalation, spec complete)
+2. **Heartbeat steers** - periodic, condition-gated (optional, see Lead Heartbeat)
+3. **User steers** - user sends a message via chat
+
+Every steer is self-contained. Flightdeck attaches relevant context (project status, task details) so Lead never needs to "remember" previous steers.
+
+Events that trigger Lead steer:
+| Event | Priority | Steer content |
+|-------|----------|---------------|
+| User message | Immediate | Full message + project status summary |
+| User task comment | Immediate | Comment + task summary |
+| Task failure (after max retries) | Immediate | Error + task summary |
+| Worker escalation | Immediate | Worker's question + task context |
+| Spec completed (all tasks done) | Immediate | Summary + cost + key decisions |
+| Budget warning | Immediate | Current spend vs limit |
+| Heartbeat timer | Low | Project status + recent activity |
+
+Events that do NOT trigger Lead steer (daemon handles silently):
+- Task submitted → daemon routes to reviewer
+- Review passed → daemon marks done, promotes DAG
+- Ready task needs assignment → daemon auto-assigns
+- Agent stall detected → daemon kills + respawns
+- Task claimed by worker → daemon updates SQLite
+
+### Lead Heartbeat System
+
+Lead supports optional heartbeats - periodic steers sent by the Flightdeck daemon. Unlike event-driven steers (which fire on specific events), heartbeats are timer-based and condition-gated.
+
+```yaml
+# .flightdeck/governance.yaml
+lead_heartbeat:
+  enabled: false                    # off by default
+  interval: 30m                     # how often daemon checks
+  conditions:                       # ALL must be true to send heartbeat
+    - type: tasks_completed         # at least N tasks done since last heartbeat
+      min: 1
+    - type: idle_duration           # no events sent to Lead for N minutes
+      min: 15m
+    - type: time_window             # only during these hours (user's timezone)
+      start: "08:00"
+      end: "22:00"
+
+  # What's included in the heartbeat steer
+  include:
+    - project_status                # current .flightdeck/status.md
+    - recent_completions            # tasks done since last heartbeat
+    - pending_decisions             # any decisions waiting for review
+    - explore_suggestions           # if on_completion=explore, scout findings
+
+  # What Lead should do on heartbeat
+  prompt: |
+    Review project status. If there are pending decisions, handle them.
+    If all specs are complete and on_completion=explore, review scout
+    suggestions and decide next steps. Update the user if anything
+    noteworthy happened since last check.
+```
+
+Condition types:
+| Condition | Description |
+|-----------|-------------|
+| tasks_completed | N+ tasks finished since last heartbeat |
+| idle_duration | No Lead steers for N minutes |
+| time_window | Only during specified hours |
+| spec_completed | Any spec reached 100% |
+| cost_threshold | Spending exceeded N since last heartbeat |
+| custom | User-defined JS/shell expression |
+
+Heartbeat + explore mode = continuous improvement:
+```
+Spec done → on_completion=explore → scout generates suggestions
+→ next heartbeat → Lead reviews suggestions → approves some
+→ new spec created → cycle continues
+```
+
+Without heartbeat, explore suggestions just wait for the next user message.
+
+### Lead Heartbeat Prompt File
+
+The heartbeat steer includes the contents of `.flightdeck/HEARTBEAT.md` — a user-written (and Lead-modifiable) file that tells Lead what to do during heartbeats.
+
+Daemon reads HEARTBEAT.md on each heartbeat trigger and includes it verbatim in the steer. Lead follows it like instructions.
+
+**Who writes it:**
+- User writes the initial version (created by `flightdeck init` with a default template)
+- Lead can modify it during heartbeats (e.g., adding items to check, removing completed items)
+- User can edit it anytime to change Lead's heartbeat behavior
+
+**Example `.flightdeck/HEARTBEAT.md`:**
+```markdown
+# Heartbeat Instructions
+
+## Periodic Checks
+- Review any pending decisions and handle them
+- Check if any specs are blocked and need re-planning
+- Compress memory/decisions.md if it's getting long
+
+## Memory Maintenance
+- Update memory/PROJECT.md if architecture changed
+- Write retrospective for any newly completed specs
+- Clean stale info from memory/learnings.md
+
+## Explore Directions (when on_completion=explore)
+- Focus on test coverage gaps
+- Look for performance bottlenecks
+- Check for missing error handling
+
+## User Notes
+- I'm on vacation until Monday, don't send non-urgent notifications
+- Prioritize the auth spec over the dashboard spec
+```
+
+**Steer format on heartbeat:**
+```
+[heartbeat steer]
+Project status: (contents of .flightdeck/status.md)
+Recent activity: (tasks completed since last heartbeat)
+Pending decisions: (count)
+
+--- HEARTBEAT.md ---
+(contents of .flightdeck/HEARTBEAT.md)
+---
+
+Follow the instructions in HEARTBEAT.md. Update it if needed.
+```
 
 ---
 
@@ -1087,13 +1275,13 @@ Flightdeck does NOT attempt to compress Lead's conversation history. That's the 
 3. **Multi-repo support:** One Flightdeck instance per repo, or one instance managing multiple repos?
 4. **Pricing model:** If this becomes a product, how to price? (Per agent-hour? Per task? Flat rate?)
 5. **Offline mode:** Should agents be able to work without Flightdeck connection and sync later?
-6. **A2A protocol:** Future integration with Google's Agent2Agent protocol for remote agent discovery and cross-network collaboration. A2A enables: Agent Cards (capability self-description for auto-matching), remote agent invocation (HTTP-based, agents on different machines), third-party agent services. Not a current priority — focus on local MCP + ACP first, add A2A when the local story is solid.
+6. **A2A protocol:** Future integration with Google's Agent2Agent protocol for remote agent discovery and cross-network collaboration. A2A enables: Agent Cards (capability self-description for auto-matching), remote agent invocation (HTTP-based, agents on different machines), third-party agent services. Not a current priority - focus on local MCP + ACP first, add A2A when the local story is solid.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Core Engine (✅ Done — current POC)
+### Phase 1: Core Engine (✅ Done - current POC)
 - Types, state machine, DAG, specs, comms, agents, verification, events, persistence
 - CLI + MCP server
 
