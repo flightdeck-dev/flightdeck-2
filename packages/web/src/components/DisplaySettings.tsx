@@ -21,14 +21,14 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
   }) ?? 'custom';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={onClose} role="dialog" aria-modal="true" aria-label="Display Settings" onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
       <div
         className="mt-12 mr-4 w-80 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <span className="text-sm font-medium">Display Settings</span>
-          <button onClick={onClose} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">✕</button>
+          <button onClick={onClose} aria-label="Close settings" className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">✕</button>
         </div>
 
         {/* Presets */}

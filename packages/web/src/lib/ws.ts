@@ -13,9 +13,11 @@ type EventHandler = (event: WsEvent) => void;
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private handlers = new Set<EventHandler>();
+  private connectionHandlers = new Set<(connected: boolean) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url: string;
   private _connected = false;
+  private backoffMs = 1000;
 
   constructor(url?: string) {
     const loc = window.location;
@@ -28,7 +30,11 @@ export class WebSocketClient {
     if (this.ws) return;
     try {
       this.ws = new WebSocket(this.url);
-      this.ws.onopen = () => { this._connected = true; };
+      this.ws.onopen = () => {
+        this._connected = true;
+        this.backoffMs = 1000;
+        for (const h of this.connectionHandlers) h(true);
+      };
       this.ws.onmessage = (e) => {
         try {
           const event = JSON.parse(e.data) as WsEvent;
@@ -38,6 +44,7 @@ export class WebSocketClient {
       this.ws.onclose = () => {
         this._connected = false;
         this.ws = null;
+        for (const h of this.connectionHandlers) h(false);
         this.scheduleReconnect();
       };
       this.ws.onerror = () => {
@@ -53,11 +60,17 @@ export class WebSocketClient {
     this.ws?.close();
     this.ws = null;
     this._connected = false;
+    for (const h of this.connectionHandlers) h(false);
   }
 
   on(handler: EventHandler): () => void {
     this.handlers.add(handler);
     return () => { this.handlers.delete(handler); };
+  }
+
+  onConnectionChange(handler: (connected: boolean) => void): () => void {
+    this.connectionHandlers.add(handler);
+    return () => { this.connectionHandlers.delete(handler); };
   }
 
   send(event: { type: string; [k: string]: unknown }): void {
@@ -87,7 +100,8 @@ export class WebSocketClient {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, 3000);
+    }, this.backoffMs);
+    this.backoffMs = Math.min(this.backoffMs * 2, 30000);
   }
 }
 

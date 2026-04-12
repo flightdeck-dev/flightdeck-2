@@ -64,7 +64,7 @@ export function getVisibility(
   config: DisplayConfig,
   contentType: ContentType,
   toolName?: string,
-): ToolVisibility | boolean {
+): ToolVisibility {
   // Per-tool override takes precedence
   if (toolName && config.toolOverrides?.[toolName] !== undefined) {
     return config.toolOverrides[toolName];
@@ -74,7 +74,7 @@ export function getVisibility(
     case 'text':
       return 'detail'; // always show text
     case 'thinking':
-      return config.thinking;
+      return config.thinking ? 'detail' : 'off';
     case 'tool_call':
     case 'tool_result':
       return config.toolCalls;
@@ -90,23 +90,33 @@ export function shouldShow(
   contentType: ContentType,
   toolName?: string,
 ): boolean {
-  const vis = getVisibility(config, contentType, toolName);
-  if (typeof vis === 'boolean') return vis;
-  return vis !== 'off';
+  return getVisibility(config, contentType, toolName) !== 'off';
 }
+
+/** Partial display config input that allows null in toolOverrides to delete keys */
+export type PartialDisplayConfig = Partial<Omit<DisplayConfig, 'toolOverrides'>> & {
+  toolOverrides?: Record<string, ToolVisibility | null>;
+};
 
 /** Validate and merge a partial config into a full DisplayConfig */
 export function mergeDisplayConfig(
   base: DisplayConfig,
-  partial: Partial<DisplayConfig>,
+  partial: PartialDisplayConfig,
 ): DisplayConfig {
+  let toolOverrides = base.toolOverrides;
+  if (partial.toolOverrides !== undefined) {
+    toolOverrides = { ...base.toolOverrides, ...partial.toolOverrides };
+    // Remove keys set to null
+    for (const [key, val] of Object.entries(toolOverrides)) {
+      if (val === null) delete toolOverrides[key];
+    }
+    if (Object.keys(toolOverrides).length === 0) toolOverrides = undefined;
+  }
   return {
     thinking: partial.thinking ?? base.thinking,
     toolCalls: partial.toolCalls ?? base.toolCalls,
     flightdeckTools: partial.flightdeckTools ?? base.flightdeckTools,
-    toolOverrides: partial.toolOverrides !== undefined
-      ? { ...base.toolOverrides, ...partial.toolOverrides }
-      : base.toolOverrides,
+    toolOverrides,
   };
 }
 
@@ -115,17 +125,17 @@ export function isValidToolVisibility(v: unknown): v is ToolVisibility {
   return v === 'off' || v === 'summary' || v === 'detail';
 }
 
-/** Validate a DisplayConfig object */
-export function isValidDisplayConfig(v: unknown): v is Partial<DisplayConfig> {
+/** Validate a DisplayConfig object (accepts null values in toolOverrides for deletion) */
+export function isValidDisplayConfig(v: unknown): v is PartialDisplayConfig {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   if (obj.thinking !== undefined && typeof obj.thinking !== 'boolean') return false;
   if (obj.toolCalls !== undefined && !isValidToolVisibility(obj.toolCalls)) return false;
   if (obj.flightdeckTools !== undefined && !isValidToolVisibility(obj.flightdeckTools)) return false;
   if (obj.toolOverrides !== undefined) {
-    if (typeof obj.toolOverrides !== 'object' || obj.toolOverrides === null) return false;
+    if (typeof obj.toolOverrides !== 'object' || obj.toolOverrides === null || Array.isArray(obj.toolOverrides)) return false;
     for (const val of Object.values(obj.toolOverrides as Record<string, unknown>)) {
-      if (!isValidToolVisibility(val)) return false;
+      if (val !== null && !isValidToolVisibility(val)) return false;
     }
   }
   return true;

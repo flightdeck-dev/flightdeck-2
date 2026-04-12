@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { FlightdeckClient, FlightdeckTask } from "./flightdeckClient";
 import { TaskTreeProvider } from "./taskTreeProvider";
 import { AgentTreeProvider } from "./agentTreeProvider";
+import { DISPLAY_PRESETS, type DisplayPreset } from "@flightdeck-ai/shared/display";
 
 const ROLES = ["architect", "frontend", "backend", "reviewer", "devops"];
 const MODELS = [
@@ -144,13 +145,7 @@ export function registerCommands(
       );
       if (!picked) return;
       const config = vscode.workspace.getConfiguration("flightdeck.display");
-      const presetMap: Record<string, { thinking: boolean; toolCalls: string; flightdeckTools: string }> = {
-        minimal: { thinking: false, toolCalls: "off", flightdeckTools: "off" },
-        summary: { thinking: false, toolCalls: "summary", flightdeckTools: "off" },
-        detail: { thinking: true, toolCalls: "detail", flightdeckTools: "summary" },
-        debug: { thinking: true, toolCalls: "detail", flightdeckTools: "detail" },
-      };
-      const preset = presetMap[picked.label];
+      const preset = DISPLAY_PRESETS[picked.label as DisplayPreset];
       await config.update("thinking", preset.thinking, true);
       await config.update("toolCalls", preset.toolCalls, true);
       await config.update("flightdeckTools", preset.flightdeckTools, true);

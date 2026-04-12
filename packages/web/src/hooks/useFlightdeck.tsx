@@ -48,6 +48,8 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
   const streamingChunksRef = useRef(new Map<string, StreamChunk[]>());
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
   const [streamingChunks, setStreamingChunks] = useState(new Map<string, StreamChunk[]>());
+  const streamingDirtyRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -74,20 +76,32 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
     const unsub = wsClient.on((event: WsEvent) => {
       switch (event.type) {
         case 'chat:message':
-          setMessages(prev => [...prev, event.message]);
+          setMessages(prev => {
+            if (prev.some(m => m.id === event.message.id)) return prev;
+            return [...prev.slice(-499), event.message];
+          });
           // Clear streaming buffer for this message
           streamingRef.current.delete(event.message.id);
           setStreamingMessages(new Map(streamingRef.current));
+          streamingChunksRef.current.delete(event.message.id);
+          setStreamingChunks(new Map(streamingChunksRef.current));
           break;
         case 'chat:stream': {
           const current = streamingRef.current.get(event.message_id) ?? '';
           streamingRef.current.set(event.message_id, current + event.delta);
-          setStreamingMessages(new Map(streamingRef.current));
           // Track chunks with metadata
           const chunks = streamingChunksRef.current.get(event.message_id) ?? [];
           chunks.push({ content: event.delta, contentType: event.content_type, toolName: event.tool_name });
           streamingChunksRef.current.set(event.message_id, chunks);
-          setStreamingChunks(new Map(streamingChunksRef.current));
+          // Throttle streaming state updates
+          if (!streamingDirtyRef.current) {
+            streamingDirtyRef.current = true;
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingMessages(new Map(streamingRef.current));
+              setStreamingChunks(new Map(streamingChunksRef.current));
+              streamingDirtyRef.current = false;
+            });
+          }
           if (event.done) {
             // done — will get a chat:message with full content
           }
@@ -103,13 +117,12 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const interval = setInterval(() => {
-      setConnected(wsClient.connected);
-    }, 1000);
+    const unsubConn = wsClient.onConnectionChange(setConnected);
 
     return () => {
       unsub();
-      clearInterval(interval);
+      unsubConn();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       wsClient.disconnect();
     };
   }, [fetchAll]);

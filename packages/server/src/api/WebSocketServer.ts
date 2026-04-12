@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { MessageStore, ChatMessage, Thread } from '../comms/MessageStore.js';
-import { type DisplayConfig, DEFAULT_DISPLAY, DISPLAY_PRESETS, type DisplayPreset, mergeDisplayConfig, isValidDisplayConfig, type ContentType } from '@flightdeck-ai/shared';
+import { type DisplayConfig, DEFAULT_DISPLAY, DISPLAY_PRESETS, type DisplayPreset, mergeDisplayConfig, isValidDisplayConfig, shouldShow, type ContentType } from '@flightdeck-ai/shared';
 
 /**
  * WebSocket event types flowing between UI and server.
@@ -106,12 +106,15 @@ export class WebSocketServer extends EventEmitter {
   handleEvent(clientId: string, event: IncomingEvent): void {
     switch (event.type) {
       case 'chat:send':
+        if (typeof event.content !== 'string') return;
         this.handleChatSend(event);
         break;
       case 'thread:create':
+        if (!event.origin_id) return;
         this.handleThreadCreate(event);
         break;
       case 'task:comment':
+        if (!event.task_id || typeof event.content !== 'string') return;
         this.handleTaskComment(event);
         break;
       case 'display:config':
@@ -146,16 +149,28 @@ export class WebSocketServer extends EventEmitter {
     }
   }
 
-  /** Stream a Lead response chunk to all clients */
+  /** Stream a Lead response chunk to clients, filtering per client display config */
   streamChunk(messageId: string, delta: string, done: boolean, contentType?: ContentType, toolName?: string): void {
-    this.broadcast({
+    const event: ChatStreamEvent = {
       type: 'chat:stream',
       message_id: messageId,
       delta,
       done,
       content_type: contentType,
       tool_name: toolName,
-    });
+    };
+    // If no content type, broadcast to all (e.g. plain text chunks)
+    if (!contentType) {
+      this.broadcast(event);
+      return;
+    }
+    const data = JSON.stringify(event);
+    for (const [clientId, client] of this.clients.entries()) {
+      const config = this.clientDisplayConfigs.get(clientId) ?? { ...DEFAULT_DISPLAY };
+      if (shouldShow(config, contentType, toolName)) {
+        client.send(data);
+      }
+    }
   }
 
   get clientCount(): number {

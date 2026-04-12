@@ -134,9 +134,41 @@ describe('WebSocketServer display:config', () => {
     expect(client.sentMessages.length).toBe(0);
   });
 
+  it('streamChunk filters per client display config', () => {
+    const c1 = createMockClient('c1');
+    const c2 = createMockClient('c2');
+    ws.addClient(c1);
+    ws.addClient(c2);
+    c1.sentMessages.length = 0;
+    c2.sentMessages.length = 0;
+
+    // c1: default (thinking=false), c2: thinking=true
+    ws.handleEvent('c2', { type: 'display:config', config: { thinking: true } });
+    c2.sentMessages.length = 0;
+
+    ws.streamChunk('msg-1', 'thinking...', false, 'thinking');
+    // c1 should NOT get thinking (default: thinking=false → off)
+    expect(c1.sentMessages.length).toBe(0);
+    // c2 should get it
+    expect(c2.sentMessages.length).toBe(1);
+    const e = JSON.parse(c2.sentMessages[0]);
+    expect(e.content_type).toBe('thinking');
+  });
+
+  it('streamChunk broadcasts when no contentType', () => {
+    const c1 = createMockClient('c1');
+    ws.addClient(c1);
+    c1.sentMessages.length = 0;
+
+    ws.streamChunk('msg-1', 'text', false);
+    expect(c1.sentMessages.length).toBe(1);
+  });
+
   it('streamChunk includes content_type and tool_name', () => {
+    // Use debug config so everything is visible
     const client = createMockClient('c1');
     ws.addClient(client);
+    ws.setDisplayConfig('c1', { ...DISPLAY_PRESETS.debug });
     client.sentMessages.length = 0;
 
     ws.streamChunk('msg-1', 'thinking...', false, 'thinking');
@@ -156,5 +188,37 @@ describe('WebSocketServer display:config', () => {
     const e3 = JSON.parse(client.sentMessages[2]);
     expect(e3.content_type).toBe('flightdeck_tool_call');
     expect(e3.tool_name).toBe('flightdeck_task_list');
+  });
+
+  it('validates chat:send requires string content', () => {
+    const client = createMockClient('c1');
+    ws.addClient(client);
+    client.sentMessages.length = 0;
+
+    // Should be ignored (no string content)
+    ws.handleEvent('c1', { type: 'chat:send', content: 123 as any });
+    // Only initial config sync message, nothing else broadcast
+    expect(client.sentMessages.length).toBe(0);
+  });
+
+  it('validates thread:create requires origin_id', () => {
+    const client = createMockClient('c1');
+    ws.addClient(client);
+    client.sentMessages.length = 0;
+
+    ws.handleEvent('c1', { type: 'thread:create', origin_id: '' } as any);
+    expect(client.sentMessages.length).toBe(0);
+  });
+
+  it('validates task:comment requires task_id and content', () => {
+    const client = createMockClient('c1');
+    ws.addClient(client);
+    client.sentMessages.length = 0;
+
+    ws.handleEvent('c1', { type: 'task:comment', task_id: '', content: 'hi' } as any);
+    expect(client.sentMessages.length).toBe(0);
+
+    ws.handleEvent('c1', { type: 'task:comment', task_id: 't1', content: 123 as any } as any);
+    expect(client.sentMessages.length).toBe(0);
   });
 });

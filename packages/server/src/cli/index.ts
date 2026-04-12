@@ -16,6 +16,7 @@ const { values, positionals } = parseArgs({
     status: { type: 'string' },
     json: { type: 'boolean' },
     reason: { type: 'string' },
+    'cors-origin': { type: 'string' },
   },
 });
 
@@ -286,10 +287,20 @@ switch (command) {
       const url = new URL(req.url ?? '/', `http://localhost:${port}`);
       const method = req.method ?? 'GET';
 
-      // Helper to read JSON body
+      // Helper to read JSON body (1MB limit)
+      const MAX_BODY = 1024 * 1024; // 1MB
       const readBody = (): Promise<any> => new Promise((resolve, reject) => {
+        let size = 0;
         let data = '';
-        req.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        req.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > MAX_BODY) {
+            req.destroy();
+            reject(new Error('Body too large'));
+            return;
+          }
+          data += chunk.toString();
+        });
         req.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON')); } });
       });
 
@@ -298,8 +309,9 @@ switch (command) {
         res.end(JSON.stringify(body));
       };
 
-      // CORS headers for dev
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      // CORS headers
+      const corsOrigin = (values as any)['cors-origin'] ?? '*';
+      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
@@ -311,7 +323,7 @@ switch (command) {
       } else if (url.pathname === '/api/messages' && method === 'GET') {
         const threadId = url.searchParams.get('thread_id') ?? undefined;
         const taskId = url.searchParams.get('task_id') ?? undefined;
-        const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+        const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
         const msgs = fd.chatMessages?.listMessages({ threadId, taskId, limit }) ?? [];
         json(200, msgs.reverse());
       } else if (url.pathname === '/api/tasks' && method === 'GET') {
@@ -325,7 +337,7 @@ switch (command) {
       } else if (url.pathname === '/api/agents' && method === 'GET') {
         json(200, fd.listAgents());
       } else if (url.pathname === '/api/decisions' && method === 'GET') {
-        const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+        const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
         const decisions = fd.decisions.readAll().slice(0, limit);
         json(200, decisions);
       } else if (url.pathname === '/api/report' && method === 'GET') {
@@ -360,8 +372,12 @@ switch (command) {
           const body = await readBody();
           if (!isValidDisplay(body)) { json(400, { error: 'Invalid display config' }); return; }
           serverDisplayConfig = mergeDisplay(serverDisplayConfig, body);
+          // Broadcast updated server config to all WS clients
+          if (wsServer) {
+            wsServer.broadcast({ type: 'display:config', config: serverDisplayConfig });
+          }
           json(200, serverDisplayConfig);
-        } catch { json(400, { error: 'Invalid JSON' }); }
+        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
       } else if (url.pathname.match(/^\/api\/display\/preset\/[^/]+$/) && method === 'POST') {
         const preset = url.pathname.split('/').pop()!;
         if (preset in displayPresets) {
@@ -378,8 +394,8 @@ switch (command) {
           else if (body.model) modelCfg.setRole(role, body.model);
           else { json(400, { error: 'Provide runtime and/or model' }); return; }
           json(200, { success: true, config: modelCfg.getRoleConfig(role) });
-        } catch {
-          json(400, { error: 'Invalid request body' });
+        } catch (e: any) {
+          json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid request body' });
         }
       } else {
         res.writeHead(404);
@@ -393,7 +409,11 @@ switch (command) {
       let clientCounter = 0;
       wss.on('connection', (socket: any) => {
         const clientId = `ws-client-${++clientCounter}`;
-        wsServer.addClient({ id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } });
+        const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
+        wsServer.addClient(client);
+        // Inherit server display config
+        wsServer.setDisplayConfig(clientId, { ...serverDisplayConfig });
+        wsServer.sendTo(clientId, { type: 'display:config', config: serverDisplayConfig });
         socket.on('message', (raw: any) => {
           try {
             const event = JSON.parse(raw.toString());
@@ -402,6 +422,9 @@ switch (command) {
         });
         socket.on('close', () => wsServer.removeClient(clientId));
       });
+
+      // Store wss for shutdown
+      (httpServer as any).__wss = wss;
     }
 
     httpServer.listen(port, () => {
@@ -415,6 +438,7 @@ switch (command) {
       console.error('\nStopping Flightdeck...');
       orchestrator.stop();
       leadManager.stop();
+      if ((httpServer as any).__wss) (httpServer as any).__wss.close();
       httpServer.close();
       fd.close();
       process.exit(0);
@@ -562,10 +586,22 @@ switch (command) {
       }
       const body: Record<string, unknown> = {};
       if (key === 'thinking') {
+        if (val !== 'on' && val !== 'off' && val !== 'true' && val !== 'false') {
+          console.error('Invalid value for thinking. Use: on, off');
+          process.exit(1);
+        }
         body.thinking = val === 'on' || val === 'true';
       } else if (key === 'tools') {
+        if (val !== 'off' && val !== 'summary' && val !== 'detail') {
+          console.error('Invalid value for tools. Use: off, summary, detail');
+          process.exit(1);
+        }
         body.toolCalls = val;
       } else if (key === 'flightdeck-tools') {
+        if (val !== 'off' && val !== 'summary' && val !== 'detail') {
+          console.error('Invalid value for flightdeck-tools. Use: off, summary, detail');
+          process.exit(1);
+        }
         body.flightdeckTools = val;
       } else {
         console.error(`Unknown display key: ${key}. Use: thinking, tools, flightdeck-tools`);

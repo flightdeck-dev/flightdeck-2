@@ -97,9 +97,19 @@ describe('DisplayConfig', () => {
   });
 
   describe('getVisibility', () => {
-    it('returns boolean for thinking', () => {
-      expect(getVisibility(DISPLAY_PRESETS.debug, 'thinking')).toBe(true);
-      expect(getVisibility(DISPLAY_PRESETS.minimal, 'thinking')).toBe(false);
+    it('returns detail for thinking when enabled', () => {
+      expect(getVisibility(DISPLAY_PRESETS.debug, 'thinking')).toBe('detail');
+    });
+
+    it('returns off for thinking when disabled', () => {
+      expect(getVisibility(DISPLAY_PRESETS.minimal, 'thinking')).toBe('off');
+    });
+
+    it('always returns ToolVisibility (never boolean)', () => {
+      const vis = getVisibility(DISPLAY_PRESETS.debug, 'thinking');
+      expect(typeof vis).toBe('string');
+      const vis2 = getVisibility(DISPLAY_PRESETS.minimal, 'thinking');
+      expect(typeof vis2).toBe('string');
     });
 
     it('returns ToolVisibility for tool_call', () => {
@@ -128,6 +138,18 @@ describe('DisplayConfig', () => {
       const base: DisplayConfig = { ...DEFAULT_DISPLAY, toolOverrides: { a: 'off' } };
       const result = mergeDisplayConfig(base, { toolOverrides: { b: 'detail' } });
       expect(result.toolOverrides).toEqual({ a: 'off', b: 'detail' });
+    });
+
+    it('removes toolOverrides with null value', () => {
+      const base: DisplayConfig = { ...DEFAULT_DISPLAY, toolOverrides: { a: 'off', b: 'detail' } };
+      const result = mergeDisplayConfig(base, { toolOverrides: { a: null } });
+      expect(result.toolOverrides).toEqual({ b: 'detail' });
+    });
+
+    it('sets toolOverrides to undefined when all deleted', () => {
+      const base: DisplayConfig = { ...DEFAULT_DISPLAY, toolOverrides: { a: 'off' } };
+      const result = mergeDisplayConfig(base, { toolOverrides: { a: null } });
+      expect(result.toolOverrides).toBeUndefined();
     });
 
     it('keeps base when partial is empty', () => {
@@ -159,6 +181,12 @@ describe('DisplayConfig', () => {
       expect(isValidDisplayConfig({ thinking: 'yes' })).toBe(false);
       expect(isValidDisplayConfig({ toolCalls: 'none' })).toBe(false);
       expect(isValidDisplayConfig({ toolOverrides: { foo: 'invalid' } })).toBe(false);
+      expect(isValidDisplayConfig({ toolOverrides: ['array'] })).toBe(false);
+    });
+
+    it('isValidDisplayConfig accepts null in toolOverrides', () => {
+      expect(isValidDisplayConfig({ toolOverrides: { foo: null } })).toBe(true);
+      expect(isValidDisplayConfig({ toolOverrides: { foo: 'off', bar: null } })).toBe(true);
     });
   });
 

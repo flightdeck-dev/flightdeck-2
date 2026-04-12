@@ -155,6 +155,18 @@ function useFlightdeckClient(baseUrl: string, wsUrl: string) {
           case 'tasks:update':
             if (Array.isArray(msg.data)) setTaskCounts(countTasks(msg.data));
             break;
+          case 'display:config': {
+            if (msg.config) setDisplayConfig(prev => ({ ...prev, ...msg.config }));
+            break;
+          }
+          case 'chat:stream': {
+            const ct = msg.content_type || 'text';
+            if (shouldShow(displayConfig, ct as ContentType, msg.tool_name)) {
+              // Append streaming delta to chat as ephemeral activity
+              addActivity({ time: timestamp(), icon: '✏️', text: `streaming: ${(msg.delta || '').slice(0, 80)}`, color: 'gray' });
+            }
+            break;
+          }
           default:
             if (msg.type) {
               addActivity({ time: timestamp(), icon: '📡', text: `${msg.type}: ${JSON.stringify(msg.data || {}).slice(0, 80)}`, color: 'gray' });
@@ -380,6 +392,10 @@ function App({ baseUrl, wsUrl }: { baseUrl: string; wsUrl: string }) {
             return;
           }
           if (sub === 'thinking') {
+            if (!args[1]) {
+              setCmdOutput(['Usage: /display thinking on|off']);
+              return;
+            }
             const val = args[1] === 'on' || args[1] === 'true';
             sendDisplayUpdate({ thinking: val });
             setCmdOutput([`Thinking: ${val ? 'on' : 'off'}`]);
@@ -461,6 +477,6 @@ Options:
 
 const port = values.port || '3000';
 const wsUrl = (values.url as string) || `ws://localhost:${port}`;
-const baseUrl = `http://localhost:${port}`;
+const baseUrl = (values.url as string) ? (values.url as string).replace(/^ws(s?):/, 'http$1:') : `http://localhost:${port}`;
 
 render(<App baseUrl={baseUrl} wsUrl={wsUrl} />);

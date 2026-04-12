@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Component, type ReactNode, type ErrorInfo } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
 import type { ChatMessage } from '../lib/types.ts';
@@ -181,6 +181,37 @@ function ToolResultBlock({ content, toolName, level }: { content: string; toolNa
   );
 }
 
+class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('MessageArea error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex items-center justify-center text-[var(--color-text-secondary)]">
+          <div className="text-center">
+            <p className="text-2xl mb-2">⚠️</p>
+            <p>Something went wrong rendering messages.</p>
+            <p className="text-xs mt-1 text-[var(--color-text-tertiary)]">{this.state.error?.message}</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="mt-3 px-3 py-1 text-sm rounded border border-[var(--color-border)] hover:bg-[var(--color-surface-secondary)]"
+            >Retry</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Chat() {
   const { messages, streamingMessages, streamingChunks, displayConfig, sendChat, connected } = useFlightdeck();
   const [input, setInput] = useState('');
@@ -205,6 +236,13 @@ export default function Chat() {
     inputRef.current?.focus();
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -223,6 +261,7 @@ export default function Chat() {
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto -m-8">
       {/* Messages */}
+      <MessageAreaErrorBoundary>
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {mainMessages.length === 0 && streamEntries.length === 0 && (
           <div className="text-center py-16 text-[var(--color-text-secondary)]">
@@ -247,6 +286,7 @@ export default function Chat() {
         ))}
         <div ref={bottomRef} />
       </div>
+      </MessageAreaErrorBoundary>
 
       {/* Input area */}
       <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)]">
@@ -262,12 +302,12 @@ export default function Chat() {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={connected ? 'Message Lead... (Enter to send, Shift+Enter for newline)' : 'Connecting...'}
             disabled={!connected}
             rows={1}
-            className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-status-ready)] disabled:opacity-50"
+            className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-status-ready)] disabled:opacity-50 max-h-32 overflow-y-auto"
           />
           <button
             onClick={handleSend}

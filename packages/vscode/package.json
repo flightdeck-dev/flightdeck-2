@@ -38,7 +38,10 @@
       { "command": "flightdeck.agentSpawn", "title": "Flightdeck: Spawn Agent" },
       { "command": "flightdeck.start", "title": "Flightdeck: Start" },
       { "command": "flightdeck.stop", "title": "Flightdeck: Stop" },
-      { "command": "flightdeck.displayPreset", "title": "Flightdeck: Set Display Preset" }
+      { "command": "flightdeck.displayPreset", "title": "Flightdeck: Set Display Preset" },
+      { "command": "flightdeck.agentTerminate", "title": "Flightdeck: Terminate Agent" },
+      { "command": "flightdeck.agentInterrupt", "title": "Flightdeck: Interrupt Agent" },
+      { "command": "flightdeck.agentRestart", "title": "Flightdeck: Restart Agent" }
     ],
     "configuration": {
       "title": "Flightdeck",
