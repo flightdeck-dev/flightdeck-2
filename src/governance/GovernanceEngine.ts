@@ -41,9 +41,15 @@ export class GovernanceEngine {
     return { allowed: true, action: 'log' };
   }
 
-  shouldGateTaskStart(taskState: TaskState): boolean {
+  shouldGateTaskStart(taskState: TaskState, taskRole?: string): boolean {
+    if (this.config.governance === 'autonomous') return false;
+    if (this.config.governance === 'supervised') {
+      // Supervised lets trivial tasks through (reviewer role tasks are trivial)
+      if (taskRole === 'reviewer') return false;
+      return true;
+    }
     if (this.config.governance === 'collaborative') return true;
-    if (this.config.governance === 'supervised') return true;
+    // custom — check costThresholdPerDay as a proxy for gate strictness
     return false;
   }
 
