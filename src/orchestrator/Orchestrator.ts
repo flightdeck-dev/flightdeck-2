@@ -3,6 +3,7 @@ import { TaskDAG } from '../dag/TaskDAG.js';
 import { SqliteStore } from '../storage/SqliteStore.js';
 import { GovernanceEngine } from '../governance/GovernanceEngine.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
+import type { SessionManager, SessionHealth } from '../agents/SessionManager.js';
 
 export interface TickResult {
   assignedTasks: TaskId[];
@@ -25,13 +26,18 @@ export interface TickResult {
 export class Orchestrator {
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
 
+  private sessionManager: SessionManager | null;
+
   constructor(
     private dag: TaskDAG,
     private store: SqliteStore,
     private governance: GovernanceEngine,
     private adapter: AgentAdapter,
     private config: ProjectConfig,
-  ) {}
+    sessionManager?: SessionManager,
+  ) {
+    this.sessionManager = sessionManager ?? null;
+  }
 
   async tick(): Promise<TickResult> {
     const result: TickResult = { assignedTasks: [], pingedAgents: [], restartedAgents: [], errors: [] };
@@ -75,13 +81,35 @@ export class Orchestrator {
       }
     }
 
-    // 2. Find ready, unassigned tasks
+    // 2. Cross-check session health from SessionManager
+    if (this.sessionManager) {
+      const healthList = this.sessionManager.checkHealth();
+      for (const h of healthList) {
+        if (h.status === 'ended') {
+          // Find any running task still pointing at this dead session
+          const staleTask = runningTasks.find(t => {
+            const session = this.sessionManager?.getSession(h.sessionId);
+            return session && t.assignedAgent === session.agentId;
+          });
+          if (staleTask && !result.restartedAgents.includes(staleTask.assignedAgent!)) {
+            try {
+              this.dag.failTask(staleTask.id);
+              this.dag.retryTask(staleTask.id);
+              this.store.updateAgentStatus(staleTask.assignedAgent!, 'offline');
+              result.restartedAgents.push(staleTask.assignedAgent!);
+            } catch { /* already handled above */ }
+          }
+        }
+      }
+    }
+
+    // 3. Find ready, unassigned tasks
     const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent);
 
-    // 3. Find idle agents
+    // 4. Find idle agents
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
 
-    // 4. Match tasks to agents by role
+    // 5. Match tasks to agents by role
     for (const task of readyTasks) {
       const agent = agents.find(a => a.role === task.role && a.status === 'idle');
       if (!agent) continue;

@@ -1,0 +1,25 @@
+{
+  "runtimes": {
+    "codex": {
+      "command": "codex",
+      "args": ["--message", "{prompt}", "--cwd", "{cwd}"],
+      "adapter": "acp"
+    },
+    "claude": {
+      "command": "claude",
+      "args": ["--message", "{prompt}"],
+      "adapter": "pty"
+    },
+    "gemini": {
+      "command": "gemini",
+      "args": ["{prompt}"],
+      "adapter": "acp"
+    },
+    "copilot": {
+      "command": "copilot",
+      "args": ["{prompt}"],
+      "adapter": "acp"
+    }
+  },
+  "defaultRuntime": "codex"
+}
