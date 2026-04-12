@@ -7,6 +7,12 @@
     "flightdeck": "./src/cli/index.ts",
     "flightdeck-mcp": "./bin/flightdeck-mcp.mjs"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "src/",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
