@@ -9,13 +9,14 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "cli": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/server.ts"
   },
   "dependencies": {
-    "@flightdeck-ai/shared": "workspace:*",
     "@agentclientprotocol/sdk": "^0.18.2",
+    "@flightdeck-ai/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^11.8.1",
     "drizzle-orm": "^0.44.7",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.2",
+    "@vitest/coverage-v8": "^3.2.4",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
