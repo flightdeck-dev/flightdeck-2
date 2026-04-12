@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -436,8 +437,8 @@ export class AcpAdapter extends AgentAdapter {
         mcpServers: mcpServers ?? [
           {
             name: 'flightdeck',
-            command: 'npx',
-            args: ['tsx', new URL('../mcp/server.ts', import.meta.url).pathname],
+            command: 'flightdeck-mcp',
+            args: [],
             env: [
               { name: 'FLIGHTDECK_AGENT_ID', value: session.agentId },
               { name: 'FLIGHTDECK_AGENT_ROLE', value: role ?? '' },
