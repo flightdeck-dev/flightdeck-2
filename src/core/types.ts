@@ -139,7 +139,6 @@ const VALID_TRANSITIONS = new Set<TransitionKey>([
   'ready->gated',
   'ready->paused',
   'running->in_review',
-  'running->done',
   'running->failed',
   'running->paused',
   'running->blocked',
@@ -160,6 +159,10 @@ const VALID_TRANSITIONS = new Set<TransitionKey>([
 export type SideEffect =
   | { type: 'notify_agent'; agentId: AgentId; message: string }
   | { type: 'spawn_reviewer'; taskId: TaskId }
+  | { type: 'resolve_dependents'; taskId: TaskId }
+  | { type: 'block_dependents'; taskId: TaskId }
+  | { type: 'clear_assignment'; taskId: TaskId }
+  | { type: 'set_timestamp'; taskId: TaskId }
   | { type: 'escalate'; taskId: TaskId; reason: string }
   | { type: 'update_dag'; taskId: TaskId }
   | { type: 'log_decision'; decision: Decision };
@@ -182,14 +185,20 @@ export function transition(
   const effects: SideEffect[] = [];
 
   // Emit side effects based on transition
-  if (target === 'done' && current === 'running' && context?.taskId) {
+  if (target === 'in_review' && current === 'running' && context?.taskId) {
     effects.push({ type: 'spawn_reviewer', taskId: context.taskId });
   }
   if (target === 'done' && context?.taskId) {
-    effects.push({ type: 'update_dag', taskId: context.taskId });
+    effects.push({ type: 'resolve_dependents', taskId: context.taskId });
+    effects.push({ type: 'set_timestamp', taskId: context.taskId });
   }
   if (target === 'failed' && context?.taskId) {
     effects.push({ type: 'escalate', taskId: context.taskId, reason: 'Task failed' });
+    effects.push({ type: 'block_dependents', taskId: context.taskId });
+    effects.push({ type: 'clear_assignment', taskId: context.taskId });
+  }
+  if ((target === 'ready' && current === 'failed') && context?.taskId) {
+    effects.push({ type: 'clear_assignment', taskId: context.taskId });
   }
 
   return { newState: target, effects };
