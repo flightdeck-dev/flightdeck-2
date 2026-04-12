@@ -35,6 +35,7 @@ export class TaskDAG {
     dependsOn?: TaskId[];
     priority?: number;
     source?: Task['source'];
+    parentTaskId?: TaskId;
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -42,6 +43,7 @@ export class TaskDAG {
     const task: Task = {
       id,
       specId: opts.specId ?? null,
+      parentTaskId: opts.parentTaskId ?? null,
       title: opts.title,
       description: opts.description ?? '',
       state: deps.length === 0 ? 'ready' : 'pending',
@@ -51,6 +53,7 @@ export class TaskDAG {
       assignedAgent: null,
       acpSessionId: null,
       source: opts.source ?? 'planned',
+      compactedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -320,5 +323,100 @@ export class TaskDAG {
 
   getReadyTasks(): Task[] {
     return this.store.getTasksByState('ready');
+  }
+
+  /**
+   * Compact a completed task by replacing its description with a short summary.
+   * FR-015: Task compaction.
+   */
+  compactTask(taskId: TaskId, summary?: string): Task {
+    const task = this.store.getTask(taskId);
+    if (!task) throw new Error(`Task not found: ${taskId}`);
+    if (task.state !== 'done' && task.state !== 'skipped' && task.state !== 'cancelled' && task.state !== 'failed') {
+      throw new Error(`Task ${taskId} is not in a terminal state (state: ${task.state})`);
+    }
+    const compactSummary = summary ?? `[Compacted] ${task.title}: ${task.state}`;
+    this.store.compactTask(taskId, compactSummary);
+    return { ...task, description: compactSummary, compactedAt: new Date().toISOString() };
+  }
+
+  /**
+   * Declare sub-tasks under a parent task (FR-017: Hierarchical DAGs).
+   * Sub-tasks inherit parent's specId. Parent becomes blocked until all sub-tasks complete.
+   */
+  declareSubTasks(parentId: TaskId, subTasks: Array<{
+    title: string;
+    description?: string;
+    role?: AgentRole;
+    dependsOn?: string[];
+    priority?: number;
+  }>): Task[] {
+    const parent = this.store.getTask(parentId);
+    if (!parent) throw new Error(`Parent task not found: ${parentId}`);
+
+    // Create sub-tasks with parentTaskId set
+    const idMap = new Map<string, TaskId>();
+    const results: Task[] = [];
+
+    for (const st of subTasks) {
+      const task = this.addTask({
+        title: st.title,
+        description: st.description,
+        specId: parent.specId as SpecId | undefined,
+        role: st.role,
+        priority: st.priority,
+        parentTaskId: parentId,
+      });
+      idMap.set(st.title, task.id);
+      results.push(task);
+    }
+
+    // Wire up inter-subtask dependencies
+    for (let i = 0; i < subTasks.length; i++) {
+      const deps = subTasks[i].dependsOn;
+      if (deps && deps.length > 0) {
+        const resolvedDeps = deps.map(d => idMap.get(d) ?? d as TaskId);
+        this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
+        results[i] = { ...results[i], dependsOn: resolvedDeps };
+        const allDone = resolvedDeps.every(d => {
+          const t = this.store.getTask(d);
+          return t?.state === 'done';
+        });
+        if (!allDone) {
+          this.store.updateTaskState(results[i].id, 'pending');
+          results[i] = { ...results[i], state: 'pending' };
+        }
+        for (const dep of resolvedDeps) {
+          if (!this.adjacency.has(dep)) this.adjacency.set(dep, new Set());
+          this.adjacency.get(dep)!.add(results[i].id);
+          if (!this.reverseAdj.has(results[i].id)) this.reverseAdj.set(results[i].id, new Set());
+          this.reverseAdj.get(results[i].id)!.add(dep);
+        }
+      }
+    }
+
+    // Make parent depend on all sub-tasks (parent blocked until all done)
+    const parentDeps = [...parent.dependsOn, ...results.map(r => r.id)];
+    this.store.updateTaskDependsOn(parentId, parentDeps);
+    // If parent is ready/running, set to pending so it waits for sub-tasks
+    if (parent.state === 'ready') {
+      this.store.updateTaskState(parentId, 'pending');
+    }
+    // Update adjacency: sub-tasks -> parent
+    for (const r of results) {
+      if (!this.adjacency.has(r.id)) this.adjacency.set(r.id, new Set());
+      this.adjacency.get(r.id)!.add(parentId);
+      if (!this.reverseAdj.has(parentId)) this.reverseAdj.set(parentId, new Set());
+      this.reverseAdj.get(parentId)!.add(r.id);
+    }
+
+    return results;
+  }
+
+  /**
+   * Get sub-tasks of a parent task.
+   */
+  getSubTasks(parentId: TaskId): Task[] {
+    return this.store.getSubTasks(parentId);
   }
 }

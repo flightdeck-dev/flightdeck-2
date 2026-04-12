@@ -111,4 +111,45 @@ export class MessageStore {
       .all();
     return rows as Thread[];
   }
+
+  /**
+   * Collect all messages from a thread and produce a summary string (FR-021b).
+   * Returns the concatenated thread content for summarization.
+   */
+  collectThread(threadId: string): { thread: Thread | null; messages: ChatMessage[]; digest: string } {
+    const thread = this.getThread(threadId);
+    const msgs = this.listMessages({ threadId, limit: 1000 });
+    // Reverse to chronological order
+    msgs.reverse();
+    const lines = msgs.map(m => `[${m.authorType}${m.authorId ? ':' + m.authorId : ''}] ${m.content}`);
+    const digest = lines.join('\n');
+    return { thread, messages: msgs, digest };
+  }
+
+  /**
+   * Summarize a thread's discussion (FR-021b).
+   * Returns a summary string from the thread content.
+   * The caller should store this in the DecisionLog.
+   */
+  summarizeThread(threadId: string): { summary: string; messageCount: number } {
+    const { thread, messages, digest } = this.collectThread(threadId);
+    if (messages.length === 0) {
+      return { summary: 'No messages in thread.', messageCount: 0 };
+    }
+    const title = thread?.title ?? 'Untitled thread';
+    const participants = [...new Set(messages.map(m => m.authorId ?? m.authorType))];
+    const firstMsg = messages[0];
+    const lastMsg = messages[messages.length - 1];
+    // Auto-generated summary (without LLM — structured extract)
+    const summary = [
+      `## Thread Summary: ${title}`,
+      `Participants: ${participants.join(', ')}`,
+      `Messages: ${messages.length}`,
+      `Duration: ${firstMsg.createdAt} → ${lastMsg.createdAt}`,
+      '',
+      `### Key content`,
+      digest.length > 2000 ? digest.slice(0, 2000) + '...' : digest,
+    ].join('\n');
+    return { summary, messageCount: messages.length };
+  }
 }

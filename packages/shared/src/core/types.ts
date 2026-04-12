@@ -61,6 +61,7 @@ export type TaskSource = 'planned' | 'adhoc' | 'escalation';
 export interface Task {
   id: TaskId;
   specId: SpecId | null;
+  parentTaskId: TaskId | null;
   title: string;
   description: string;
   state: TaskState;
@@ -70,6 +71,7 @@ export interface Task {
   assignedAgent: AgentId | null;
   acpSessionId: string | null;
   source: TaskSource;
+  compactedAt: string | null;
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }

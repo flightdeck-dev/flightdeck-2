@@ -17,6 +17,8 @@ const { values, positionals } = parseArgs({
     json: { type: 'boolean' },
     reason: { type: 'string' },
     'cors-origin': { type: 'string' },
+    'no-recover': { type: 'boolean', default: false },
+    'fresh': { type: 'boolean', default: false },
   },
 });
 
@@ -44,6 +46,7 @@ Commands:
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
   display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
   start [--profile X]     Start orchestrator (stub)
+                          --no-recover / --fresh  Skip session recovery; mark stale agents as terminated
   pause                   Pause orchestrator (stop claiming new tasks)
   resume                  Resume orchestrator (start claiming tasks)
   tui                     Launch terminal UI
@@ -220,8 +223,20 @@ switch (command) {
     console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
 
     // Recover existing ACP sessions from database
+    const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
     const activeAgents = fd.listAgents().filter(a => a.status === 'busy' && a.acpSessionId);
-    if (activeAgents.length > 0) {
+    if (noRecover) {
+      // Mark all existing agents as terminated
+      const allAgents = fd.listAgents().filter(a => a.status !== 'offline');
+      if (allAgents.length > 0) {
+        console.error(`Session recovery disabled (--no-recover). Marking ${allAgents.length} existing agents as terminated.`);
+        for (const agent of allAgents) {
+          fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+        }
+      } else {
+        console.error('Session recovery disabled (--no-recover). No existing agents to clean up.');
+      }
+    } else if (activeAgents.length > 0) {
       console.error(`Recovering ${activeAgents.length} active agent session(s)...`);
       for (const agent of activeAgents) {
         // TODO: ACP session/load to reconnect to live sessions

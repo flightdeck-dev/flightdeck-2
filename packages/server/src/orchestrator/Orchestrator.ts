@@ -12,6 +12,8 @@ import type { SessionManager, SessionHealth } from '../agents/SessionManager.js'
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
   maxRetries?: number;
+  /** Hours after completion before a task gets compacted. Default: 24 */
+  compactionTtlHours?: number;
 }
 
 export interface TickResult {
@@ -19,6 +21,8 @@ export interface TickResult {
   stallsDetected: number;
   completionsProcessed: number;
   errorsHandled: number;
+  tasksCompacted: number;
+  retrospectivesTriggered: number;
 }
 
 /**
@@ -47,6 +51,8 @@ export class Orchestrator {
   private governanceConfig: GovernanceConfig;
   private sessionManager: SessionManager | null;
   private retryCount = new Map<TaskId, number>();
+  /** Track specs we've already triggered retrospectives for */
+  private retrospectivesDone = new Set<string>();
 
   constructor(
     private dag: TaskDAG,
@@ -99,6 +105,8 @@ export class Orchestrator {
       stallsDetected: 0,
       completionsProcessed: 0,
       errorsHandled: 0,
+      tasksCompacted: 0,
+      retrospectivesTriggered: 0,
     };
 
     // When paused, skip the entire tick — let in-progress tasks finish naturally
@@ -131,9 +139,13 @@ export class Orchestrator {
     this.checkBudget();
 
     // 6. Check for spec completions — notify Lead only when all tasks in a spec are done
-    this.checkSpecCompletions();
+    const specResults = this.checkSpecCompletions();
+    result.retrospectivesTriggered = specResults.retrospectives;
 
-    // 7. Broadcast state changes to WebSocket clients
+    // 7. Compact old completed tasks (FR-015)
+    result.tasksCompacted = this.compactOldTasks();
+
+    // 8. Broadcast state changes to WebSocket clients
     if (stateChanged) {
       this.broadcastStateChange();
     }
@@ -328,9 +340,10 @@ export class Orchestrator {
   }
 
   /**
-   * Check if all tasks in any spec are complete → notify Lead.
+   * Check if all tasks in any spec are complete → notify Lead + trigger retrospective.
    */
-  private checkSpecCompletions(): void {
+  private checkSpecCompletions(): { retrospectives: number } {
+    let retrospectives = 0;
     const allTasks = this.dag.listTasks();
     const specTasks = new Map<string, { total: number; done: number }>();
 
@@ -346,15 +359,46 @@ export class Orchestrator {
 
     for (const [specId, counts] of specTasks) {
       if (counts.total > 0 && counts.done === counts.total) {
-        // All tasks done — notify Lead (only once, track via recordTaskCompletion)
-        this.leadManager?.steerLead({
-          type: 'spec_completed',
-          specId,
-          summary: `All ${counts.total} tasks complete.`,
-        });
-        this.leadManager?.recordTaskCompletion();
+        // All tasks done — notify Lead (only once)
+        if (!this.retrospectivesDone.has(specId)) {
+          this.leadManager?.steerLead({
+            type: 'spec_completed',
+            specId,
+            summary: `All ${counts.total} tasks complete.`,
+          });
+          this.leadManager?.recordTaskCompletion();
+          this.retrospectivesDone.add(specId);
+          retrospectives++;
+        }
       }
     }
+
+    return { retrospectives };
+  }
+
+  /**
+   * Compact completed tasks older than the configured TTL (FR-015).
+   */
+  private compactOldTasks(): number {
+    const ttlHours = this.governanceConfig.compactionTtlHours ?? 24;
+    const cutoff = new Date(Date.now() - ttlHours * 3600_000).toISOString();
+    const allTasks = this.dag.listTasks();
+    let compacted = 0;
+
+    for (const task of allTasks) {
+      // Skip already compacted or non-terminal tasks
+      if (task.compactedAt) continue;
+      if (task.state !== 'done' && task.state !== 'skipped' && task.state !== 'cancelled' && task.state !== 'failed') continue;
+      // Check if completion is old enough
+      if (task.updatedAt > cutoff) continue;
+
+      try {
+        this.dag.compactTask(task.id);
+        compacted++;
+      } catch { /* skip on error */ }
+    }
+
+    return compacted;
   }
 
   /**

@@ -158,6 +158,9 @@ The Flightdeck daemon is designed to be restartable without losing agent session
 
 **User experience:** Daemon restart = a few seconds of disconnection. No lost work, no re-spawned agents, no repeated tasks.
 
+**`--no-recover` / `--fresh` flag:**
+Pass `--no-recover` (or its alias `--fresh`) to `flightdeck start` to skip session recovery entirely. All existing agents are marked as `terminated` in the database, and fresh Lead + Planner sessions are spawned. Useful when previous sessions are known to be stale or broken (e.g. after a crash or runtime update).
+
 ### Multi-Surface Architecture
 
 The daemon is a hub. Any number of UI surfaces can connect:

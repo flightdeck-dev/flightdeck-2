@@ -24,6 +24,7 @@ export class SqliteStore {
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
         spec_id TEXT,
+        parent_task_id TEXT,
         title TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         state TEXT NOT NULL DEFAULT 'pending',
@@ -35,6 +36,7 @@ export class SqliteStore {
         claim TEXT,
         source TEXT NOT NULL DEFAULT 'planned',
         cost REAL DEFAULT 0,
+        compacted_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -163,6 +165,12 @@ export class SqliteStore {
     if (!cols.some(c => c.name === 'source')) {
       this._db.run(sql.raw("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'planned'"));
     }
+    if (!cols.some(c => c.name === 'parent_task_id')) {
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN parent_task_id TEXT'));
+    }
+    if (!cols.some(c => c.name === 'compacted_at')) {
+      this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN compacted_at TEXT'));
+    }
 
     // Migrate cost_entries for older databases
     const costCols = this._db.all(sql.raw("PRAGMA table_info(cost_entries)")) as { name: string }[];
@@ -180,6 +188,7 @@ export class SqliteStore {
     this._db.insert(tasks).values({
       id: task.id,
       specId: task.specId,
+      parentTaskId: task.parentTaskId ?? null,
       title: task.title,
       description: task.description,
       state: task.state,
@@ -189,6 +198,7 @@ export class SqliteStore {
       assignedAgent: task.assignedAgent,
       acpSessionId: task.acpSessionId,
       source: task.source || 'planned',
+      compactedAt: task.compactedAt ?? null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     }).run();
@@ -261,10 +271,33 @@ export class SqliteStore {
       .run();
   }
 
+  updateTaskParent(id: TaskId, parentTaskId: TaskId): void {
+    const now = new Date().toISOString();
+    this._db.update(tasks)
+      .set({ parentTaskId, updatedAt: now })
+      .where(eq(tasks.id, id))
+      .run();
+  }
+
+  compactTask(id: TaskId, summary: string): void {
+    const now = new Date().toISOString();
+    this._db.update(tasks)
+      .set({ description: summary, compactedAt: now, updatedAt: now })
+      .where(eq(tasks.id, id))
+      .run();
+  }
+
+  getSubTasks(parentTaskId: TaskId): Task[] {
+    return this._db.select().from(tasks)
+      .where(eq(tasks.parentTaskId, parentTaskId))
+      .all().map(r => this.rowToTask(r));
+  }
+
   private rowToTask(row: typeof tasks.$inferSelect): Task {
     return {
       id: row.id as TaskId,
       specId: (row.specId ?? null) as SpecId | null,
+      parentTaskId: (row.parentTaskId ?? null) as TaskId | null,
       title: row.title,
       description: row.description,
       state: row.state as TaskState,
@@ -274,6 +307,7 @@ export class SqliteStore {
       assignedAgent: (row.assignedAgent ?? null) as AgentId | null,
       acpSessionId: (row.acpSessionId ?? null) as string | null,
       source: (row.source as Task['source']) || 'planned',
+      compactedAt: (row.compactedAt ?? null) as string | null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

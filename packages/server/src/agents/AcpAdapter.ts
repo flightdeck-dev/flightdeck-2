@@ -57,6 +57,12 @@ interface ManagedTerminal {
 /**
  * Tracks an ACP connection to a spawned agent process.
  */
+/** A queued prompt entry for the prompt queue system. */
+export interface QueuedPrompt {
+  content: string;
+  priority: boolean;
+}
+
 export interface AcpSession {
   id: string;
   agentId: AgentId;
@@ -76,6 +82,10 @@ export interface AcpSession {
   error: string | null;
   agentCapabilities: AgentCapabilities | null;
   terminals: Map<string, ManagedTerminal>;
+  /** Whether a prompt() call is currently in-flight for this session. */
+  isPrompting: boolean;
+  /** Queue of messages received while a prompt was in-flight. */
+  promptQueue: QueuedPrompt[];
 }
 
 function interpolateArgs(args: string[], vars: Record<string, string>): string[] {
@@ -344,6 +354,8 @@ export class AcpAdapter extends AgentAdapter {
       error: null,
       agentCapabilities: null,
       terminals: new Map(),
+      isPrompting: false,
+      promptQueue: [],
     };
 
     // Collect stderr for diagnostics
@@ -444,13 +456,21 @@ export class AcpAdapter extends AgentAdapter {
 
       // Send the initial prompt
       session.status = 'prompting';
+      session.isPrompting = true;
       session.turnCount++;
-      await session.connection.prompt({
-        sessionId: result.sessionId,
-        prompt: [{ type: 'text', text: prompt }],
-      });
+      try {
+        await session.connection.prompt({
+          sessionId: result.sessionId,
+          prompt: [{ type: 'text', text: prompt }],
+        });
+      } finally {
+        session.isPrompting = false;
+      }
       session.status = 'active';
       session.lastActivityAt = new Date();
+
+      // Drain any messages queued while the initial prompt was running
+      await this.drainQueue(session);
     } catch (err: any) {
       if (session.status !== 'ended') {
         session.error = (session.error ?? '') + `\nACP error: ${err.message}`;
@@ -503,6 +523,8 @@ export class AcpAdapter extends AgentAdapter {
       error: null,
       agentCapabilities: null,
       terminals: new Map(),
+      isPrompting: false,
+      promptQueue: [],
     };
 
     child.stderr?.on('data', (data: Buffer) => {
@@ -602,33 +624,82 @@ export class AcpAdapter extends AgentAdapter {
     if (session.status === 'ended') throw new Error(`Session already ended: ${sessionId}`);
 
     if (!session.acpSessionId) {
-      throw new Error(`Session not yet initialized: ${sessionId}`);
+      // Session not yet initialized — queue the message for later
+      const prefix = message.urgent ? '[URGENT] ' : '';
+      session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent });
+      return '';
     }
 
     const prefix = message.urgent ? '[URGENT] ' : '';
+    const text = prefix + message.content;
+
+    // If a prompt is already in-flight, queue the message instead of interrupting
+    if (session.isPrompting) {
+      if (message.urgent) {
+        // Priority messages go to the front of the queue
+        const priorityCount = session.promptQueue.filter(q => q.priority).length;
+        session.promptQueue.splice(priorityCount, 0, { content: text, priority: true });
+      } else {
+        session.promptQueue.push({ content: text, priority: false });
+      }
+      return '';
+    }
+
+    return this.sendPrompt(session, text);
+  }
+
+  /**
+   * Send a prompt to the agent and drain the queue afterward.
+   */
+  private async sendPrompt(session: AcpSession, text: string): Promise<string> {
     session.turnCount++;
     session.status = 'prompting';
+    session.isPrompting = true;
 
-    // Capture output length before prompt to extract only the new response
     const outputBefore = session.output.length;
 
     try {
       await session.connection.prompt({
-        sessionId: session.acpSessionId,
-        prompt: [{ type: 'text', text: prefix + message.content }],
+        sessionId: session.acpSessionId!,
+        prompt: [{ type: 'text', text }],
       });
       session.status = 'active';
     } catch (err: any) {
-      // Process close handler may have set status to 'ended' concurrently
       if ((session.status as AcpSessionStatus) !== 'ended') {
         session.error = (session.error ?? '') + `\nSteer error: ${err.message}`;
         session.status = 'active';
       }
+    } finally {
+      session.isPrompting = false;
     }
     session.lastActivityAt = new Date();
 
-    // Return the text generated during this steer call
+    // Drain any messages queued while this prompt was running
+    await this.drainQueue(session);
+
     return session.output.slice(outputBefore);
+  }
+
+  /**
+   * Drain the prompt queue by merging all queued messages into a single prompt.
+   * Priority messages appear first.
+   */
+  private async drainQueue(session: AcpSession): Promise<void> {
+    if (session.promptQueue.length === 0) return;
+    if (session.status === 'ended') return;
+    if (!session.acpSessionId) return;
+
+    // Take all queued items
+    const items = session.promptQueue.splice(0);
+
+    // Priority items first (already at front due to insertion order), then normal
+    const priorityItems = items.filter(i => i.priority);
+    const normalItems = items.filter(i => !i.priority);
+    const ordered = [...priorityItems, ...normalItems];
+
+    const merged = ordered.map(i => i.content).join('\n\n---\n\n');
+
+    await this.sendPrompt(session, merged);
   }
 
   async kill(sessionId: string): Promise<void> {

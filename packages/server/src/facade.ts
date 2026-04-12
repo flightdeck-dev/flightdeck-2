@@ -129,6 +129,18 @@ export class Flightdeck {
     return this.dag.declareTasks(tasks);
   }
 
+  declareSubTasks(parentId: TaskId, subTasks: Parameters<TaskDAG['declareSubTasks']>[1]): Task[] {
+    return this.dag.declareSubTasks(parentId, subTasks);
+  }
+
+  compactTask(taskId: TaskId, summary?: string): Task {
+    return this.dag.compactTask(taskId, summary);
+  }
+
+  getSubTasks(parentId: TaskId): Task[] {
+    return this.dag.getSubTasks(parentId);
+  }
+
   listTasks(specId?: SpecId): Task[] {
     return this.dag.listTasks(specId);
   }

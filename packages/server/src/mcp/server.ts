@@ -340,6 +340,44 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_declare_subtasks', 'Declare sub-tasks under a parent task (FR-017)', {
+    parentTaskId: z.string(),
+    tasks: z.array(z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
+      dependsOn: z.array(z.string()).optional(),
+      priority: z.number().optional(),
+    })),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_declare_subtasks');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'declare_tasks', 'flightdeck_declare_subtasks');
+    if (permErr) return permErr;
+    try {
+      const tasks = fd.declareSubTasks(params.parentTaskId as any, params.tasks as any);
+      return jsonResponse(tasks);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_task_compact', 'Compact a completed task to save context (FR-015)', {
+    taskId: z.string(),
+    summary: z.string().optional(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_compact');
+    if (error) return error;
+    try {
+      const task = fd.compactTask(params.taskId as any, params.summary);
+      return jsonResponse(task);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   // ── Role tools ──
 
   server.tool('flightdeck_role_list', 'List all available roles', {}, async () => {

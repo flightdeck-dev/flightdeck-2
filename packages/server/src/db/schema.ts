@@ -9,6 +9,7 @@ export const utcNow = sql`(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`;
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   specId: text('spec_id'),
+  parentTaskId: text('parent_task_id'),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
   state: text('state').notNull().default('pending'),
@@ -20,12 +21,14 @@ export const tasks = sqliteTable('tasks', {
   claim: text('claim'),
   source: text('source').notNull().default('planned'),
   cost: real('cost').default(0),
+  compactedAt: text('compacted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => [
   index('idx_tasks_state').on(table.state),
   index('idx_tasks_assigned_agent').on(table.assignedAgent),
   index('idx_tasks_spec').on(table.specId),
+  index('idx_tasks_parent').on(table.parentTaskId),
 ]);
 
 // ── Agents ───────────────────────────────────────────────────────────
