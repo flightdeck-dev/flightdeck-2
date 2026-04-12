@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { LeadManager } from '../../src/lead/LeadManager.js';
+import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import { AcpAdapter } from '../../src/agents/AcpAdapter.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { ProjectStore } from '../../src/storage/ProjectStore.js';
@@ -87,5 +87,62 @@ describe('LeadManager', () => {
     expect(lm.checkHeartbeatConditions()).toBe(false);
     lm.recordTaskCompletion();
     expect(lm.checkHeartbeatConditions()).toBe(true);
+  });
+
+  // --- NO_REPLY / IDLE filtering tests ---
+
+  describe('handleLeadResponse', () => {
+    it('suppresses FLIGHTDECK_IDLE', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.handleLeadResponse('FLIGHTDECK_IDLE')).toBeNull();
+    });
+
+    it('suppresses FLIGHTDECK_IDLE with whitespace', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.handleLeadResponse('  FLIGHTDECK_IDLE  \n')).toBeNull();
+    });
+
+    it('suppresses FLIGHTDECK_NO_REPLY', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.handleLeadResponse('FLIGHTDECK_NO_REPLY')).toBeNull();
+    });
+
+    it('suppresses FLIGHTDECK_NO_REPLY with whitespace', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.handleLeadResponse('  FLIGHTDECK_NO_REPLY  ')).toBeNull();
+    });
+
+    it('forwards normal responses', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      const response = 'Here is what I found about the task...';
+      expect(lm.handleLeadResponse(response)).toBe(response);
+    });
+
+    it('forwards responses that contain sentinel strings but are not exact matches', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      const response = 'The agent returned FLIGHTDECK_IDLE but I want to report it';
+      expect(lm.handleLeadResponse(response)).toBe(response);
+    });
+  });
+
+  // --- Sentinel constants tests ---
+
+  it('exports sentinel constants', () => {
+    expect(FLIGHTDECK_IDLE).toBe('FLIGHTDECK_IDLE');
+    expect(FLIGHTDECK_NO_REPLY).toBe('FLIGHTDECK_NO_REPLY');
+  });
+
+  // --- Planner session management ---
+
+  describe('Planner persistent session', () => {
+    it('plannerSessionId is null initially', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.getPlannerSessionId()).toBeNull();
+    });
+
+    it('leadSessionId is null initially', () => {
+      const lm = new LeadManager({ sqlite, project, acpAdapter });
+      expect(lm.getLeadSessionId()).toBeNull();
+    });
   });
 });

@@ -7,6 +7,14 @@ import type { AcpAdapter } from '../agents/AcpAdapter.js';
 /**
  * Events that can trigger a Lead steer.
  */
+/**
+ * Sentinel strings that agents can return.
+ * FLIGHTDECK_IDLE — "I have nothing to do" (like OpenClaw's HEARTBEAT_OK)
+ * FLIGHTDECK_NO_REPLY — "I processed this but have nothing to say to the user"
+ */
+export const FLIGHTDECK_IDLE = 'FLIGHTDECK_IDLE';
+export const FLIGHTDECK_NO_REPLY = 'FLIGHTDECK_NO_REPLY';
+
 export type LeadEvent =
   | { type: 'user_message'; message: ChatMessage }
   | { type: 'task_comment'; taskId: string; message: ChatMessage }
@@ -49,6 +57,8 @@ export class LeadManager {
   private lastHeartbeatAt: string | null = null;
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
+
+  private plannerSessionId: string | null = null;
 
   constructor(opts: LeadManagerOptions) {
     this.sqlite = opts.sqlite;
@@ -195,6 +205,53 @@ export class LeadManager {
   /** Record a task completion for heartbeat condition tracking */
   recordTaskCompletion(): void {
     this.tasksSinceLastHeartbeat++;
+  }
+
+  /** Spawn Planner as a persistent ACP session */
+  async spawnPlanner(): Promise<string> {
+    const sessionId = await this.acpAdapter.spawn({
+      role: 'planner',
+      cwd: process.cwd(),
+    });
+    this.plannerSessionId = sessionId;
+    return sessionId;
+  }
+
+  /** Steer the persistent Planner with a request */
+  async steerPlanner(message: string): Promise<void> {
+    if (!this.plannerSessionId) return;
+    await this.acpAdapter.steer(this.plannerSessionId, { content: message });
+  }
+
+  /** Get Planner session ID */
+  getPlannerSessionId(): string | null {
+    return this.plannerSessionId;
+  }
+
+  /** Get Lead session ID */
+  getLeadSessionId(): string | null {
+    return this.leadSessionId;
+  }
+
+  /**
+   * Handle a Lead response and decide whether to forward to the user.
+   * Returns null if the response should be suppressed (IDLE/NO_REPLY).
+   */
+  handleLeadResponse(response: string, eventType?: LeadEvent['type']): string | null {
+    const trimmed = response.trim();
+
+    // FLIGHTDECK_IDLE on heartbeat → don't forward, just log
+    if (trimmed === FLIGHTDECK_IDLE) {
+      return null;
+    }
+
+    // FLIGHTDECK_NO_REPLY on any event → don't forward
+    if (trimmed === FLIGHTDECK_NO_REPLY) {
+      return null;
+    }
+
+    // Any other response → forward to user
+    return response;
   }
 
   /** Stop heartbeat timer */

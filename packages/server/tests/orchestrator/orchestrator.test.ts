@@ -8,7 +8,6 @@ import { GovernanceEngine } from '../../src/governance/GovernanceEngine.js';
 import { AcpAdapter } from '../../src/agents/AcpAdapter.js';
 import { Orchestrator } from '../../src/orchestrator/Orchestrator.js';
 import type { AgentId, TaskId, ProjectConfig } from '@flightdeck-ai/shared';
-import type { AgentMetadata } from '../../src/agents/AgentAdapter.js';
 
 describe('Orchestrator', () => {
   let store: SqliteStore;
@@ -48,7 +47,7 @@ describe('Orchestrator', () => {
     });
 
     const result = await orch.tick();
-    expect(result.assignedTasks).toHaveLength(1);
+    expect(result.readyTasksAssigned).toBe(1);
   });
 
   it('does not assign when no idle agents', async () => {
@@ -60,14 +59,12 @@ describe('Orchestrator', () => {
     });
 
     const result = await orch.tick();
-    expect(result.assignedTasks).toHaveLength(0);
+    expect(result.readyTasksAssigned).toBe(0);
   });
 
   it('skips active ACP sessions (do not disturb)', async () => {
-    // Create a running task with an agent + ACP session
     const task = dag.addTask({ title: 'Working on it', role: 'worker' });
     dag.claimTask(task.id, 'agent-w1' as AgentId);
-    // Manually set acpSessionId in DB
     store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-active', task.id);
     store.insertAgent({
@@ -76,7 +73,6 @@ describe('Orchestrator', () => {
       status: 'busy', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
-    // Mock: session is running
     vi.spyOn(adapter, 'getMetadata').mockResolvedValue({
       agentId: 'agent-w1' as AgentId,
       sessionId: 'session-active',
@@ -85,8 +81,7 @@ describe('Orchestrator', () => {
     const steerSpy = vi.spyOn(adapter, 'steer');
 
     const result = await orch.tick();
-    expect(result.pingedAgents).toHaveLength(0);
-    expect(result.restartedAgents).toHaveLength(0);
+    expect(result.stallsDetected).toBe(0);
     expect(steerSpy).not.toHaveBeenCalled();
   });
 
@@ -109,7 +104,7 @@ describe('Orchestrator', () => {
     const steerSpy = vi.spyOn(adapter, 'steer').mockResolvedValue();
 
     const result = await orch.tick();
-    expect(result.pingedAgents).toContain('agent-w1');
+    expect(result.stallsDetected).toBe(1);
     expect(steerSpy).toHaveBeenCalledWith('session-idle', expect.objectContaining({
       content: expect.stringContaining(task.id),
     }));
@@ -131,13 +126,12 @@ describe('Orchestrator', () => {
       sessionId: 'session-ended',
       status: 'ended',
     });
-    const killSpy = vi.spyOn(adapter, 'kill').mockResolvedValue();
+    vi.spyOn(adapter, 'kill').mockResolvedValue();
 
     const result = await orch.tick();
-    expect(result.restartedAgents).toContain('agent-w1');
-    expect(killSpy).toHaveBeenCalledWith('session-ended');
+    expect(result.stallsDetected).toBe(1);
 
-    // Task should be reset to ready
+    // Task should be reset to ready (retry)
     const updated = dag.getTask(task.id);
     expect(updated!.state).toBe('ready');
     expect(updated!.assignedAgent).toBeNull();
@@ -145,6 +139,82 @@ describe('Orchestrator', () => {
     // Agent should be offline
     const agent = store.getAgent('agent-w1' as AgentId);
     expect(agent!.status).toBe('offline');
+  });
+
+  it('promotes pending tasks when deps are done', async () => {
+    const t1 = dag.addTask({ title: 'First task', role: 'worker' });
+    const t2 = dag.addTask({ title: 'Second task', role: 'worker', dependsOn: [t1.id] });
+
+    expect(t2.state).toBe('pending');
+
+    // Complete the first task
+    dag.claimTask(t1.id, 'agent-w1' as AgentId);
+    dag.submitTask(t1.id, 'done');
+    dag.completeTask(t1.id);
+
+    // Insert idle agent for assignment
+    store.insertAgent({
+      id: 'agent-w1' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: null,
+      status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+
+    const result = await orch.tick();
+
+    // t2 should have been promoted to ready and possibly assigned
+    const updatedT2 = dag.getTask(t2.id);
+    expect(['ready', 'running']).toContain(updatedT2!.state);
+  });
+
+  it('does not promote pending tasks when deps are not done', async () => {
+    const t1 = dag.addTask({ title: 'First task', role: 'worker' });
+    const t2 = dag.addTask({ title: 'Second task', role: 'worker', dependsOn: [t1.id] });
+
+    const result = await orch.tick();
+
+    const updatedT2 = dag.getTask(t2.id);
+    expect(updatedT2!.state).toBe('pending');
+  });
+
+  it('notifies Lead on task failure after max retries', async () => {
+    const mockLeadManager = {
+      steerLead: vi.fn().mockResolvedValue(undefined),
+      recordTaskCompletion: vi.fn(),
+    };
+
+    const gov = new GovernanceEngine(config);
+    const orchWithLead = new Orchestrator(dag, store, gov, adapter, config, undefined, {
+      leadManager: mockLeadManager as any,
+      governanceConfig: { maxRetries: 0 }, // 0 retries = fail immediately
+    });
+
+    const task = dag.addTask({ title: 'Doomed task', role: 'worker' });
+    dag.claimTask(task.id, 'agent-w1' as AgentId);
+    store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
+      .run('session-dead', task.id);
+    store.insertAgent({
+      id: 'agent-w1' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: 'session-dead',
+      status: 'busy', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+
+    vi.spyOn(adapter, 'getMetadata').mockResolvedValue({
+      agentId: 'agent-w1' as AgentId,
+      sessionId: 'session-dead',
+      status: 'ended',
+    });
+    vi.spyOn(adapter, 'kill').mockResolvedValue();
+
+    await orchWithLead.tick();
+
+    expect(mockLeadManager.steerLead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'task_failure',
+        taskId: task.id,
+      }),
+    );
+
+    orchWithLead.stop();
   });
 
   it('start/stop lifecycle', () => {

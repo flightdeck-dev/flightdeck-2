@@ -11,6 +11,7 @@ export { TaskDAG } from './dag/TaskDAG.js';
 export { GovernanceEngine } from './governance/GovernanceEngine.js';
 export { Verifier } from './verification/Verifier.js';
 export { Orchestrator } from './orchestrator/Orchestrator.js';
+export { FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from './lead/LeadManager.js';
 export { AgentAdapter } from './agents/AgentAdapter.js';
 export { AcpAdapter } from './agents/AcpAdapter.js';
 export { PtyAdapter } from './agents/PtyAdapter.js';

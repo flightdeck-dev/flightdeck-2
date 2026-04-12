@@ -223,7 +223,7 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 - Pulls current state from Flightdeck via MCP on demand (not pushed every event)
 - Interrupted only on: user messages, critical failures, escalations, budget warnings
 
-**Planner Agent** - on-demand, not persistent. Spawned when:
+**Planner Agent** - persistent, idle until needed. Always-on session that responds with FLIGHTDECK_IDLE when not processing a request. Activated when:
 - Initial spec needs to be decomposed into a task DAG
 - A worker escalates that a task needs re-planning
 - User pivots and the DAG needs restructuring
@@ -798,7 +798,7 @@ Generated automatically at the configured cadence:
 - **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
 - **FR-017:** System MUST support hierarchical DAGs for large projects (epics → sub-DAGs)
 - **FR-018:** Lead agent MUST be persistent (always-on session) and interrupt-driven
-- **FR-019:** Planner agent MUST be on-demand (spawned when needed, exits when done)
+- **FR-019:** Planner agent MUST be persistent (always-on session, idle until steered with a planning request)
 - **FR-020:** System MUST run a periodic tick loop to check for stalls and unassigned tasks
 
 ### Non-Functional Requirements
