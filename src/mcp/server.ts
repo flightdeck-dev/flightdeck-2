@@ -25,24 +25,61 @@ export function createMcpServer(projectName?: string): McpServer {
     return { content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }] };
   });
 
+  server.tool('flightdeck_task_add', 'Add a new task to the DAG', {
+    title: z.string(),
+    description: z.string().optional(),
+    specId: z.string().optional(),
+    role: z.enum(['lead', 'planner', 'worker', 'reviewer']).optional(),
+    dependsOn: z.array(z.string()).optional(),
+    priority: z.number().optional(),
+    agentId: z.string(),
+  }, async (params) => {
+    // Validate caller role: only lead and planner can add tasks
+    const agent = fd.sqlite.getAgent(params.agentId as AgentId);
+    if (agent && agent.role !== 'lead' && agent.role !== 'planner') {
+      return { content: [{ type: 'text' as const, text: `Error: Only lead/planner agents can add tasks (caller role: ${agent.role})` }] };
+    }
+    const task = fd.addTask({
+      title: params.title,
+      description: params.description,
+      specId: params.specId as SpecId | undefined,
+      role: params.role,
+      dependsOn: params.dependsOn as TaskId[] | undefined,
+      priority: params.priority,
+    });
+    return { content: [{ type: 'text' as const, text: JSON.stringify(task, null, 2) }] };
+  });
+
   server.tool('flightdeck_task_claim', 'Claim a ready task', {
     taskId: z.string(),
     agentId: z.string(),
   }, async (params) => {
+    // Validate caller role: only workers can claim tasks
+    const agent = fd.sqlite.getAgent(params.agentId as AgentId);
+    if (agent && agent.role !== 'worker') {
+      return { content: [{ type: 'text' as const, text: `Error: Only workers can claim tasks (caller role: ${agent.role})` }] };
+    }
     const task = fd.claimTask(params.taskId as TaskId, params.agentId as AgentId);
     return { content: [{ type: 'text' as const, text: JSON.stringify(task, null, 2) }] };
   });
 
   server.tool('flightdeck_task_submit', 'Submit completed work with claim', {
     taskId: z.string(),
+    agentId: z.string(),
     claim: z.string().optional(),
   }, async (params) => {
-    const task = fd.submitTask(params.taskId as TaskId);
+    // Validate caller role: only workers can submit tasks
+    const agent = fd.sqlite.getAgent(params.agentId as AgentId);
+    if (agent && agent.role !== 'worker') {
+      return { content: [{ type: 'text' as const, text: `Error: Only workers can submit tasks (caller role: ${agent.role})` }] };
+    }
+    const task = fd.submitTask(params.taskId as TaskId, params.claim);
     return { content: [{ type: 'text' as const, text: JSON.stringify(task, null, 2) }] };
   });
 
   server.tool('flightdeck_task_fail', 'Report task failure', {
     taskId: z.string(),
+    agentId: z.string(),
     reason: z.string().optional(),
   }, async (params) => {
     const task = fd.failTask(params.taskId as TaskId);
@@ -143,9 +180,21 @@ export function createMcpServer(projectName?: string): McpServer {
   server.tool('flightdeck_discuss', 'Create a group discussion', {
     topic: z.string(),
     invitees: z.array(z.string()).optional(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const channel = params.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    return { content: [{ type: 'text' as const, text: `Discussion channel created: ${channel}` }] };
+    const now = new Date().toISOString();
+    // Create the channel by posting an initial system message
+    const initMsg: Message = {
+      id: messageId('system', channel, now),
+      from: (params.agentId ?? 'system') as AgentId,
+      to: null,
+      channel,
+      content: `Discussion created: "${params.topic}"\nInvitees: ${(params.invitees ?? []).join(', ') || 'open'}\nCreated: ${now}`,
+      timestamp: now,
+    };
+    fd.sendMessage(initMsg, channel);
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ channel, topic: params.topic, invitees: params.invitees ?? [], createdAt: now }) }] };
   });
 
   return server;
