@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { Flightdeck } from '../facade.js';
 import { ProjectStore } from '../storage/ProjectStore.js';
-import type { TaskId, AgentId, SpecId, Message, MessageId, Agent, AgentRole } from '@flightdeck-ai/shared';
+import type { TaskId, AgentId, SpecId, Message, Agent, AgentRole } from '@flightdeck-ai/shared';
 import { messageId, agentId as makeAgentId } from '@flightdeck-ai/shared';
 import type { LearningCategory } from '../storage/LearningsStore.js';
 import type { AgentManager } from '../agents/AgentManager.js';
@@ -16,7 +16,7 @@ import type { AcpAdapter } from '../agents/AcpAdapter.js';
 import { ModelConfig } from '../agents/ModelConfig.js';
 import { getToolsForRole } from './toolPermissions.js';
 
-const ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
+const _ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
 
 function errorResponse(text: string) {
@@ -27,7 +27,7 @@ function jsonResponse(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-function resolveAgent(fd: Flightdeck, agentId: string, toolName: string) {
+function resolveAgent(fd: Flightdeck, agentId: string, _toolName: string) {
   const agent = fd.sqlite.getAgent(agentId as AgentId);
   if (!agent) {
     return { error: errorResponse(`Error: Agent '${agentId}' not found. Register the agent first or check the ID. Use flightdeck_status() to see registered agents.`) };
@@ -58,6 +58,7 @@ function permError(agentId: string, role: string, toolName: string, permission: 
     task_skip: 'lead/planner',
     task_complete: 'lead/reviewer',
     task_reopen: 'lead',
+    task_compact: 'lead',
     declare_tasks: 'lead/planner',
     agent_spawn: 'lead',
     agent_terminate: 'lead',
@@ -333,6 +334,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const permErr = checkPerm(agent!, 'declare_tasks', 'flightdeck_declare_tasks');
     if (permErr) return permErr;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type mismatch with internal types
       const tasks = fd.declareTasks(params.tasks as any);
       return jsonResponse(tasks);
     } catch (err) {
@@ -356,6 +358,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const permErr = checkPerm(agent!, 'declare_tasks', 'flightdeck_declare_subtasks');
     if (permErr) return permErr;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type mismatch with internal types
       const tasks = fd.declareSubTasks(params.parentTaskId as any, params.tasks as any);
       return jsonResponse(tasks);
     } catch (err) {
@@ -370,7 +373,10 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_compact');
     if (error) return error;
+    const permErr = checkPerm(agent!, 'task_compact', 'flightdeck_task_compact');
+    if (permErr) return permErr;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type mismatch with internal types
       const task = fd.compactTask(params.taskId as any, params.summary);
       return jsonResponse(task);
     } catch (err) {
@@ -533,7 +539,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     content: z.string(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_msg_send');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_msg_send');
     if (error) return error;
     if (params.agentId !== params.from) {
       return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'. The agentId and from fields must match.`);
@@ -556,7 +562,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     message: z.string(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_channel_send');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_channel_send');
     if (error) return error;
     if (params.agentId !== params.from) {
       return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'.`);
@@ -655,7 +661,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     tags: z.array(z.string()).optional(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_learning_add');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_learning_add');
     if (error) return error;
     const learning = fd.learnings.append({
       agentId: params.agentId,
@@ -699,7 +705,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     repeat: z.boolean().optional(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_set');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_set');
     if (error) return error;
     const timer = fd.timers.setTimer(params.agentId, params.label, params.delayMs, params.message, params.repeat);
     return jsonResponse(timer);
@@ -709,7 +715,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     label: z.string(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_cancel');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_cancel');
     if (error) return error;
     const cancelled = fd.timers.cancelTimer(params.agentId, params.label);
     return jsonResponse({ cancelled });
@@ -718,7 +724,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_timer_list', 'List timers', {
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_list');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_list');
     if (error) return error;
     return jsonResponse(fd.timers.listTimers(params.agentId));
   });
@@ -740,7 +746,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     reason: z.string(),
     agentId: z.string(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_escalate');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_escalate');
     if (error) return error;
     const msg: Message = {
       id: messageId(params.agentId, 'escalation', Date.now().toString()),
@@ -793,13 +799,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     confidence: z.number().min(0).max(1),
     reversible: z.boolean(),
   }, async (params) => {
-    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_decision_log');
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_decision_log');
     if (error) return error;
     const id = makeDecisionId(params.taskId, params.title, Date.now().toString());
     const decision = {
       id: id as DecisionId,
       taskId: params.taskId as TaskId,
       agentId: params.agentId as AgentId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type mismatch with internal types
       type: params.type as any,
       title: params.title,
       reasoning: params.reasoning,
@@ -850,7 +857,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_skill_list', 'List available skills and their role assignments', {}, async () => {
     skillManager.loadProjectConfig();
     const installed = skillManager.listInstalledSkills();
-    const config = skillManager.loadProjectConfig();
+    skillManager.loadProjectConfig();
     const roleAssignments: Record<string, string[]> = {};
     const allRoles = ['lead', 'planner', 'worker', 'reviewer'] as const;
     for (const role of allRoles) {
@@ -942,6 +949,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       return jsonResponse({ role: agentRole, tools });
     }
     // No role filtering — return all tool names
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private SDK property for tool introspection
     const allTools = Object.keys((server as any)._registeredTools ?? {});
     return jsonResponse({ role: null, tools: allTools });
   });
@@ -949,6 +957,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Per-role tool filtering ──
   if (agentRole) {
     const allowed = new Set(getToolsForRole(agentRole));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private SDK property for tool introspection
     const registered = (server as any)._registeredTools as Record<string, unknown> | undefined;
     if (registered) {
       for (const toolName of Object.keys(registered)) {

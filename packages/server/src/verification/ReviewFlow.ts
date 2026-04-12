@@ -50,6 +50,7 @@ VERDICT: APPROVE
 VERDICT: REQUEST-CHANGES
 VERDICT: REJECT
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- type not available
 Then provide your reasoning and any feedback below the verdict line.
 Focus on: correctness, edge cases, security, and whether the claim matches the actual changes.`);
   return sections.join('\n');
@@ -155,7 +156,9 @@ export async function processReview(
   const timeoutMs = options?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS;
   const prompt = buildReviewPrompt({
     id: taskId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
     title: (task as any).title,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
     claim: (task as any).claim,
     diff: options?.diff,
     artifacts: options?.artifacts,
@@ -164,12 +167,14 @@ export async function processReview(
   let meta: AgentMetadata;
   try {
     meta = await adapter.spawn({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type mismatch with internal API
       role: 'reviewer' as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
       cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
       model: options?.reviewerModel,
       systemPrompt: prompt,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Spawn failure — don't block the pipeline, return pending
     return {
       taskId,
@@ -183,6 +188,7 @@ export async function processReview(
     ? () => options.getOutput!(meta.sessionId)
     : () => {
         // For AcpAdapter, access session output directly
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
         const session = (adapter as any).getSession?.(meta.sessionId);
         return session?.output ?? '';
       };

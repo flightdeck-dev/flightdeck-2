@@ -22,6 +22,7 @@ export class MemoryStore {
       if (typeof dbPathOrDb === 'string') {
         // Lazy-import to avoid hard dependency when not using FTS
         const require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic require returns untyped module
         const BetterSqlite3 = require('better-sqlite3') as any;
         this.db = new BetterSqlite3(dbPathOrDb) as DatabaseInstance;
         this.db!.pragma('journal_mode = WAL');

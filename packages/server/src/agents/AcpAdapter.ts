@@ -3,7 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
+
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -91,15 +91,7 @@ export interface AcpSession {
   promptQueue: QueuedPrompt[];
 }
 
-function interpolateArgs(args: string[], vars: Record<string, string>): string[] {
-  return args.map(a => {
-    let result = a;
-    for (const [k, v] of Object.entries(vars)) {
-      result = result.replaceAll(`{${k}}`, v);
-    }
-    return result;
-  });
-}
+import { interpolateArgs } from './interpolateArgs.js';
 
 /**
  * ACP-native agent adapter using the official @agentclientprotocol/sdk.
@@ -444,6 +436,7 @@ export class AcpAdapter extends AgentAdapter {
               { name: 'FLIGHTDECK_AGENT_ID', value: session.agentId },
               { name: 'FLIGHTDECK_AGENT_ROLE', value: role ?? '' },
             ],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ACP SDK expects broader type than our strict env shape
           } as any,
         ],
         ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
@@ -454,7 +447,9 @@ export class AcpAdapter extends AgentAdapter {
       session.lastActivityAt = new Date();
 
       // Cache available models if returned
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
       if ((result as any).models?.availableModels) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
         modelRegistry.registerModels(this.runtimeName, (result as any).models.availableModels);
       }
 
@@ -475,9 +470,9 @@ export class AcpAdapter extends AgentAdapter {
 
       // Drain any messages queued while the initial prompt was running
       await this.drainQueue(session);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (session.status !== 'ended') {
-        session.error = (session.error ?? '') + `\nACP error: ${err.message}`;
+        session.error = (session.error ?? '') + `\nACP error: ${err instanceof Error ? err.message : String(err)}`;
       }
     }
   }
@@ -556,7 +551,7 @@ export class AcpAdapter extends AgentAdapter {
 
     // Initialize then load session
     this.loadExistingSession(session, opts.previousSessionId, opts.mcpServers).catch(err => {
-      session.error = (session.error ?? '') + `\nACP load error: ${err.message}`;
+      session.error = (session.error ?? '') + `\nACP load error: ${err instanceof Error ? err.message : String(err)}`;
     });
 
     return {
@@ -591,7 +586,7 @@ export class AcpAdapter extends AgentAdapter {
         throw new Error('Agent does not support session/load. Cannot resume session.');
       }
 
-      const result = await session.connection.loadSession({
+      const _result = await session.connection.loadSession({
         sessionId: previousSessionId,
         cwd: session.cwd,
         mcpServers: mcpServers ?? [],
@@ -601,9 +596,9 @@ export class AcpAdapter extends AgentAdapter {
       session.acpSessionId = previousSessionId;
       session.status = 'active';
       session.lastActivityAt = new Date();
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (session.status === 'initializing') {
-        session.error = (session.error ?? '') + `\nACP load error: ${err.message}`;
+        session.error = (session.error ?? '') + `\nACP load error: ${err instanceof Error ? err.message : String(err)}`;
       }
     }
   }
@@ -672,9 +667,9 @@ export class AcpAdapter extends AgentAdapter {
         prompt: [{ type: 'text', text }],
       });
       session.status = 'active';
-    } catch (err: any) {
+    } catch (err: unknown) {
       if ((session.status as AcpSessionStatus) !== 'ended') {
-        session.error = (session.error ?? '') + `\nSteer error: ${err.message}`;
+        session.error = (session.error ?? '') + `\nSteer error: ${err instanceof Error ? err.message : String(err)}`;
         session.status = 'active';
       }
     } finally {
@@ -713,7 +708,7 @@ export class AcpAdapter extends AgentAdapter {
       for (const item of ordered) {
         item.resolve?.(responseText);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       for (const item of ordered) {
         item.reject?.(err instanceof Error ? err : new Error(String(err)));
       }
@@ -793,6 +788,7 @@ export class AcpAdapter extends AgentAdapter {
     if (!session?.connection || !session.acpSessionId) {
       throw new Error(`Cannot set model: session ${sessionId} not initialized or not found`);
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unstable API not in type definitions
     await (session.connection as any).unstable_setSessionModel({
       sessionId: session.acpSessionId,
       modelId,

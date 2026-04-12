@@ -1,6 +1,4 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { eq, sql, and, count } from 'drizzle-orm';
+import { eq, sql, count } from 'drizzle-orm';
 import { tasks, agents, costEntries } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
@@ -431,6 +429,7 @@ export class SqliteStore {
   }
 
   close(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal drizzle client property
     (this._db as any).$client.close();
   }
 }

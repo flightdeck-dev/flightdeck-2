@@ -168,7 +168,9 @@ switch (command) {
     } else if (subcommand === 'add') {
       const title = positionals.slice(2).join(' ');
       if (!title) { console.error('Usage: flightdeck task add <title> --role <role> [--spec <specId>]'); break; }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
       const role = (values as any).role || 'worker';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
       const specId = (values as any).spec || undefined;
       const task = fd.addTask({ title, role, specId });
       console.log(`Task created: ${task.id} [${task.state}] ${task.title}`);
@@ -209,6 +211,7 @@ switch (command) {
     const { DailyReport } = await import('../reporting/DailyReport.js');
     const fd = new Flightdeck(resolveProject());
     const report = new DailyReport(fd.sqlite, fd.decisions);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const since = (values as any).since || undefined;
     console.log(report.generate({ since }));
     fd.close();
@@ -219,6 +222,7 @@ switch (command) {
     const projectName = resolveProject();
     const fd = new Flightdeck(projectName);
     const profile = values.profile ?? fd.status().config.governance;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const port = parseInt((values as any).port ?? '3000', 10);
     console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
 
@@ -228,6 +232,7 @@ switch (command) {
 
     const markAgentsOffline = (agents: typeof activeAgents, reason: string) => {
       for (const agent of agents) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
         fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
         console.error(`  - ${agent.id} (${agent.role}) marked offline (${reason})`);
       }
@@ -291,8 +296,8 @@ switch (command) {
       try {
         const leadSessionId = await leadManager.spawnLead();
         console.error(`  Lead agent spawned (session: ${leadSessionId})`);
-      } catch (err: any) {
-        console.error(`  Failed to spawn Lead agent: ${err.message}`);
+      } catch (err: unknown) {
+        console.error(`  Failed to spawn Lead agent: ${err instanceof Error ? err.message : String(err)}`);
         console.error('  Daemon will continue without Lead — spawn manually via API.');
       }
     }
@@ -305,8 +310,8 @@ switch (command) {
       try {
         const plannerSessionId = await leadManager.spawnPlanner();
         console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
-      } catch (err: any) {
-        console.error(`  Failed to spawn Planner agent: ${err.message}`);
+      } catch (err: unknown) {
+        console.error(`  Failed to spawn Planner agent: ${err instanceof Error ? err.message : String(err)}`);
         console.error('  Daemon will continue without Planner — spawn manually via API.');
       }
     }
@@ -317,6 +322,7 @@ switch (command) {
 
     // Wire user messages from WebSocket to Lead agent
     if (wsServer) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
       wsServer.on('user:message', (msg: any) => {
         (async () => {
           try {
@@ -343,6 +349,7 @@ switch (command) {
         })();
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
       wsServer.on('task:comment', ({ taskId, message: msg }: { taskId: string; message: any }) => {
         (async () => {
           try {
@@ -382,6 +389,7 @@ switch (command) {
 
       // Helper to read JSON body (1MB limit)
       const MAX_BODY = 1024 * 1024; // 1MB
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic body parser returns arbitrary JSON
       const readBody = (): Promise<any> => new Promise((resolve, reject) => {
         let size = 0;
         let data = '';
@@ -403,6 +411,7 @@ switch (command) {
       };
 
       // CORS headers
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
       const corsOrigin = (values as any)['cors-origin'] ?? '*';
       res.setHeader('Access-Control-Allow-Origin', corsOrigin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
@@ -441,6 +450,7 @@ switch (command) {
           let leadResponse: string | null = null;
           let leadMsg = null;
           try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
             const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
             if (raw && raw.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
               leadResponse = raw.trim();
@@ -457,20 +467,21 @@ switch (command) {
                 if (wsServer) wsServer.broadcast({ type: 'chat:message', message: leadMsg });
               }
             }
-          } catch (err: any) {
-            console.error('Failed to steer Lead:', err.message);
+          } catch (err: unknown) {
+            console.error('Failed to steer Lead:', err instanceof Error ? err.message : String(err));
           }
           json(200, { message: userMsg, response: leadMsg ?? leadResponse });
-        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
+        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
       } else if (url.pathname === '/api/tasks' && method === 'POST') {
         try {
           const body = await readBody();
           if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
           const role = body.role || 'worker';
           const task = fd.addTask({ title: body.title, description: body.description, role });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
           if (wsServer) wsServer.broadcast({ type: 'chat:message', message: task as any });
           json(201, task);
-        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
+        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
       } else if (url.pathname === '/api/tasks' && method === 'GET') {
         json(200, fd.listTasks());
       } else if (url.pathname.match(/^\/api\/tasks\/[^/]+$/) && method === 'GET') {
@@ -522,7 +533,7 @@ switch (command) {
             wsServer.broadcast({ type: 'display:config', config: serverDisplayConfig });
           }
           json(200, serverDisplayConfig);
-        } catch (e: any) { json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid JSON' }); }
+        } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
       } else if (url.pathname.match(/^\/api\/display\/preset\/[^/]+$/) && method === 'POST') {
         const preset = url.pathname.split('/').pop()!;
         if (preset in displayPresets) {
@@ -539,8 +550,8 @@ switch (command) {
           else if (body.model) modelCfg.setRole(role, body.model);
           else { json(400, { error: 'Provide runtime and/or model' }); return; }
           json(200, { success: true, config: modelCfg.getRoleConfig(role) });
-        } catch (e: any) {
-          json(e?.message === 'Body too large' ? 413 : 400, { error: e?.message ?? 'Invalid request body' });
+        } catch (e: unknown) {
+          json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid request body' });
         }
       } else if (url.pathname === '/api/orchestrator/pause' && method === 'POST') {
         fd.orchestrator.pause();
@@ -560,6 +571,7 @@ switch (command) {
       const { WebSocketServer: WsLib } = await import('ws');
       const wss = new WsLib({ server: httpServer });
       let clientCounter = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
       wss.on('connection', (socket: any) => {
         const clientId = `ws-client-${++clientCounter}`;
         const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
@@ -567,6 +579,7 @@ switch (command) {
         // Inherit server display config
         wsServer.setDisplayConfig(clientId, { ...serverDisplayConfig });
         wsServer.sendTo(clientId, { type: 'display:config', config: serverDisplayConfig });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
         socket.on('message', (raw: any) => {
           try {
             const event = JSON.parse(raw.toString());
@@ -577,6 +590,7 @@ switch (command) {
       });
 
       // Store wss for shutdown
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
       (httpServer as any).__wss = wss;
     }
 
@@ -593,6 +607,7 @@ switch (command) {
       leadManager.stop();
       // Kill all active ACP agent sessions
       acpAdapter.clear();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
       if ((httpServer as any).__wss) (httpServer as any).__wss.close();
       httpServer.close();
       fd.close();
@@ -616,6 +631,7 @@ switch (command) {
   }
 
   case 'chat': {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const chatPort = (values as any).port || '3000';
     const chatMessage = positionals.slice(1).join(' ');
     if (!chatMessage) { console.error('Usage: flightdeck chat <message>'); process.exit(1); }
@@ -627,9 +643,11 @@ switch (command) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
         console.error(`Error: ${(err as any).error ?? res.statusText}`);
         process.exit(1);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- API response shape is loosely typed
       const data = await res.json() as { message: any; response: any };
       if (data.response) {
         const content = typeof data.response === 'string' ? data.response : data.response.content;
@@ -645,6 +663,7 @@ switch (command) {
   }
 
   case 'pause': {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const pausePort = (values as any).port || '3000';
     try {
       const res = await fetch(`http://localhost:${pausePort}/api/orchestrator/pause`, { method: 'POST' });
@@ -662,6 +681,7 @@ switch (command) {
   }
 
   case 'resume': {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const resumePort = (values as any).port || '3000';
     try {
       const res = await fetch(`http://localhost:${resumePort}/api/orchestrator/resume`, { method: 'POST' });
@@ -757,7 +777,8 @@ switch (command) {
   }
 
   case 'display': {
-    const { DEFAULT_DISPLAY, DISPLAY_PRESETS, DISPLAY_PRESET_NAMES, mergeDisplayConfig } = await import('@flightdeck-ai/shared');
+    const { DEFAULT_DISPLAY, DISPLAY_PRESET_NAMES, } = await import('@flightdeck-ai/shared');
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const displayPort = (values as any).port || '3000';
     const displayBase = `http://localhost:${displayPort}`;
 
@@ -784,6 +805,7 @@ switch (command) {
       }
     } else if (subcommand === 'preset') {
       const preset = positionals[2];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
       if (!preset || !DISPLAY_PRESET_NAMES.includes(preset as any)) {
         console.error(`Usage: flightdeck display preset <${DISPLAY_PRESET_NAMES.join('|')}>`);
         process.exit(1);
@@ -849,6 +871,7 @@ switch (command) {
     const { execFileSync } = await import('node:child_process');
     const tuiArgs: string[] = [];
     if (values.port) tuiArgs.push('--port', String(values.port));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const urlArg = (values as any).url;
     if (urlArg) tuiArgs.push('--url', urlArg);
     try {
