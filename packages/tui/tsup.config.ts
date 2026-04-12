@@ -11,5 +11,6 @@ export default defineConfig({
   external: ['react', 'ink', 'ink-text-input', '@flightdeck-ai/shared', '@flightdeck-ai/shared/display'],
   esbuildOptions(options) {
     options.jsx = 'automatic';
+    options.resolveExtensions = ['.tsx', '.ts', '.jsx', '.js'];
   },
 });
