@@ -75,6 +75,19 @@ export class LeadManager {
       cwd: process.cwd(),
     });
     this.leadSessionId = meta.sessionId;
+
+    // Register Lead agent in SQLite
+    this.sqlite.insertAgent({
+      id: meta.agentId,
+      role: 'lead',
+      runtime: 'acp',
+      acpSessionId: meta.sessionId,
+      status: 'busy',
+      currentSpecId: null,
+      costAccumulated: 0,
+      lastHeartbeat: null,
+    });
+
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
     }
@@ -214,6 +227,19 @@ export class LeadManager {
       cwd: process.cwd(),
     });
     this.plannerSessionId = meta.sessionId;
+
+    // Register Planner agent in SQLite
+    this.sqlite.insertAgent({
+      id: meta.agentId,
+      role: 'planner',
+      runtime: 'acp',
+      acpSessionId: meta.sessionId,
+      status: 'busy',
+      currentSpecId: null,
+      costAccumulated: 0,
+      lastHeartbeat: null,
+    });
+
     return meta.sessionId;
   }
 
