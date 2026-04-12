@@ -17,6 +17,7 @@ permissions:
   task_retry: true
   task_skip: true
   task_complete: true
+  task_compact: true
   task_reopen: true
 ---
 

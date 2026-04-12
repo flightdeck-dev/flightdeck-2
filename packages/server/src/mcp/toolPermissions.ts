@@ -13,7 +13,8 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_list', 'flightdeck_task_add', 'flightdeck_task_pause',
     'flightdeck_task_cancel', 'flightdeck_task_reopen', 'flightdeck_task_skip',
     'flightdeck_task_retry', 'flightdeck_task_complete',
-    'flightdeck_declare_tasks',
+    'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
+    'flightdeck_task_compact',
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',
     'flightdeck_agent_restart', 'flightdeck_agent_interrupt',
     'flightdeck_msg_send', 'flightdeck_msg_list',
@@ -32,7 +33,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   planner: [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_add', 'flightdeck_declare_tasks',
+    'flightdeck_task_list', 'flightdeck_task_add', 'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
     'flightdeck_task_skip',
     'flightdeck_spec_list',
     'flightdeck_memory_search',
