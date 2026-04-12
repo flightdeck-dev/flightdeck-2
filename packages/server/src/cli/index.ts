@@ -222,26 +222,28 @@ switch (command) {
     const port = parseInt((values as any).port ?? '3000', 10);
     console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
 
-    // Recover existing ACP sessions from database
+    // Clean up stale agents before spawning new ones
     const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
-    const activeAgents = fd.listAgents().filter(a => a.status === 'busy' && a.acpSessionId);
+    const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
+
+    const markAgentsOffline = (agents: typeof activeAgents, reason: string) => {
+      for (const agent of agents) {
+        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+        console.error(`  - ${agent.id} (${agent.role}) marked offline (${reason})`);
+      }
+    };
+
     if (noRecover) {
-      // Mark all existing agents as terminated
-      const allAgents = fd.listAgents().filter(a => a.status !== 'offline');
-      if (allAgents.length > 0) {
-        console.error(`Session recovery disabled (--no-recover). Marking ${allAgents.length} existing agents as terminated.`);
-        for (const agent of allAgents) {
-          fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
-        }
+      if (activeAgents.length > 0) {
+        console.error(`Session recovery disabled (--no-recover). Marking ${activeAgents.length} existing agents as offline.`);
+        markAgentsOffline(activeAgents, '--no-recover');
       } else {
         console.error('Session recovery disabled (--no-recover). No existing agents to clean up.');
       }
     } else if (activeAgents.length > 0) {
-      console.error(`Recovering ${activeAgents.length} active agent session(s)...`);
-      for (const agent of activeAgents) {
-        // TODO: ACP session/load to reconnect to live sessions
-        console.error(`  - ${agent.id} (${agent.role}) session ${agent.acpSessionId} — recovery pending`);
-      }
+      // TODO: implement ACP session/load to truly reconnect to live sessions
+      console.error(`Found ${activeAgents.length} active agent(s). True session resume not yet implemented — marking offline and spawning fresh.`);
+      markAgentsOffline(activeAgents, 'session resume not yet implemented');
     }
 
     // Create LeadManager with all dependencies
@@ -277,24 +279,36 @@ switch (command) {
       },
     );
 
-    // Spawn Lead agent (persistent ACP session)
-    console.error('Spawning Lead agent (persistent session)...');
-    try {
-      const leadSessionId = await leadManager.spawnLead();
-      console.error(`  Lead agent spawned (session: ${leadSessionId})`);
-    } catch (err: any) {
-      console.error(`  Failed to spawn Lead agent: ${err.message}`);
-      console.error('  Daemon will continue without Lead — spawn manually via API.');
+    // Spawn Lead agent if none active
+    const postCleanupAgents = fd.listAgents();
+    const hasActiveLead = postCleanupAgents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
+    const hasActivePlanner = postCleanupAgents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
+
+    if (hasActiveLead) {
+      console.error('Lead agent already active — skipping spawn.');
+    } else {
+      console.error('Spawning Lead agent (persistent session)...');
+      try {
+        const leadSessionId = await leadManager.spawnLead();
+        console.error(`  Lead agent spawned (session: ${leadSessionId})`);
+      } catch (err: any) {
+        console.error(`  Failed to spawn Lead agent: ${err.message}`);
+        console.error('  Daemon will continue without Lead — spawn manually via API.');
+      }
     }
 
-    // Spawn Planner agent (persistent ACP session)
-    console.error('Spawning Planner agent (persistent session)...');
-    try {
-      const plannerSessionId = await leadManager.spawnPlanner();
-      console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
-    } catch (err: any) {
-      console.error(`  Failed to spawn Planner agent: ${err.message}`);
-      console.error('  Daemon will continue without Planner — spawn manually via API.');
+    // Spawn Planner agent if none active
+    if (hasActivePlanner) {
+      console.error('Planner agent already active — skipping spawn.');
+    } else {
+      console.error('Spawning Planner agent (persistent session)...');
+      try {
+        const plannerSessionId = await leadManager.spawnPlanner();
+        console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
+      } catch (err: any) {
+        console.error(`  Failed to spawn Planner agent: ${err.message}`);
+        console.error('  Daemon will continue without Planner — spawn manually via API.');
+      }
     }
 
     // Start orchestrator tick loop
