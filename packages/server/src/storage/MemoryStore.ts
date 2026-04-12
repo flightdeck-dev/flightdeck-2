@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type Database from 'better-sqlite3';
@@ -20,7 +21,7 @@ export class MemoryStore {
     if (dbPathOrDb) {
       if (typeof dbPathOrDb === 'string') {
         // Lazy-import to avoid hard dependency when not using FTS
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const require = createRequire(import.meta.url);
         const BetterSqlite3 = require('better-sqlite3') as any;
         this.db = new BetterSqlite3(dbPathOrDb) as DatabaseInstance;
         this.db!.pragma('journal_mode = WAL');
