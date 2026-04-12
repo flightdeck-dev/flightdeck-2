@@ -73,6 +73,9 @@ export class SqliteStore {
     if (!cols.some(c => c.name === 'cost')) {
       this._db.run(sql.raw('ALTER TABLE tasks ADD COLUMN cost REAL DEFAULT 0'));
     }
+    if (!cols.some(c => c.name === 'source')) {
+      this._db.run(sql.raw("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'planned'"));
+    }
 
     // Messages + threads tables (Web UI chat)
     this._db.run(sql.raw(`

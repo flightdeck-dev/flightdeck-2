@@ -8,6 +8,7 @@ model: claude-opus-4
 permissions:
   task_add: true
   task_fail: true
+  declare_tasks: true
   discuss: true
   agent_spawn: true
   agent_terminate: true

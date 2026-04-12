@@ -422,7 +422,7 @@ export class AcpAdapter extends AgentAdapter {
             name: 'flightdeck',
             command: 'npx',
             args: ['tsx', new URL('../mcp/server.ts', import.meta.url).pathname],
-            env: { FLIGHTDECK_AGENT_ID: session.agentId },
+            env: [{ name: 'FLIGHTDECK_AGENT_ID', value: session.agentId }],
           } as any,
         ],
         ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
