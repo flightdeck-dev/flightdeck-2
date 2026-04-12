@@ -65,11 +65,8 @@ export class Orchestrator {
 
           // Use state machine: running → failed, then failed → ready
           this.dag.failTask(task.id);
-          // Reset to ready for re-assignment
-          const failedTask = this.dag.getTask(task.id);
-          if (failedTask && failedTask.state === 'failed') {
-            this.store.updateTaskState(task.id, 'ready', null);
-          }
+          // Reset to ready for re-assignment via state machine
+          this.dag.retryTask(task.id);
           this.store.updateAgentStatus(task.assignedAgent, 'offline');
           result.restartedAgents.push(task.assignedAgent);
         }

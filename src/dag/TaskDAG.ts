@@ -107,6 +107,15 @@ export class TaskDAG {
     return { ...task, state: 'failed' };
   }
 
+  retryTask(id: TaskId): Task {
+    const task = this.store.getTask(id);
+    if (!task) throw new Error(`Task not found: ${id}`);
+    const result = transition(task.state, 'ready', { taskId: id });
+    this.store.updateTaskState(id, 'ready', null);
+    this.processEffects(result.effects);
+    return { ...task, state: 'ready', assignedAgent: null };
+  }
+
   gateTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);

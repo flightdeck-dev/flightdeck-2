@@ -99,4 +99,22 @@ describe('TaskDAG', () => {
     const failed = dag.failTask(t.id);
     expect(failed.state).toBe('failed');
   });
+
+  it('retries a failed task via retryTask', () => {
+    const t = dag.addTask({ title: 'Retry me' });
+    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.failTask(t.id);
+    const retried = dag.retryTask(t.id);
+    expect(retried.state).toBe('ready');
+    expect(retried.assignedAgent).toBeNull();
+    // Verify in store
+    const fromStore = dag.getTask(t.id);
+    expect(fromStore?.state).toBe('ready');
+    expect(fromStore?.assignedAgent).toBeNull();
+  });
+
+  it('retryTask throws on non-failed task', () => {
+    const t = dag.addTask({ title: 'Not failed' });
+    expect(() => dag.retryTask(t.id)).toThrow('Invalid state transition');
+  });
 });
