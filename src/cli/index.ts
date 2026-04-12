@@ -149,8 +149,16 @@ switch (command) {
   }
 
   case 'start': {
-    console.log(`Starting orchestrator with profile: ${values.profile ?? 'default'}...`);
-    console.log('(Stub — orchestrator daemon not yet implemented)');
+    const fd = new Flightdeck(resolveProject());
+    const profile = values.profile ?? fd.status().config.governance;
+    console.log(`Starting orchestrator with profile: ${profile}...`);
+    fd.orchestrator.start();
+    console.log('Orchestrator running. Press Ctrl+C to stop.');
+    process.on('SIGINT', () => {
+      console.log('\nStopping orchestrator...');
+      fd.close();
+      process.exit(0);
+    });
     break;
   }
 
