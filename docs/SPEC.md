@@ -889,6 +889,211 @@ Fixed-pipeline role simulations (CEO→CTO→Engineer).
 
 ---
 
+## Web UI Chat System
+
+### Messages Data Model
+
+All messages (chat, threads, task comments) live in one table:
+
+```sql
+CREATE TABLE messages (
+  id          TEXT PRIMARY KEY,    -- nanoid
+  thread_id   TEXT,                -- NULL = main chat, non-NULL = thread message
+  parent_id   TEXT,                -- NULL = top-level, non-NULL = reply to a message
+  task_id     TEXT,                -- NULL = chat, non-NULL = task comment
+  author_type TEXT NOT NULL,       -- 'user' | 'lead' | 'agent' | 'system'
+  author_id   TEXT,                -- agent id or 'user'
+  content     TEXT NOT NULL,
+  metadata    TEXT,                -- JSON: tool calls, attachments, etc.
+  created_at  TEXT NOT NULL,       -- ISO 8601
+  updated_at  TEXT,
+  FOREIGN KEY (thread_id) REFERENCES threads(id),
+  FOREIGN KEY (parent_id) REFERENCES messages(id)
+);
+
+CREATE TABLE threads (
+  id          TEXT PRIMARY KEY,
+  title       TEXT,
+  origin_id   TEXT,                -- message that started the thread
+  created_at  TEXT NOT NULL,
+  archived_at TEXT,
+  FOREIGN KEY (origin_id) REFERENCES messages(id)
+);
+```
+
+Three message types from one table:
+
+| task_id | thread_id | Type |
+|---------|-----------|------|
+| NULL | NULL | Main chat message |
+| NULL | non-NULL | Chat thread message |
+| non-NULL | NULL | Task comment |
+
+### Reply (Lightweight)
+
+`parent_id` points to the replied-to message. UI shows a quote bar above the reply (click to jump). No recursive nesting — only show the direct parent, like Discord.
+
+### Threads (Heavyweight)
+
+A thread is spawned from any message (`origin_id`). Thread messages have `thread_id` set. Threads support replies within them (`thread_id` + `parent_id` both set). UI: right-side slide-out panel (Discord/Slack style). No nested threads — one level only.
+
+### Task Comments
+
+Users and agents can comment on any task. Comments appear in a per-task activity feed (system events + comments interleaved by time). When Lead receives a task comment, the message includes full task context:
+
+```json
+{
+  "type": "task_comment",
+  "task": {
+    "id": "task_017",
+    "title": "Deploy staging",
+    "status": "in_progress",
+    "agent": "worker-3"
+  },
+  "message": {
+    "id": "msg_042",
+    "author": "user",
+    "content": "Change port to 8443"
+  },
+  "recent_comments": []
+}
+```
+
+This is distinct from chat messages (`type: chat_message`), so Lead never confuses task-specific feedback with general conversation.
+
+### WebSocket Protocol
+
+```typescript
+// UI → Server
+interface ChatSend {
+  type: 'chat:send'
+  content: string
+  parent_id?: string    // reply
+  thread_id?: string    // message within a thread
+}
+
+interface ThreadCreate {
+  type: 'thread:create'
+  origin_id: string
+  title?: string
+}
+
+interface TaskCommentSend {
+  type: 'task:comment'
+  task_id: string
+  content: string
+  parent_id?: string
+}
+
+// Server → UI
+interface ChatMessage {
+  type: 'chat:message'
+  message: Message
+}
+
+interface ChatStream {
+  type: 'chat:stream'
+  message_id: string
+  delta: string
+  done: boolean
+}
+
+interface ThreadCreated {
+  type: 'thread:created'
+  thread: { id: string; title: string | null; origin_id: string; created_at: string }
+}
+
+interface TaskCommentReceived {
+  type: 'task:comment'
+  task_id: string
+  message: Message
+}
+```
+
+### Communication Matrix
+
+User only talks to Lead. All other agents are managed by Lead.
+
+```
+          User    Lead    Planner   Worker
+User       -       ✅       ❌        ❌
+Lead       ✅       -       ✅        ✅
+Planner    ❌      ✅        -        ❌
+Worker     ❌      ✅       ❌         -
+```
+
+### Lead Context Window Management
+
+Lead is the highest-risk role for context overflow. It handles user conversation, planner proposals, worker reports, task comments, and status changes. Mitigation:
+
+**1. Layered context injection (not "dump everything")**
+
+```
+Lead context window:
+┌──────────────────────────────────────┐
+│ System prompt (role definition)       │  Fixed, ~500 tokens
+├──────────────────────────────────────┤
+│ User profile (USER.md summary)        │  Fixed, ~200 tokens
+├──────────────────────────────────────┤
+│ Project state (auto-generated)        │  Dynamic, ~300 tokens
+│ "12 tasks: 3 done, 5 running..."     │
+├──────────────────────────────────────┤
+│ Current conversation (user ↔ lead)    │  Rolling window
+├──────────────────────────────────────┤
+│ On-demand context (injected/removed)  │  Only when processing
+│ (task detail, worker report, etc.)    │
+└──────────────────────────────────────┘
+```
+
+**2. Worker reports do NOT enter Lead conversation**
+
+Worker completes task → writes to SQLite (status + report). Lead is NOT notified in conversation. Lead pulls details on demand via `flightdeck_task_get()`. Only these events interrupt Lead:
+
+| Event | What Lead sees |
+|-------|----------------|
+| User message | Full message |
+| Task failure (after retries) | One-line summary |
+| All tasks complete | One-line summary |
+| Worker escalation | Worker's question |
+
+Everything else (task in progress, worker coding) → silent.
+
+**3. Project state = auto-compressed dashboard**
+
+Every time Lead receives a message, Flightdeck auto-injects a ~200 token project summary:
+```
+## Project: flightdeck-2
+Tasks: 3/12 done, 5 running, 2 ready, 2 blocked
+Active agents: worker-1 (task_003), worker-2 (task_005)
+Recent: task_001 ✅, task_002 ✅, task_004 failed
+Pending decisions: 0
+```
+
+**4. Conversation compaction**
+
+Old messages are compressed. User messages are preserved with highest priority; Lead's own replies are compressed first.
+
+```
+Before:
+  [msg_001] user: Add dark mode          ← keep (original requirement)
+  [msg_002] lead: OK, planning            ← compress
+  [msg_003] lead: Split into 5 tasks      ← compress
+  [msg_004] user: Change port to 8443     ← keep (user instruction)
+  ...20 more exchanges...
+
+After:
+  [msg_001] user: Add dark mode
+  [summary] Lead planned 5 tasks, 3 done, 2 running
+  [msg_004] user: Change port to 8443
+  [msg_042] user: What's the status?      ← recent messages kept full
+```
+
+**5. Task context injected on-demand, then removed**
+
+User comments on task_017 → Lead receives message with task context injected → Lead processes it → task context removed from window. Not persistent.
+
+---
+
 ## Open Questions
 
 1. **Plan generation:** Should Flightdeck generate plans from specs using an LLM call, or should users/agents write plans manually? (Probably: LLM-assisted with human approval)
