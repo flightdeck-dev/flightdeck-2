@@ -150,3 +150,124 @@ This is a well-architected Phase 1. The type system is solid (branded IDs, const
 The two critical issues (C1: side effects discarded, C2: `running→done` bypass) should be fixed before building Phase 2 on top. The MCP server needs caller auth before any real agent interaction. Everything else is Phase 2 territory.
 
 **Ship for Phase 1. Fix C1/C2 and M2/M4/M5 before Phase 2.**
+
+---
+
+## Round 2 Review
+
+**Reviewer:** Claw (round 2 subagent)
+**Date:** 2026-04-12
+**Build status:** 56 tests pass (11 files), `tsc --noEmit` clean (zero errors)
+
+### Fix Verification
+
+| Issue | Status | Notes |
+|-------|--------|-------|
+| **C1: `running→done` bypass** | ✅ Verified | `running→done` removed from `VALID_TRANSITIONS`. Only path is `running→in_review→done`. Test `effects.test.ts` confirms `completeTask()` throws on running state. |
+| **C2: Side effects discarded** | ✅ Verified | `TaskDAG.processEffects()` implemented as a private method. Handles `resolve_dependents` (promotes pending→ready), `block_dependents`, `clear_assignment`, and `set_timestamp`. Called from `claimTask`, `submitTask`, `completeTask`, `failTask`. `spawn_reviewer`/`escalate`/`notify_agent` are documented no-ops for Phase 2. |
+| **M1: MCP caller auth** | ⚠️ Partial | `task_add` validates lead/planner, `task_claim` and `task_submit` validate worker role. **But:** `task_fail`, `msg_send`, `channel_send`, `escalate`, `discuss` accept `agentId` without role validation. Read-only tools (`task_list`, `status`, `spec_list`, `memory_search`, `channel_read`) require no `agentId` at all — acceptable for Phase 1 but Layer 3 is incomplete. |
+| **M2: Claim stored** | ✅ Verified | `SqliteStore.updateTaskClaim()` added. `claim` column in tasks table (with migration for existing DBs). `TaskDAG.submitTask()` calls `store.updateTaskClaim()` when claim is provided. Test confirms claim is persisted in DB. |
+| **M3: Discuss creates persistent channel** | ✅ Verified | `flightdeck_discuss` now creates an initial system message in the channel via `fd.sendMessage()`, which writes to `{channel}.jsonl`. Channel is listable via `channels()`. Not a full discussion system (no invitee tracking, no safety nets), but the channel persists. Acceptable for Phase 1. |
+| **M4: Orchestrator uses state machine** | ⚠️ Partial | For `ended` sessions, orchestrator now calls `dag.failTask()` (which uses `transition()`), **but then calls `store.updateTaskState(task.id, 'ready', null)` directly**, bypassing the state machine for the `failed→ready` transition. This should call `transition('failed', 'ready')` or go through a DAG method to stay consistent with NFR-004. |
+| **M5: ESM import fixed** | ✅ Verified | `MessageLog.ts` now imports `readdirSync` properly at the top level alongside other `node:fs` imports. No `require()` calls anywhere. |
+| **M6: Governance checks task role** | ✅ Verified | `shouldGateTaskStart(taskState, taskRole?)` now accepts role. Supervised mode skips gating for `reviewer` role (treating it as trivial). Tests cover all three profiles. |
+| **m3: SpecStore dir** | ✅ Verified | `write()` now calls `mkdirSync(dirname(filepath), { recursive: true })`. |
+| **m4: Cycle detection** | ✅ Verified | `topoSort()` throws `"Cycle detected"` when `sorted.length !== tasks.length`. Test confirms. |
+| **m5: CLI start stub** | ✅ Verified (implicit) | Orchestrator `start()`/`stop()` tested in orchestrator tests. CLI not directly tested but the underlying machinery works. |
+| **S5: task_add tool** | ✅ Verified | `flightdeck_task_add` tool added to MCP server with role validation. |
+
+### Remaining Issues
+
+**R1 (Medium): Orchestrator still bypasses state machine for `failed→ready`**
+In `Orchestrator.tick()` when handling `ended` sessions, the code calls `this.store.updateTaskState(task.id, 'ready', null)` directly after `failTask()`. Should go through `transition('failed', 'ready')` and `processEffects()` to maintain the state machine as single source of truth.
+
+**R2 (Low): Incomplete MCP role validation**
+Several MCP tools (`task_fail`, `msg_send`, `channel_send`, `escalate`, `discuss`) accept `agentId` but don't validate the caller's role. A worker could call `flightdeck_escalate` or `flightdeck_discuss` — probably fine semantically, but inconsistent with the tools that do validate.
+
+**R3 (Low): No MCP server tests**
+The 13 MCP tools still have zero direct tests. Tool registration, parameter validation, and role-gating logic are only tested indirectly through facade/DAG tests. This is the biggest test gap.
+
+### New Issues Introduced
+
+None found. The fixes are clean and don't introduce regressions.
+
+### Overall Assessment
+
+**Ready for Phase 2 with one caveat:** Fix R1 (orchestrator state machine bypass) before building more orchestrator features on top. R2 and R3 are Phase 2 housekeeping items.
+
+The fix agent did solid work. All critical and most major issues are properly resolved. The code remains clean, well-typed, and the test suite grew from 43 to 56 meaningful tests covering the new functionality.
+
+### R4 (Medium): MCP Error Messages Are Not Agent-Friendly
+
+Every MCP tool error should tell the calling agent: (1) what went wrong, (2) why, (3) what to do instead. Current state:
+
+#### Role validation errors (3 tools) — Incomplete
+
+| Tool | Current error | Problem |
+|------|--------------|--------|
+| `task_add` | `"Error: Only lead/planner agents can add tasks (caller role: worker)"` | Says what/why but **not what to do instead**. Should suggest `flightdeck_escalate()` to request a lead create the task. |
+| `task_claim` | `"Error: Only workers can claim tasks (caller role: lead)"` | Same — no remediation. Should say tasks are auto-assigned by the orchestrator, or suggest delegating to a worker. |
+| `task_submit` | `"Error: Only workers can submit tasks (caller role: lead)"` | Same pattern. |
+
+#### Unknown agent errors (3 tools) — Missing entirely
+
+| Tool | Current behavior | Problem |
+|------|-----------------|--------|
+| `task_add` | `agent = fd.sqlite.getAgent(...)` → if `null`, **silently proceeds** (the `if (agent && ...)` guard skips validation) | An unregistered agentId bypasses all role checks. Should error: `"Agent 'xyz' not found. Register with the orchestrator before calling tools."` |
+| `task_claim` | Same — unknown agent bypasses role check | Same |
+| `task_submit` | Same — unknown agent bypasses role check | Same |
+
+This is actually a **security hole**: any caller can pass a nonexistent `agentId` to skip role validation.
+
+#### Uncaught exceptions from facade/DAG (5 tools) — Raw stack traces
+
+These tools call facade methods that `throw new Error(...)` but have **no try/catch**:
+
+| Tool | Throws when | Raw error message |
+|------|------------|------------------|
+| `task_claim` | Task not found | `"Task not found: task-xyz"` |
+| `task_claim` | Task not ready | `"Task task-xyz is not ready (state: pending)"` |
+| `task_submit` | Task not found | `"Task not found: task-xyz"` |
+| `task_submit` | Task not running | `"Task task-xyz is not running (state: done)"` |
+| `task_fail` | Task not found | `"Task not found: task-xyz"` |
+| `task_fail` | Invalid transition | `"Invalid state transition: done -> failed"` |
+
+These raw errors will bubble up as unhandled exceptions through the MCP transport. The MCP SDK may catch them and return a generic error, but the agent gets no actionable guidance. Each should be wrapped in try/catch returning a structured error like:
+```
+"Error: Cannot claim task task-xyz — it is in state 'pending' (not 'ready'). 
+This task has unresolved dependencies. Use flightdeck_task_list to check which 
+dependencies need to complete first."
+```
+
+#### Tools with no error handling at all (8 tools)
+
+| Tool | Failure mode | What happens |
+|------|-------------|-------------|
+| `task_list` | Empty result | Returns `[]` — fine |
+| `msg_send` | Write fails | Uncaught fs exception |
+| `channel_send` | Write fails | Uncaught fs exception |
+| `channel_read` | Channel doesn't exist | Returns `[]` — fine |
+| `memory_search` | No results | Returns `[]` — fine |
+| `memory_write` | Write fails | Uncaught fs exception |
+| `status` | — | Can't really fail |
+| `spec_list` | — | Can't really fail |
+
+The fs-based tools (`msg_send`, `channel_send`, `memory_write`) should catch write errors and return meaningful messages.
+
+#### Recommended fix pattern
+
+Wrap every tool handler in a standard error boundary:
+```ts
+async (params) => {
+  try {
+    // ... tool logic ...
+  } catch (err) {
+    return { 
+      content: [{ type: 'text' as const, text: formatToolError(toolName, err, params) }],
+      isError: true,
+    };
+  }
+}
+```
+
+With `formatToolError()` providing tool-specific remediation hints based on the error type (not found → "check task ID with task_list", wrong state → "task is in X, needs to be Y", role violation → "use tool Z instead").

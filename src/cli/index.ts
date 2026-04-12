@@ -20,6 +20,7 @@ Usage: flightdeck <command> [options]
 
 Commands:
   init <project-name>     Create a new project
+  agent-config <role>     Generate role-specific AGENTS.md
   spec create <title>     Create a spec
   spec list               List specs
   status                  Project status
@@ -62,9 +63,41 @@ switch (command) {
     const store = new ProjectStore(name);
     store.init(name);
     ProjectStore.writeFlightdeckJson(process.cwd(), name);
+    // Generate default AGENTS.md (worker role) and .mcp.json
+    ProjectStore.writeAgentFiles(process.cwd(), 'worker');
     console.log(`Project "${name}" initialized.`);
     console.log(`Created .flightdeck.json in ${process.cwd()}`);
+    console.log(`Created AGENTS.md (worker role)`);
+    console.log(`Created .mcp.json (Claude Code MCP config)`);
     console.log(`Project data at ~/.flightdeck/projects/${name}/`);
+    console.log();
+    console.log('Setup for other runtimes:');
+    console.log('  Codex:   Add to .codex/config.toml — [mcp_servers.flightdeck] command = "npx" args = ["flightdeck-mcp"]');
+    console.log('  Gemini:  Add mcpServers.flightdeck to ~/.gemini/settings.json');
+    console.log('  Copilot: Run copilot /mcp add flightdeck -- npx flightdeck-mcp');
+    console.log();
+    console.log('Generate configs for other roles: flightdeck agent-config <lead|worker|reviewer|planner>');
+    break;
+  }
+
+  case 'agent-config': {
+    const role = positionals[1] as 'lead' | 'worker' | 'reviewer' | 'planner';
+    const validRoles = ['lead', 'worker', 'reviewer', 'planner'];
+    if (!role || !validRoles.includes(role)) {
+      console.error('Usage: flightdeck agent-config <lead|worker|reviewer|planner>');
+      process.exit(1);
+    }
+    const configs = ProjectStore.writeAgentFiles(process.cwd(), role);
+    console.log(configs.agentsMd);
+    console.log('---');
+    console.log('Written: AGENTS.md, .mcp.json');
+    console.log();
+    console.log('Codex config snippet:');
+    console.log(configs.codexConfig);
+    console.log('Gemini setup:');
+    console.log(configs.geminiInstructions);
+    console.log('Copilot setup:');
+    console.log(configs.copilotInstructions);
     break;
   }
 

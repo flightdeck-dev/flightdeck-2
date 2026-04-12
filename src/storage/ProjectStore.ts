@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import type { ProjectConfig, FlightdeckJson } from '../core/types.js';
+import type { ProjectConfig, FlightdeckJson, AgentRole } from '../core/types.js';
+import { generateAgentConfigs, type AgentConfigOutput } from '../agents/AgentConfigs.js';
 
 const FLIGHTDECK_HOME = join(homedir(), '.flightdeck');
 const SUBDIRS = ['specs', 'decisions', 'memory', 'agents', 'messages', 'reports'];
@@ -81,5 +82,19 @@ export class ProjectStore {
 
   exists(): boolean {
     return existsSync(this.projectDir);
+  }
+
+  generateAgentConfigs(role: AgentRole): AgentConfigOutput {
+    return generateAgentConfigs(role);
+  }
+
+  /**
+   * Write AGENTS.md and .mcp.json to a target directory (typically the working directory).
+   */
+  static writeAgentFiles(dir: string, role: AgentRole): AgentConfigOutput {
+    const configs = generateAgentConfigs(role);
+    writeFileSync(join(dir, 'AGENTS.md'), configs.agentsMd);
+    writeFileSync(join(dir, '.mcp.json'), configs.mcpJson);
+    return configs;
   }
 }

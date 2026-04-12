@@ -13,6 +13,8 @@ import { GovernanceEngine } from './governance/GovernanceEngine.js';
 import { Orchestrator } from './orchestrator/Orchestrator.js';
 import { AcpAdapter } from './agents/AcpAdapter.js';
 import type { AgentRole } from './core/types.js';
+import { WorkflowStore, type WorkflowConfig } from './storage/WorkflowStore.js';
+import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
 
 /**
  * High-level facade wrapping all Flightdeck subsystems.
@@ -29,6 +31,8 @@ export class Flightdeck {
   readonly dag: TaskDAG;
   readonly governance: GovernanceEngine;
   readonly orchestrator: Orchestrator;
+  readonly workflowStore: WorkflowStore;
+  readonly workflow: WorkflowEngine;
 
   constructor(projectName: string) {
     this.project = new ProjectStore(projectName);
@@ -47,6 +51,8 @@ export class Flightdeck {
     const config = this.project.getConfig();
     this.governance = new GovernanceEngine(config);
     this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, new AcpAdapter(), config);
+    this.workflowStore = new WorkflowStore(this.project.subpath('.'));
+    this.workflow = new WorkflowEngine(this.workflowStore.load());
   }
 
   // ── Task operations ──
@@ -133,6 +139,21 @@ export class Flightdeck {
       agentCount: this.listAgents().length,
       totalCost: this.sqlite.getTotalCost(),
     };
+  }
+
+  // ── Workflow ──
+
+  advanceTask(taskId: TaskId): StepAction {
+    return this.workflow.advanceTask(taskId);
+  }
+
+  getWorkflow(): WorkflowConfig {
+    return this.workflow.getConfig();
+  }
+
+  setWorkflow(config: WorkflowConfig): void {
+    this.workflow.setConfig(config);
+    this.workflowStore.save(config);
   }
 
   // ── Lifecycle ──
