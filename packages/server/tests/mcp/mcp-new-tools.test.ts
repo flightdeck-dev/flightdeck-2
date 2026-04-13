@@ -186,4 +186,36 @@ describe('MCP new tools', () => {
     const data = JSON.parse(getText(result));
     expect(data.cancelled).toBe(true);
   });
+
+  it('task_get returns task details', async () => {
+    const task = fd.addTask({ title: 'get me', description: 'test description' });
+    const result = await callTool(server, 'flightdeck_task_get', { taskId: task.id });
+    const data = JSON.parse(getText(result));
+    expect(data.id).toBe(task.id);
+    expect(data.title).toBe('get me');
+    expect(data.description).toBe('test description');
+    expect(data.state).toBe('ready');
+  });
+
+  it('task_get returns error for non-existent task', async () => {
+    const result = await callTool(server, 'flightdeck_task_get', { taskId: 'non-existent-id' });
+    const text = getText(result);
+    expect(text).toContain('Error');
+    expect(text).toContain('not found');
+  });
+
+  it('task_get includes subTasks for epics', async () => {
+    const parent = fd.addTask({ title: 'epic parent' });
+    await callTool(server, 'flightdeck_declare_subtasks', {
+      parentTaskId: parent.id,
+      tasks: [{ title: 'sub-1' }, { title: 'sub-2' }],
+      agentId: 'planner-1',
+    });
+    const result = await callTool(server, 'flightdeck_task_get', { taskId: parent.id });
+    const data = JSON.parse(getText(result));
+    expect(data.id).toBe(parent.id);
+    expect(data.subTasks).toHaveLength(2);
+    expect(data.subTasks.map((s: any) => s.title)).toContain('sub-1');
+    expect(data.subTasks.map((s: any) => s.title)).toContain('sub-2');
+  });
 });
