@@ -6,7 +6,11 @@ import {
   saveGatewayState,
   loadGatewayState,
   clearGatewayState,
+  loadReloadConfig,
+  markReloadFailed,
+  clearReloadFailed,
   STATE_FILE,
+  RELOAD_CONFIG_FILE,
   type GatewayState,
   type SavedSession,
 } from '../../src/cli/gatewayState.js';
@@ -14,6 +18,7 @@ import {
 describe('gatewayState', () => {
   afterEach(() => {
     clearGatewayState();
+    try { fs.unlinkSync(RELOAD_CONFIG_FILE); } catch { /* ignore */ }
   });
 
   it('should save and load state round-trip', () => {
@@ -112,5 +117,51 @@ describe('gatewayState', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.sessions[0].status).toBe('active');
     expect(loaded!.sessions[1].status).toBe('suspended');
+  });
+
+  // --- Reload config tests ---
+
+  it('should return default reload config when file missing', () => {
+    const config = loadReloadConfig();
+    expect(config.enabled).toBe(true);
+    expect(config.roles).toEqual(['lead']);
+  });
+
+  it('should load custom reload config', () => {
+    fs.writeFileSync(RELOAD_CONFIG_FILE, JSON.stringify({ enabled: false, roles: [] }), 'utf-8');
+    const config = loadReloadConfig();
+    expect(config.enabled).toBe(false);
+    expect(config.roles).toEqual([]);
+  });
+
+  it('should merge partial reload config with defaults', () => {
+    fs.writeFileSync(RELOAD_CONFIG_FILE, JSON.stringify({ roles: ['lead', 'planner'] }), 'utf-8');
+    const config = loadReloadConfig();
+    expect(config.enabled).toBe(true); // default
+    expect(config.roles).toEqual(['lead', 'planner']);
+  });
+
+  // --- Reload failure tracking tests ---
+
+  it('should mark and detect reload failure', () => {
+    saveGatewayState({ savedAt: new Date().toISOString(), sessions: [] });
+    markReloadFailed();
+    const loaded = loadGatewayState();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.lastReloadFailed).toBe(true);
+  });
+
+  it('should clear reload failure flag', () => {
+    saveGatewayState({ savedAt: new Date().toISOString(), sessions: [], lastReloadFailed: true });
+    clearReloadFailed();
+    const loaded = loadGatewayState();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.lastReloadFailed).toBe(false);
+  });
+
+  it('should not mark failure when no state file exists', () => {
+    clearGatewayState();
+    markReloadFailed(); // should not throw
+    expect(loadGatewayState()).toBeNull();
   });
 });

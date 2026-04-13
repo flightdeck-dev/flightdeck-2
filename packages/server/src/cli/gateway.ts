@@ -1,6 +1,6 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
-import { saveGatewayState, loadGatewayState, clearGatewayState, type SavedSession } from './gatewayState.js';
+import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, markReloadFailed, clearReloadFailed, type SavedSession } from './gatewayState.js';
 
 export interface GatewayDeps {
   port: number;
@@ -47,10 +47,36 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
 
-  // Load saved session state for recovery
-  const savedState = noRecover ? null : loadGatewayState();
-  if (savedState && !noRecover) {
-    console.error(`Found saved state from ${savedState.savedAt} with ${savedState.sessions.length} session(s).`);
+  // --- Session reload: three-layer protection ---
+  // Layer 1: reload-config.json — master switch + role filter
+  // Layer 2: lastReloadFailed flag — if previous reload crashed, don't retry
+  // Layer 3: --no-recover CLI flag (existing)
+  const reloadConfig = loadReloadConfig();
+  let savedState: ReturnType<typeof loadGatewayState> = null;
+
+  if (noRecover) {
+    console.error('Session reload disabled (--no-recover flag).');
+  } else if (!reloadConfig.enabled) {
+    console.error('Session reload disabled by reload-config.json.');
+  } else {
+    const rawState = loadGatewayState();
+    if (rawState?.lastReloadFailed) {
+      console.error('Session reload skipped: previous reload failed. Clear ~/.flightdeck/gateway-state.json to retry.');
+    } else if (rawState && rawState.sessions.length > 0) {
+      // Filter sessions by allowed roles
+      const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
+      const filtered = rawState.sessions.filter(s => allowedRoles.has(s.role));
+      const skipped = rawState.sessions.length - filtered.length;
+      if (skipped > 0) {
+        console.error(`Reload: skipping ${skipped} session(s) with non-reloadable roles (allowed: ${[...allowedRoles].join(', ')}).`);
+      }
+      if (filtered.length > 0) {
+        savedState = { ...rawState, sessions: filtered };
+        console.error(`Found saved state from ${rawState.savedAt} with ${filtered.length} reloadable session(s).`);
+      } else {
+        console.error('No reloadable sessions found in saved state.');
+      }
+    }
   }
   // Clear state file regardless — we'll save fresh on next shutdown
   clearGatewayState();
@@ -343,8 +369,15 @@ async function spawnAgents(
         sid = await leadManager.spawnLead();
       }
       console.error(`  [${projectName}] Lead ${savedLead ? 'resumed' : 'spawned'} (session: ${sid})`);
+      // Reload succeeded — clear any previous failure flag
+      if (savedLead) clearReloadFailed();
     } catch (err: unknown) {
       console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
+      // If this was a resume attempt, mark reload as failed so next startup skips it
+      if (savedLead) {
+        markReloadFailed();
+        console.error(`  [${projectName}] Marked reload as failed. Next startup will skip session reload.`);
+      }
     }
   } else {
     console.error(`  [${projectName}] Lead already active.`);
