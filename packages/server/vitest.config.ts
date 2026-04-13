@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    globalSetup: ['./tests/global-cleanup.ts'],
     exclude: ['dist/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
