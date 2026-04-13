@@ -76,6 +76,20 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
 
+    // ── Gateway state (for restart recovery) ──
+    if (url.pathname === '/api/gateway/state' && method === 'GET') {
+      const agents: Array<{ project: string; agentId: string; role: string; acpSessionId: string | null }> = [];
+      for (const name of projectManager.list()) {
+        const fd = projectManager.get(name);
+        if (!fd) continue;
+        for (const a of fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle')) {
+          agents.push({ project: name, agentId: a.id, role: a.role, acpSessionId: null });
+        }
+      }
+      json(200, agents);
+      return;
+    }
+
     // ── Project list / create ──
     if (url.pathname === '/api/projects' && method === 'GET') {
       json(200, { projects: projectManager.list().map(name => ({ name })) });

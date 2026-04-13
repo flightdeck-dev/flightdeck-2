@@ -1,7 +1,8 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
+import { saveGatewayState, loadGatewayState, clearGatewayState, type SavedSession } from './gatewayState.js';
 
-export interface DaemonDeps {
+export interface GatewayDeps {
   port: number;
   corsOrigin: string;
   noRecover: boolean;
@@ -10,10 +11,10 @@ export interface DaemonDeps {
 }
 
 /**
- * Start the Flightdeck daemon: manages multiple projects,
+ * Start the Flightdeck gateway: manages multiple projects,
  * spawns Lead/Planner per project, starts HTTP+WS server.
  */
-export async function startDaemon(deps: DaemonDeps): Promise<void> {
+export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { port, corsOrigin, noRecover, projectFilter } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
@@ -38,7 +39,15 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
     process.exit(1);
   }
 
-  console.error(`Starting Flightdeck daemon for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
+  console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
+
+  // Load saved session state for recovery
+  const savedState = noRecover ? null : loadGatewayState();
+  if (savedState && !noRecover) {
+    console.error(`Found saved state from ${savedState.savedAt} with ${savedState.sessions.length} session(s).`);
+  }
+  // Clear state file regardless — we'll save fresh on next shutdown
+  clearGatewayState();
 
   const leadManagers = new Map<string, InstanceType<typeof LeadManager>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,7 +68,7 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
         fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
       }
     } else if (activeAgents.length > 0) {
-      console.error(`  Marking ${activeAgents.length} stale agent(s) offline (session resume not yet implemented).`);
+      console.error(`  Marking ${activeAgents.length} stale agent(s) offline (will attempt session recovery).`);
       for (const agent of activeAgents) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
@@ -97,8 +106,9 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
     orchestrators.push(orchestrator);
     console.error(`  Orchestrator running.`);
 
-    // Spawn Lead + Planner
-    await spawnAgents(fd, leadManager, name);
+    // Spawn Lead + Planner (with session recovery if available)
+    const projectSessions = savedState?.sessions.filter(s => s.project === name) ?? [];
+    await spawnAgents(fd, leadManager, name, projectSessions);
 
     // Wire WS user messages to Lead
     if (wsServer) {
@@ -150,9 +160,58 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
     console.error(`WebSocket: connect to /ws/:projectName`);
   });
 
+  // Helper: collect active sessions for state persistence
+  const collectSessions = (): SavedSession[] => {
+    const sessions: SavedSession[] = [];
+    for (const [projectName, lm] of leadManagers.entries()) {
+      const leadSid = lm.getLeadSessionId();
+      const plannerSid = lm.getPlannerSessionId();
+
+      if (leadSid) {
+        const acpSid = acpAdapter.getAcpSessionId(leadSid);
+        const s = acpAdapter.getSession(leadSid);
+        if (acpSid && s && s.status !== 'ended') {
+          sessions.push({
+            project: projectName,
+            agentId: s.agentId,
+            role: 'lead',
+            acpSessionId: acpSid,
+            localSessionId: leadSid,
+            cwd: s.cwd,
+            model: s.model,
+          });
+        }
+      }
+
+      if (plannerSid) {
+        const acpSid = acpAdapter.getAcpSessionId(plannerSid);
+        const s = acpAdapter.getSession(plannerSid);
+        if (acpSid && s && s.status !== 'ended') {
+          sessions.push({
+            project: projectName,
+            agentId: s.agentId,
+            role: 'planner',
+            acpSessionId: acpSid,
+            localSessionId: plannerSid,
+            cwd: s.cwd,
+            model: s.model,
+          });
+        }
+      }
+    }
+    return sessions;
+  };
+
   // Graceful shutdown
   const shutdown = () => {
-    console.error('\nStopping Flightdeck...');
+    console.error('\nStopping Flightdeck gateway...');
+
+    // Save session state before cleanup
+    const sessions = collectSessions();
+    if (sessions.length > 0) {
+      saveGatewayState({ savedAt: new Date().toISOString(), sessions });
+    }
+
     for (const o of orchestrators) o.stop();
     for (const lm of leadManagers.values()) lm.stop();
     acpAdapter.clear();
@@ -166,25 +225,57 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
   process.on('SIGTERM', shutdown);
   process.on('uncaughtException', (err) => {
     console.error('\nFatal uncaught exception:', err);
+    // Best-effort state save on crash
+    try {
+      const sessions = collectSessions();
+      if (sessions.length > 0) {
+        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
+      }
+    } catch {}
     try { acpAdapter.clear(); } catch {}
     process.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
     console.error('\nFatal unhandled rejection:', reason);
+    try {
+      const sessions = collectSessions();
+      if (sessions.length > 0) {
+        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
+      }
+    } catch {}
     try { acpAdapter.clear(); } catch {}
     process.exit(1);
   });
 }
 
-async function spawnAgents(fd: Flightdeck, leadManager: { spawnLead(): Promise<string>; spawnPlanner(): Promise<string> }, projectName: string): Promise<void> {
+async function spawnAgents(
+  fd: Flightdeck,
+  leadManager: {
+    spawnLead(): Promise<string>;
+    spawnPlanner(): Promise<string>;
+    resumeLead(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
+    resumePlanner(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
+  },
+  projectName: string,
+  savedSessions: SavedSession[] = [],
+): Promise<void> {
   const agents = fd.listAgents();
   const hasLead = agents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
   const hasPlanner = agents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
 
+  const savedLead = savedSessions.find(s => s.role === 'lead');
+  const savedPlanner = savedSessions.find(s => s.role === 'planner');
+
   if (!hasLead) {
     try {
-      const sid = await leadManager.spawnLead();
-      console.error(`  [${projectName}] Lead spawned (session: ${sid})`);
+      let sid: string;
+      if (savedLead) {
+        console.error(`  [${projectName}] Resuming Lead from session ${savedLead.acpSessionId}...`);
+        sid = await leadManager.resumeLead(savedLead.acpSessionId, savedLead.cwd, savedLead.model);
+      } else {
+        sid = await leadManager.spawnLead();
+      }
+      console.error(`  [${projectName}] Lead ${savedLead ? 'resumed' : 'spawned'} (session: ${sid})`);
     } catch (err: unknown) {
       console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -194,8 +285,14 @@ async function spawnAgents(fd: Flightdeck, leadManager: { spawnLead(): Promise<s
 
   if (!hasPlanner) {
     try {
-      const sid = await leadManager.spawnPlanner();
-      console.error(`  [${projectName}] Planner spawned (session: ${sid})`);
+      let sid: string;
+      if (savedPlanner) {
+        console.error(`  [${projectName}] Resuming Planner from session ${savedPlanner.acpSessionId}...`);
+        sid = await leadManager.resumePlanner(savedPlanner.acpSessionId, savedPlanner.cwd, savedPlanner.model);
+      } else {
+        sid = await leadManager.spawnPlanner();
+      }
+      console.error(`  [${projectName}] Planner ${savedPlanner ? 'resumed' : 'spawned'} (session: ${sid})`);
     } catch (err: unknown) {
       console.error(`  [${projectName}] Failed to spawn Planner: ${err instanceof Error ? err.message : String(err)}`);
     }

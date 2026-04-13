@@ -261,6 +261,70 @@ export class LeadManager {
   }
 
   /**
+   * Resume a Lead agent from a previous ACP session.
+   * Falls back to fresh spawn if resume fails.
+   */
+  async resumeLead(previousAcpSessionId: string, cwd: string, model?: string): Promise<string> {
+    try {
+      const meta = await this.acpAdapter.resumeSession({
+        previousSessionId: previousAcpSessionId,
+        cwd,
+        role: 'lead',
+        model,
+      });
+      this.leadSessionId = meta.sessionId;
+
+      this.sqlite.insertAgent({
+        id: meta.agentId,
+        role: 'lead',
+        runtime: 'acp',
+        acpSessionId: meta.sessionId,
+        status: 'busy',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
+
+      return meta.sessionId;
+    } catch (err) {
+      console.error(`  Lead resume failed (${err instanceof Error ? err.message : String(err)}), falling back to fresh spawn`);
+      return this.spawnLead();
+    }
+  }
+
+  /**
+   * Resume a Planner agent from a previous ACP session.
+   * Falls back to fresh spawn if resume fails.
+   */
+  async resumePlanner(previousAcpSessionId: string, cwd: string, model?: string): Promise<string> {
+    try {
+      const meta = await this.acpAdapter.resumeSession({
+        previousSessionId: previousAcpSessionId,
+        cwd,
+        role: 'planner',
+        model,
+      });
+      this.plannerSessionId = meta.sessionId;
+
+      this.sqlite.insertAgent({
+        id: meta.agentId,
+        role: 'planner',
+        runtime: 'acp',
+        acpSessionId: meta.sessionId,
+        status: 'busy',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
+
+      return meta.sessionId;
+    } catch (err) {
+      console.error(`  Planner resume failed (${err instanceof Error ? err.message : String(err)}), falling back to fresh spawn`);
+      return this.spawnPlanner();
+    }
+  }
+
+  /**
    * Handle a Lead response and decide whether to forward to the user.
    * Returns null if the response should be suppressed (IDLE/NO_REPLY).
    */
