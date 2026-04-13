@@ -3,6 +3,7 @@ import { type TaskDAG } from '../dag/TaskDAG.js';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
+import type { WorkflowEngine, StepAction } from '../workflow/WorkflowEngine.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { LeadManager } from '../lead/LeadManager.js';
 import type { MessageStore } from '../comms/MessageStore.js';
@@ -58,6 +59,7 @@ export class Orchestrator {
   private retrospectivesDone = new Map<string, number>();
   private decisionLog: DecisionLog | null;
   private statusWriter: StatusFileWriter;
+  private workflowEngine: WorkflowEngine | null;
 
   constructor(
     private dag: TaskDAG,
@@ -73,6 +75,7 @@ export class Orchestrator {
       wsServer?: WebSocketServer;
       governanceConfig?: GovernanceConfig;
       decisionLog?: DecisionLog;
+      workflowEngine?: WorkflowEngine;
     },
   ) {
     this.adapter = adapter;
@@ -84,6 +87,7 @@ export class Orchestrator {
     this.governanceConfig = opts?.governanceConfig ?? {};
     this.decisionLog = opts?.decisionLog ?? null;
     this.statusWriter = new StatusFileWriter();
+    this.workflowEngine = opts?.workflowEngine ?? null;
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -258,6 +262,9 @@ export class Orchestrator {
    * - If verification is disabled in governance, auto-complete them.
    * - If verification is enabled, reviewer agents handle the transition
    *   via the spawn_reviewer effect → completeTask/failTask.
+   *
+   * When a WorkflowEngine is configured, completed tasks are advanced
+   * through their pipeline (e.g., running post-review steps).
    */
   private processCompletions(): number {
     const verificationEnabled = this.governance.governanceConfig.verification.enabled;
@@ -275,12 +282,49 @@ export class Orchestrator {
       try {
         this.dag.completeTask(task.id);
         completed++;
+
+        // If workflow engine is present, advance the pipeline
+        // (e.g., trigger post-review steps like deploy, notify, etc.)
+        if (this.workflowEngine) {
+          const action = this.workflowEngine.advanceTask(task.id);
+          this.handleWorkflowAction(task.id, action);
+        }
       } catch {
         // Task may have already transitioned
       }
     }
 
     return completed;
+  }
+
+  /**
+   * Handle a workflow step action for a task.
+   */
+  private handleWorkflowAction(taskId: TaskId, action: StepAction): void {
+    switch (action.type) {
+      case 'run_command': {
+        const cwd = this.config.cwd;
+        const result = this.workflowEngine!.executeRunStep(action.command, cwd);
+        if (result.success) {
+          const nextAction = this.workflowEngine!.advanceTask(taskId);
+          this.handleWorkflowAction(taskId, nextAction);
+        } else {
+          const currentStep = this.workflowEngine!.getCurrentStep(taskId);
+          const failAction = this.workflowEngine!.handleFailure(
+            taskId,
+            (currentStep?.on_fail as 'return_to_worker' | 'reject' | 'warn' | 'skip') ?? 'warn',
+          );
+          this.handleWorkflowAction(taskId, failAction);
+        }
+        break;
+      }
+      case 'assign_role':
+      case 'done':
+      case 'pipeline_complete':
+      case 'discussion':
+        // These are informational — the task is already in its final state
+        break;
+    }
   }
 
   /**

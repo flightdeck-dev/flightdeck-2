@@ -60,9 +60,11 @@ export class Flightdeck {
     this.governance = new GovernanceEngine(config);
     // Use a shared AcpAdapter instance (or null placeholder for daemon override)
     const sharedAdapter = acpAdapter ?? new AcpAdapter();
-    this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config);
     this.workflowStore = new WorkflowStore(this.project.subpath('.'));
     this.workflow = new WorkflowEngine(this.workflowStore.load());
+    this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config, undefined, {
+      workflowEngine: this.workflow,
+    });
     this.roles = new RoleRegistry(projectName);
     this.learnings = new LearningsStore(this.project.subpath('.'));
     this.timers = new TimerManager((_agentId, _message) => {
@@ -89,6 +91,38 @@ export class Flightdeck {
   }
 
   submitTask(taskId: TaskId, claim?: string): Task {
+    // Run on_task_submit hooks before transitioning to in_review
+    const task = this.dag.getTask(taskId);
+    const cwd = task ? this.project.subpath('.') : undefined;
+    const failures = this.workflow.runSubmitHooks(cwd);
+
+    if (failures.length > 0) {
+      // Determine action based on the most severe on_fail policy
+      // Priority: reject > return_to_worker > warn > skip
+      const hasReject = failures.some(f => f.on_fail === 'reject');
+      const hasReturn = failures.some(f => f.on_fail === 'return_to_worker');
+
+      if (hasReject) {
+        throw new Error(
+          `Task submission rejected by hook: ${failures.find(f => f.on_fail === 'reject')!.run}\n` +
+          `Output: ${failures.find(f => f.on_fail === 'reject')!.output}`
+        );
+      }
+
+      if (hasReturn) {
+        // Fail and retry the task so it goes back to ready → worker picks it up again
+        this.dag.failTask(taskId);
+        this.dag.retryTask(taskId);
+        throw new Error(
+          `Task returned to worker by hook: ${failures.find(f => f.on_fail === 'return_to_worker')!.run}\n` +
+          `Output: ${failures.find(f => f.on_fail === 'return_to_worker')!.output}`
+        );
+      }
+
+      // 'warn' and 'skip' both proceed — just log warnings
+      // (Callers can check workflow engine for details if needed)
+    }
+
     return this.dag.submitTask(taskId, claim);
   }
 

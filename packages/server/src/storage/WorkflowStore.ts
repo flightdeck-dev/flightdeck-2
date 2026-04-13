@@ -4,6 +4,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import YAML from 'yaml';
 import type { AgentRole } from '@flightdeck-ai/shared';
 
 export interface PipelineStep {
@@ -41,12 +42,28 @@ const DEFAULT_WORKFLOW: WorkflowConfig = {
 
 export class WorkflowStore {
   private filePath: string;
+  private yamlPath: string;
 
   constructor(projectDir: string) {
     this.filePath = join(projectDir, 'workflow.json');
+    this.yamlPath = join(projectDir, '.flightdeck', 'workflow.yaml');
   }
 
   load(): WorkflowConfig {
+    // Prefer .flightdeck/workflow.yaml over workflow.json
+    if (existsSync(this.yamlPath)) {
+      try {
+        const raw = readFileSync(this.yamlPath, 'utf-8');
+        const parsed = YAML.parse(raw) as Partial<WorkflowConfig>;
+        return {
+          task_pipeline: parsed.task_pipeline ?? DEFAULT_WORKFLOW.task_pipeline,
+          spec_pipeline: parsed.spec_pipeline ?? DEFAULT_WORKFLOW.spec_pipeline,
+          hooks: parsed.hooks ?? {},
+        };
+      } catch {
+        return { ...DEFAULT_WORKFLOW };
+      }
+    }
     if (!existsSync(this.filePath)) {
       return { ...DEFAULT_WORKFLOW };
     }
@@ -63,7 +80,7 @@ export class WorkflowStore {
   }
 
   exists(): boolean {
-    return existsSync(this.filePath);
+    return existsSync(this.filePath) || existsSync(this.yamlPath);
   }
 
   static defaultWorkflow(): WorkflowConfig {
