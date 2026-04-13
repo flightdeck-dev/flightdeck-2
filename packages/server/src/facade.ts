@@ -74,6 +74,7 @@ export class Flightdeck {
       // Default callback — messages can be wired to agent queues later
     });
     this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName);
+    this.agentManager.setMessageLog(this.messages);
 
     // Initialize chat MessageStore (SQLite-backed)
     try {
@@ -220,6 +221,16 @@ export class Flightdeck {
 
   readMessages(channel: string, since?: string): Message[] {
     return this.messages.read(channel, since);
+  }
+
+  /** Get unread DMs for a specific agent (messages sent to them since last markRead). */
+  getUnreadDMs(agentId: AgentId): Message[] {
+    return this.messages.getUnreadDMs(agentId);
+  }
+
+  /** Mark all current DMs as read for an agent. */
+  markDMsRead(agentId: AgentId): void {
+    this.messages.markRead(agentId);
   }
 
   // ── Memory ──

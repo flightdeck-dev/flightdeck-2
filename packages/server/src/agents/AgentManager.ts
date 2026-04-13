@@ -6,6 +6,7 @@ import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
+import type { MessageLog } from '../storage/MessageLog.js';
 import { writeFileSync } from 'node:fs';
 
 export interface SpawnAgentOptions {
@@ -67,6 +68,7 @@ export class AgentManager {
   private adapter: AgentAdapter;
   private worktreeManager: WorktreeManager | null = null;
   private directoryManager: DirectoryManager | null = null;
+  private messageLog: MessageLog | null = null;
 
   private skillManager: SkillManager | null;
 
@@ -93,6 +95,13 @@ export class AgentManager {
    */
   setDirectoryManager(dm: DirectoryManager): void {
     this.directoryManager = dm;
+  }
+
+  /**
+   * Set the MessageLog for unread DM delivery on agent spawn.
+   */
+  setMessageLog(ml: MessageLog): void {
+    this.messageLog = ml;
   }
 
   async spawnAgent(opts: SpawnAgentOptions): Promise<Agent> {
@@ -186,6 +195,20 @@ export class AgentManager {
       // Track mappings
       this.sessionToAgent.set(meta.sessionId, newId);
       this.agentToSession.set(newId, meta.sessionId);
+
+      // 7. Deliver any unread DMs to the newly spawned agent
+      if (this.messageLog) {
+        const unread = this.messageLog.getUnreadDMs(newId);
+        if (unread.length > 0) {
+          const dmSummary = unread.map(m => `[DM from ${m.from}]: ${m.content}`).join('\n');
+          this.messageLog.markRead(newId);
+          // Deliver async — don't block spawn on DM delivery
+          this.adapter.steer(meta.sessionId, {
+            content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
+            urgent: false,
+          }).catch(() => { /* best effort — agent will see them via msg_inbox */ });
+        }
+      }
 
       return agent;
     } catch (err) {
@@ -323,6 +346,19 @@ export class AgentManager {
     this.store.updateAgentStatus(agentId, 'busy');
     this.sessionToAgent.set(meta.sessionId, agentId);
     this.agentToSession.set(agentId, meta.sessionId);
+
+    // Deliver any unread DMs to the restarted agent
+    if (this.messageLog) {
+      const unread = this.messageLog.getUnreadDMs(agentId);
+      if (unread.length > 0) {
+        const dmSummary = unread.map(m => `[DM from ${m.from}]: ${m.content}`).join('\n');
+        this.messageLog.markRead(agentId);
+        this.adapter.steer(meta.sessionId, {
+          content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
+          urgent: false,
+        }).catch(() => { /* best effort */ });
+      }
+    }
 
     return { ...agent, acpSessionId: meta.sessionId, status: 'busy' };
   }

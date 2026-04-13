@@ -601,10 +601,32 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         return jsonResponse({ status: 'delivered', to: params.to });
       } catch {
         // Agent may not have an active session — message is stored for later
-        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message stored for next turn.' });
+        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message will be delivered when agent comes online.' });
       }
     }
     return jsonResponse({ status: 'sent', to: params.to });
+  });
+
+  server.tool('flightdeck_msg_inbox', 'Check your unread DMs. Call this at the start of a session or periodically to see messages sent to you while you were offline.', {
+    agentId: z.string(),
+  }, async (params) => {
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_msg_inbox');
+    if (error) return error;
+    const unread = fd.getUnreadDMs(params.agentId as AgentId);
+    // Mark as read so they don't show up again
+    fd.markDMsRead(params.agentId as AgentId);
+    if (unread.length === 0) {
+      return jsonResponse({ status: 'empty', messages: [] });
+    }
+    return jsonResponse({
+      status: 'unread',
+      count: unread.length,
+      messages: unread.map(m => ({
+        from: m.from,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+    });
   });
 
   server.tool('flightdeck_channel_send', 'Send to group chat', {
