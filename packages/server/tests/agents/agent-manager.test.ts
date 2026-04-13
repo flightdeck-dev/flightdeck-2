@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { AgentManager, buildSystemPrompt } from '../../src/agents/AgentManager.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { RoleRegistry } from '../../src/roles/RoleRegistry.js';
+import { MessageLog } from '../../src/storage/MessageLog.js';
 import type { AgentAdapter, SpawnOptions, SteerMessage, AgentMetadata } from '../../src/agents/AgentAdapter.js';
-import type { AgentId, AgentRuntime } from '@flightdeck-ai/shared';
+import type { AgentId, AgentRuntime, MessageId } from '@flightdeck-ai/shared';
 
 /** Minimal mock adapter for testing */
 class MockAdapter implements AgentAdapter {
@@ -179,5 +180,130 @@ describe('buildSystemPrompt', () => {
 
     expect(prompt).toContain('flightdeck_task_claim');
     expect(prompt).not.toContain('flightdeck_agent_spawn');
+  });
+});
+
+describe('AgentManager DM delivery', () => {
+  const projectName = `test-dm-delivery-${Date.now()}`;
+  const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+  let store: SqliteStore;
+  let roles: RoleRegistry;
+  let adapter: MockAdapter;
+  let manager: AgentManager;
+  let msgDir: string;
+  let messageLog: MessageLog;
+
+  beforeEach(() => {
+    mkdirSync(projDir, { recursive: true });
+    store = new SqliteStore(join(projDir, 'state.sqlite'));
+    roles = new RoleRegistry(projectName);
+    adapter = new MockAdapter();
+    manager = new AgentManager(adapter, store, roles, projectName);
+    msgDir = mkdirSync(join(projDir, 'messages'), { recursive: true }) ?? join(projDir, 'messages');
+    messageLog = new MessageLog(join(projDir, 'messages'));
+    manager.setMessageLog(messageLog);
+  });
+
+  afterEach(() => {
+    store.close();
+    if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
+  });
+
+  it('delivers unread DMs on spawnAgent when agent ID matches', async () => {
+    // First spawn an agent so we know its ID
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    
+    // Terminate it
+    await manager.terminateAgent(agent.id);
+    adapter.steerCalls = [];
+
+    // Send DMs while it's offline
+    messageLog.append({
+      id: 'msg-1' as MessageId,
+      from: 'lead-1' as AgentId,
+      to: agent.id,
+      channel: null,
+      content: 'Please check the test results',
+      timestamp: new Date().toISOString(),
+    }, 'dm');
+
+    // Spawn a NEW agent (same role) — it gets a DIFFERENT ID
+    // so DMs to old agent won't be delivered to new agent (correct behavior)
+    const newAgent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    await new Promise(r => setTimeout(r, 50));
+
+    // New agent should NOT receive old agent's DMs
+    const dmSteers = adapter.steerCalls.filter(s => s.message.content.includes('unread'));
+    expect(dmSteers).toHaveLength(0);
+    
+    // But restartAgent would deliver them (same ID)
+    // Verify the DMs are still there for the original agent
+    const unread = messageLog.getUnreadDMs(agent.id);
+    expect(unread).toHaveLength(1);
+  });
+
+  it('does not deliver DMs when there are none', async () => {
+    await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    await new Promise(r => setTimeout(r, 50));
+
+    // No steer calls for DMs
+    const dmSteers = adapter.steerCalls.filter(s => s.message.content.includes('unread'));
+    expect(dmSteers).toHaveLength(0);
+  });
+
+  it('marks DMs as read after restart delivery so they are not re-delivered', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+
+    messageLog.append({
+      id: 'msg-2' as MessageId,
+      from: 'lead-1' as AgentId,
+      to: agent.id,
+      channel: null,
+      content: 'First message',
+      timestamp: new Date().toISOString(),
+    }, 'dm');
+
+    // Restart delivers the DM
+    adapter.steerCalls = [];
+    await manager.restartAgent(agent.id);
+    await new Promise(r => setTimeout(r, 50));
+
+    const firstDelivery = adapter.steerCalls.filter(s => s.message.content.includes('unread'));
+    expect(firstDelivery).toHaveLength(1);
+
+    // After delivery + markRead, no more unread DMs
+    const unread = messageLog.getUnreadDMs(agent.id);
+    expect(unread).toHaveLength(0);
+
+    // Second restart should NOT re-deliver
+    adapter.steerCalls = [];
+    await manager.restartAgent(agent.id);
+    await new Promise(r => setTimeout(r, 50));
+
+    const secondDelivery = adapter.steerCalls.filter(s => s.message.content.includes('unread'));
+    expect(secondDelivery).toHaveLength(0);
+  });
+
+  it('delivers unread DMs on restartAgent', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+
+    // Send a DM while the agent is running
+    messageLog.append({
+      id: 'msg-3' as MessageId,
+      from: 'planner-1' as AgentId,
+      to: agent.id,
+      channel: null,
+      content: 'New priority task available',
+      timestamp: new Date().toISOString(),
+    }, 'dm');
+
+    // Restart the agent
+    adapter.steerCalls = []; // Clear previous steers
+    await manager.restartAgent(agent.id);
+    await new Promise(r => setTimeout(r, 50));
+
+    const dmSteers = adapter.steerCalls.filter(s => s.message.content.includes('unread'));
+    expect(dmSteers).toHaveLength(1);
+    expect(dmSteers[0].message.content).toContain('New priority task available');
   });
 });
