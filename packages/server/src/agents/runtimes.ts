@@ -150,11 +150,6 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
       'Reference: https://cursor.com/docs/cli/acp',
     ],
   },
-    notes:
-      'Cursor is IDE-only as of July 2025. No CLI or ACP support. ' +
-      'Would need a VS Code headless/extension-host adapter to integrate. ' +
-      'Monitor https://cursor.com for CLI announcements.',
-  },
 
   'hermes-agent': {
     name: 'Hermes Agent (Nous Research)',
@@ -164,14 +159,13 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: false,
     adapter: 'acp',
-    notes:
-      'Self-evolving agent by Nous Research. Not a coding agent — it is a general-purpose ' +
-      'agent framework with CLI, Telegram, Discord, Slack gateways. No ACP support. ' +
-      'Would need a custom adapter wrapping its Python CLI (run_agent.py) or HTTP API. ' +
+    notes: [
+      'Self-evolving agent by Nous Research. General-purpose agent framework with CLI, Telegram, Discord, Slack gateways.',
       'Install: pip install hermes-agent[acp]. Launch: `hermes acp` or `hermes-acp`.',
       'Uses curated hermes-acp toolset (file, terminal, web, memory, skills, vision).',
       'Config: ~/.hermes/.env + ~/.hermes/config.yaml',
       'Reference: https://hermes-agent.nousresearch.com/docs/user-guide/features/acp',
+    ],
   },
 };
 

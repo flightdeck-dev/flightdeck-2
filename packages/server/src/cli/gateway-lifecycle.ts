@@ -337,7 +337,7 @@ export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
   process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
   // Resolve auth
-  let authMode: AuthMode = (opts.auth ?? 'none') as AuthMode;
+  const authMode: AuthMode = (opts.auth ?? 'none') as AuthMode;
   let token: string | null = null;
   if (authMode === 'token') {
     const { resolveToken } = await import('./gateway/auth.js');
