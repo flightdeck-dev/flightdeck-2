@@ -27,7 +27,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { LeadManager } = await import('../lead/LeadManager.js');
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
 
-  const acpAdapter = new AcpAdapterClass(undefined, 'copilot');
+  const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'copilot');
   const projectManager = new ProjectManager(acpAdapter);
 
   // Handle agent process crashes: update SQLite status so we know
