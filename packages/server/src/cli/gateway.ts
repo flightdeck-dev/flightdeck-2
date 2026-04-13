@@ -403,7 +403,9 @@ async function spawnAgents(
   }
 
   if (!hasPlanner) {
-    if (savedPlanner) {
+    if (!projectIsActive) {
+      console.error(`  [${projectName}] Skipping Planner — no active tasks (project idle).`);
+    } else if (savedPlanner) {
       // Lazy resume: mark Planner as suspended, resume on-demand when Lead needs it
       console.error(`  [${projectName}] Suspending Planner (will resume on-demand from session ${savedPlanner.acpSessionId})`);
       leadManager.setSuspendedPlanner({
