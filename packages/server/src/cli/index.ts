@@ -51,6 +51,7 @@ Commands:
   display                 Show current display config
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
   display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
+  doctor                  Run diagnostic checks on Flightdeck setup
   gateway start            Start gateway as background service
   gateway stop             Stop gateway gracefully
   gateway restart          Restart gateway (saves/restores agent state)
@@ -552,6 +553,12 @@ switch (command) {
       // TUI package not found — try npx
       execFileSync('npx', ['flightdeck-tui', ...tuiArgs], { stdio: 'inherit' });
     }
+    break;
+  }
+
+  case 'doctor': {
+    const { runDoctor } = await import('./doctor.js');
+    await runDoctor({ json: !!(values.json as unknown), cwd: process.cwd() });
     break;
   }
 
