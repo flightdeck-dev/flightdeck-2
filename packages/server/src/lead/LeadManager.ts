@@ -22,6 +22,7 @@ export type LeadEvent =
   | { type: 'escalation'; agentId: string; taskId: string; reason: string }
   | { type: 'spec_completed'; specId: string; summary: string }
   | { type: 'budget_warning'; currentSpend: number; limit: number }
+  | { type: 'spec_changed'; specId: string; summary: string }
   | { type: 'heartbeat' };
 
 export interface HeartbeatCondition {

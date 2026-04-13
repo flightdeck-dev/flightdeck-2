@@ -1,5 +1,5 @@
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -64,6 +64,22 @@ export class SqliteStore {
         cache_write_tokens INTEGER NOT NULL DEFAULT 0,
         cost_usd REAL NOT NULL DEFAULT 0,
         timestamp TEXT NOT NULL
+      )
+    `));
+
+    // ── Migrations ──
+
+    // Add stale column to tasks (FR-008)
+    try {
+      this._db.run(sql.raw(`ALTER TABLE tasks ADD COLUMN stale INTEGER NOT NULL DEFAULT 0`));
+    } catch { /* column already exists */ }
+
+    // Spec hashes table for change detection (FR-008)
+    this._db.run(sql.raw(`
+      CREATE TABLE IF NOT EXISTS spec_hashes (
+        spec_id TEXT PRIMARY KEY,
+        content_hash TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     `));
 
@@ -196,6 +212,7 @@ export class SqliteStore {
       assignedAgent: task.assignedAgent,
       acpSessionId: task.acpSessionId,
       source: task.source || 'planned',
+      stale: task.stale,
       compactedAt: task.compactedAt ?? null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -305,6 +322,7 @@ export class SqliteStore {
       assignedAgent: (row.assignedAgent ?? null) as AgentId | null,
       acpSessionId: (row.acpSessionId ?? null) as string | null,
       source: (row.source as Task['source']) || 'planned',
+      stale: Boolean(row.stale),
       compactedAt: (row.compactedAt ?? null) as string | null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -431,5 +449,37 @@ export class SqliteStore {
   close(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal drizzle client property
     (this._db as any).$client.close();
+  }
+
+  // ── Spec Hashes (FR-008) ──
+
+  getSpecHash(specId: SpecId): string | null {
+    const row = this._db.select().from(specHashes).where(eq(specHashes.specId, specId as string)).get();
+    return row?.contentHash ?? null;
+  }
+
+  upsertSpecHash(specIdVal: SpecId, contentHash: string): void {
+    const now = new Date().toISOString();
+    // SQLite upsert
+    this._db.run(sql`INSERT INTO spec_hashes (spec_id, content_hash, updated_at) VALUES (${specIdVal as string}, ${contentHash}, ${now}) ON CONFLICT(spec_id) DO UPDATE SET content_hash = ${contentHash}, updated_at = ${now}`);
+  }
+
+  getAllSpecHashes(): Map<string, string> {
+    const rows = this._db.select().from(specHashes).all();
+    const map = new Map<string, string>();
+    for (const r of rows) map.set(r.specId, r.contentHash);
+    return map;
+  }
+
+  // ── Task Staleness (FR-008) ──
+
+  markTasksStaleBySpec(specId: SpecId): number {
+    const now = new Date().toISOString();
+    const result = this._db.run(sql`UPDATE tasks SET stale = 1, updated_at = ${now} WHERE spec_id = ${specId as string} AND state NOT IN ('done', 'skipped', 'cancelled')`);
+    return result.changes;
+  }
+
+  clearTaskStale(id: TaskId): void {
+    this._db.run(sql`UPDATE tasks SET stale = 0 WHERE id = ${id as string}`);
   }
 }

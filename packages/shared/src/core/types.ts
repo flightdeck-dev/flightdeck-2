@@ -71,6 +71,7 @@ export interface Task {
   assignedAgent: AgentId | null;
   acpSessionId: string | null;
   source: TaskSource;
+  stale: boolean;
   compactedAt: string | null;
   createdAt: string; // ISO timestamp
   updatedAt: string;

@@ -741,6 +741,23 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(specs.map(s => ({ id: s.id, title: s.title, filename: s.filename })));
   });
 
+  server.tool('flightdeck_spec_changes', 'List recent spec changes detected by the system', {}, async () => {
+    const changes = fd.orchestrator.getRecentSpecChanges();
+    return jsonResponse(changes);
+  });
+
+  server.tool('flightdeck_task_clear_stale', 'Clear stale flag on a task after re-planning', {
+    taskId: z.string(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_clear_stale');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'task_add', 'flightdeck_task_clear_stale');
+    if (permErr) return permErr;
+    fd.sqlite.clearTaskStale(params.taskId as TaskId);
+    return jsonResponse({ status: 'ok', taskId: params.taskId });
+  });
+
   server.tool('flightdeck_escalate', 'Escalate to lead/planner', {
     taskId: z.string(),
     reason: z.string(),

@@ -13,6 +13,8 @@ import type { SessionManager } from '../agents/SessionManager.js';
 import type { DecisionLog } from '../storage/DecisionLog.js';
 import { StatusFileWriter, type StatusData } from '../status/StatusFileWriter.js';
 import { TaskContextWriter } from '../status/TaskContextWriter.js';
+import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector.js';
+import type { SpecStore } from '../storage/SpecStore.js';
 
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
@@ -28,6 +30,8 @@ export interface TickResult {
   errorsHandled: number;
   tasksCompacted: number;
   retrospectivesTriggered: number;
+  specChangesDetected: number;
+  tasksMarkedStale: number;
 }
 
 /**
@@ -62,6 +66,8 @@ export class Orchestrator {
   private statusWriter: StatusFileWriter;
   private workflowEngine: WorkflowEngine | null;
   private suggestionStore: SuggestionStore | null;
+  private specChangeDetector: SpecChangeDetector | null;
+  private recentSpecChanges: SpecChange[] = [];
 
   constructor(
     private dag: TaskDAG,
@@ -79,6 +85,7 @@ export class Orchestrator {
       decisionLog?: DecisionLog;
       workflowEngine?: WorkflowEngine;
       suggestionStore?: SuggestionStore;
+      specStore?: SpecStore;
     },
   ) {
     this.adapter = adapter;
@@ -92,6 +99,7 @@ export class Orchestrator {
     this.statusWriter = new StatusFileWriter();
     this.workflowEngine = opts?.workflowEngine ?? null;
     this.suggestionStore = opts?.suggestionStore ?? null;
+    this.specChangeDetector = opts?.specStore ? new SpecChangeDetector(opts.specStore, store) : null;
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -183,6 +191,8 @@ export class Orchestrator {
       errorsHandled: 0,
       tasksCompacted: 0,
       retrospectivesTriggered: 0,
+      specChangesDetected: 0,
+      tasksMarkedStale: 0,
     };
 
     // When paused, skip the entire tick — let in-progress tasks finish naturally
@@ -190,6 +200,12 @@ export class Orchestrator {
     if (this._paused) return result;
 
     let stateChanged = false;
+
+    // 0. Check for spec changes (FR-008)
+    const specChangeResult = this.checkSpecChanges();
+    result.specChangesDetected = specChangeResult.changes;
+    result.tasksMarkedStale = specChangeResult.staleMarked;
+    if (specChangeResult.changes > 0) stateChanged = true;
 
     // 1. Promote ready tasks — pending tasks whose deps are all done
     const promoted = this.promoteReadyTasks();
@@ -232,6 +248,46 @@ export class Orchestrator {
     }
 
     return result;
+  }
+
+  /**
+   * Check for spec file changes and mark affected tasks as stale (FR-008).
+   */
+  private checkSpecChanges(): { changes: number; staleMarked: number } {
+    if (!this.specChangeDetector) return { changes: 0, staleMarked: 0 };
+
+    const changes = this.specChangeDetector.checkForChanges();
+    if (changes.length === 0) return { changes: 0, staleMarked: 0 };
+
+    let staleMarked = 0;
+
+    for (const change of changes) {
+      if (change.isNew) continue; // New specs don't have linked tasks yet
+
+      const marked = this.store.markTasksStaleBySpec(change.specId);
+      staleMarked += marked;
+
+      if (marked > 0) {
+        // Notify Lead about stale tasks
+        this.leadManager?.steerLead({
+          type: 'spec_changed' as any,
+          specId: change.specId as string,
+          summary: `Spec "${change.filename}" changed. ${marked} task(s) marked stale and may need re-planning.`,
+        });
+      }
+    }
+
+    // Store recent changes for MCP tool access
+    this.recentSpecChanges = [...changes, ...this.recentSpecChanges].slice(0, 50);
+
+    return { changes: changes.length, staleMarked };
+  }
+
+  /**
+   * Get recent spec changes (for MCP tool access).
+   */
+  getRecentSpecChanges(): SpecChange[] {
+    return this.recentSpecChanges;
   }
 
   /**

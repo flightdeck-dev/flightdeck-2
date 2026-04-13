@@ -21,6 +21,7 @@ export const tasks = sqliteTable('tasks', {
   claim: text('claim'),
   source: text('source').notNull().default('planned'),
   cost: real('cost').default(0),
+  stale: integer('stale', { mode: 'boolean' }).notNull().default(false),
   compactedAt: text('compacted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -136,4 +137,12 @@ export const messageQueue = sqliteTable('message_queue', {
 }, (table) => [
   index('idx_mq_target_status').on(table.targetAgentId, table.status),
 ]);
+
+// ── Spec Hashes (change detection) ──────────────────────────────────
+
+export const specHashes = sqliteTable('spec_hashes', {
+  specId: text('spec_id').primaryKey(),
+  contentHash: text('content_hash').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
 

@@ -61,6 +61,7 @@ export class TaskDAG {
       assignedAgent: null,
       acpSessionId: null,
       source: opts.source ?? 'planned',
+      stale: false,
       compactedAt: null,
       createdAt: now,
       updatedAt: now,

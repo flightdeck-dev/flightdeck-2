@@ -84,8 +84,10 @@ export class StatusFileWriter {
       ready: 0, running: 0, in_review: 0, done: 0, failed: 0,
       pending: 0, blocked: 0, paused: 0, skipped: 0, cancelled: 0, gated: 0,
     };
+    let staleCount = 0;
     for (const t of tasks) {
       counts[t.state] = (counts[t.state] ?? 0) + 1;
+      if (t.stale) staleCount++;
     }
 
     lines.push('## Tasks');
@@ -94,6 +96,7 @@ export class StatusFileWriter {
     if (counts.pending > 0) lines.push(`- Pending: ${counts.pending}`);
     if (counts.blocked > 0) lines.push(`- Blocked: ${counts.blocked}`);
     if (counts.paused > 0) lines.push(`- Paused: ${counts.paused}`);
+    if (staleCount > 0) lines.push(`- ⚠️ Stale: ${staleCount} (spec changed, may need re-planning)`);
     lines.push('');
 
     // Active agents

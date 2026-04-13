@@ -66,6 +66,7 @@ export class Flightdeck {
     this.workflow = new WorkflowEngine(this.workflowStore.load());
     this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config, undefined, {
       workflowEngine: this.workflow,
+      specStore: this.specs,
     });
     this.roles = new RoleRegistry(projectName);
     this.learnings = new LearningsStore(this.project.subpath('.'));
