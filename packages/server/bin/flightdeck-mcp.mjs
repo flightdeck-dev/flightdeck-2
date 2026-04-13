@@ -58,6 +58,8 @@ if (existsSync(distEntry)) {
   const projIdx = args.indexOf('--project');
   if (projIdx !== -1 && args[projIdx + 1]) {
     projectName = args[projIdx + 1];
+  } else if (process.env.FLIGHTDECK_PROJECT) {
+    projectName = process.env.FLIGHTDECK_PROJECT;
   }
 
   const server = createMcpServer(projectName ? { projectName } : undefined);

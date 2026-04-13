@@ -94,6 +94,16 @@ function createMockStore() {
       const a = agents.get(id);
       if (a) a.lastHeartbeat = new Date().toISOString();
     },
+    deleteAgent(id: AgentId): boolean {
+      return agents.delete(id);
+    },
+    purgeOfflineAgents(): number {
+      let count = 0;
+      for (const [id, a] of agents) {
+        if (a.status === 'offline') { agents.delete(id); count++; }
+      }
+      return count;
+    },
     getTaskStats() { return { ready: 2, running: 1, in_review: 0, done: 3, failed: 0 }; },
     getTotalCost() { return 1.23; },
     _agents: agents,

@@ -373,6 +373,12 @@ export class SqliteStore {
     return result.changes > 0;
   }
 
+  /** Remove all agents with status 'offline'. Returns count deleted. */
+  purgeOfflineAgents(): number {
+    const result = this._db.delete(agents).where(eq(agents.status, 'offline')).run();
+    return result.changes;
+  }
+
   getActiveAgentCount(): number {
     const row = this._db.select({ count: count() })
       .from(agents)

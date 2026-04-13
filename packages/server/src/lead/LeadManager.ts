@@ -45,6 +45,7 @@ export interface LeadManagerOptions {
   messageStore?: MessageStore;
   acpAdapter: AcpAdapter;
   heartbeat?: HeartbeatConfig;
+  projectName?: string;
 }
 
 export class LeadManager {
@@ -58,6 +59,7 @@ export class LeadManager {
   private lastHeartbeatAt: string | null = null;
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
+  private projectName: string | undefined;
 
   private plannerSessionId: string | null = null;
 
@@ -67,13 +69,21 @@ export class LeadManager {
     this.messageStore = opts.messageStore ?? null;
     this.acpAdapter = opts.acpAdapter;
     this.heartbeatConfig = opts.heartbeat ?? { enabled: false, interval: 30 * 60 * 1000, conditions: [] };
+    this.projectName = opts.projectName;
   }
 
   /** Start Lead ACP session */
   async spawnLead(): Promise<string> {
+    // Purge stale offline agents before spawning
+    const purged = this.sqlite.purgeOfflineAgents();
+    if (purged > 0) {
+      console.log(`  Purged ${purged} offline agent(s)`);
+    }
+
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
       cwd: process.cwd(),
+      projectName: this.projectName,
     });
     this.leadSessionId = meta.sessionId;
 
@@ -227,6 +237,7 @@ export class LeadManager {
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: process.cwd(),
+      projectName: this.projectName,
     });
     this.plannerSessionId = meta.sessionId;
 

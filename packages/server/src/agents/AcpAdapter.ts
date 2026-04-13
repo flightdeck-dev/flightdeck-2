@@ -384,7 +384,7 @@ export class AcpAdapter extends AgentAdapter {
     this.sessions.set(sessionLocalId, session);
 
     // Initialize + create session in background (don't block spawn)
-    this.initializeSession(session, prompt, opts.mcpServers, opts.systemPromptMeta, opts.role).catch(err => {
+    this.initializeSession(session, prompt, opts.mcpServers, opts.systemPromptMeta, opts.role, opts.projectName).catch(err => {
       session.error = (session.error ?? '') + `\nACP init error: ${err.message}`;
     });
 
@@ -402,6 +402,7 @@ export class AcpAdapter extends AgentAdapter {
     mcpServers?: McpServer[],
     systemPromptMeta?: string | { append: string },
     role?: string,
+    projectName?: string,
   ): Promise<void> {
     try {
       const initResult = await session.connection.initialize({
@@ -435,6 +436,7 @@ export class AcpAdapter extends AgentAdapter {
             env: [
               { name: 'FLIGHTDECK_AGENT_ID', value: session.agentId },
               { name: 'FLIGHTDECK_AGENT_ROLE', value: role ?? '' },
+              ...(projectName ? [{ name: 'FLIGHTDECK_PROJECT', value: projectName }] : []),
             ],
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ACP SDK expects broader type than our strict env shape
           } as any,

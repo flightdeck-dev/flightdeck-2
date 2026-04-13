@@ -18,6 +18,7 @@ import { getToolsForRole } from './toolPermissions.js';
 
 const _ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
+const ENV_PROJECT = process.env.FLIGHTDECK_PROJECT || undefined;
 
 function errorResponse(text: string) {
   return { content: [{ type: 'text' as const, text }] };
@@ -83,7 +84,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   const opts = typeof projectNameOrOpts === 'string'
     ? { projectName: projectNameOrOpts }
     : projectNameOrOpts ?? {};
-  const name = opts.projectName ?? ProjectStore.resolve(process.cwd());
+  const name = opts.projectName ?? ENV_PROJECT ?? ProjectStore.resolve(process.cwd());
   const acpAdapter = opts.acpAdapter ?? null;
   const agentRole = opts.agentRole ?? ENV_AGENT_ROLE ?? undefined;
   if (!name) {

@@ -10,6 +10,8 @@ export interface SpawnOptions {
   mcpServers?: McpServer[];
   /** Claude Code _meta.systemPrompt injection. String replaces default; { append } appends. */
   systemPromptMeta?: string | { append: string };
+  /** Project name — passed as FLIGHTDECK_PROJECT env to MCP server. */
+  projectName?: string;
 }
 
 export interface SteerMessage {
