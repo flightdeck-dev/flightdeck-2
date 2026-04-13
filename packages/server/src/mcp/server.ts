@@ -86,7 +86,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     : projectNameOrOpts ?? {};
   const name = opts.projectName ?? ENV_PROJECT ?? ProjectStore.resolve(process.cwd());
   const acpAdapter = opts.acpAdapter ?? null;
-  const agentRole = opts.agentRole ?? ENV_AGENT_ROLE ?? undefined;
+  // Only fall back to ENV_AGENT_ROLE when called with no arguments at all (CLI entry point).
+  // Explicit callers (string or opts object) get unfiltered tools unless they set agentRole.
+  const agentRole = projectNameOrOpts === undefined
+    ? (ENV_AGENT_ROLE ?? undefined)
+    : opts.agentRole;
   if (!name) {
     throw new Error('No Flightdeck project found. Run `flightdeck init` first or pass --project.');
   }
