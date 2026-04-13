@@ -46,7 +46,7 @@ Commands:
   display                 Show current display config
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
   display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
-  start [--profile X]     Start orchestrator (stub)
+  start [--project X]     Start daemon (all projects, or --project to scope)
                           --no-recover / --fresh  Skip session recovery; mark stale agents as terminated
   pause                   Pause orchestrator (stop claiming new tasks)
   resume                  Resume orchestrator (start claiming tasks)
@@ -221,12 +221,12 @@ switch (command) {
 
   case 'start': {
     const { startDaemon } = await import('./daemon.js');
-    const projectName = resolveProject();
-    const fd = new Flightdeck(projectName);
     const port = parseInt(String(values.port ?? '3000'), 10);
     const corsOrigin = (values['cors-origin'] as string | undefined) ?? '*';
     const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
-    await startDaemon({ fd, projectName, port, corsOrigin, noRecover });
+    // --project flag scopes to a single project; otherwise serve all
+    const projectFilter = values.project as string | undefined;
+    await startDaemon({ port, corsOrigin, noRecover, projectFilter });
     break;
   }
 
@@ -236,7 +236,8 @@ switch (command) {
     const chatMessage = positionals.slice(1).join(' ');
     if (!chatMessage) { console.error('Usage: flightdeck chat <message>'); process.exit(1); }
     try {
-      const res = await fetch(`http://localhost:${chatPort}/api/messages`, {
+      const chatProject = resolveProject();
+      const res = await fetch(`http://localhost:${chatPort}/api/projects/${encodeURIComponent(chatProject)}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: chatMessage }),
@@ -266,7 +267,8 @@ switch (command) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const pausePort = values.port || '3000';
     try {
-      const res = await fetch(`http://localhost:${pausePort}/api/orchestrator/pause`, { method: 'POST' });
+      const pauseProject = resolveProject();
+      const res = await fetch(`http://localhost:${pausePort}/api/projects/${encodeURIComponent(pauseProject)}/orchestrator/pause`, { method: 'POST' });
       if (res.ok) {
         console.log('Orchestrator paused. In-progress tasks will continue but no new tasks will be claimed.');
       } else {
@@ -284,7 +286,8 @@ switch (command) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const resumePort = values.port || '3000';
     try {
-      const res = await fetch(`http://localhost:${resumePort}/api/orchestrator/resume`, { method: 'POST' });
+      const resumeProject = resolveProject();
+      const res = await fetch(`http://localhost:${resumePort}/api/projects/${encodeURIComponent(resumeProject)}/orchestrator/resume`, { method: 'POST' });
       if (res.ok) {
         console.log('Orchestrator resumed. New tasks will be claimed.');
       } else {
@@ -385,7 +388,8 @@ switch (command) {
     if (!subcommand) {
       // Show current display config
       try {
-        const res = await fetch(`${displayBase}/api/display`);
+        const displayProject = resolveProject();
+      const res = await fetch(`${displayBase}/api/projects/${encodeURIComponent(displayProject)}/display`);
         const config = await res.json();
         console.log('\nDisplay Configuration\n');
         console.log(`  thinking:        ${config.thinking ? 'on' : 'off'}`);
@@ -411,7 +415,8 @@ switch (command) {
         process.exit(1);
       }
       try {
-        const res = await fetch(`${displayBase}/api/display/preset/${preset}`, { method: 'POST' });
+        const displayProject2 = resolveProject();
+        const res = await fetch(`${displayBase}/api/projects/${encodeURIComponent(displayProject2)}/display/preset/${preset}`, { method: 'POST' });
         const config = await res.json();
         console.log(`Applied display preset: ${preset}`);
         console.log(`  thinking: ${config.thinking ? 'on' : 'off'}, toolCalls: ${config.toolCalls}, flightdeckTools: ${config.flightdeckTools}`);
@@ -450,7 +455,8 @@ switch (command) {
         process.exit(1);
       }
       try {
-        const res = await fetch(`${displayBase}/api/display`, {
+        const displayProject3 = resolveProject();
+        const res = await fetch(`${displayBase}/api/projects/${encodeURIComponent(displayProject3)}/display`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),

@@ -1,245 +1,169 @@
+import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 
 export interface DaemonDeps {
-  fd: Flightdeck;
-  projectName: string;
   port: number;
   corsOrigin: string;
   noRecover: boolean;
+  /** If set, only serve this project. Otherwise serve all. */
+  projectFilter?: string;
 }
 
 /**
- * Start the Flightdeck daemon: clean up stale agents, wire orchestrator,
- * spawn Lead/Planner, start HTTP+WS server, and register shutdown handlers.
+ * Start the Flightdeck daemon: manages multiple projects,
+ * spawns Lead/Planner per project, starts HTTP+WS server.
  */
 export async function startDaemon(deps: DaemonDeps): Promise<void> {
-  const { fd, projectName, port, corsOrigin, noRecover } = deps;
-  const profile = fd.status().config.governance;
-  console.error(`Starting Flightdeck daemon (profile: ${profile})...`);
+  const { port, corsOrigin, noRecover, projectFilter } = deps;
 
-  // Clean up stale agents before spawning new ones
-  const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
-
-  const markAgentsOffline = (agents: typeof activeAgents, reason: string) => {
-    for (const agent of agents) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-      fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
-      console.error(`  - ${agent.id} (${agent.role}) marked offline (${reason})`);
-    }
-  };
-
-  if (noRecover) {
-    if (activeAgents.length > 0) {
-      console.error(`Session recovery disabled (--no-recover). Marking ${activeAgents.length} existing agents as offline.`);
-      markAgentsOffline(activeAgents, '--no-recover');
-    } else {
-      console.error('Session recovery disabled (--no-recover). No existing agents to clean up.');
-    }
-  } else if (activeAgents.length > 0) {
-    // TODO: implement ACP session/load to truly reconnect to live sessions
-    console.error(`Found ${activeAgents.length} active agent(s). True session resume not yet implemented — marking offline and spawning fresh.`);
-    markAgentsOffline(activeAgents, 'session resume not yet implemented');
-  }
-
-  // Create LeadManager with all dependencies
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
 
   const acpAdapter = new AcpAdapterClass(undefined, 'copilot');
-  const leadManager = new LeadManager({
-    sqlite: fd.sqlite,
-    project: fd.project,
-    messageStore: fd.chatMessages ?? undefined,
-    acpAdapter,
-  });
+  const projectManager = new ProjectManager(acpAdapter);
 
-  // Create WebSocketServer
-  const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
+  // Determine which projects to serve
+  let projectNames = projectManager.list();
+  if (projectFilter) {
+    if (!projectNames.includes(projectFilter)) {
+      console.error(`Project "${projectFilter}" not found. Available: ${projectNames.join(', ') || '(none)'}`);
+      process.exit(1);
+    }
+    projectNames = [projectFilter];
+  }
 
-  // Wire orchestrator with all dependencies
-  fd.orchestrator.stop(); // stop the default one
-  const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
-  const orchestrator = new OrchestratorClass(
-    fd.dag, fd.sqlite, fd.governance, acpAdapter, fd.project.getConfig(),
-    undefined,
-    {
-      agentManager: fd.agentManager,
-      leadManager,
+  if (projectNames.length === 0) {
+    console.error('No projects found in ~/.flightdeck/projects/. Create one with `flightdeck init <name>`.');
+    process.exit(1);
+  }
+
+  console.error(`Starting Flightdeck daemon for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
+
+  const leadManagers = new Map<string, InstanceType<typeof LeadManager>>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wsServers = new Map<string, any>();
+  const orchestrators: Array<{ stop: () => void }> = [];
+
+  for (const name of projectNames) {
+    const fd = projectManager.get(name)!;
+    const profile = fd.status().config.governance;
+    console.error(`\n── Project: ${name} (profile: ${profile}) ──`);
+
+    // Clean up stale agents
+    const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
+    if (noRecover && activeAgents.length > 0) {
+      console.error(`  Marking ${activeAgents.length} existing agents offline (--no-recover).`);
+      for (const agent of activeAgents) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+      }
+    } else if (activeAgents.length > 0) {
+      console.error(`  Marking ${activeAgents.length} stale agent(s) offline (session resume not yet implemented).`);
+      for (const agent of activeAgents) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+      }
+    }
+
+    // Create LeadManager
+    const leadManager = new LeadManager({
+      sqlite: fd.sqlite,
+      project: fd.project,
       messageStore: fd.chatMessages ?? undefined,
-      wsServer: wsServer ?? undefined,
-      governanceConfig: {
-        costThresholdPerDay: fd.project.getConfig().costThresholdPerDay,
+      acpAdapter,
+    });
+    leadManagers.set(name, leadManager);
+
+    // Create WebSocketServer
+    const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
+    if (wsServer) wsServers.set(name, wsServer);
+
+    // Wire orchestrator
+    fd.orchestrator.stop();
+    const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
+    const orchestrator = new OrchestratorClass(
+      fd.dag, fd.sqlite, fd.governance, acpAdapter, fd.project.getConfig(),
+      undefined,
+      {
+        agentManager: fd.agentManager,
+        leadManager,
+        messageStore: fd.chatMessages ?? undefined,
+        wsServer: wsServer ?? undefined,
+        governanceConfig: { costThresholdPerDay: fd.project.getConfig().costThresholdPerDay },
       },
-    },
-  );
+    );
+    orchestrator.start();
+    orchestrators.push(orchestrator);
+    console.error(`  Orchestrator running.`);
 
-  // Spawn Lead agent if none active
-  const postCleanupAgents = fd.listAgents();
-  const hasActiveLead = postCleanupAgents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
-  const hasActivePlanner = postCleanupAgents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
+    // Spawn Lead + Planner
+    await spawnAgents(fd, leadManager, name);
 
-  if (hasActiveLead) {
-    console.error('Lead agent already active — skipping spawn.');
-  } else {
-    console.error('Spawning Lead agent (persistent session)...');
-    try {
-      const leadSessionId = await leadManager.spawnLead();
-      console.error(`  Lead agent spawned (session: ${leadSessionId})`);
-    } catch (err: unknown) {
-      console.error(`  Failed to spawn Lead agent: ${err instanceof Error ? err.message : String(err)}`);
-      console.error('  Daemon will continue without Lead — spawn manually via API.');
+    // Wire WS user messages to Lead
+    if (wsServer) {
+      wireWsToLead(wsServer, leadManager, fd, name);
     }
   }
 
-  // Spawn Planner agent if none active
-  if (hasActivePlanner) {
-    console.error('Planner agent already active — skipping spawn.');
-  } else {
-    console.error('Spawning Planner agent (persistent session)...');
-    try {
-      const plannerSessionId = await leadManager.spawnPlanner();
-      console.error(`  Planner agent spawned (session: ${plannerSessionId})`);
-    } catch (err: unknown) {
-      console.error(`  Failed to spawn Planner agent: ${err instanceof Error ? err.message : String(err)}`);
-      console.error('  Daemon will continue without Planner — spawn manually via API.');
-    }
-  }
-
-  // Start orchestrator tick loop
-  orchestrator.start();
-  console.error('Orchestrator running (5 min tick interval).');
-
-  // Wire user messages from WebSocket to Lead agent
-  if (wsServer) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-    wsServer.on('user:message', (msg: any) => {
-      (async () => {
-        try {
-          const response = await leadManager.steerLead({ type: 'user_message', message: msg });
-          if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-            // Store Lead's response as a chat message
-            if (fd.chatMessages) {
-              const leadMsg = fd.chatMessages.createMessage({
-                threadId: msg.thread_id ?? null,
-                parentId: msg.id ?? null,
-                taskId: null,
-                authorType: 'lead',
-                authorId: 'lead',
-                content: response.trim(),
-                metadata: null,
-              });
-              // Broadcast to all UI clients
-              wsServer.broadcast({ type: 'chat:message', message: leadMsg });
-            }
-          }
-        } catch (err) {
-          console.error('Failed to steer Lead with user message:', err);
-        }
-      })();
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-    wsServer.on('task:comment', ({ taskId, message: msg }: { taskId: string; message: any }) => {
-      (async () => {
-        try {
-          const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
-          if (response && response.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-            if (fd.chatMessages) {
-              const leadMsg = fd.chatMessages.createMessage({
-                threadId: null,
-                parentId: null,
-                taskId,
-                authorType: 'lead',
-                authorId: 'lead',
-                content: response.trim(),
-                metadata: null,
-              });
-              wsServer.broadcast({ type: 'task:comment', task_id: taskId, message: leadMsg });
-            }
-          }
-        } catch (err) {
-          console.error('Failed to steer Lead with task comment:', err);
-        }
-      })();
-    });
-  }
-
-  // Start HTTP + WebSocket server
+  // Start HTTP server
   const { createHttpServer } = await import('../api/HttpServer.js');
   const httpServer = createHttpServer({
-    fd,
-    projectName,
+    projectManager,
+    leadManagers,
     port,
     corsOrigin,
-    leadManager,
-    wsServer: wsServer as any,
+    wsServers,
   });
 
-  // Wire WebSocket to HTTP server upgrade
-  if (wsServer) {
-    const { WebSocketServer: WsLib } = await import('ws');
-    const wss = new WsLib({ server: httpServer });
-    let clientCounter = 0;
-    const { DEFAULT_DISPLAY } = await import('@flightdeck-ai/shared');
-    let serverDisplayConfig = { ...DEFAULT_DISPLAY };
+  // Wire WebSocket upgrade for all projects
+  const wsModule = await import('ws');
+  const wss = new wsModule.WebSocketServer({ server: httpServer });
+  let clientCounter = 0;
+  const { DEFAULT_DISPLAY } = await import('@flightdeck-ai/shared');
 
-    // Expose serverDisplayConfig setter for HTTP routes
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- attaching config to server for shared state
-    (httpServer as any).__displayConfig = serverDisplayConfig;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- attaching config to server for shared state
-    (httpServer as any).__setDisplayConfig = (cfg: any) => {
-      serverDisplayConfig = cfg;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- attaching config to server for shared state
-      (httpServer as any).__displayConfig = cfg;
-    };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wss.on('connection', (socket: any, req: any) => {
+    // Determine project from URL path: /ws/:projectName
+    const wsUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
+    const wsMatch = wsUrl.pathname.match(/^\/ws\/([^/]+)$/);
+    const wsProjectName = wsMatch ? decodeURIComponent(wsMatch[1]) : projectNames[0];
+    const wsServer = wsServers.get(wsProjectName);
+    if (!wsServer) { socket.close(4004, 'Project not found'); return; }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-    wss.on('connection', (socket: any) => {
-      const clientId = `ws-client-${++clientCounter}`;
-      const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
-      wsServer.addClient(client);
-      // Inherit server display config
-      wsServer.setDisplayConfig(clientId, { ...serverDisplayConfig });
-      wsServer.sendTo(clientId, { type: 'display:config', config: serverDisplayConfig });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback parameter type from untyped API
-      socket.on('message', (raw: any) => {
-        try {
-          const event = JSON.parse(raw.toString());
-          wsServer.handleEvent(clientId, event);
-        } catch {}
-      });
-      socket.on('close', () => wsServer.removeClient(clientId));
+    const clientId = `ws-${wsProjectName}-${++clientCounter}`;
+    const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
+    wsServer.addClient(client);
+    wsServer.setDisplayConfig(clientId, { ...DEFAULT_DISPLAY });
+    wsServer.sendTo(clientId, { type: 'display:config', config: { ...DEFAULT_DISPLAY } });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    socket.on('message', (raw: any) => {
+      try { wsServer.handleEvent(clientId, JSON.parse(raw.toString())); } catch {}
     });
-
-    // Store wss for shutdown
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-    (httpServer as any).__wss = wss;
-  }
+    socket.on('close', () => wsServer.removeClient(clientId));
+  });
 
   httpServer.listen(port, () => {
-    console.error(`HTTP server listening on port ${port}.`);
+    console.error(`\nHTTP server listening on port ${port}.`);
+    console.error(`Projects: ${projectNames.join(', ')}`);
+    console.error(`WebSocket: connect to /ws/:projectName`);
   });
 
-  console.error(`\nFlightdeck daemon running on port ${port}. Lead: active. Planner: active.`);
-
-  // Handle graceful shutdown
+  // Graceful shutdown
   const shutdown = () => {
     console.error('\nStopping Flightdeck...');
-    orchestrator.stop();
-    leadManager.stop();
-    // Kill all active ACP agent sessions
+    for (const o of orchestrators) o.stop();
+    for (const lm of leadManagers.values()) lm.stop();
     acpAdapter.clear();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type cast needed for untyped API
-    if ((httpServer as any).__wss) (httpServer as any).__wss.close();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (wss as any).close();
     httpServer.close();
-    fd.close();
+    projectManager.closeAll();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-
-  // Catch crashes to clean up orphan child processes
   process.on('uncaughtException', (err) => {
     console.error('\nFatal uncaught exception:', err);
     try { acpAdapter.clear(); } catch {}
@@ -249,5 +173,72 @@ export async function startDaemon(deps: DaemonDeps): Promise<void> {
     console.error('\nFatal unhandled rejection:', reason);
     try { acpAdapter.clear(); } catch {}
     process.exit(1);
+  });
+}
+
+async function spawnAgents(fd: Flightdeck, leadManager: { spawnLead(): Promise<string>; spawnPlanner(): Promise<string> }, projectName: string): Promise<void> {
+  const agents = fd.listAgents();
+  const hasLead = agents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
+  const hasPlanner = agents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
+
+  if (!hasLead) {
+    try {
+      const sid = await leadManager.spawnLead();
+      console.error(`  [${projectName}] Lead spawned (session: ${sid})`);
+    } catch (err: unknown) {
+      console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.error(`  [${projectName}] Lead already active.`);
+  }
+
+  if (!hasPlanner) {
+    try {
+      const sid = await leadManager.spawnPlanner();
+      console.error(`  [${projectName}] Planner spawned (session: ${sid})`);
+    } catch (err: unknown) {
+      console.error(`  [${projectName}] Failed to spawn Planner: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.error(`  [${projectName}] Planner already active.`);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null> }, fd: Flightdeck, projectName: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wsServer.on('user:message', (msg: any) => {
+    (async () => {
+      try {
+        const response = await leadManager.steerLead({ type: 'user_message', message: msg });
+        if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+          if (fd.chatMessages) {
+            const leadMsg = fd.chatMessages.createMessage({
+              threadId: msg.thread_id ?? null, parentId: msg.id ?? null, taskId: null,
+              authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
+            });
+            wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+          }
+        }
+      } catch (err) { console.error(`[${projectName}] Failed to steer Lead:`, err); }
+    })();
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wsServer.on('task:comment', ({ taskId, message: msg }: { taskId: string; message: any }) => {
+    (async () => {
+      try {
+        const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
+        if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+          if (fd.chatMessages) {
+            const leadMsg = fd.chatMessages.createMessage({
+              threadId: null, parentId: null, taskId,
+              authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
+            });
+            wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: leadMsg });
+          }
+        }
+      } catch (err) { console.error(`[${projectName}] Failed to steer Lead (task comment):`, err); }
+    })();
   });
 }

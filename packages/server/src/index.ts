@@ -19,6 +19,7 @@ export { AgentManager, buildSystemPrompt } from './agents/AgentManager.js';
 export { WorktreeManager } from './agents/WorktreeManager.js';
 export { detectFileConflicts } from './agents/fileConflicts.js';
 export { Flightdeck } from './facade.js';
+export { ProjectManager } from './projects/ProjectManager.js';
 export { createMcpServer } from './mcp/server.js';
 export { RoleRegistry } from './roles/RoleRegistry.js';
 export { LearningsStore } from './storage/LearningsStore.js';
