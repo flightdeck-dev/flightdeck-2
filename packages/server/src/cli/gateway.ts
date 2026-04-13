@@ -113,6 +113,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       project: fd.project,
       messageStore: fd.chatMessages ?? undefined,
       acpAdapter,
+      projectName: name,
     });
     leadManagers.set(name, leadManager);
 
@@ -150,7 +151,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         mcpServers: {
           flightdeck: {
             command: 'node',
-            args: [mcpBinPath],
+            args: [mcpBinPath, '--project', name],
           },
         },
       }, null, 2);
