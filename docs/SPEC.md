@@ -1419,11 +1419,11 @@ Follow the instructions in HEARTBEAT.md. Update it if needed.
 ## Open Questions
 
 1. **Plan generation:** Should Flightdeck generate plans from specs using an LLM call, or should users/agents write plans manually? (Probably: LLM-assisted with human approval)
-2. **Agent assignment:** Round-robin vs. capability-based matching vs. let agents self-select?
-3. **Multi-repo support:** One Flightdeck instance per repo, or one instance managing multiple repos?
+2. **Agent assignment:** ~~Round-robin vs. capability-based matching vs. let agents self-select?~~ **RESOLVED:** Lead decides assignment. Orchestrator auto-assigns ready tasks to idle workers as fallback.
+3. **Multi-repo support:** ~~One Flightdeck instance per repo, or one instance managing multiple repos?~~ **RESOLVED:** One gateway serves multiple projects. Each project = one repo/directory. ProjectManager handles multi-project.
 4. **Pricing model:** If this becomes a product, how to price? (Per agent-hour? Per task? Flat rate?)
 5. **Offline mode:** Should agents be able to work without Flightdeck connection and sync later?
-6. **A2A protocol:** Future integration with Google's Agent2Agent protocol for remote agent discovery and cross-network collaboration. A2A enables: Agent Cards (capability self-description for auto-matching), remote agent invocation (HTTP-based, agents on different machines), third-party agent services. Not a current priority - focus on local MCP + ACP first, add A2A when the local story is solid.
+6. ~~**A2A protocol:**~~ **DROPPED.** Not pursuing A2A. Focus on MCP + ACP.
 
 ---
 
@@ -1433,24 +1433,29 @@ Follow the instructions in HEARTBEAT.md. Update it if needed.
 - Types, state machine, DAG, specs, comms, agents, verification, events, persistence
 - CLI + MCP server
 
-### Phase 2: Governance + Orchestrator
-- Governance policy engine
-- Decision log
-- Orchestrator (event-driven coordination)
-- ACP adapter
-- Daily report generation
+### Phase 2: Governance + Orchestrator (✅ Done)
+- ✅ Governance policy engine
+- ✅ Decision log
+- ✅ Orchestrator (event-driven coordination + processCompletions + processEffects)
+- ✅ ACP adapter (9 providers)
+- ✅ Daily report generation
 
-### Phase 3: User Interfaces
-- Web dashboard (task board, spec editor, decision review, agent monitor)
-- VSCode extension
-- Discord/Slack webhook integration
+### Phase 3: User Interfaces (🟡 Mostly Done)
+- ✅ Web dashboard (Kanban, chat, agents, decisions, settings, multi-project)
+- ✅ TUI (three-column, keyboard-driven)
+- ✅ Desktop app (Electron)
+- 🟡 VSCode extension (skeleton only)
+- ❌ Discord/Slack webhook integration
 
-### Phase 4: Production Hardening
-- Fix all code quality issues from POC
-- State machine enforcement (no bypassing)
-- Adjacency list optimization
-- Proper error handling + retries
-- Auth + multi-user support
+### Phase 4: Production Hardening (🟡 In Progress)
+- ✅ ESLint: 0 errors/warnings
+- ✅ 471+ tests
+- ✅ Code review + fixes
+- ✅ Orphan process cleanup
+- ✅ Gateway auth (token)
+- 🟡 State machine enforcement (mostly there, some bypasses possible)
+- ❌ Proper error handling + retries
+- ❌ Multi-user support
 
 ### Phase 5: Gateway + Multi-Project + Providers (2026-04-12/13)
 
