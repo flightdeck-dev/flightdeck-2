@@ -50,7 +50,6 @@ VERDICT: APPROVE
 VERDICT: REQUEST-CHANGES
 VERDICT: REJECT
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- type not available
 Then provide your reasoning and any feedback below the verdict line.
 Focus on: correctness, edge cases, security, and whether the claim matches the actual changes.`);
   return sections.join('\n');

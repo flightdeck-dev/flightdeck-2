@@ -858,7 +858,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Skill tools ──
 
-  const skillManager = new SkillManager(process.cwd());
+  const skillManager = new SkillManager(fd.project.cwd ?? process.cwd());
 
   // ── Decision tools ──
 

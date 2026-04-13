@@ -1,4 +1,4 @@
-import type { Task, TaskId, AgentId, SpecId, AgentRole, SideEffect } from '@flightdeck-ai/shared';
+import type { Task, TaskId, AgentId, SpecId, AgentRole, SideEffect, TaskState } from '@flightdeck-ai/shared';
 import { transition } from '@flightdeck-ai/shared';
 import { taskId } from '@flightdeck-ai/shared';
 import { type SqliteStore } from '../storage/SqliteStore.js';

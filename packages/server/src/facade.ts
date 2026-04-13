@@ -60,8 +60,8 @@ export class Flightdeck {
     this.dag = new TaskDAG(this.sqlite);
     const config = this.project.getConfig();
     this.governance = new GovernanceEngine(config);
-    // Use a shared AcpAdapter instance (or null placeholder for daemon override)
-    const sharedAdapter = acpAdapter ?? new AcpAdapter();
+    // Use a shared AcpAdapter instance; standalone MCP creates a lightweight one
+    const sharedAdapter = acpAdapter ?? new AcpAdapter(undefined, 'copilot');
     this.workflowStore = new WorkflowStore(this.project.subpath('.'));
     this.workflow = new WorkflowEngine(this.workflowStore.load());
     this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config, undefined, {

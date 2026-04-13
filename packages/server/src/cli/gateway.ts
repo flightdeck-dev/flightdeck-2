@@ -30,6 +30,23 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const acpAdapter = new AcpAdapterClass(undefined, 'copilot');
   const projectManager = new ProjectManager(acpAdapter);
 
+  // Handle agent process crashes: update SQLite status so we know
+  acpAdapter.onSessionEnd = (sessionId, session) => {
+    // Find the agent in any project's SQLite and mark it offline
+    for (const name of projectManager.list()) {
+      const fd = projectManager.get(name);
+      if (!fd) continue;
+      const agents = fd.sqlite.listAgents();
+      const agent = agents.find(a => a.acpSessionId === sessionId);
+      if (agent) {
+        const exitInfo = session.exitCode !== null ? ` (exit ${session.exitCode})` : '';
+        console.error(`  [${name}] Agent ${agent.id} (${agent.role}) session ended${exitInfo}`);
+        fd.sqlite.updateAgentStatus(agent.id, 'offline');
+        break;
+      }
+    }
+  };
+
   // Determine which projects to serve
   let projectNames = projectManager.list();
   if (projectFilter) {
@@ -323,15 +340,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     process.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
-    console.error('\nFatal unhandled rejection:', reason);
-    try {
-      const sessions = collectSessions();
-      if (sessions.length > 0) {
-        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
-      }
-    } catch {}
-    try { acpAdapter.clear(); } catch {}
-    process.exit(1);
+    console.error('\nUnhandled rejection (non-fatal):', reason);
+    // Don't crash — many rejections are transient (network errors, agent timeouts).
+    // Node 15+ will eventually crash on truly unhandled rejections.
   });
 }
 

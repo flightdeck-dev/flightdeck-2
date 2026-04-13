@@ -311,7 +311,7 @@ export class Orchestrator {
       if (marked > 0) {
         // Notify Lead about stale tasks
         this.leadManager?.steerLead({
-          type: 'spec_changed' as any,
+          type: 'spec_changed',
           specId: change.specId as string,
           summary: `Spec "${change.filename}" changed. ${marked} task(s) marked stale and may need re-planning.`,
         });
@@ -860,6 +860,11 @@ export class Orchestrator {
           total,
         });
       }
+    }
+
+    // Prune milestone tracking for completed specs
+    if (pct === 100) {
+      this.specMilestonesSent.delete(specId);
     }
   }
 }

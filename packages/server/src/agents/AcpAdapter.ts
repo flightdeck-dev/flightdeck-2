@@ -116,6 +116,18 @@ export class AcpAdapter extends AgentAdapter {
   private runtimes: Record<string, RuntimeConfig>;
   private runtimeName: string;
   private cleanupRegistered = false;
+  /** Callback fired when a session ends (process exit, crash, etc.) */
+  onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
+
+  /** Schedule cleanup of ended session from memory after a grace period */
+  private scheduleSessionCleanup(sessionId: string): void {
+    setTimeout(() => {
+      const session = this.sessions.get(sessionId);
+      if (session && session.status === 'ended') {
+        this.sessions.delete(sessionId);
+      }
+    }, 5 * 60 * 1000); // 5 min grace period for metadata queries
+  }
 
   constructor(
     runtimes?: Record<string, RuntimeConfig>,
@@ -398,6 +410,8 @@ export class AcpAdapter extends AgentAdapter {
     child.once('close', (code) => {
       session.status = 'ended';
       session.exitCode = code;
+      this.onSessionEnd?.(sessionLocalId, session);
+      this.scheduleSessionCleanup(sessionLocalId);
     });
 
     child.once('error', (err: NodeJS.ErrnoException) => {
@@ -407,6 +421,8 @@ export class AcpAdapter extends AgentAdapter {
       if (err.code === 'ENOENT') {
         session.error += `\nCommand not found: ${runtime.command}. Is it installed?`;
       }
+      this.onSessionEnd?.(sessionLocalId, session);
+      this.scheduleSessionCleanup(sessionLocalId);
     });
 
     // Create ACP connection over stdin/stdout ndjson
@@ -572,11 +588,15 @@ export class AcpAdapter extends AgentAdapter {
     child.once('close', (code) => {
       session.status = 'ended';
       session.exitCode = code;
+      this.onSessionEnd?.(sessionLocalId, session);
+      this.scheduleSessionCleanup(sessionLocalId);
     });
     child.once('error', (err: NodeJS.ErrnoException) => {
       session.status = 'ended';
       session.exitCode = -1;
       session.error = (session.error ?? '') + `\nProcess error: ${err.message}`;
+      this.onSessionEnd?.(sessionLocalId, session);
+      this.scheduleSessionCleanup(sessionLocalId);
     });
 
     const input = Writable.toWeb(child.stdin!) as WritableStream<Uint8Array>;
@@ -824,11 +844,10 @@ export class AcpAdapter extends AgentAdapter {
     // Then kill the process
     try {
       session.process.kill('SIGTERM');
-      setTimeout(() => {
-        if (session.status !== 'ended') {
-          try { session.process.kill('SIGKILL'); } catch { /* already dead */ }
-        }
+      const killTimer = setTimeout(() => {
+        try { session.process.kill(0); session.process.kill('SIGKILL'); } catch { /* already dead */ }
       }, 10_000);
+      killTimer.unref(); // Don't keep process alive for this timer
     } catch { /* already dead */ }
   }
 

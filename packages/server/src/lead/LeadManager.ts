@@ -167,6 +167,13 @@ export class LeadManager {
         parts.push(`Spending: $${event.currentSpend.toFixed(2)} / $${event.limit.toFixed(2)} limit`);
         break;
 
+      case 'spec_changed':
+        parts.push(`[spec changed]`);
+        parts.push(`Spec ${event.specId} was modified. ${event.summary}`);
+        parts.push('');
+        parts.push('Review affected tasks with flightdeck_task_list and re-plan if needed.');
+        break;
+
       case 'heartbeat':
         return this.buildHeartbeatSteer();
     }
