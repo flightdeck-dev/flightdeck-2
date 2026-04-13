@@ -1451,3 +1451,42 @@ Follow the instructions in HEARTBEAT.md. Update it if needed.
 - Adjacency list optimization
 - Proper error handling + retries
 - Auth + multi-user support
+
+### Phase 5: Gateway + Multi-Project + Providers (2026-04-12/13)
+
+**Gateway (renamed from daemon):**
+- `flightdeck gateway start/stop/restart/status/run` (OpenClaw pattern)
+- Multi-project: one gateway serves all projects via ProjectManager
+- Session recovery on restart (gateway-state.json + ACP session/load)
+- `--force` port takeover, `--bind` mode, token auth
+- `SIGUSR1` hot reload, `gateway health/probe`, service install (launchd/systemd)
+- Orphan process cleanup on crash
+
+**Providers (9 ACP-compatible):**
+- Copilot, Claude Code, Codex, Gemini, Cursor, OpenCode, Hermes Agent, Kiro, Kilo Code
+- Centralized runtime registry (runtimes.ts)
+- `flightdeck providers` CLI with binary detection
+
+**MCP Server:**
+- `flightdeck-mcp` global bin entry
+- 49 tools, role-filtered
+- E2E verified: gateway → copilot → flightdeck-mcp → SQLite
+
+**Web UI (Notion/Linear style):**
+- Kanban dashboard, task cards with DAG, agent pulse animation
+- Chat with markdown rendering (react-markdown + remark-gfm)
+- Multi-project sidebar (Linear-style collapsible)
+- ⌘K command palette, Settings page
+- @tailwindcss/vite for Tailwind v4
+
+**TUI (htop meets Linear):**
+- 8 Ink components, three-column layout
+- Keyboard-driven (Tab/j/k/t/c/a/q), `/` command mode
+
+**Desktop App (Electron):**
+- Auto-start/stop gateway, system tray, health check
+- electron-builder for macOS/Windows/Linux
+
+**Claw Integration:**
+- OpenClaw skill for HTTP API access
+- Claw → Lead direct communication (no subagent intermediary)
