@@ -487,22 +487,20 @@ export class AcpAdapter extends AgentAdapter {
         modelRegistry.registerModels(this.runtimeName, (result as any).models.availableModels);
       }
 
-      // Send the initial prompt
-      session.status = 'prompting';
-      session.isPrompting = true;
-      session.turnCount++;
-      try {
-        await session.connection.prompt({
-          sessionId: result.sessionId,
-          prompt: [{ type: 'text', text: prompt }],
+      // Queue the initial prompt instead of sending it synchronously.
+      // This lets initializeSession() return quickly after newSession(),
+      // so steer() calls don't have to wait for the first prompt to finish.
+      // drainQueue() will merge queued steer messages with the initial prompt.
+      if (prompt) {
+        session.promptQueue.push({
+          content: prompt,
+          priority: false,
+          resolve: () => {},
+          reject: () => {},
         });
-      } finally {
-        session.isPrompting = false;
       }
-      session.status = 'active';
-      session.lastActivityAt = new Date();
 
-      // Drain any messages queued while the initial prompt was running
+      // Drain: sends the initial prompt (and any steer messages that arrived during init)
       await this.drainQueue(session);
     } catch (err: unknown) {
       if (session.status !== 'ended') {
