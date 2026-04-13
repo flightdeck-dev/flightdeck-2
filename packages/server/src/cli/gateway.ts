@@ -142,7 +142,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     fd.orchestrator.stop();
     const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
     const orchestrator = new OrchestratorClass(
-      fd.dag, fd.sqlite, fd.governance, acpAdapter, fd.project.getConfig(),
+      fd.dag, fd.sqlite, fd.governance, acpAdapter, { ...fd.project.getConfig(), cwd: fd.project.subpath('.') },
       undefined,
       {
         agentManager: fd.agentManager,

@@ -469,7 +469,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
           role: params.role as AgentRole,
           model: params.model,
           task: params.task,
-          cwd: params.cwd ?? process.cwd(),
+          cwd: params.cwd ?? fd.project.subpath('.'),
+          projectName: name,
         });
         return jsonResponse(newAgent);
       } catch (err) {
@@ -593,10 +594,10 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     };
     fd.sendMessage(msg);
 
-    // Deliver immediately: steer the recipient agent
+    // Deliver: steer the recipient agent (non-urgent, queued after current turn)
     if (agentManager) {
       try {
-        await agentManager.interruptAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
+        await agentManager.sendToAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
         return jsonResponse({ status: 'delivered', to: params.to });
       } catch {
         // Agent may not have an active session — message is stored for later

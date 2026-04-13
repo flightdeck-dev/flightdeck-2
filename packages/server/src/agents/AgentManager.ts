@@ -13,6 +13,7 @@ export interface SpawnAgentOptions {
   model?: string;
   task?: string;
   cwd: string;
+  projectName?: string;
   runtime?: string;
   taskContext?: string;
   taskId?: string;
@@ -171,6 +172,7 @@ export class AgentManager {
         role: opts.role,
         cwd: effectiveCwd,
         model: opts.model,
+        projectName: opts.projectName ?? this.projectName,
         systemPrompt,
         ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),
       });
@@ -272,6 +274,18 @@ export class AgentManager {
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
 
     await this.adapter.steer(sessionId, { content: message, urgent: true });
+  }
+
+  /** Send a non-urgent message to an agent (queued, delivered after current turn) */
+  async sendToAgent(agentId: AgentId, message: string): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    if (agent.status === 'suspended') {
+      throw new Error(`Agent ${agentId} is suspended. Resume it before sending.`);
+    }
+    const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
+    if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
+    await this.adapter.steer(sessionId, { content: message, urgent: false });
   }
 
   async restartAgent(agentId: AgentId): Promise<Agent> {
