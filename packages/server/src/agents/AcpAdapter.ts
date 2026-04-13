@@ -1,6 +1,8 @@
 import { spawn as cpSpawn, type ChildProcess } from 'node:child_process';
 import { Readable, Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -69,6 +71,7 @@ export interface QueuedPrompt {
 export interface AcpSession {
   id: string;
   agentId: AgentId;
+  role?: string;
   process: ChildProcess;
   connection: ClientSideConnection;
   acpSessionId: string | null; // set after newSession/loadSession completes
@@ -186,6 +189,15 @@ export class AcpAdapter extends AgentAdapter {
 
       async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
         const filePath = path.resolve(session.cwd, params.path);
+        // Lead and planner can only write to .flightdeck/ and memory/ directories
+        // They should coordinate, not implement
+        if (session.role === 'lead' || session.role === 'planner') {
+          const rel = path.relative(session.cwd, filePath);
+          const isAllowed = rel.startsWith('.flightdeck') || rel.startsWith('memory') || rel.endsWith('.md');
+          if (!isAllowed) {
+            throw new Error(`Role '${session.role}' cannot write to '${params.path}'. Only .flightdeck/, memory/, and .md files are allowed. Delegate implementation to worker agents.`);
+          }
+        }
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, params.content, 'utf-8');
         return {};
@@ -208,6 +220,14 @@ export class AcpAdapter extends AgentAdapter {
       // --- Terminal capabilities (Client provides these to the Agent) ---
 
       async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
+        // Lead should not run arbitrary commands — only read operations
+        if (session.role === 'lead') {
+          const cmd = params.command.toLowerCase();
+          const allowedLeadCmds = ['cat', 'ls', 'find', 'grep', 'head', 'tail', 'wc', 'echo', 'flightdeck'];
+          if (!allowedLeadCmds.some(c => cmd.startsWith(c) || cmd.endsWith('/' + c))) {
+            throw new Error(`Role 'lead' cannot run '${params.command}'. Lead agents can only run read-only commands. Delegate implementation to worker agents.`);
+          }
+        }
         const termId = `term-${randomUUID().slice(0, 8)}`;
         const cwd = params.cwd ?? session.cwd;
         const env: Record<string, string> = { ...process.env as Record<string, string> };
@@ -334,6 +354,7 @@ export class AcpAdapter extends AgentAdapter {
     const session: AcpSession = {
       id: sessionLocalId,
       agentId: aid,
+      role: opts.role,
       process: child,
       connection: null!, // set below
       acpSessionId: null,
@@ -431,8 +452,8 @@ export class AcpAdapter extends AgentAdapter {
         mcpServers: mcpServers ?? [
           {
             name: 'flightdeck',
-            command: 'flightdeck-mcp',
-            args: [],
+            command: 'node',
+            args: [resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs')],
             env: [
               { name: 'FLIGHTDECK_AGENT_ID', value: session.agentId },
               { name: 'FLIGHTDECK_AGENT_ROLE', value: role ?? '' },
@@ -509,6 +530,7 @@ export class AcpAdapter extends AgentAdapter {
     const session: AcpSession = {
       id: sessionLocalId,
       agentId: aid,
+      role: opts.role,
       process: child,
       connection: null!,
       acpSessionId: null,
