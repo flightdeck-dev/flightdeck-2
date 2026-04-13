@@ -954,6 +954,18 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse({ role: null, tools: allTools });
   });
 
+  // ── Isolation status ──
+
+  server.tool('flightdeck_isolation_status', 'Show current isolation mode and active worktrees/workdirs', {}, async () => {
+    const project = projectStore.get();
+    const isolationMode = project.isolation ?? 'none';
+    const { IsolationManager } = await import('../isolation/IsolationManager.js');
+    const im = new IsolationManager(project.cwd ?? process.cwd(), {
+      mode: isolationMode as 'none' | 'git_worktree' | 'directory',
+    });
+    return jsonResponse(im.status());
+  });
+
   // ── Per-role tool filtering ──
   if (agentRole) {
     const allowed = new Set(getToolsForRole(agentRole));
