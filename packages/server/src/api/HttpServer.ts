@@ -146,27 +146,44 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.content || typeof body.content !== 'string') { json(400, { error: 'Missing required field: content' }); return; }
+        const isAsync = url.searchParams.get('async') === 'true' || url.searchParams.get('async') === '1';
         let userMsg = null;
         if (fd.chatMessages) {
           userMsg = fd.chatMessages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'http-api', content: body.content, metadata: null });
           if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: userMsg });
         }
-        let leadResponse: string | null = null;
-        let leadMsg = null;
-        if (leadManager) {
-          try {
+        if (isAsync) {
+          // Fire-and-forget: steer Lead in background, return immediately
+          if (leadManager) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
-            if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
-              leadResponse = raw.trim();
-              if (fd.chatMessages) {
-                leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
-                if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+            leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any }).then(raw => {
+              if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
+                if (fd.chatMessages) {
+                  const leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
+                  if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+                }
               }
-            }
-          } catch (err: unknown) { console.error('Failed to steer Lead:', err instanceof Error ? err.message : String(err)); }
+            }).catch(err => { console.error('Failed to steer Lead (async):', err instanceof Error ? err.message : String(err)); });
+          }
+          json(202, { message: userMsg, status: 'accepted' });
+        } else {
+          let leadResponse: string | null = null;
+          let leadMsg = null;
+          if (leadManager) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
+              if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
+                leadResponse = raw.trim();
+                if (fd.chatMessages) {
+                  leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
+                  if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+                }
+              }
+            } catch (err: unknown) { console.error('Failed to steer Lead:', err instanceof Error ? err.message : String(err)); }
+          }
+          json(200, { message: userMsg, response: leadMsg ?? leadResponse });
         }
-        json(200, { message: userMsg, response: leadMsg ?? leadResponse });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/tasks' && method === 'POST') {
       try {
