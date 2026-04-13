@@ -44,6 +44,8 @@ const commands_1 = require("./commands");
 function activate(context) {
     const outputChannel = vscode.window.createOutputChannel("Flightdeck");
     const client = new flightdeckClient_1.FlightdeckClient(outputChannel);
+    // Auto-detect project from .flightdeck.json in workspace
+    autoDetectProject(client);
     // Tree views
     const taskTree = new taskTreeProvider_1.TaskTreeProvider(client);
     const agentTree = new agentTreeProvider_1.AgentTreeProvider(client);
@@ -54,10 +56,40 @@ function activate(context) {
     context.subscriptions.push({ dispose: () => statusBar.dispose() });
     // Commands
     (0, commands_1.registerCommands)(context, client, taskTree, agentTree, outputChannel);
+    // Refresh on project change
+    context.subscriptions.push(client.onProjectChanged(() => {
+        taskTree.refresh();
+        agentTree.refresh();
+    }));
     // Initial data load
-    taskTree.refresh();
-    agentTree.refresh();
+    if (client.project) {
+        taskTree.refresh();
+        agentTree.refresh();
+    }
     outputChannel.appendLine("Flightdeck extension activated.");
+}
+async function autoDetectProject(client) {
+    if (client.project) {
+        return;
+    }
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders) {
+        return;
+    }
+    for (const folder of folders) {
+        const configUri = vscode.Uri.joinPath(folder.uri, ".flightdeck.json");
+        try {
+            const data = await vscode.workspace.fs.readFile(configUri);
+            const config = JSON.parse(Buffer.from(data).toString("utf-8"));
+            if (config.project) {
+                client.setProject(config.project);
+                return;
+            }
+        }
+        catch {
+            // No config file, skip
+        }
+    }
 }
 function deactivate() {
     // cleanup handled by disposables

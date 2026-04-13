@@ -33,23 +33,42 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AgentTreeProvider = void 0;
+exports.AgentTreeProvider = exports.AgentItem = void 0;
 const vscode = __importStar(require("vscode"));
+const STATUS_ICONS = {
+    idle: { icon: "person", color: "charts.blue" },
+    busy: { icon: "sync~spin", color: "charts.orange" },
+    working: { icon: "sync~spin", color: "charts.orange" },
+    error: { icon: "error", color: "charts.red" },
+    terminated: { icon: "circle-slash", color: "disabledForeground" },
+};
+const ROLE_ICONS = {
+    architect: "symbol-structure",
+    frontend: "browser",
+    backend: "server",
+    reviewer: "checklist",
+    devops: "gear",
+    lead: "megaphone",
+    worker: "tools",
+};
 class AgentItem extends vscode.TreeItem {
     agent;
     constructor(agent) {
         super(agent.role, vscode.TreeItemCollapsibleState.None);
         this.agent = agent;
-        this.description = `${agent.model} · ${agent.status}`;
-        this.tooltip = `ID: ${agent.id}\nRole: ${agent.role}\nModel: ${agent.model}\nStatus: ${agent.status}`;
-        this.iconPath = new vscode.ThemeIcon(agent.status === "working"
-            ? "sync~spin"
-            : agent.status === "error"
-                ? "error"
-                : "person");
+        this.description = `${agent.model} · ${agent.status}${agent.currentTask ? ` · ${agent.currentTask}` : ""}`;
+        this.tooltip = new vscode.MarkdownString(`**${agent.role}** (${agent.id})\n\n` +
+            `- **Model:** ${agent.model}\n` +
+            `- **Status:** ${agent.status}\n` +
+            (agent.currentTask ? `- **Task:** ${agent.currentTask}\n` : ""));
+        const roleIcon = ROLE_ICONS[agent.role] || "person";
+        const statusInfo = STATUS_ICONS[agent.status] || STATUS_ICONS["idle"];
+        // Use role icon with status color
+        this.iconPath = new vscode.ThemeIcon(roleIcon, new vscode.ThemeColor(statusInfo.color));
         this.contextValue = "agent";
     }
 }
+exports.AgentItem = AgentItem;
 class AgentTreeProvider {
     client;
     _onDidChangeTreeData = new vscode.EventEmitter();

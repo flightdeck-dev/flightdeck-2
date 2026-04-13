@@ -8,7 +8,11 @@
     "vscode": "^1.85.0"
   },
   "categories": ["Other"],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:flightdeck.tasks",
+    "onView:flightdeck.agents",
+    "workspaceContains:.flightdeck.json"
+  ],
   "main": "./out/extension.js",
   "scripts": {
     "build": "tsc -p ./",
@@ -32,55 +36,55 @@
       ]
     },
     "commands": [
-      { "command": "flightdeck.init", "title": "Flightdeck: Init Project" },
-      { "command": "flightdeck.status", "title": "Flightdeck: Status" },
-      { "command": "flightdeck.taskList", "title": "Flightdeck: Task List" },
-      { "command": "flightdeck.agentSpawn", "title": "Flightdeck: Spawn Agent" },
-      { "command": "flightdeck.start", "title": "Flightdeck: Start" },
-      { "command": "flightdeck.stop", "title": "Flightdeck: Stop" },
-      { "command": "flightdeck.displayPreset", "title": "Flightdeck: Set Display Preset" },
-      { "command": "flightdeck.agentTerminate", "title": "Flightdeck: Terminate Agent" },
-      { "command": "flightdeck.agentInterrupt", "title": "Flightdeck: Interrupt Agent" },
-      { "command": "flightdeck.agentRestart", "title": "Flightdeck: Restart Agent" }
+      { "command": "flightdeck.setProject", "title": "Flightdeck: Set Project", "icon": "$(project)" },
+      { "command": "flightdeck.createTask", "title": "Flightdeck: Create Task", "icon": "$(add)" },
+      { "command": "flightdeck.chatWithLead", "title": "Flightdeck: Chat with Lead", "icon": "$(comment-discussion)" },
+      { "command": "flightdeck.viewDashboard", "title": "Flightdeck: Open Dashboard", "icon": "$(globe)" },
+      { "command": "flightdeck.refreshAll", "title": "Flightdeck: Refresh All", "icon": "$(refresh)" },
+      { "command": "flightdeck.startGateway", "title": "Flightdeck: Start Gateway", "icon": "$(play)" },
+      { "command": "flightdeck.status", "title": "Flightdeck: Show Status" },
+      { "command": "flightdeck.taskDetail", "title": "Flightdeck: Task Detail" },
+      { "command": "flightdeck.statusBarClick", "title": "Flightdeck: Quick Menu" },
+      { "command": "flightdeck.agentTerminate", "title": "Terminate Agent", "icon": "$(trash)" },
+      { "command": "flightdeck.agentRestart", "title": "Restart Agent", "icon": "$(debug-restart)" },
+      { "command": "flightdeck.agentSendMessage", "title": "Send Message to Agent", "icon": "$(mail)" }
+    ],
+    "keybindings": [
+      { "command": "flightdeck.chatWithLead", "key": "ctrl+shift+f", "mac": "cmd+shift+f" },
+      { "command": "flightdeck.refreshAll", "key": "ctrl+shift+r", "mac": "cmd+shift+r", "when": "view =~ /flightdeck/" }
     ],
     "configuration": {
       "title": "Flightdeck",
       "properties": {
-        "flightdeck.display.thinking": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show agent thinking/reasoning blocks"
-        },
-        "flightdeck.display.toolCalls": {
+        "flightdeck.gatewayUrl": {
           "type": "string",
-          "enum": ["off", "summary", "detail"],
-          "default": "summary",
-          "description": "Tool call visibility level"
+          "default": "http://localhost:3000",
+          "description": "URL of the Flightdeck gateway server"
         },
-        "flightdeck.display.flightdeckTools": {
+        "flightdeck.defaultProject": {
           "type": "string",
-          "enum": ["off", "summary", "detail"],
-          "default": "off",
-          "description": "Flightdeck internal tool call visibility"
+          "default": "",
+          "description": "Default project name (auto-detected from .flightdeck.json if empty)"
         },
-        "flightdeck.display.preset": {
+        "flightdeck.authToken": {
           "type": "string",
-          "enum": ["minimal", "summary", "detail", "debug"],
-          "default": "summary",
-          "description": "Display preset (overrides individual settings when changed)"
+          "default": "",
+          "description": "Authentication token for the gateway API"
         }
       }
     },
     "menus": {
+      "view/title": [
+        { "command": "flightdeck.refreshAll", "when": "view =~ /flightdeck/", "group": "navigation" },
+        { "command": "flightdeck.createTask", "when": "view == flightdeck.tasks", "group": "navigation" },
+        { "command": "flightdeck.chatWithLead", "when": "view =~ /flightdeck/", "group": "navigation" }
+      ],
       "view/item/context": [
         { "command": "flightdeck.agentTerminate", "when": "viewItem == agent", "group": "agent@1" },
-        { "command": "flightdeck.agentInterrupt", "when": "viewItem == agent", "group": "agent@2" },
-        { "command": "flightdeck.agentRestart", "when": "viewItem == agent", "group": "agent@3" }
+        { "command": "flightdeck.agentRestart", "when": "viewItem == agent", "group": "agent@2" },
+        { "command": "flightdeck.agentSendMessage", "when": "viewItem == agent", "group": "agent@3" }
       ]
     }
-  },
-  "dependencies": {
-    "@flightdeck-ai/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

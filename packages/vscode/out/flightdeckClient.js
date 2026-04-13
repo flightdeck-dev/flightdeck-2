@@ -35,92 +35,157 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FlightdeckClient = void 0;
 const vscode = __importStar(require("vscode"));
-const child_process_1 = require("child_process");
+const http = __importStar(require("http"));
+const https = __importStar(require("https"));
+// ── Client ──
 class FlightdeckClient {
-    workspaceRoot;
+    _project;
     outputChannel;
+    _onProjectChanged = new vscode.EventEmitter();
+    onProjectChanged = this._onProjectChanged.event;
     constructor(outputChannel) {
-        this.workspaceRoot =
-            vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
         this.outputChannel = outputChannel;
+        // Auto-detect from config
+        const cfg = vscode.workspace.getConfiguration("flightdeck");
+        this._project = cfg.get("defaultProject") || undefined;
     }
-    runCli(args) {
+    get project() {
+        return this._project;
+    }
+    setProject(name) {
+        this._project = name;
+        this._onProjectChanged.fire(name);
+    }
+    get baseUrl() {
+        const cfg = vscode.workspace.getConfiguration("flightdeck");
+        return cfg.get("gatewayUrl") || "http://localhost:3000";
+    }
+    get authToken() {
+        const cfg = vscode.workspace.getConfiguration("flightdeck");
+        return cfg.get("authToken") || undefined;
+    }
+    fetch(path, options = {}) {
         return new Promise((resolve, reject) => {
-            const cmd = "npx";
-            const fullArgs = [
-                "tsx",
-                "packages/server/src/cli/index.ts",
-                ...args,
-                "--json",
-            ];
-            this.outputChannel.appendLine(`> ${cmd} ${fullArgs.join(" ")}`);
-            const proc = (0, child_process_1.spawn)(cmd, fullArgs, {
-                cwd: this.workspaceRoot,
-                shell: true,
+            const url = new URL(path, this.baseUrl);
+            const isHttps = url.protocol === "https:";
+            const lib = isHttps ? https : http;
+            const bodyStr = options.body ? JSON.stringify(options.body) : undefined;
+            const headers = {
+                "Accept": "application/json",
+            };
+            if (bodyStr) {
+                headers["Content-Type"] = "application/json";
+                headers["Content-Length"] = Buffer.byteLength(bodyStr).toString();
+            }
+            if (this.authToken) {
+                headers["Authorization"] = `Bearer ${this.authToken}`;
+            }
+            const req = lib.request({
+                hostname: url.hostname,
+                port: url.port,
+                path: url.pathname + url.search,
+                method: options.method || "GET",
+                headers,
+            }, (res) => {
+                let data = "";
+                res.on("data", (chunk) => (data += chunk));
+                res.on("end", () => {
+                    if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                        try {
+                            resolve(data ? JSON.parse(data) : null);
+                        }
+                        catch {
+                            resolve(data);
+                        }
+                    }
+                    else {
+                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                    }
+                });
             });
-            let stdout = "";
-            let stderr = "";
-            proc.stdout.on("data", (d) => (stdout += d));
-            proc.stderr.on("data", (d) => (stderr += d));
-            proc.on("close", (code) => {
-                if (code === 0) {
-                    resolve(stdout);
-                }
-                else {
-                    this.outputChannel.appendLine(`CLI error: ${stderr}`);
-                    reject(new Error(`CLI exited with code ${code}: ${stderr}`));
-                }
+            req.on("error", reject);
+            req.setTimeout(10000, () => {
+                req.destroy();
+                reject(new Error("Request timeout"));
             });
-            proc.on("error", reject);
+            if (bodyStr) {
+                req.write(bodyStr);
+            }
+            req.end();
         });
     }
+    projectPath(sub) {
+        if (!this._project) {
+            throw new Error("No project selected. Run 'Flightdeck: Set Project' first.");
+        }
+        return `/api/projects/${encodeURIComponent(this._project)}${sub}`;
+    }
+    // ── Project ──
+    async listProjects() {
+        const res = (await this.fetch("/api/projects"));
+        return res.projects || [];
+    }
+    async createProject(name) {
+        await this.fetch("/api/projects", { method: "POST", body: { name } });
+    }
+    // ── Status ──
     async getStatus() {
         try {
-            const raw = await this.runCli(["status"]);
-            return JSON.parse(raw);
+            return (await this.fetch(this.projectPath("/status")));
         }
         catch {
-            return { project: "unknown", tasks: [], agents: [] };
+            return { project: this._project || "unknown", tasks: [], agents: [] };
         }
     }
+    // ── Tasks ──
     async getTasks() {
         try {
-            const raw = await this.runCli(["task", "list"]);
-            return JSON.parse(raw);
+            return (await this.fetch(this.projectPath("/tasks")));
         }
         catch {
             return [];
         }
     }
+    async getTask(id) {
+        try {
+            return (await this.fetch(this.projectPath(`/tasks/${encodeURIComponent(id)}`)));
+        }
+        catch {
+            return null;
+        }
+    }
+    async createTask(title, opts = {}) {
+        return (await this.fetch(this.projectPath("/tasks"), {
+            method: "POST",
+            body: { title, ...opts },
+        }));
+    }
+    // ── Agents ──
     async getAgents() {
         try {
-            const raw = await this.runCli(["agent", "list"]);
-            return JSON.parse(raw);
+            return (await this.fetch(this.projectPath("/agents")));
         }
         catch {
             return [];
         }
     }
-    async init() {
-        return this.runCli(["init"]);
+    // ── Chat ──
+    async getMessages(opts = {}) {
+        const limit = opts.limit || 50;
+        return (await this.fetch(this.projectPath(`/messages?limit=${limit}`)));
     }
-    async start() {
-        return this.runCli(["start"]);
+    async sendMessage(content) {
+        return (await this.fetch(this.projectPath("/messages"), {
+            method: "POST",
+            body: { content },
+        }));
     }
-    async stop() {
-        return this.runCli(["stop"]);
+    // ── Orchestrator ──
+    async pauseOrchestrator() {
+        await this.fetch(this.projectPath("/orchestrator/pause"), { method: "POST" });
     }
-    async spawnAgent(role, model) {
-        return this.runCli(["agent", "spawn", "--role", role, "--model", model]);
-    }
-    async terminateAgent(id) {
-        return this.runCli(["agent", "terminate", id]);
-    }
-    async interruptAgent(id) {
-        return this.runCli(["agent", "interrupt", id]);
-    }
-    async restartAgent(id) {
-        return this.runCli(["agent", "restart", id]);
+    async resumeOrchestrator() {
+        await this.fetch(this.projectPath("/orchestrator/resume"), { method: "POST" });
     }
 }
 exports.FlightdeckClient = FlightdeckClient;

@@ -1,25 +1,43 @@
 import * as vscode from "vscode";
 import { FlightdeckClient, FlightdeckAgent } from "./flightdeckClient";
 
-class AgentItem extends vscode.TreeItem {
+const STATUS_ICONS: Record<string, { icon: string; color: string }> = {
+  idle: { icon: "person", color: "charts.blue" },
+  busy: { icon: "sync~spin", color: "charts.orange" },
+  working: { icon: "sync~spin", color: "charts.orange" },
+  error: { icon: "error", color: "charts.red" },
+  terminated: { icon: "circle-slash", color: "disabledForeground" },
+};
+
+const ROLE_ICONS: Record<string, string> = {
+  architect: "symbol-structure",
+  frontend: "browser",
+  backend: "server",
+  reviewer: "checklist",
+  devops: "gear",
+  lead: "megaphone",
+  worker: "tools",
+};
+
+export class AgentItem extends vscode.TreeItem {
   constructor(public readonly agent: FlightdeckAgent) {
     super(agent.role, vscode.TreeItemCollapsibleState.None);
-    this.description = `${agent.model} · ${agent.status}`;
-    this.tooltip = `ID: ${agent.id}\nRole: ${agent.role}\nModel: ${agent.model}\nStatus: ${agent.status}`;
-    this.iconPath = new vscode.ThemeIcon(
-      agent.status === "working"
-        ? "sync~spin"
-        : agent.status === "error"
-          ? "error"
-          : "person"
+    this.description = `${agent.model} · ${agent.status}${agent.currentTask ? ` · ${agent.currentTask}` : ""}`;
+    this.tooltip = new vscode.MarkdownString(
+      `**${agent.role}** (${agent.id})\n\n` +
+      `- **Model:** ${agent.model}\n` +
+      `- **Status:** ${agent.status}\n` +
+      (agent.currentTask ? `- **Task:** ${agent.currentTask}\n` : "")
     );
+    const roleIcon = ROLE_ICONS[agent.role] || "person";
+    const statusInfo = STATUS_ICONS[agent.status] || STATUS_ICONS["idle"];
+    // Use role icon with status color
+    this.iconPath = new vscode.ThemeIcon(roleIcon, new vscode.ThemeColor(statusInfo.color));
     this.contextValue = "agent";
   }
 }
 
-export class AgentTreeProvider
-  implements vscode.TreeDataProvider<AgentItem>
-{
+export class AgentTreeProvider implements vscode.TreeDataProvider<AgentItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
