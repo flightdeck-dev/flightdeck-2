@@ -130,13 +130,14 @@ describe('Role Separation E2E', () => {
         expect(leadTools).not.toContain('flightdeck_task_claim');
       });
 
-      it('DOES have status, task_list, task_add, agent_spawn, escalate, declare_tasks', () => {
+      it('DOES have status, task_list, task_add, agent_spawn, escalate, declare_tasks, spec_create', () => {
         expect(leadTools).toContain('flightdeck_status');
         expect(leadTools).toContain('flightdeck_task_list');
         expect(leadTools).toContain('flightdeck_task_add');
         expect(leadTools).toContain('flightdeck_agent_spawn');
         expect(leadTools).toContain('flightdeck_escalate');
         expect(leadTools).toContain('flightdeck_declare_tasks');
+        expect(leadTools).toContain('flightdeck_spec_create');
       });
     });
 
@@ -149,13 +150,14 @@ describe('Role Separation E2E', () => {
         expect(plannerTools).not.toContain('flightdeck_task_complete');
       });
 
-      it('DOES have task_list, task_add, declare_tasks, task_get, memory_write, escalate', () => {
+      it('DOES have task_list, task_add, declare_tasks, task_get, memory_write, escalate, spec_create', () => {
         expect(plannerTools).toContain('flightdeck_task_list');
         expect(plannerTools).toContain('flightdeck_task_add');
         expect(plannerTools).toContain('flightdeck_declare_tasks');
         expect(plannerTools).toContain('flightdeck_task_get');
         expect(plannerTools).toContain('flightdeck_memory_write');
         expect(plannerTools).toContain('flightdeck_escalate');
+        expect(plannerTools).toContain('flightdeck_spec_create');
       });
     });
 

@@ -100,4 +100,19 @@ describe('TaskDAG new operations', () => {
     expect(tasks[2].dependsOn).toContain(tasks[0].id);
     expect(tasks[2].dependsOn).toContain(tasks[1].id);
   });
+
+  it('declares batch tasks with index-based dependencies (#0, #1)', () => {
+    const tasks = fd.declareTasks([
+      { title: 'setup' },
+      { title: 'build', dependsOn: ['#0'] },
+      { title: 'test', dependsOn: ['#0', '#1'] },
+    ]);
+    expect(tasks).toHaveLength(3);
+    expect(tasks[0].state).toBe('ready');
+    expect(tasks[1].state).toBe('pending');
+    expect(tasks[2].state).toBe('pending');
+    expect(tasks[1].dependsOn).toContain(tasks[0].id);
+    expect(tasks[2].dependsOn).toContain(tasks[0].id);
+    expect(tasks[2].dependsOn).toContain(tasks[1].id);
+  });
 });

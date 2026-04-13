@@ -63,7 +63,7 @@ function permError(agentId: string, role: string, toolName: string, permission: 
     declare_tasks: 'lead/planner',
     agent_spawn: 'lead',
     agent_terminate: 'lead',
-    memory_write: 'worker/product-thinker/qa-tester/tech-writer',
+    memory_write: 'lead/worker/planner/product-thinker/qa-tester/tech-writer',
   };
   const allowed = permToRoles[permission] || 'authorized roles';
   const suggestion = suggestions[permission] || '';
@@ -110,10 +110,16 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Task tools ──
 
-  server.tool('flightdeck_task_list', 'List tasks for the project (shows hierarchy for epics)', {
+  server.tool('flightdeck_task_list', 'List tasks for the project (shows hierarchy for epics). Filter by state, role, or assignee.', {
     specId: z.string().optional(),
+    state: z.enum(['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'skipped', 'cancelled', 'gated', 'paused']).optional().describe('Filter by task state'),
+    role: z.string().optional().describe('Filter by assigned role'),
+    assignedAgent: z.string().optional().describe('Filter by assigned agent ID'),
   }, async (params) => {
-    const tasks = fd.listTasks(params.specId as SpecId | undefined);
+    let tasks = fd.listTasks(params.specId as SpecId | undefined);
+    if (params.state) tasks = tasks.filter(t => t.state === params.state);
+    if (params.role) tasks = tasks.filter(t => t.role === params.role);
+    if (params.assignedAgent) tasks = tasks.filter(t => t.assignedAgent === params.assignedAgent);
     // Group tasks: top-level first, then indent sub-tasks under their parent
     const topLevel = tasks.filter(t => t.parentTaskId === null);
     const byParent = new Map<string, typeof tasks>();
@@ -343,7 +349,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_declare_tasks', 'Batch create tasks with dependencies', {
+  server.tool('flightdeck_declare_tasks', 'Batch create tasks with dependencies. dependsOn accepts task titles, index refs (#0, #1), or existing task IDs.', {
     tasks: z.array(z.object({
       title: z.string(),
       description: z.string().optional(),
@@ -764,6 +770,23 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_spec_list', 'List specs', {}, async () => {
     const specs = fd.listSpecs();
     return jsonResponse(specs.map(s => ({ id: s.id, title: s.title, filename: s.filename })));
+  });
+
+  server.tool('flightdeck_spec_create', 'Create a new spec document', {
+    title: z.string().describe('Spec title'),
+    content: z.string().describe('Spec content (markdown)'),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_spec_create');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'spec_create', 'flightdeck_spec_create');
+    if (permErr) return permErr;
+    try {
+      const spec = fd.createSpec(params.title, params.content);
+      return jsonResponse({ status: 'created', id: spec.id, title: spec.title, filename: spec.filename });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
   });
 
   server.tool('flightdeck_spec_changes', 'List recent spec changes detected by the system', {}, async () => {

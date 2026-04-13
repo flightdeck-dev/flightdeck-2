@@ -202,10 +202,22 @@ export class TaskDAG {
       results.push(task);
     }
     // Second pass: wire up dependencies
+    // Dependencies can reference other tasks by:
+    //   - title: "Implement CLI calculator core logic"
+    //   - index: "#0", "#1", etc. (0-based index within this batch)
+    //   - existing task ID: "task-abc123"
     for (let i = 0; i < tasks.length; i++) {
       const deps = tasks[i].dependsOn;
       if (deps && deps.length > 0) {
-        const resolvedDeps = deps.map(d => idMap.get(d) ?? d as TaskId);
+        const resolvedDeps = deps.map(d => {
+          // Index reference: #0, #1, etc.
+          if (d.startsWith('#') && /^#\d+$/.test(d)) {
+            const idx = parseInt(d.slice(1), 10);
+            if (idx >= 0 && idx < results.length) return results[idx].id;
+            return d as TaskId; // invalid index, pass through
+          }
+          return idMap.get(d) ?? d as TaskId;
+        });
         // Update in store
         this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
         results[i] = { ...results[i], dependsOn: resolvedDeps };

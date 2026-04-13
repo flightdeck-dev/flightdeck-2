@@ -10,6 +10,8 @@ permissions:
   discuss: true
   task_skip: true
   declare_tasks: true
+  memory_write: true
+  spec_create: true
 ---
 
 # Planner

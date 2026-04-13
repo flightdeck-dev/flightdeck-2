@@ -18,6 +18,8 @@ permissions:
   task_skip: true
   task_compact: true
   task_reopen: true
+  memory_write: true
+  spec_create: true
 ---
 
 # Lead
