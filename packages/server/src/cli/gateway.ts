@@ -112,6 +112,28 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     orchestrators.push(orchestrator);
     console.error(`  Orchestrator running.`);
 
+    // Write .mcp.json to project cwd (once per project, not per-agent).
+    // Role env is injected per-process in AcpAdapter.spawn() via process env,
+    // which MCP subprocess inherits.
+    try {
+      const { writeFileSync, mkdirSync } = await import('node:fs');
+      const { resolve: resolvePath, dirname: dirnamePath } = await import('node:path');
+      const { fileURLToPath: futp } = await import('node:url');
+      const mcpBinPath = resolvePath(dirnamePath(futp(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
+      const mcpJson = JSON.stringify({
+        mcpServers: {
+          flightdeck: {
+            command: 'node',
+            args: [mcpBinPath],
+          },
+        },
+      }, null, 2);
+      writeFileSync(resolvePath(process.cwd(), '.mcp.json'), mcpJson);
+      console.error(`  Wrote .mcp.json (MCP server: ${mcpBinPath})`);
+    } catch (err) {
+      console.error(`  Warning: failed to write .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     // Spawn Lead + Planner (with session recovery if available)
     const projectSessions = savedState?.sessions.filter(s => s.project === name) ?? [];
     await spawnAgents(fd, leadManager, name, projectSessions);

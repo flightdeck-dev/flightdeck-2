@@ -342,32 +342,22 @@ export class AcpAdapter extends AgentAdapter {
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
     const aid = agentId(opts.role, Date.now().toString());
 
-    // Write .mcp.json with role-specific env vars before spawning
-    // Copilot reads this file at startup (ignores ACP newSession mcpServers)
-    const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
-    const mcpConfig = {
-      mcpServers: {
-        flightdeck: {
-          command: 'node',
-          args: [mcpBinPath],
-          env: {
-            FLIGHTDECK_AGENT_ID: aid,
-            FLIGHTDECK_AGENT_ROLE: opts.role,
-            ...(opts.projectName ? { FLIGHTDECK_PROJECT: opts.projectName } : {}),
-          },
-        },
-      },
+    // Inject role + agent ID into Copilot process env.
+    // Copilot's MCP subprocess inherits parent env, so the MCP server
+    // (flightdeck-mcp) will see FLIGHTDECK_AGENT_ROLE for tool filtering.
+    // The .mcp.json is written once at gateway start (no role env there).
+    const spawnEnv = {
+      ...process.env,
+      FLIGHTDECK_AGENT_ID: aid,
+      FLIGHTDECK_AGENT_ROLE: opts.role,
+      ...(opts.projectName ? { FLIGHTDECK_PROJECT: opts.projectName } : {}),
     };
-    try {
-      await fs.mkdir(opts.cwd, { recursive: true });
-      await fs.writeFile(path.join(opts.cwd, '.mcp.json'), JSON.stringify(mcpConfig, null, 2));
-    } catch { /* best effort — MCP may still work from global config */ }
 
     // Spawn the agent process (detached: false ensures children die with parent)
     const child = cpSpawn(runtime.command, args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: spawnEnv,
       detached: false,
     });
 
