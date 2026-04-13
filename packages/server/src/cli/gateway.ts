@@ -8,6 +8,12 @@ export interface GatewayDeps {
   noRecover: boolean;
   /** If set, only serve this project. Otherwise serve all. */
   projectFilter?: string;
+  /** Bind address: '127.0.0.1' (default), '0.0.0.0', or specific IP. */
+  bindAddress?: string;
+  /** Auth mode: 'none' or 'token'. */
+  authMode?: 'none' | 'token';
+  /** Auth token (when authMode='token'). */
+  authToken?: string | null;
 }
 
 /**
@@ -15,7 +21,7 @@ export interface GatewayDeps {
  * spawns Lead/Planner per project, starts HTTP+WS server.
  */
 export async function startGateway(deps: GatewayDeps): Promise<void> {
-  const { port, corsOrigin, noRecover, projectFilter } = deps;
+  const { port, corsOrigin, noRecover, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
@@ -118,12 +124,21 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // Start HTTP server
   const { createHttpServer } = await import('../api/HttpServer.js');
+
+  // Set up auth if enabled
+  let authCheckFn: ((req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => boolean) | undefined;
+  if (authMode === 'token' && authToken) {
+    const { createAuthCheck } = await import('./gateway/auth.js');
+    authCheckFn = createAuthCheck('token', authToken);
+  }
+
   const httpServer = createHttpServer({
     projectManager,
     leadManagers,
     port,
     corsOrigin,
     wsServers,
+    authCheck: authCheckFn,
   });
 
   // Wire WebSocket upgrade for all projects
@@ -154,10 +169,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     socket.on('close', () => wsServer.removeClient(clientId));
   });
 
-  httpServer.listen(port, () => {
-    console.error(`\nHTTP server listening on port ${port}.`);
+  httpServer.listen(port, bindAddress, () => {
+    console.error(`\nHTTP server listening on ${bindAddress}:${port}.`);
     console.error(`Projects: ${projectNames.join(', ')}`);
     console.error(`WebSocket: connect to /ws/:projectName`);
+    if (authMode === 'token') console.error(`Auth: token required`);
   });
 
   // Helper: collect active sessions for state persistence
@@ -223,6 +239,34 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  // SIGUSR1: hot reload — re-scan projects, restart orchestrators, keep agent processes alive
+  process.on('SIGUSR1', () => {
+    console.error('\nSIGUSR1 received: hot-reloading configuration...');
+    try {
+      // Re-scan projects
+      const newNames = projectManager.list();
+      const added = newNames.filter(n => !projectNames.includes(n));
+      if (added.length > 0) {
+        console.error(`  New projects detected: ${added.join(', ')}`);
+      }
+      // Restart orchestrators with fresh config
+      for (const o of orchestrators) {
+        try { o.stop(); } catch {}
+      }
+      for (const name of projectNames) {
+        const fd = projectManager.get(name);
+        if (fd) {
+          fd.orchestrator.stop();
+          fd.orchestrator.start();
+          console.error(`  [${name}] Orchestrator restarted.`);
+        }
+      }
+      console.error('Hot reload complete.');
+    } catch (err) {
+      console.error('Hot reload failed:', err);
+    }
+  });
   process.on('uncaughtException', (err) => {
     console.error('\nFatal uncaught exception:', err);
     // Best-effort state save on crash

@@ -10,6 +10,8 @@ export interface HttpServerDeps {
   corsOrigin: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wsServers: Map<string, any>;
+  /** Auth check function. Returns true if request was blocked (401 sent). */
+  authCheck?: (req: IncomingMessage, res: ServerResponse) => boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ export interface HttpServerDeps {
  * All project routes are scoped under /api/projects/:name/*.
  */
 export function createHttpServer(deps: HttpServerDeps): Server {
-  const { projectManager, leadManagers, port, corsOrigin, wsServers } = deps;
+  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck } = deps;
 
   let modelCfg: InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig> | null = null;
   let presetNames: string[] = [];
@@ -69,6 +71,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // Auth check
+    if (authCheck && authCheck(req, res)) return;
 
     // ── Health ──
     if (url.pathname === '/health') {

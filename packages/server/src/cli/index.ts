@@ -20,6 +20,11 @@ const { values, positionals } = parseArgs({
     'cors-origin': { type: 'string' },
     'no-recover': { type: 'boolean', default: false },
     'fresh': { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
+    bind: { type: 'string' },
+    auth: { type: 'string' },
+    token: { type: 'string' },
+    days: { type: 'string' },
   },
 });
 
@@ -51,6 +56,11 @@ Commands:
   gateway restart          Restart gateway (saves/restores agent state)
   gateway status           Show gateway status
   gateway run              Run gateway in foreground (dev/debug)
+  gateway health           Check gateway health endpoint
+  gateway probe            Diagnostic checks (PID, port, /health)
+  gateway usage-cost       Show cost summary across projects
+  gateway install          Install as OS service (launchd/systemd)
+  gateway uninstall        Remove OS service
   start [--project X]     Alias for 'gateway run' (backward compat)
   pause                   Pause orchestrator (stop claiming new tasks)
   resume                  Resume orchestrator (start claiming tasks)
@@ -59,6 +69,13 @@ Commands:
 
 Options:
   -p, --project <name>    Project name (default: from .flightdeck.json)
+  --port <port>           Gateway port (default: 3000)
+  --bind <mode>           Bind address: loopback (default), lan (0.0.0.0), or IP
+  --auth <mode>           Auth mode: none (default) or token
+  --token <token>         Explicit auth token (with --auth token)
+  --force                 Kill existing process on port before starting
+  --json                  JSON output for query commands
+  --no-recover / --fresh  Skip session recovery on start
   -h, --help              Show help
 `);
 }
@@ -225,21 +242,40 @@ switch (command) {
   }
 
   case 'gateway': {
-    const { gatewayStart, gatewayStop, gatewayRestart, gatewayStatus, gatewayRun } = await import('./gateway-lifecycle.js');
+    const { gatewayStart, gatewayStop, gatewayRestart, gatewayStatus, gatewayRun, gatewayHealth, gatewayProbe, gatewayUsageCost } = await import('./gateway-lifecycle.js');
     const gatewayOpts = {
       port: values.port ? parseInt(String(values.port), 10) : undefined,
       corsOrigin: values['cors-origin'] as string | undefined,
       noRecover: !!(values['no-recover'] || values['fresh'] as unknown),
       projectFilter: values.project as string | undefined,
+      force: !!(values.force as unknown),
+      bind: values.bind as string | undefined,
+      auth: values.auth as 'none' | 'token' | undefined,
+      token: values.token as string | undefined,
+      json: !!(values.json as unknown),
+      days: values.days ? parseInt(String(values.days), 10) : undefined,
     };
     switch (subcommand) {
       case 'start': await gatewayStart(gatewayOpts); break;
       case 'stop': await gatewayStop(); break;
       case 'restart': await gatewayRestart(gatewayOpts); break;
-      case 'status': await gatewayStatus(); break;
+      case 'status': await gatewayStatus(gatewayOpts); break;
       case 'run': await gatewayRun(gatewayOpts); break;
+      case 'health': await gatewayHealth(gatewayOpts); break;
+      case 'probe': await gatewayProbe(gatewayOpts); break;
+      case 'usage-cost': await gatewayUsageCost(gatewayOpts); break;
+      case 'install': {
+        const { installService } = await import('./gateway/service.js');
+        installService();
+        break;
+      }
+      case 'uninstall': {
+        const { uninstallService } = await import('./gateway/service.js');
+        uninstallService();
+        break;
+      }
       default:
-        console.error('Usage: flightdeck gateway <start|stop|restart|status|run>');
+        console.error('Usage: flightdeck gateway <start|stop|restart|status|run|health|probe|usage-cost|install|uninstall>');
         process.exit(1);
     }
     break;
