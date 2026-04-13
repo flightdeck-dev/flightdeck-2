@@ -115,4 +115,28 @@ describe('TaskDAG new operations', () => {
     expect(tasks[2].dependsOn).toContain(tasks[0].id);
     expect(tasks[2].dependsOn).toContain(tasks[1].id);
   });
+
+  it('rejects circular dependencies in batch', () => {
+    expect(() => fd.declareTasks([
+      { title: 'A', dependsOn: ['B'] },
+      { title: 'B', dependsOn: ['A'] },
+    ])).toThrow('Circular dependency');
+    // Verify rollback: no orphan tasks created
+    const allTasks = fd.listTasks();
+    expect(allTasks.filter(t => t.title === 'A' || t.title === 'B')).toHaveLength(0);
+  });
+
+  it('rejects self-referencing dependencies', () => {
+    expect(() => fd.declareTasks([
+      { title: 'X', dependsOn: ['#0'] },
+    ])).toThrow('Circular dependency');
+  });
+
+  it('rejects 3-node cycle', () => {
+    expect(() => fd.declareTasks([
+      { title: 'P', dependsOn: ['#2'] },
+      { title: 'Q', dependsOn: ['#0'] },
+      { title: 'R', dependsOn: ['#1'] },
+    ])).toThrow('Circular dependency');
+  });
 });

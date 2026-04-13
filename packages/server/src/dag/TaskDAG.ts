@@ -201,42 +201,78 @@ export class TaskDAG {
       idMap.set(t.title, task.id);
       results.push(task);
     }
-    // Second pass: wire up dependencies
+    // Second pass: resolve dependency references
     // Dependencies can reference other tasks by:
     //   - title: "Implement CLI calculator core logic"
     //   - index: "#0", "#1", etc. (0-based index within this batch)
     //   - existing task ID: "task-abc123"
+    const resolvedDepsMap = new Map<number, TaskId[]>();
     for (let i = 0; i < tasks.length; i++) {
       const deps = tasks[i].dependsOn;
       if (deps && deps.length > 0) {
         const resolvedDeps = deps.map(d => {
-          // Index reference: #0, #1, etc.
           if (d.startsWith('#') && /^#\d+$/.test(d)) {
             const idx = parseInt(d.slice(1), 10);
             if (idx >= 0 && idx < results.length) return results[idx].id;
-            return d as TaskId; // invalid index, pass through
+            return d as TaskId;
           }
           return idMap.get(d) ?? d as TaskId;
         });
-        // Update in store
-        this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
-        results[i] = { ...results[i], dependsOn: resolvedDeps };
-        // Check if should be pending
-        const allDone = resolvedDeps.every(d => {
-          const t = this.store.getTask(d);
-          return t?.state === 'done';
-        });
-        if (!allDone) {
-          this.store.updateTaskState(results[i].id, 'pending');
-          results[i] = { ...results[i], state: 'pending' };
+        resolvedDepsMap.set(i, resolvedDeps);
+      }
+    }
+
+    // Cycle detection: build adjacency within this batch and check for cycles
+    const batchIds = new Set(results.map(r => r.id));
+    const batchAdj = new Map<TaskId, TaskId[]>();
+    for (const [i, deps] of resolvedDepsMap) {
+      batchAdj.set(results[i].id, deps.filter(d => batchIds.has(d)));
+    }
+    if (batchIds.size > 0) {
+      const visited = new Set<TaskId>();
+      const inStack = new Set<TaskId>();
+      const hasCycle = (node: TaskId): boolean => {
+        if (inStack.has(node)) return true;
+        if (visited.has(node)) return false;
+        visited.add(node);
+        inStack.add(node);
+        for (const dep of (batchAdj.get(node) ?? [])) {
+          if (hasCycle(dep)) return true;
         }
-        // Update adjacency
-        for (const dep of resolvedDeps) {
-          if (!this.adjacency.has(dep)) this.adjacency.set(dep, new Set());
-          this.adjacency.get(dep)!.add(results[i].id);
-          if (!this.reverseAdj.has(results[i].id)) this.reverseAdj.set(results[i].id, new Set());
-          this.reverseAdj.get(results[i].id)!.add(dep);
+        inStack.delete(node);
+        return false;
+      };
+      for (const id of batchIds) {
+        if (hasCycle(id)) {
+          // Rollback: delete all created tasks
+          for (const r of results) {
+            try { this.store.deleteTask(r.id); } catch { /* best effort */ }
+          }
+          throw new Error('Circular dependency detected in task batch. No tasks were created.');
         }
+      }
+    }
+
+    // Third pass: commit dependencies to store
+    for (const [i, resolvedDeps] of resolvedDepsMap) {
+      // Update in store
+      this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
+      results[i] = { ...results[i], dependsOn: resolvedDeps };
+      // Check if should be pending
+      const allDone = resolvedDeps.every(d => {
+        const t = this.store.getTask(d);
+        return t?.state === 'done';
+      });
+      if (!allDone) {
+        this.store.updateTaskState(results[i].id, 'pending');
+        results[i] = { ...results[i], state: 'pending' };
+      }
+      // Update adjacency
+      for (const dep of resolvedDeps) {
+        if (!this.adjacency.has(dep)) this.adjacency.set(dep, new Set());
+        this.adjacency.get(dep)!.add(results[i].id);
+        if (!this.reverseAdj.has(results[i].id)) this.reverseAdj.set(results[i].id, new Set());
+        this.reverseAdj.get(results[i].id)!.add(dep);
       }
     }
     return results;

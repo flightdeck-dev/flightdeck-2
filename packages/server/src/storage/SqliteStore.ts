@@ -249,6 +249,10 @@ export class SqliteStore {
     }
   }
 
+  deleteTask(id: TaskId): void {
+    this._db.delete(tasks).where(eq(tasks.id, id)).run();
+  }
+
   getTasksByState(state: TaskState): Task[] {
     return this._db.select().from(tasks).where(eq(tasks.state, state)).all().map(r => this.rowToTask(r));
   }

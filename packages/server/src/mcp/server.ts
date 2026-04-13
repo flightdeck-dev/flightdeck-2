@@ -572,7 +572,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Communication tools ──
 
-  server.tool('flightdeck_msg_send', 'Send a DM to another agent', {
+  server.tool('flightdeck_msg_send', 'Send a DM to another agent (delivered immediately via steer)', {
     from: z.string(),
     to: z.string(),
     content: z.string(),
@@ -592,6 +592,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       timestamp: new Date().toISOString(),
     };
     fd.sendMessage(msg);
+
+    // Deliver immediately: steer the recipient agent
+    if (agentManager) {
+      try {
+        await agentManager.interruptAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
+        return jsonResponse({ status: 'delivered', to: params.to });
+      } catch {
+        // Agent may not have an active session — message is stored for later
+        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message stored for next turn.' });
+      }
+    }
     return jsonResponse({ status: 'sent', to: params.to });
   });
 
