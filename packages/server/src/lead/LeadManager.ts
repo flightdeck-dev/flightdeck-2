@@ -457,10 +457,16 @@ export class LeadManager {
     }
   }
 
+  private isHeartbeating = false;
+
   private startHeartbeatTimer(): void {
     this.heartbeatTimer = setInterval(() => {
+      if (this.isHeartbeating) return; // Guard against overlapping heartbeats
       if (this.checkHeartbeatConditions()) {
-        this.steerLead({ type: 'heartbeat' }).catch(() => {});
+        this.isHeartbeating = true;
+        this.steerLead({ type: 'heartbeat' })
+          .catch(() => {})
+          .finally(() => { this.isHeartbeating = false; });
         this.tasksSinceLastHeartbeat = 0;
         this.lastHeartbeatAt = new Date().toISOString();
       }

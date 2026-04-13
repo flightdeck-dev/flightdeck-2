@@ -12,6 +12,8 @@ export class SqliteStore {
 
   constructor(dbPath: string) {
     this._db = createDatabase(dbPath);
+    // Enable WAL mode for better concurrent read performance
+    this._db.run(sql.raw('PRAGMA journal_mode=WAL'));
     this.migrate();
   }
 
@@ -70,9 +72,10 @@ export class SqliteStore {
     // ── Migrations ──
 
     // Add stale column to tasks (FR-008)
-    try {
+    const staleCols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
+    if (!staleCols.some(c => c.name === 'stale')) {
       this._db.run(sql.raw(`ALTER TABLE tasks ADD COLUMN stale INTEGER NOT NULL DEFAULT 0`));
-    } catch { /* column already exists */ }
+    }
 
     // Spec hashes table for change detection (FR-008)
     this._db.run(sql.raw(`

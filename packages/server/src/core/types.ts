@@ -173,6 +173,7 @@ export type SideEffect =
   | { type: 'spawn_reviewer'; taskId: TaskId }
   | { type: 'resolve_dependents'; taskId: TaskId }
   | { type: 'block_dependents'; taskId: TaskId }
+  | { type: 'unblock_dependents'; taskId: TaskId }
   | { type: 'clear_assignment'; taskId: TaskId }
   | { type: 'set_timestamp'; taskId: TaskId }
   | { type: 'escalate'; taskId: TaskId; reason: string }
@@ -211,6 +212,8 @@ export function transition(
   }
   if ((target === 'ready' && current === 'failed') && context?.taskId) {
     effects.push({ type: 'clear_assignment', taskId: context.taskId });
+    // Unblock dependents: blocked → pending (task is being retried, not done)
+    effects.push({ type: 'unblock_dependents', taskId: context.taskId });
   }
   if (target === 'cancelled' && context?.taskId) {
     effects.push({ type: 'clear_assignment', taskId: context.taskId });

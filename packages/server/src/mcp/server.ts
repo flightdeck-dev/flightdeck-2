@@ -143,6 +143,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(result);
   });
 
+  server.tool('flightdeck_task_get', 'Get details for a single task', {
+    taskId: z.string(),
+  }, async (params) => {
+    const task = fd.sqlite.getTask(params.taskId as TaskId);
+    if (!task) return errorResponse(`Task not found: ${params.taskId}`);
+    return jsonResponse(task);
+  });
+
   server.tool('flightdeck_task_add', 'Add a new task to the DAG', {
     title: z.string(),
     description: z.string().optional(),
@@ -1063,10 +1071,10 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Isolation status ──
 
   server.tool('flightdeck_isolation_status', 'Show current isolation mode and active worktrees/workdirs', {}, async () => {
-    const project = projectStore.get();
+    const project = fd.project.getConfig();
     const isolationMode = project.isolation ?? 'none';
     const { IsolationManager } = await import('../isolation/IsolationManager.js');
-    const im = new IsolationManager(project.cwd ?? process.cwd(), {
+    const im = new IsolationManager(fd.project.cwd ?? process.cwd(), {
       mode: isolationMode as 'none' | 'git_worktree' | 'directory',
     });
     return jsonResponse(im.status());

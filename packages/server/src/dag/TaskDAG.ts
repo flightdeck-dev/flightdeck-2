@@ -267,6 +267,17 @@ export class TaskDAG {
           }
           break;
         }
+        case 'unblock_dependents': {
+          // Unblock dependents: blocked → pending (parent task is being retried)
+          const deps = this.adjacency.get(effect.taskId) ?? new Set();
+          for (const depId of deps) {
+            const depTask = this.store.getTask(depId);
+            if (depTask && depTask.state === 'blocked') {
+              this.store.updateTaskState(depId, 'pending');
+            }
+          }
+          break;
+        }
         case 'clear_assignment':
           this.store.clearTaskAssignment(effect.taskId);
           break;

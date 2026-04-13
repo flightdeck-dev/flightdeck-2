@@ -84,7 +84,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const leadManagers = new Map<string, InstanceType<typeof LeadManager>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsServers = new Map<string, any>();
-  const orchestrators: Array<{ stop: () => void }> = [];
+  const orchestrators: Array<{ stop: () => void; start: () => void }> = [];
 
   for (const name of projectNames) {
     const fd = projectManager.get(name)!;
@@ -299,17 +299,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       if (added.length > 0) {
         console.error(`  New projects detected: ${added.join(', ')}`);
       }
-      // Restart orchestrators with fresh config
       for (const o of orchestrators) {
         try { o.stop(); } catch {}
       }
-      for (const name of projectNames) {
-        const fd = projectManager.get(name);
-        if (fd) {
-          fd.orchestrator.stop();
-          fd.orchestrator.start();
-          console.error(`  [${name}] Orchestrator restarted.`);
-        }
+      for (const o of orchestrators) {
+        try { o.start(); console.error(`  Orchestrator restarted.`); } catch {}
       }
       console.error('Hot reload complete.');
     } catch (err) {

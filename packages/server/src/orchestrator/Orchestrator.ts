@@ -144,8 +144,14 @@ export class Orchestrator {
             });
           }
           this.broadcastStateChange();
-        }).catch(() => {
-          // Review spawn failed - leave in in_review for retry
+        }).catch((err: unknown) => {
+          console.error(`[${this.config.name}] Review spawn failed for task ${effect.taskId}:`, err instanceof Error ? err.message : String(err));
+          // Leave in in_review for retry; notify Lead
+          this.leadManager?.steerLead({
+            type: 'task_failure',
+            taskId: effect.taskId as string,
+            error: `Review process failed: ${err instanceof Error ? err.message : String(err)}`,
+          }).catch(() => {});
         });
         break;
       }
@@ -531,10 +537,11 @@ export class Orchestrator {
   private autoAssignReadyTasks(): number {
     const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent);
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
+    const usedAgentIds = new Set<string>();
     let assigned = 0;
 
     for (const task of readyTasks) {
-      const agent = agents.find(a => a.role === task.role && a.status === 'idle');
+      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
       if (!agent) continue;
 
       // Check governance gate
@@ -548,6 +555,7 @@ export class Orchestrator {
       try {
         this.dag.claimTask(task.id, agent.id);
         this.store.updateAgentStatus(agent.id, 'busy');
+        usedAgentIds.add(agent.id);
         assigned++;
       } catch {
         // Skip

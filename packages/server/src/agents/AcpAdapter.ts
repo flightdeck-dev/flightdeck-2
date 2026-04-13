@@ -80,6 +80,7 @@ export interface AcpSession {
   lastActivityAt: Date;
   cwd: string;
   model?: string;
+  projectName?: string;
   tokensIn: number;
   tokensOut: number;
   turnCount: number;
@@ -138,8 +139,10 @@ export class AcpAdapter extends AgentAdapter {
       }
     };
     process.once('exit', cleanup);
-    process.once('SIGINT', () => { cleanup(); process.exit(130); });
-    process.once('SIGTERM', () => { cleanup(); process.exit(143); });
+    // Don't call process.exit() here — let the gateway's signal handlers
+    // save state and exit gracefully. We just clean up child processes.
+    process.once('SIGINT', () => { cleanup(); });
+    process.once('SIGTERM', () => { cleanup(); });
   }
 
   /**
@@ -374,6 +377,7 @@ export class AcpAdapter extends AgentAdapter {
       lastActivityAt: now,
       cwd: opts.cwd,
       model: opts.model,
+      projectName: opts.projectName,
       tokensIn: 0,
       tokensOut: 0,
       turnCount: 0,
@@ -518,6 +522,7 @@ export class AcpAdapter extends AgentAdapter {
     cwd: string;
     role: string;
     model?: string;
+    projectName?: string;
     mcpServers?: McpServer[];
   }): Promise<AgentMetadata> {
     const runtime = this.runtimes[this.runtimeName];
@@ -548,6 +553,7 @@ export class AcpAdapter extends AgentAdapter {
       lastActivityAt: now,
       cwd: opts.cwd,
       model: opts.model,
+      projectName: opts.projectName,
       tokensIn: 0,
       tokensOut: 0,
       turnCount: 0,
@@ -619,10 +625,23 @@ export class AcpAdapter extends AgentAdapter {
         throw new Error('Agent does not support session/load. Cannot resume session.');
       }
 
+      const defaultMcpServers: McpServer[] = [
+        {
+          name: 'flightdeck',
+          command: 'node',
+          args: [resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs')],
+          env: [
+            { name: 'FLIGHTDECK_AGENT_ID', value: session.agentId },
+            { name: 'FLIGHTDECK_AGENT_ROLE', value: session.role ?? '' },
+            ...(session.projectName ? [{ name: 'FLIGHTDECK_PROJECT', value: session.projectName }] : []),
+          ],
+        } as any,
+      ];
+
       const _result = await session.connection.loadSession({
         sessionId: previousSessionId,
         cwd: session.cwd,
-        mcpServers: mcpServers ?? [],
+        mcpServers: mcpServers ?? defaultMcpServers,
       });
 
       // loadSession uses the same sessionId we passed in
@@ -710,8 +729,37 @@ export class AcpAdapter extends AgentAdapter {
     }
     session.lastActivityAt = new Date();
 
-    // Drain any messages queued while this prompt was running
-    await this.drainQueue(session);
+    // Drain any messages queued while this prompt was running (loop instead of recursion)
+    while (session.promptQueue.length > 0 && session.status !== 'ended' && session.acpSessionId) {
+      const items = session.promptQueue.splice(0);
+      const priorityItems = items.filter(i => i.priority);
+      const normalItems = items.filter(i => !i.priority);
+      const ordered = [...priorityItems, ...normalItems];
+      const merged = ordered.map(i => i.content).join('\n\n---\n\n');
+
+      session.turnCount++;
+      session.status = 'prompting';
+      session.isPrompting = true;
+      const loopOutputBefore = session.output.length;
+
+      try {
+        await session.connection.prompt({
+          sessionId: session.acpSessionId!,
+          prompt: [{ type: 'text', text: merged }],
+        });
+        session.status = 'active';
+        const loopResponse = session.output.slice(loopOutputBefore);
+        for (const item of ordered) { item.resolve?.(loopResponse); }
+      } catch (err: unknown) {
+        if ((session.status as AcpSessionStatus) !== 'ended') {
+          session.status = 'active';
+        }
+        for (const item of ordered) { item.reject?.(err instanceof Error ? err : new Error(String(err))); }
+      } finally {
+        session.isPrompting = false;
+      }
+      session.lastActivityAt = new Date();
+    }
 
     return session.output.slice(outputBefore);
   }
