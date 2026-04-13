@@ -133,22 +133,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(result);
   });
 
-  server.tool('flightdeck_task_get', 'Get full details of a single task by ID', {
-    taskId: z.string(),
-  }, async (params) => {
-    const task = fd.getTask(params.taskId as TaskId);
-    if (!task) {
-      return errorResponse(`Error: Task '${params.taskId}' not found. Use flightdeck_task_list() to see available tasks.`);
-    }
-    // If epic, include sub-tasks
-    const allTasks = fd.listTasks();
-    const subTasks = allTasks.filter(t => t.parentTaskId === params.taskId);
-    if (subTasks.length > 0) {
-      return jsonResponse({ ...task, subTasks });
-    }
-    return jsonResponse(task);
-  });
-
   server.tool('flightdeck_task_add', 'Add a new task to the DAG', {
     title: z.string(),
     description: z.string().optional(),

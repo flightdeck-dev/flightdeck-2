@@ -179,10 +179,6 @@ export class Flightdeck {
     return this.dag.getSubTasks(parentId);
   }
 
-  getTask(taskId: TaskId): Task | null {
-    return this.dag.getTask(taskId);
-  }
-
   listTasks(specId?: SpecId): Task[] {
     return this.dag.listTasks(specId);
   }
