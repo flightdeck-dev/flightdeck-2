@@ -105,6 +105,10 @@ switch (command) {
     if (!name) { console.error('Usage: flightdeck init <project-name>'); process.exit(1); }
     const store = new ProjectStore(name);
     store.init(name);
+    // Store the project working directory in config for status file generation
+    const cfg = store.getConfig();
+    cfg.cwd = process.cwd();
+    store.setConfig(cfg);
     ProjectStore.writeFlightdeckJson(process.cwd(), name);
     // Generate default AGENTS.md (worker role) and .mcp.json
     ProjectStore.writeAgentFiles(process.cwd(), 'worker');

@@ -9,6 +9,8 @@ import type { MessageStore } from '../comms/MessageStore.js';
 import type { WebSocketServer } from '../api/WebSocketServer.js';
 import type { SessionManager } from '../agents/SessionManager.js';
 import type { DecisionLog } from '../storage/DecisionLog.js';
+import { StatusFileWriter, type StatusData } from '../status/StatusFileWriter.js';
+import { TaskContextWriter } from '../status/TaskContextWriter.js';
 
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
@@ -55,6 +57,7 @@ export class Orchestrator {
   /** Tracks which specs have had retrospectives triggered. Bounded: entries older than 24h are pruned. */
   private retrospectivesDone = new Map<string, number>();
   private decisionLog: DecisionLog | null;
+  private statusWriter: StatusFileWriter;
 
   constructor(
     private dag: TaskDAG,
@@ -80,6 +83,7 @@ export class Orchestrator {
     this.wsServer = opts?.wsServer ?? null;
     this.governanceConfig = opts?.governanceConfig ?? {};
     this.decisionLog = opts?.decisionLog ?? null;
+    this.statusWriter = new StatusFileWriter();
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -212,6 +216,11 @@ export class Orchestrator {
     // 8. Broadcast state changes to WebSocket clients
     if (stateChanged) {
       this.broadcastStateChange();
+    }
+
+    // 9. Write status files to project directory
+    if (stateChanged) {
+      this.writeStatusFiles();
     }
 
     return result;
@@ -500,6 +509,35 @@ export class Orchestrator {
         updatedAt: null,
       },
     });
+  }
+
+  /**
+   * Write .flightdeck/status.md and per-task context files to the project cwd.
+   */
+  private writeStatusFiles(): void {
+    const cwd = this.config.cwd;
+    if (!cwd) return; // No project cwd configured
+
+    try {
+      const tasks = this.dag.listTasks();
+      const agents = this.store.listAgents();
+      const totalCost = this.store.getTotalCost();
+
+      const data: StatusData = {
+        projectName: this.config.name,
+        governance: this.config.governance,
+        tasks,
+        agents,
+        totalCost,
+      };
+
+      this.statusWriter.writeStatus(cwd, data);
+
+      // Write per-task context files for tasks that changed recently
+      TaskContextWriter.writeAll(cwd, tasks, agents);
+    } catch {
+      // Status file writing is best-effort — don't crash the orchestrator
+    }
   }
 
   start(intervalMs: number = 5 * 60 * 1000): void {

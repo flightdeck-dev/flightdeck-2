@@ -141,6 +141,8 @@ export interface ProjectConfig {
   costThresholdPerDay?: number;
   maxConcurrentAgents?: number;
   agents?: AgentsConfig;
+  /** The working directory where .flightdeck.json lives (project root). */
+  cwd?: string;
 }
 
 export interface FlightdeckJson {
