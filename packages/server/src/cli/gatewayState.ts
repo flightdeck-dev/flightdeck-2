@@ -10,6 +10,7 @@ export interface SavedSession {
   localSessionId: string;
   cwd: string;
   model?: string;
+  status?: 'suspended' | 'active';
 }
 
 export interface GatewayState {

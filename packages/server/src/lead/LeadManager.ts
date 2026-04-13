@@ -15,6 +15,13 @@ import type { AcpAdapter } from '../agents/AcpAdapter.js';
 export const FLIGHTDECK_IDLE = 'FLIGHTDECK_IDLE';
 export const FLIGHTDECK_NO_REPLY = 'FLIGHTDECK_NO_REPLY';
 
+export type PlannerEvent =
+  | { type: 'critical_task_completed'; taskId: string; specId: string | null; title: string; remainingInSpec: number }
+  | { type: 'task_failed'; taskId: string; error: string; retriesLeft: number }
+  | { type: 'worker_escalation'; taskId: string; agentId: string; reason: string }
+  | { type: 'spec_milestone'; specId: string; completed: number; total: number }
+  | { type: 'plan_validation_request'; specId: string; context: string };
+
 export type LeadEvent =
   | { type: 'user_message'; message: ChatMessage }
   | { type: 'task_comment'; taskId: string; message: ChatMessage }
@@ -62,6 +69,7 @@ export class LeadManager {
   private projectName: string | undefined;
 
   private plannerSessionId: string | null = null;
+  private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
 
   constructor(opts: LeadManagerOptions) {
     this.sqlite = opts.sqlite;
@@ -256,10 +264,94 @@ export class LeadManager {
     return meta.sessionId;
   }
 
+  /** Set suspended planner info for lazy resume */
+  setSuspendedPlanner(info: { acpSessionId: string; cwd: string; model?: string }): void {
+    this.suspendedPlannerInfo = info;
+  }
+
+  /** Check if planner is suspended (awaiting lazy resume) */
+  isPlannerSuspended(): boolean {
+    return this.suspendedPlannerInfo !== null && this.plannerSessionId === null;
+  }
+
+  /** Build a steer message for a PlannerEvent */
+  buildPlannerSteer(event: PlannerEvent): string {
+    const parts: string[] = [];
+
+    switch (event.type) {
+      case 'critical_task_completed':
+        parts.push('[plan event: critical task completed]');
+        parts.push(`Task "${event.title}" (${event.taskId}) has been completed.`);
+        if (event.specId) parts.push(`Spec: ${event.specId}`);
+        parts.push(`Remaining tasks in spec: ${event.remainingInSpec}`);
+        parts.push('');
+        parts.push('Please validate that remaining tasks\' assumptions still hold given this completion.');
+        parts.push('If any downstream tasks need updated descriptions, new dependencies, or should be skipped, take action now.');
+        parts.push('If no changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+
+      case 'task_failed':
+        parts.push('[plan event: task failed]');
+        parts.push(`Task ${event.taskId} failed: ${event.error}`);
+        parts.push(`Retries left: ${event.retriesLeft}`);
+        parts.push('');
+        parts.push('Evaluate whether this task should be re-decomposed into smaller subtasks, the approach changed, or other tasks affected.');
+        parts.push('If no plan changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+
+      case 'worker_escalation':
+        parts.push('[plan event: worker escalation]');
+        parts.push(`Agent ${event.agentId} escalated on task ${event.taskId}: ${event.reason}`);
+        parts.push('');
+        parts.push('Decide: Is the task description unclear? Is it too large and should be decomposed? Is there a missing dependency?');
+        parts.push('If no plan changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+
+      case 'spec_milestone':
+        parts.push('[plan event: spec milestone]');
+        parts.push(`Spec ${event.specId}: ${event.completed}/${event.total} tasks completed.`);
+        parts.push('');
+        parts.push('Progress checkpoint. Review: Is the remaining plan still coherent? Should priorities be reordered?');
+        parts.push('If no changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+
+      case 'plan_validation_request':
+        parts.push('[plan event: validation request]');
+        parts.push(`Spec ${event.specId} needs plan review.`);
+        parts.push(`Context: ${event.context}`);
+        parts.push('');
+        parts.push('Please review the remaining plan and make any necessary adjustments.');
+        parts.push('If no changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+    }
+
+    return parts.join('\n');
+  }
+
+  /** Send a structured PlannerEvent steer */
+  async steerPlannerEvent(event: PlannerEvent): Promise<string> {
+    const message = this.buildPlannerSteer(event);
+    return this.steerPlanner(message);
+  }
+
   /** Steer the persistent Planner with a request */
-  async steerPlanner(message: string): Promise<void> {
-    if (!this.plannerSessionId) return;
-    await this.acpAdapter.steer(this.plannerSessionId, { content: message });
+  async steerPlanner(message: string): Promise<string> {
+    // Auto-resume suspended planner on first steer
+    if (this.isPlannerSuspended() && this.suspendedPlannerInfo) {
+      const info = this.suspendedPlannerInfo;
+      this.suspendedPlannerInfo = null;
+      try {
+        console.error(`  Auto-resuming suspended Planner from session ${info.acpSessionId}...`);
+        await this.resumePlanner(info.acpSessionId, info.cwd, info.model);
+        console.error(`  Planner resumed (session: ${this.plannerSessionId})`);
+      } catch (err) {
+        console.error(`  Failed to auto-resume Planner: ${err instanceof Error ? err.message : String(err)}`);
+        return '';
+      }
+    }
+    if (!this.plannerSessionId) return '';
+    const response = await this.acpAdapter.steer(this.plannerSessionId, { content: message });
+    return response;
   }
 
   /** Get Planner session ID */

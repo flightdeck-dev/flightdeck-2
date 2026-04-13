@@ -299,6 +299,7 @@ async function spawnAgents(
     spawnPlanner(): Promise<string>;
     resumeLead(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
     resumePlanner(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
+    setSuspendedPlanner(info: { acpSessionId: string; cwd: string; model?: string }): void;
   },
   projectName: string,
   savedSessions: SavedSession[] = [],
@@ -328,17 +329,35 @@ async function spawnAgents(
   }
 
   if (!hasPlanner) {
-    try {
-      let sid: string;
-      if (savedPlanner) {
-        console.error(`  [${projectName}] Resuming Planner from session ${savedPlanner.acpSessionId}...`);
-        sid = await leadManager.resumePlanner(savedPlanner.acpSessionId, savedPlanner.cwd, savedPlanner.model);
-      } else {
-        sid = await leadManager.spawnPlanner();
+    if (savedPlanner) {
+      // Lazy resume: mark Planner as suspended, resume on-demand when Lead needs it
+      console.error(`  [${projectName}] Suspending Planner (will resume on-demand from session ${savedPlanner.acpSessionId})`);
+      leadManager.setSuspendedPlanner({
+        acpSessionId: savedPlanner.acpSessionId,
+        cwd: savedPlanner.cwd,
+        model: savedPlanner.model,
+      });
+      // Register a suspended agent record in SQLite so it shows in status
+      const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
+      const suspendedId = makeAgentId('planner', Date.now().toString());
+      fd.sqlite.insertAgent({
+        id: suspendedId,
+        role: 'planner',
+        runtime: 'acp',
+        acpSessionId: null,
+        status: 'suspended',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
+    } else {
+      // No saved session — spawn fresh (first run)
+      try {
+        const sid = await leadManager.spawnPlanner();
+        console.error(`  [${projectName}] Planner spawned (session: ${sid})`);
+      } catch (err: unknown) {
+        console.error(`  [${projectName}] Failed to spawn Planner: ${err instanceof Error ? err.message : String(err)}`);
       }
-      console.error(`  [${projectName}] Planner ${savedPlanner ? 'resumed' : 'spawned'} (session: ${sid})`);
-    } catch (err: unknown) {
-      console.error(`  [${projectName}] Failed to spawn Planner: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
     console.error(`  [${projectName}] Planner already active.`);

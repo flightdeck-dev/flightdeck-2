@@ -263,6 +263,11 @@ export class AgentManager {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
+    // Suspended agents cannot be steered — they need to be resumed first
+    if (agent.status === 'suspended') {
+      throw new Error(`Agent ${agentId} is suspended. Resume it before steering.`);
+    }
+
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
 

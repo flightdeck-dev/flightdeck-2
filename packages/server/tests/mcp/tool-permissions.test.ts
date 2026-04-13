@@ -51,5 +51,14 @@ describe('toolPermissions', () => {
   it('reviewer can complete and fail tasks', () => {
     expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_complete');
     expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_fail');
+    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_get');
+  });
+
+  it('lead does NOT have task_complete (reviews are automated)', () => {
+    expect(ROLE_TOOLS.lead).not.toContain('flightdeck_task_complete');
+  });
+
+  it('lead does NOT have task_submit (that is for workers)', () => {
+    expect(ROLE_TOOLS.lead).not.toContain('flightdeck_task_submit');
   });
 });

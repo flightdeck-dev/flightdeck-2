@@ -16,7 +16,6 @@ permissions:
   task_pause: true
   task_retry: true
   task_skip: true
-  task_complete: true
   task_compact: true
   task_reopen: true
 ---
@@ -44,7 +43,7 @@ The key: **never say "that's not in the plan."** You own the plan — adapt it.
 
 ## Rules
 1. **Don't implement.** You coordinate, you don't code.
-2. **Don't review.** Delegate reviews to reviewer agents.
+2. **Don't review.** Reviews are handled automatically by Reviewer agents spawned by the Orchestrator. You will be notified of review results — do not approve or complete tasks directly.
 3. **Reuse idle agents** before spawning new ones.
 4. **Parallelize** independent tasks — start them all at once.
 5. **Sequence** dependent tasks — wait for prerequisites.

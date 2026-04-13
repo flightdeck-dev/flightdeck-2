@@ -16,6 +16,7 @@ import { TaskContextWriter } from '../status/TaskContextWriter.js';
 import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector.js';
 import { WebhookNotifier, type NotificationsConfig, taskCompletedEvent, taskFailedEvent, specCompletedEvent, escalationEvent, agentStallEvent, budgetWarningEvent } from '../integrations/WebhookNotifier.js';
 import type { SpecStore } from '../storage/SpecStore.js';
+import { processReview } from '../verification/ReviewFlow.js';
 
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
@@ -118,15 +119,33 @@ export class Orchestrator {
   private handleEffect(effect: SideEffect): void {
     switch (effect.type) {
       case 'spawn_reviewer': {
-        if (!this.agentManager) break;
+        if (!this.adapter) break;
         const task = this.dag.getTask(effect.taskId);
         if (!task) break;
-        this.agentManager.spawnAgent({
-          role: 'reviewer',
-          taskId: effect.taskId as string,
-          cwd: process.cwd(),
+        // Use ReviewFlow.processReview which handles:
+        // - Spawning reviewer agent with the review prompt
+        // - Waiting for its verdict
+        // - Transitioning task state (done/failed/running)
+        processReview(effect.taskId, this.store, this.adapter, {
+          cwd: this.config.cwd ?? process.cwd(),
+        }).then(result => {
+          if (result.passed) {
+            this.webhookNotifier?.notify(
+              taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
+            );
+            // Notify Planner if this was a critical-path completion
+            this.notifyPlannerIfNeeded(effect.taskId, 'completed');
+          } else {
+            // Notify lead about review failure
+            this.leadManager?.steerLead({
+              type: 'task_failure',
+              taskId: effect.taskId as string,
+              error: `Review failed: ${result.feedback}`,
+            });
+          }
+          this.broadcastStateChange();
         }).catch(() => {
-          // If reviewer spawn fails, Lead can retry
+          // Review spawn failed - leave in in_review for retry
         });
         break;
       }
@@ -141,6 +160,8 @@ export class Orchestrator {
         this.webhookNotifier?.notify(
           escalationEvent(this.config.name, effect.reason, (escalatedTask?.assignedAgent as string) ?? undefined),
         );
+        // Also notify Planner about escalations
+        this.notifyPlannerIfNeeded(effect.taskId, 'escalated');
         break;
       }
       case 'notify_agent': {
@@ -343,7 +364,11 @@ export class Orchestrator {
   private processCompletions(): number {
     const verificationEnabled = this.governance.governanceConfig.verification.enabled;
     if (verificationEnabled) {
-      // Reviewer agents handle completion directly via MCP tools
+      // When verification is enabled:
+      // 1. Worker submits → state machine emits spawn_reviewer effect
+      // 2. handleEffect calls processReview (ReviewFlow)
+      // 3. ReviewFlow spawns reviewer, waits for verdict, transitions task
+      // 4. This method is a no-op because reviews are handled by effects
       return 0;
     }
 
@@ -458,6 +483,8 @@ export class Orchestrator {
               taskId: task.id,
               error: `Task failed after ${maxRetries} retries. Agent session ended without submission.`,
             });
+            // Also notify Planner about exhausted failures
+            this.notifyPlannerIfNeeded(task.id, 'failed');
             this.webhookNotifier?.notify(
               taskFailedEvent(this.config.name, task.title, `Failed after ${maxRetries} retries`),
             );
@@ -743,5 +770,88 @@ export class Orchestrator {
 
   isRunning(): boolean {
     return this.intervalHandle !== null;
+  }
+
+  /* ── Reactive Planner notifications ─────────────────────────── */
+
+  private specMilestonesSent = new Map<string, Set<number>>();
+
+  private notifyPlannerIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated'): void {
+    if (!this.leadManager) return;
+
+    const task = this.dag.getTask(taskId);
+    if (!task) return;
+
+    switch (eventType) {
+      case 'completed': {
+        const allTasks = this.dag.listTasks();
+        const dependents = allTasks.filter(t =>
+          t.dependsOn.includes(taskId) &&
+          (t.state === 'pending' || t.state === 'ready' || t.state === 'blocked')
+        );
+
+        if (dependents.length > 0 && task.specId) {
+          const specTasks = allTasks.filter(t => t.specId === task.specId);
+          const remaining = specTasks.filter(t => t.state !== 'done' && t.state !== 'skipped' && t.state !== 'cancelled');
+
+          this.leadManager.steerPlannerEvent({
+            type: 'critical_task_completed',
+            taskId: taskId as string,
+            specId: task.specId as string,
+            title: task.title,
+            remainingInSpec: remaining.length,
+          });
+        }
+
+        if (task.specId) {
+          this.checkSpecMilestone(task.specId as string);
+        }
+        break;
+      }
+      case 'failed': {
+        this.leadManager.steerPlannerEvent({
+          type: 'task_failed',
+          taskId: taskId as string,
+          error: `Task "${task.title}" failed`,
+          retriesLeft: (this.governanceConfig.maxRetries ?? 3) - (this.retryCount.get(taskId) ?? 0),
+        });
+        break;
+      }
+      case 'escalated': {
+        this.leadManager.steerPlannerEvent({
+          type: 'worker_escalation',
+          taskId: taskId as string,
+          agentId: (task.assignedAgent as string) ?? 'unknown',
+          reason: 'Worker escalated',
+        });
+        break;
+      }
+    }
+  }
+
+  private checkSpecMilestone(specId: string): void {
+    if (!this.leadManager) return;
+    const allTasks = this.dag.listTasks().filter(t => t.specId === specId);
+    const total = allTasks.length;
+    if (total === 0) return;
+
+    const completed = allTasks.filter(t => t.state === 'done' || t.state === 'skipped' || t.state === 'cancelled').length;
+    const pct = Math.floor((completed / total) * 100);
+
+    const milestones = [50, 75];
+    const sent = this.specMilestonesSent.get(specId) ?? new Set();
+
+    for (const m of milestones) {
+      if (pct >= m && !sent.has(m)) {
+        sent.add(m);
+        this.specMilestonesSent.set(specId, sent);
+        this.leadManager.steerPlannerEvent({
+          type: 'spec_milestone',
+          specId,
+          completed,
+          total,
+        });
+      }
+    }
   }
 }

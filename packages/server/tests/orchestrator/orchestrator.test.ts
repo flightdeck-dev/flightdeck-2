@@ -179,6 +179,7 @@ describe('Orchestrator', () => {
   it('notifies Lead on task failure after max retries', async () => {
     const mockLeadManager = {
       steerLead: vi.fn().mockResolvedValue(undefined),
+      steerPlannerEvent: vi.fn().mockResolvedValue(''),
       recordTaskCompletion: vi.fn(),
     };
 

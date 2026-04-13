@@ -379,6 +379,11 @@ export class SqliteStore {
     return result.changes;
   }
 
+  /** List all agents with status 'suspended'. */
+  listSuspendedAgents(): Agent[] {
+    return this._db.select().from(agents).where(eq(agents.status, 'suspended')).all().map(r => this.rowToAgent(r));
+  }
+
   getActiveAgentCount(): number {
     const row = this._db.select({ count: count() })
       .from(agents)

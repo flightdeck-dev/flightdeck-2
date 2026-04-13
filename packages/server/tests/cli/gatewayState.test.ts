@@ -82,4 +82,35 @@ describe('gatewayState', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.sessions).toHaveLength(0);
   });
+
+  it('should save and load sessions with suspended status', () => {
+    const state: GatewayState = {
+      savedAt: new Date().toISOString(),
+      sessions: [
+        {
+          project: 'demo',
+          agentId: 'lead-123',
+          role: 'lead',
+          acpSessionId: 'acp-abc',
+          localSessionId: 'acp-local-1',
+          cwd: '/tmp/test',
+          status: 'active',
+        },
+        {
+          project: 'demo',
+          agentId: 'planner-456',
+          role: 'planner',
+          acpSessionId: 'acp-def',
+          localSessionId: 'acp-local-2',
+          cwd: '/tmp/test',
+          status: 'suspended',
+        },
+      ],
+    };
+    saveGatewayState(state);
+    const loaded = loadGatewayState();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.sessions[0].status).toBe('active');
+    expect(loaded!.sessions[1].status).toBe('suspended');
+  });
 });
