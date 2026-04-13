@@ -359,24 +359,43 @@ async function spawnAgents(
   const savedLead = savedSessions.find(s => s.role === 'lead');
   const savedPlanner = savedSessions.find(s => s.role === 'planner');
 
+  // Check if this project has active work (pending/ready/running/in_review tasks).
+  // If the project is idle, don't waste memory reloading the Lead.
+  const tasks = fd.listTasks();
+  const activeTasks = tasks.filter(t =>
+    t.state === 'pending' || t.state === 'ready' || t.state === 'running' || t.state === 'in_review'
+  );
+  const projectIsActive = activeTasks.length > 0;
+
   if (!hasLead) {
-    try {
-      let sid: string;
-      if (savedLead) {
+    if (!projectIsActive) {
+      // Don't waste memory spawning/reloading a Lead for an idle project.
+      // Lead will be spawned on-demand when new tasks arrive.
+      console.error(`  [${projectName}] Skipping Lead — no active tasks (project idle).`);
+    } else if (savedLead) {
+      try {
         console.error(`  [${projectName}] Resuming Lead from session ${savedLead.acpSessionId}...`);
-        sid = await leadManager.resumeLead(savedLead.acpSessionId, savedLead.cwd, savedLead.model);
-      } else {
-        sid = await leadManager.spawnLead();
-      }
-      console.error(`  [${projectName}] Lead ${savedLead ? 'resumed' : 'spawned'} (session: ${sid})`);
-      // Reload succeeded — clear any previous failure flag
-      if (savedLead) clearReloadFailed();
-    } catch (err: unknown) {
-      console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
-      // If this was a resume attempt, mark reload as failed so next startup skips it
-      if (savedLead) {
+        const sid = await leadManager.resumeLead(savedLead.acpSessionId, savedLead.cwd, savedLead.model);
+        console.error(`  [${projectName}] Lead resumed (session: ${sid})`);
+        clearReloadFailed();
+      } catch (err: unknown) {
+        console.error(`  [${projectName}] Failed to resume Lead: ${err instanceof Error ? err.message : String(err)}`);
         markReloadFailed();
         console.error(`  [${projectName}] Marked reload as failed. Next startup will skip session reload.`);
+        // Fall through to spawn fresh
+        try {
+          const sid = await leadManager.spawnLead();
+          console.error(`  [${projectName}] Lead spawned fresh after failed resume (session: ${sid})`);
+        } catch (err2: unknown) {
+          console.error(`  [${projectName}] Failed to spawn Lead: ${err2 instanceof Error ? err2.message : String(err2)}`);
+        }
+      }
+    } else {
+      try {
+        const sid = await leadManager.spawnLead();
+        console.error(`  [${projectName}] Lead spawned (session: ${sid})`);
+      } catch (err: unknown) {
+        console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   } else {
