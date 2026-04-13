@@ -35,33 +35,14 @@ export interface RuntimeConfig {
   adapter: AgentRuntime;
 }
 
-export const DEFAULT_RUNTIMES: Record<string, RuntimeConfig> = {
-  codex: {
-    command: 'codex',
-    args: ['--message', '{prompt}', '--cwd', '{cwd}'],
-    adapter: 'acp',
-  },
-  claude: {
-    command: 'claude',
-    args: ['--message', '{prompt}'],
-    adapter: 'pty',
-  },
-  gemini: {
-    command: 'gemini',
-    args: ['{prompt}'],
-    adapter: 'acp',
-  },
-  copilot: {
-    command: 'copilot',
-    args: ['--acp', '--stdio', '--allow-all'],
-    adapter: 'acp',
-  },
-  'claude-code': {
-    command: 'claude-agent-acp',
-    args: [],
-    adapter: 'acp',
-  },
-};
+import { RUNTIME_REGISTRY } from './runtimes.js';
+
+export const DEFAULT_RUNTIMES: Record<string, RuntimeConfig> = Object.fromEntries(
+  Object.entries(RUNTIME_REGISTRY).map(([key, r]) => [
+    key,
+    { command: r.command, args: r.args, adapter: r.adapter as AgentRuntime },
+  ]),
+);
 
 import { interpolateArgs } from './interpolateArgs.js';
 

@@ -1,0 +1,183 @@
+/**
+ * Centralized runtime registry for Flightdeck agent providers.
+ *
+ * Each entry describes how to spawn and communicate with an AI coding agent.
+ * ACP-compatible agents communicate over stdin/stdout using JSON-RPC (nd-JSON).
+ */
+
+export type SystemPromptMethod = 'agents-md' | 'meta-system-prompt' | 'both';
+
+export interface RuntimeDefinition {
+  /** Display name */
+  name: string;
+  /** CLI binary name */
+  command: string;
+  /** Default arguments for ACP mode */
+  args: string[];
+  /** How the agent receives system prompts */
+  systemPromptMethod: SystemPromptMethod;
+  /** Whether the agent supports the Agent Client Protocol */
+  supportsAcp: boolean;
+  /** Whether session/load is supported for restart/resume */
+  supportsSessionLoad: boolean;
+  /** Adapter type for Flightdeck */
+  adapter: 'acp' | 'pty';
+  /** Implementation notes and gotchas */
+  notes: string;
+}
+
+/**
+ * All known agent runtimes.
+ *
+ * Runtimes marked with supportsAcp: true can be spawned via AcpAdapter.
+ * Others need PtyAdapter or a custom adapter (documented in notes).
+ */
+export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
+  codex: {
+    name: 'OpenAI Codex CLI',
+    command: 'codex',
+    args: ['--message', '{prompt}', '--cwd', '{cwd}'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: true,
+    adapter: 'acp',
+    notes: 'Reference ACP implementation by OpenAI. Reads AGENTS.md for system prompt.',
+  },
+
+  copilot: {
+    name: 'GitHub Copilot CLI',
+    command: 'copilot',
+    args: ['--acp', '--stdio', '--allow-all'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes: 'GitHub Copilot coding agent. --allow-all auto-approves permissions.',
+  },
+
+  'claude-code': {
+    name: 'Claude Code (Anthropic)',
+    command: 'claude-agent-acp',
+    args: [],
+    systemPromptMethod: 'meta-system-prompt',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes:
+      'Claude Code ACP bridge. Binary is "claude-agent-acp" (npm: @anthropic-ai/claude-code-acp). ' +
+      'System prompt injected via _meta.systemPrompt in session/new, NOT via AGENTS.md.',
+  },
+
+  gemini: {
+    name: 'Gemini CLI (Google)',
+    command: 'gemini',
+    args: ['{prompt}'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes: 'Google Gemini CLI. Reference ACP implementation.',
+  },
+
+  opencode: {
+    name: 'OpenCode',
+    command: 'opencode',
+    args: ['acp'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes:
+      'OpenCode CLI with ACP subcommand. Starts an ACP server over stdin/stdout (nd-JSON). ' +
+      'See https://opencode.ai/docs/acp/',
+  },
+
+  kiro: {
+    name: 'Kiro CLI (Amazon/AWS)',
+    command: 'kiro-cli',
+    args: ['acp'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes:
+      'Amazon Kiro CLI with ACP support. Binary is "kiro-cli". ' +
+      'Supports slash commands, MCP tools, and session management via ACP extensions. ' +
+      'See https://kiro.dev/docs/cli/acp/',
+  },
+
+  'kilo-code': {
+    name: 'Kilo Code CLI',
+    command: 'kilocode-cli',
+    args: ['acp'],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes:
+      'Kilo Code CLI (fork of OpenCode, part of the Kilo agentic platform). ' +
+      'npm: @kilocode/cli. Supports 500+ models via OpenRouter. ' +
+      'ACP mode is inherited from OpenCode architecture.',
+  },
+
+  claude: {
+    name: 'Claude Code (PTY mode)',
+    command: 'claude',
+    args: ['--message', '{prompt}'],
+    systemPromptMethod: 'both',
+    supportsAcp: false,
+    supportsSessionLoad: false,
+    adapter: 'pty',
+    notes:
+      'Legacy PTY-based Claude Code integration. Prefer "claude-code" (ACP) when available. ' +
+      'Uses the native "claude" binary in interactive mode.',
+  },
+
+  // --- Non-ACP providers (documented for future adapter work) ---
+
+  cursor: {
+    name: 'Cursor',
+    command: 'cursor',
+    args: [],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: false,
+    supportsSessionLoad: false,
+    adapter: 'pty',
+    notes:
+      'Cursor is IDE-only as of July 2025. No CLI or ACP support. ' +
+      'Would need a VS Code headless/extension-host adapter to integrate. ' +
+      'Monitor https://cursor.com for CLI announcements.',
+  },
+
+  'hermes-agent': {
+    name: 'Hermes Agent (Nous Research)',
+    command: 'hermes',
+    args: [],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: false,
+    supportsSessionLoad: false,
+    adapter: 'pty',
+    notes:
+      'Self-evolving agent by Nous Research. Not a coding agent — it is a general-purpose ' +
+      'agent framework with CLI, Telegram, Discord, Slack gateways. No ACP support. ' +
+      'Would need a custom adapter wrapping its Python CLI (run_agent.py) or HTTP API. ' +
+      'See https://github.com/NousResearch/hermes-agent',
+  },
+};
+
+/** Get only ACP-compatible runtimes */
+export function getAcpRuntimes(): Record<string, RuntimeDefinition> {
+  return Object.fromEntries(
+    Object.entries(RUNTIME_REGISTRY).filter(([, r]) => r.supportsAcp),
+  );
+}
+
+/** Get RuntimeConfig format compatible with SessionManager */
+export function toRuntimeConfigs(): Record<string, { command: string; args: string[]; adapter: string }> {
+  return Object.fromEntries(
+    Object.entries(RUNTIME_REGISTRY).map(([key, r]) => [
+      key,
+      { command: r.command, args: r.args, adapter: r.adapter },
+    ]),
+  );
+}

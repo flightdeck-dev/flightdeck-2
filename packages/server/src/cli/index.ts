@@ -46,11 +46,16 @@ Commands:
   display                 Show current display config
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
   display set <key> <val> Set display option (thinking on/off, tools summary, etc.)
-  start [--project X]     Start daemon (all projects, or --project to scope)
-                          --no-recover / --fresh  Skip session recovery; mark stale agents as terminated
+  gateway start            Start gateway as background service
+  gateway stop             Stop gateway gracefully
+  gateway restart          Restart gateway (saves/restores agent state)
+  gateway status           Show gateway status
+  gateway run              Run gateway in foreground (dev/debug)
+  start [--project X]     Alias for 'gateway run' (backward compat)
   pause                   Pause orchestrator (stop claiming new tasks)
   resume                  Resume orchestrator (start claiming tasks)
   tui                     Launch terminal UI
+  providers              List available agent providers and detect installed binaries
 
 Options:
   -p, --project <name>    Project name (default: from .flightdeck.json)
@@ -219,20 +224,41 @@ switch (command) {
     break;
   }
 
+  case 'gateway': {
+    const { gatewayStart, gatewayStop, gatewayRestart, gatewayStatus, gatewayRun } = await import('./gateway-lifecycle.js');
+    const gatewayOpts = {
+      port: values.port ? parseInt(String(values.port), 10) : undefined,
+      corsOrigin: values['cors-origin'] as string | undefined,
+      noRecover: !!(values['no-recover'] || values['fresh'] as unknown),
+      projectFilter: values.project as string | undefined,
+    };
+    switch (subcommand) {
+      case 'start': await gatewayStart(gatewayOpts); break;
+      case 'stop': await gatewayStop(); break;
+      case 'restart': await gatewayRestart(gatewayOpts); break;
+      case 'status': await gatewayStatus(); break;
+      case 'run': await gatewayRun(gatewayOpts); break;
+      default:
+        console.error('Usage: flightdeck gateway <start|stop|restart|status|run>');
+        process.exit(1);
+    }
+    break;
+  }
+
+  // Backward compat: `flightdeck start` → `flightdeck gateway run`
   case 'start': {
-    const { startDaemon } = await import('./daemon.js');
-    const port = parseInt(String(values.port ?? '3000'), 10);
-    const corsOrigin = (values['cors-origin'] as string | undefined) ?? '*';
+    const { gatewayRun } = await import('./gateway-lifecycle.js');
+    const port = values.port ? parseInt(String(values.port), 10) : undefined;
+    const corsOrigin = (values['cors-origin'] as string | undefined);
     const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
-    // --project flag scopes to a single project; otherwise serve all
     const projectFilter = values.project as string | undefined;
-    await startDaemon({ port, corsOrigin, noRecover, projectFilter });
+    await gatewayRun({ port, corsOrigin, noRecover, projectFilter });
     break;
   }
 
   case 'chat': {
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const chatPort = values.port || '3000';
+    const { autoDetectPort } = await import('./gateway-lifecycle.js');
+    const chatPort = autoDetectPort(values.port as string | undefined);
     const chatMessage = positionals.slice(1).join(' ');
     if (!chatMessage) { console.error('Usage: flightdeck chat <message>'); process.exit(1); }
     try {
@@ -257,15 +283,15 @@ switch (command) {
         console.log('(No response from Lead)');
       }
     } catch {
-      console.error('Failed to send message — is the daemon running?');
+      console.error('Failed to send message — is the gateway running?');
       process.exit(1);
     }
     break;
   }
 
   case 'pause': {
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const pausePort = values.port || '3000';
+    const { autoDetectPort: autoDetectPortPause } = await import('./gateway-lifecycle.js');
+    const pausePort = autoDetectPortPause(values.port as string | undefined);
     try {
       const pauseProject = resolveProject();
       const res = await fetch(`http://localhost:${pausePort}/api/projects/${encodeURIComponent(pauseProject)}/orchestrator/pause`, { method: 'POST' });
@@ -276,15 +302,15 @@ switch (command) {
         process.exit(1);
       }
     } catch {
-      console.error('Failed to pause — is the daemon running?');
+      console.error('Failed to pause — is the gateway running?');
       process.exit(1);
     }
     break;
   }
 
   case 'resume': {
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const resumePort = values.port || '3000';
+    const { autoDetectPort: autoDetectPortResume } = await import('./gateway-lifecycle.js');
+    const resumePort = autoDetectPortResume(values.port as string | undefined);
     try {
       const resumeProject = resolveProject();
       const res = await fetch(`http://localhost:${resumePort}/api/projects/${encodeURIComponent(resumeProject)}/orchestrator/resume`, { method: 'POST' });
@@ -295,7 +321,7 @@ switch (command) {
         process.exit(1);
       }
     } catch {
-      console.error('Failed to resume — is the daemon running?');
+      console.error('Failed to resume — is the gateway running?');
       process.exit(1);
     }
     break;
@@ -402,7 +428,7 @@ switch (command) {
           }
         }
       } catch {
-        console.log('\nDisplay Configuration (defaults — daemon not running)\n');
+        console.log('\nDisplay Configuration (defaults — gateway not running)\n');
         console.log(`  thinking:        ${DEFAULT_DISPLAY.thinking ? 'on' : 'off'}`);
         console.log(`  toolCalls:       ${DEFAULT_DISPLAY.toolCalls}`);
         console.log(`  flightdeckTools: ${DEFAULT_DISPLAY.flightdeckTools}`);
@@ -421,7 +447,7 @@ switch (command) {
         console.log(`Applied display preset: ${preset}`);
         console.log(`  thinking: ${config.thinking ? 'on' : 'off'}, toolCalls: ${config.toolCalls}, flightdeckTools: ${config.flightdeckTools}`);
       } catch {
-        console.error('Failed to apply preset — is the daemon running?');
+        console.error('Failed to apply preset — is the gateway running?');
         process.exit(1);
       }
     } else if (subcommand === 'set') {
@@ -464,7 +490,7 @@ switch (command) {
         const config = await res.json();
         console.log(`Updated: thinking=${config.thinking ? 'on' : 'off'}, toolCalls=${config.toolCalls}, flightdeckTools=${config.flightdeckTools}`);
       } catch {
-        console.error('Failed to update display — is the daemon running?');
+        console.error('Failed to update display — is the gateway running?');
         process.exit(1);
       }
     } else {
@@ -485,6 +511,54 @@ switch (command) {
     } catch {
       // TUI package not found — try npx
       execFileSync('npx', ['flightdeck-tui', ...tuiArgs], { stdio: 'inherit' });
+    }
+    break;
+  }
+
+  case 'providers': {
+    const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
+    const { execFileSync } = await import('node:child_process');
+
+    const checkBinary = (cmd: string): boolean => {
+      try {
+        execFileSync('which', [cmd], { stdio: 'pipe' });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (values.json) {
+      const entries = Object.entries(RUNTIME_REGISTRY).map(([key, r]) => ({
+        id: key,
+        name: r.name,
+        command: r.command,
+        args: r.args,
+        supportsAcp: r.supportsAcp,
+        adapter: r.adapter,
+        installed: checkBinary(r.command),
+        notes: r.notes,
+      }));
+      console.log(JSON.stringify(entries, null, 2));
+    } else {
+      console.log('\nFlightdeck Agent Providers\n');
+      console.log('ACP-compatible (ready to use):');
+      for (const [key, r] of Object.entries(RUNTIME_REGISTRY)) {
+        if (!r.supportsAcp) continue;
+        const installed = checkBinary(r.command);
+        const status = installed ? '\x1b[32m✓ installed\x1b[0m' : '\x1b[33m✗ not found\x1b[0m';
+        console.log(`  ${key.padEnd(14)} ${r.name.padEnd(28)} ${status}`);
+        console.log(`${''.padEnd(16)}command: ${r.command} ${r.args.join(' ')}`);
+      }
+      console.log('\nNon-ACP (needs custom adapter):');
+      for (const [key, r] of Object.entries(RUNTIME_REGISTRY)) {
+        if (r.supportsAcp) continue;
+        const installed = checkBinary(r.command);
+        const status = installed ? '\x1b[32m✓ installed\x1b[0m' : '\x1b[90m✗ not found\x1b[0m';
+        console.log(`  ${key.padEnd(14)} ${r.name.padEnd(28)} ${status}`);
+        console.log(`${''.padEnd(16)}${r.notes.slice(0, 80)}`);
+      }
+      console.log();
     }
     break;
   }

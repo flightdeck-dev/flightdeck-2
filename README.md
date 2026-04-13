@@ -147,3 +147,32 @@ dag.applyAction(task.id, 'complete');
 4. **Trust nothing** — cross-model review, fresh reviewer on retry, orchestrator validates
 5. **Compaction** — completed tasks decay to summaries, saving context window
 6. **File conflict detection** — tasks sharing files must have explicit dependencies
+
+## Supported Agent Providers
+
+Flightdeck supports multiple AI coding agents via the [Agent Client Protocol (ACP)](https://agentclientprotocol.org/).
+
+### ACP-Compatible (fully supported)
+
+| Provider | Binary | Command | Notes |
+|----------|--------|---------|-------|
+| OpenAI Codex CLI | `codex` | `codex --message {prompt}` | Reference ACP implementation |
+| GitHub Copilot | `copilot` | `copilot --acp --stdio --allow-all` | GitHub's coding agent |
+| Claude Code | `claude-agent-acp` | `claude-agent-acp` | Uses `_meta.systemPrompt` for system prompts |
+| Gemini CLI | `gemini` | `gemini {prompt}` | Google's reference ACP implementation |
+| OpenCode | `opencode` | `opencode acp` | Open-source, multi-model |
+| Kiro CLI | `kiro-cli` | `kiro-cli acp` | Amazon/AWS coding agent |
+| Kilo Code CLI | `kilocode-cli` | `kilocode-cli acp` | Fork of OpenCode, 500+ models |
+
+### Non-ACP (future/custom adapter needed)
+
+| Provider | Status | Notes |
+|----------|--------|-------|
+| Cursor | IDE-only | No CLI/ACP support as of July 2025 |
+| Hermes Agent | General-purpose agent | Not a coding agent; needs custom adapter |
+
+List installed providers:
+```bash
+flightdeck providers
+flightdeck providers --json
+```

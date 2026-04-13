@@ -5,20 +5,41 @@
       "args": ["--message", "{prompt}", "--cwd", "{cwd}"],
       "adapter": "acp"
     },
-    "claude": {
-      "command": "claude",
-      "args": ["--message", "{prompt}"],
-      "adapter": "pty"
+    "copilot": {
+      "command": "copilot",
+      "args": ["--acp", "--stdio", "--allow-all"],
+      "adapter": "acp"
+    },
+    "claude-code": {
+      "command": "claude-agent-acp",
+      "args": [],
+      "adapter": "acp",
+      "systemPromptMethod": "meta-system-prompt"
     },
     "gemini": {
       "command": "gemini",
       "args": ["{prompt}"],
       "adapter": "acp"
     },
-    "copilot": {
-      "command": "copilot",
-      "args": ["--acp", "--stdio"],
+    "opencode": {
+      "command": "opencode",
+      "args": ["acp"],
       "adapter": "acp"
+    },
+    "kiro": {
+      "command": "kiro-cli",
+      "args": ["acp"],
+      "adapter": "acp"
+    },
+    "kilo-code": {
+      "command": "kilocode-cli",
+      "args": ["acp"],
+      "adapter": "acp"
+    },
+    "claude": {
+      "command": "claude",
+      "args": ["--message", "{prompt}"],
+      "adapter": "pty"
     }
   },
   "defaultRuntime": "codex"
