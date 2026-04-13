@@ -14,6 +14,7 @@ import type { DecisionLog } from '../storage/DecisionLog.js';
 import { StatusFileWriter, type StatusData } from '../status/StatusFileWriter.js';
 import { TaskContextWriter } from '../status/TaskContextWriter.js';
 import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector.js';
+import { WebhookNotifier, type NotificationsConfig, taskCompletedEvent, taskFailedEvent, specCompletedEvent, escalationEvent, agentStallEvent, budgetWarningEvent } from '../integrations/WebhookNotifier.js';
 import type { SpecStore } from '../storage/SpecStore.js';
 
 export interface GovernanceConfig {
@@ -68,6 +69,7 @@ export class Orchestrator {
   private suggestionStore: SuggestionStore | null;
   private specChangeDetector: SpecChangeDetector | null;
   private recentSpecChanges: SpecChange[] = [];
+  private webhookNotifier: WebhookNotifier | null;
 
   constructor(
     private dag: TaskDAG,
@@ -86,6 +88,7 @@ export class Orchestrator {
       workflowEngine?: WorkflowEngine;
       suggestionStore?: SuggestionStore;
       specStore?: SpecStore;
+      notifications?: NotificationsConfig;
     },
   ) {
     this.adapter = adapter;
@@ -100,6 +103,9 @@ export class Orchestrator {
     this.workflowEngine = opts?.workflowEngine ?? null;
     this.suggestionStore = opts?.suggestionStore ?? null;
     this.specChangeDetector = opts?.specStore ? new SpecChangeDetector(opts.specStore, store) : null;
+    this.webhookNotifier = opts?.notifications?.webhooks?.length
+      ? new WebhookNotifier(config, opts.notifications)
+      : null;
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -132,6 +138,9 @@ export class Orchestrator {
           agentId: (escalatedTask?.assignedAgent as string) ?? 'unknown',
           reason: effect.reason,
         });
+        this.webhookNotifier?.notify(
+          escalationEvent(this.config.name, effect.reason, (escalatedTask?.assignedAgent as string) ?? undefined),
+        );
         break;
       }
       case 'notify_agent': {
@@ -181,6 +190,11 @@ export class Orchestrator {
    */
   get paused(): boolean {
     return this._paused;
+  }
+
+  /** Access the webhook notifier (may be null if no webhooks configured). */
+  getWebhookNotifier(): WebhookNotifier | null {
+    return this.webhookNotifier;
   }
 
   async tick(): Promise<TickResult> {
@@ -343,6 +357,11 @@ export class Orchestrator {
         this.dag.completeTask(task.id);
         completed++;
 
+        // Fire webhook
+        this.webhookNotifier?.notify(
+          taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
+        );
+
         // If workflow engine is present, advance the pipeline
         // (e.g., trigger post-review steps like deploy, notify, etc.)
         if (this.workflowEngine) {
@@ -439,9 +458,15 @@ export class Orchestrator {
               taskId: task.id,
               error: `Task failed after ${maxRetries} retries. Agent session ended without submission.`,
             });
+            this.webhookNotifier?.notify(
+              taskFailedEvent(this.config.name, task.title, `Failed after ${maxRetries} retries`),
+            );
           }
 
           this.store.updateAgentStatus(task.assignedAgent, 'offline');
+          this.webhookNotifier?.notify(
+            agentStallEvent(this.config.name, task.assignedAgent as string, task.title),
+          );
           detected++;
         }
       } catch {
@@ -522,6 +547,9 @@ export class Orchestrator {
         currentSpend: totalCost,
         limit: threshold,
       });
+      this.webhookNotifier?.notify(
+        budgetWarningEvent(this.config.name, totalCost, threshold),
+      );
     }
   }
 
@@ -585,6 +613,10 @@ export class Orchestrator {
 
           this.leadManager?.recordTaskCompletion();
           this.retrospectivesDone.set(specId, Date.now());
+          // Fire webhook for spec completion
+          this.webhookNotifier?.notify(
+            specCompletedEvent(this.config.name, specId, counts.total),
+          );
           // Prune entries older than 24 hours to prevent unbounded growth
           const cutoff = Date.now() - 24 * 60 * 60 * 1000;
           for (const [id, ts] of this.retrospectivesDone) {
