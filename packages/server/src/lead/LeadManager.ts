@@ -287,8 +287,8 @@ export class LeadManager {
 
       return meta.sessionId;
     } catch (err) {
-      console.error(`  Lead resume failed (${err instanceof Error ? err.message : String(err)}), falling back to fresh spawn`);
-      return this.spawnLead();
+      console.error(`  Lead resume failed (${err instanceof Error ? err.message : String(err)}), marking offline (not spawning fresh to avoid cascading errors)`);
+      return '';
     }
   }
 
@@ -319,8 +319,8 @@ export class LeadManager {
 
       return meta.sessionId;
     } catch (err) {
-      console.error(`  Planner resume failed (${err instanceof Error ? err.message : String(err)}), falling back to fresh spawn`);
-      return this.spawnPlanner();
+      console.error(`  Planner resume failed (${err instanceof Error ? err.message : String(err)}), marking offline (not spawning fresh to avoid cascading errors)`);
+      return '';
     }
   }
 
