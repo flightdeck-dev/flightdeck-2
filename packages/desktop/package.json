@@ -1,0 +1,21 @@
+{
+  "name": "@flightdeck-ai/desktop",
+  "version": "0.1.0",
+  "description": "Flightdeck 2.0 Desktop App — Electron shell with daemon lifecycle management",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc && electron dist/main.js",
+    "build": "tsc && electron-builder",
+    "start": "electron dist/main.js",
+    "compile": "tsc"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "get-port": "^7.1.0"
+  }
+}
