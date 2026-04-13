@@ -99,6 +99,26 @@ export class StatusFileWriter {
     if (staleCount > 0) lines.push(`- ⚠️ Stale: ${staleCount} (spec changed, may need re-planning)`);
     lines.push('');
 
+    // Epics with progress
+    const topLevel = tasks.filter(t => t.parentTaskId === null);
+    const byParent = new Map<string, Task[]>();
+    for (const t of tasks) {
+      if (t.parentTaskId) {
+        if (!byParent.has(t.parentTaskId)) byParent.set(t.parentTaskId, []);
+        byParent.get(t.parentTaskId)!.push(t);
+      }
+    }
+    const epics = topLevel.filter(t => byParent.has(t.id));
+    if (epics.length > 0) {
+      lines.push('## Epics');
+      for (const epic of epics) {
+        const children = byParent.get(epic.id)!;
+        const doneCount = children.filter(c => c.state === 'done' || c.state === 'skipped').length;
+        lines.push(`- ${epic.title} [${doneCount}/${children.length} done] — ${epic.state}`);
+      }
+      lines.push('');
+    }
+
     // Active agents
     const activeAgents = agents.filter(a => a.status !== 'offline');
     if (activeAgents.length > 0) {

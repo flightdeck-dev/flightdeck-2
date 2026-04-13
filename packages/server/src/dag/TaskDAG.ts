@@ -109,6 +109,8 @@ export class TaskDAG {
     const result = transition(task.state, 'done', { taskId: id });
     this.store.updateTaskState(id, 'done');
     this.processEffects(result.effects);
+    // Auto-propagate epic state
+    this.propagateEpicState(id);
     return { ...task, state: 'done' };
   }
 
@@ -163,6 +165,8 @@ export class TaskDAG {
     const result = transition(task.state, 'skipped', { taskId: id });
     this.store.updateTaskState(id, 'skipped');
     this.processEffects(result.effects);
+    // Auto-propagate epic state
+    this.propagateEpicState(id);
     return { ...task, state: 'skipped' };
   }
 
@@ -426,5 +430,56 @@ export class TaskDAG {
    */
   getSubTasks(parentId: TaskId): Task[] {
     return this.store.getSubTasks(parentId);
+  }
+
+  /**
+   * Check if a task is an epic (has sub-tasks).
+   */
+  isEpic(taskId: TaskId): boolean {
+    return this.store.getSubTasks(taskId).length > 0;
+  }
+
+  /**
+   * Get all top-level tasks that have children (epics).
+   */
+  getEpics(): Task[] {
+    const allTasks = this.store.listTasks();
+    return allTasks.filter(t => t.parentTaskId === null && this.isEpic(t.id));
+  }
+
+  /**
+   * Derive epic state from children states.
+   * Returns: done (all done/skipped), failed (any failed), running (any running), ready (any ready), pending otherwise.
+   */
+  deriveEpicState(epicId: TaskId): TaskState {
+    const children = this.store.getSubTasks(epicId);
+    if (children.length === 0) return 'pending';
+    const states = children.map(c => c.state);
+    if (states.every(s => s === 'done' || s === 'skipped')) return 'done';
+    if (states.some(s => s === 'failed')) return 'failed';
+    if (states.some(s => s === 'running' || s === 'in_review')) return 'running';
+    if (states.some(s => s === 'ready')) return 'ready';
+    return 'pending';
+  }
+
+  /**
+   * Propagate epic state after a sub-task state change.
+   * Call this after completing/failing a sub-task that has a parentTaskId.
+   */
+  propagateEpicState(childTaskId: TaskId): void {
+    const child = this.store.getTask(childTaskId);
+    if (!child?.parentTaskId) return;
+    const epic = this.store.getTask(child.parentTaskId);
+    if (!epic) return;
+
+    const derivedState = this.deriveEpicState(child.parentTaskId);
+    // Auto-complete epic when all children are done/skipped
+    if (derivedState === 'done' && epic.state !== 'done') {
+      // Epic auto-completion bypasses normal state machine since epics
+      // don't go through running/in_review — they're containers
+      this.store.updateTaskState(epic.id, 'done');
+      // Resolve dependents of the epic
+      this.resolveReady(epic.id);
+    }
   }
 }

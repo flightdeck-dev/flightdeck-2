@@ -105,11 +105,31 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Task tools ──
 
-  server.tool('flightdeck_task_list', 'List tasks for the project', {
+  server.tool('flightdeck_task_list', 'List tasks for the project (shows hierarchy for epics)', {
     specId: z.string().optional(),
   }, async (params) => {
     const tasks = fd.listTasks(params.specId as SpecId | undefined);
-    return jsonResponse(tasks);
+    // Group tasks: top-level first, then indent sub-tasks under their parent
+    const topLevel = tasks.filter(t => t.parentTaskId === null);
+    const byParent = new Map<string, typeof tasks>();
+    for (const t of tasks) {
+      if (t.parentTaskId) {
+        if (!byParent.has(t.parentTaskId)) byParent.set(t.parentTaskId, []);
+        byParent.get(t.parentTaskId)!.push(t);
+      }
+    }
+    // Build hierarchical result
+    const result: Array<Record<string, unknown>> = [];
+    for (const t of topLevel) {
+      const children = byParent.get(t.id);
+      if (children && children.length > 0) {
+        const doneCount = children.filter(c => c.state === 'done' || c.state === 'skipped').length;
+        result.push({ ...t, _epic: true, _progress: `${doneCount}/${children.length} done`, subTasks: children });
+      } else {
+        result.push(t as unknown as Record<string, unknown>);
+      }
+    }
+    return jsonResponse(result);
   });
 
   server.tool('flightdeck_task_add', 'Add a new task to the DAG', {

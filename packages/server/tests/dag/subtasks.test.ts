@@ -92,7 +92,7 @@ describe('Hierarchical DAGs / Sub-tasks (FR-017)', () => {
       .toThrow('Parent task not found');
   });
 
-  it('parent becomes ready when all sub-tasks complete', () => {
+  it('parent auto-completes (done) when all sub-tasks complete', () => {
     const parent = dag.addTask({ title: 'Epic' });
     const subs = dag.declareSubTasks(parent.id, [
       { title: 'Sub 1' },
@@ -100,10 +100,10 @@ describe('Hierarchical DAGs / Sub-tasks (FR-017)', () => {
 
     dag.claimTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
-    // completeTask internally calls resolveReady which should promote parent
+    // completeTask triggers epic auto-completion
     dag.completeTask(subs[0].id);
 
     const updated = dag.getTask(parent.id);
-    expect(updated!.state).toBe('ready');
+    expect(updated!.state).toBe('done');
   });
 });

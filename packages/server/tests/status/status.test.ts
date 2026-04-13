@@ -114,6 +114,23 @@ describe('StatusFileWriter', () => {
     writer.writeStatusImmediate(nested, data);
     expect(existsSync(join(nested, '.flightdeck', 'status.md'))).toBe(true);
   });
+
+  it('shows epics with progress in status markdown', () => {
+    const epicTask = makeTask({ id: 'epic-1' as any, title: 'Auth System', state: 'pending', parentTaskId: null });
+    const sub1 = makeTask({ id: 'sub-1' as any, title: 'Login', state: 'done', parentTaskId: 'epic-1' as any });
+    const sub2 = makeTask({ id: 'sub-2' as any, title: 'Logout', state: 'running', parentTaskId: 'epic-1' as any });
+    const sub3 = makeTask({ id: 'sub-3' as any, title: 'Token', state: 'ready', parentTaskId: 'epic-1' as any });
+    const data: StatusData = {
+      projectName: 'epic-test',
+      governance: 'autonomous',
+      tasks: [epicTask, sub1, sub2, sub3],
+      agents: [],
+      totalCost: 0,
+    };
+    const md = StatusFileWriter.generateMarkdown(data);
+    expect(md).toContain('## Epics');
+    expect(md).toContain('Auth System [1/3 done]');
+  });
 });
 
 describe('TaskContextWriter', () => {
