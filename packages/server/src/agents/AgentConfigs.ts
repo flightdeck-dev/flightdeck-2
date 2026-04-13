@@ -11,6 +11,7 @@ const AGENTS_MD: Record<AgentRole, string> = {
   'product-thinker': `# AGENTS.md — Product Thinker\n\nYou are the Product Thinker agent. Evaluate features from the user's perspective.`,
   'qa-tester': `# AGENTS.md — QA Tester\n\nYou are the QA Tester agent. Write and verify tests for correctness.`,
   'tech-writer': `# AGENTS.md — Tech Writer\n\nYou are the Tech Writer agent. Write clear documentation and guides.`,
+  scout: `# AGENTS.md — Scout\n\nYou are the Scout agent. Analyze completed work and suggest improvements. You are read-only — do not write files or create tasks.`,
   lead: `# AGENTS.md — Lead Agent
 
 ## Your Role

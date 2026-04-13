@@ -941,6 +941,47 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  // ── Suggestion tools ──
+
+  server.tool('flightdeck_suggestion_list', 'List scout suggestions', {
+    spec_id: z.string().optional().describe('Filter by spec ID'),
+    status: z.enum(['pending', 'approved', 'rejected']).optional().describe('Filter by status'),
+  }, async (params) => {
+    const suggestions = fd.suggestions.list({
+      specId: params.spec_id,
+      status: params.status,
+    });
+    return jsonResponse(suggestions);
+  });
+
+  server.tool('flightdeck_suggestion_approve', 'Approve a scout suggestion (creates follow-up tasks)', {
+    id: z.string().describe('Suggestion ID to approve'),
+    agentId: z.string().describe('Your agent ID (caller)'),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_suggestion_approve');
+    if (error) return error;
+    if (agent!.role !== 'lead') {
+      return permError(params.agentId, agent!.role, 'flightdeck_suggestion_approve', 'task_add');
+    }
+    const suggestion = fd.suggestions.updateStatus(params.id, 'approved');
+    if (!suggestion) return errorResponse(`Suggestion '${params.id}' not found.`);
+    return jsonResponse({ success: true, suggestion });
+  });
+
+  server.tool('flightdeck_suggestion_reject', 'Reject a scout suggestion', {
+    id: z.string().describe('Suggestion ID to reject'),
+    agentId: z.string().describe('Your agent ID (caller)'),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_suggestion_reject');
+    if (error) return error;
+    if (agent!.role !== 'lead') {
+      return permError(params.agentId, agent!.role, 'flightdeck_suggestion_reject', 'task_add');
+    }
+    const suggestion = fd.suggestions.updateStatus(params.id, 'rejected');
+    if (!suggestion) return errorResponse(`Suggestion '${params.id}' not found.`);
+    return jsonResponse({ success: true, suggestion });
+  });
+
   // ── Tools available (self-discovery) ──
 
   server.tool('flightdeck_tools_available', 'List the MCP tools available to the calling agent', {}, async () => {

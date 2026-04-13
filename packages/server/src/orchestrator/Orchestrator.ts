@@ -3,6 +3,7 @@ import { type TaskDAG } from '../dag/TaskDAG.js';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
+import { SuggestionStore } from '../storage/SuggestionStore.js';
 import type { WorkflowEngine, StepAction } from '../workflow/WorkflowEngine.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { LeadManager } from '../lead/LeadManager.js';
@@ -60,6 +61,7 @@ export class Orchestrator {
   private decisionLog: DecisionLog | null;
   private statusWriter: StatusFileWriter;
   private workflowEngine: WorkflowEngine | null;
+  private suggestionStore: SuggestionStore | null;
 
   constructor(
     private dag: TaskDAG,
@@ -76,6 +78,7 @@ export class Orchestrator {
       governanceConfig?: GovernanceConfig;
       decisionLog?: DecisionLog;
       workflowEngine?: WorkflowEngine;
+      suggestionStore?: SuggestionStore;
     },
   ) {
     this.adapter = adapter;
@@ -88,6 +91,7 @@ export class Orchestrator {
     this.decisionLog = opts?.decisionLog ?? null;
     this.statusWriter = new StatusFileWriter();
     this.workflowEngine = opts?.workflowEngine ?? null;
+    this.suggestionStore = opts?.suggestionStore ?? null;
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -466,7 +470,8 @@ export class Orchestrator {
   }
 
   /**
-   * Check if all tasks in any spec are complete → notify Lead + trigger retrospective.
+   * Check if all tasks in any spec are complete.
+   * Handles on_completion modes: explore, stop, ask.
    */
   private checkSpecCompletions(): { retrospectives: number } {
     let retrospectives = 0;
@@ -485,13 +490,43 @@ export class Orchestrator {
 
     for (const [specId, counts] of specTasks) {
       if (counts.total > 0 && counts.done === counts.total) {
-        // All tasks done — notify Lead (only once)
+        // All tasks done — handle based on on_completion mode (only once per spec)
         if (!this.retrospectivesDone.has(specId)) {
-          this.leadManager?.steerLead({
-            type: 'spec_completed',
-            specId,
-            summary: `All ${counts.total} tasks complete.`,
-          });
+          const onCompletion = this.config.onCompletion ?? 'stop';
+
+          switch (onCompletion) {
+            case 'explore': {
+              // Notify Lead about completion
+              this.leadManager?.steerLead({
+                type: 'spec_completed',
+                specId,
+                summary: `All ${counts.total} tasks complete. Scout analysis requested.`,
+              });
+              // Scout runs async — fire and forget, store results when done
+              this.runScoutAsync(specId);
+              break;
+            }
+            case 'ask': {
+              // Notify Lead + user, agents idle
+              this.leadManager?.steerLead({
+                type: 'spec_completed',
+                specId,
+                summary: `All ${counts.total} tasks complete. Awaiting user decision on next steps.`,
+              });
+              break;
+            }
+            case 'stop':
+            default: {
+              // Final report, mark spec as complete
+              this.leadManager?.steerLead({
+                type: 'spec_completed',
+                specId,
+                summary: `All ${counts.total} tasks complete.`,
+              });
+              break;
+            }
+          }
+
           this.leadManager?.recordTaskCompletion();
           this.retrospectivesDone.set(specId, Date.now());
           // Prune entries older than 24 hours to prevent unbounded growth
@@ -505,6 +540,28 @@ export class Orchestrator {
     }
 
     return { retrospectives };
+  }
+
+  /**
+   * Run the scout agent asynchronously and store suggestions.
+   */
+  private runScoutAsync(specId: string): void {
+    if (!this.suggestionStore) return;
+    // Log the scout analysis request
+    if (this.messageStore) {
+      const tasks = this.dag.listTasks().filter(t => t.specId === specId && t.state === 'done');
+      this.messageStore.createMessage({
+        authorType: 'system',
+        authorId: 'orchestrator',
+        content: `[scout] Analysis requested for spec ${specId}. ${tasks.length} completed tasks to review. Use flightdeck_suggestion_list to view results.`,
+        taskId: null,
+        threadId: null,
+        parentId: null,
+        metadata: null,
+      });
+    }
+    // The actual scout agent spawn is triggered by the daemon's event loop,
+    // which has access to the full Flightdeck facade and can call runScout().
   }
 
   /**

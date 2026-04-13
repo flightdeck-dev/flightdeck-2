@@ -1,5 +1,6 @@
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { DecisionLog } from '../storage/DecisionLog.js';
+import type { SuggestionStore } from '../storage/SuggestionStore.js';
 
 export interface DailyReportOptions {
   since?: string; // ISO date string, defaults to start of today
@@ -9,6 +10,7 @@ export class DailyReport {
   constructor(
     private sqlite: SqliteStore,
     private decisions?: DecisionLog,
+    private suggestions?: SuggestionStore,
   ) {}
 
   generate(opts?: DailyReportOptions): string {
@@ -111,6 +113,27 @@ export class DailyReport {
         lines.push(`- ${pending.length} tasks pending dependency resolution`);
       }
       lines.push('');
+    }
+
+    // Next Steps (scout suggestions)
+    if (this.suggestions) {
+      const pending = this.suggestions.list({ status: 'pending' });
+      if (pending.length > 0) {
+        lines.push('## Next Steps (Scout Suggestions)');
+        const sorted = [...pending].sort((a, b) => {
+          const impactOrder = { high: 0, medium: 1, low: 2 };
+          const effortOrder = { small: 0, medium: 1, large: 2 };
+          return (impactOrder[a.impact] - impactOrder[b.impact]) ||
+                 (effortOrder[a.effort] - effortOrder[b.effort]);
+        });
+        for (const s of sorted) {
+          const emoji = { quality: '🔧', docs: '📝', feature: '✨', debt: '🏗️', performance: '⚡', security: '🔒' }[s.category] ?? '💡';
+          lines.push(`- ${emoji} **${s.title}** [${s.category}] (effort: ${s.effort}, impact: ${s.impact})`);
+          lines.push(`  ${s.description}`);
+          lines.push(`  → ID: \`${s.id}\` — approve or reject via suggestion tools`);
+        }
+        lines.push('');
+      }
     }
 
     // Cost Breakdown

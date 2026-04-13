@@ -17,6 +17,7 @@ import { RoleRegistry } from './roles/RoleRegistry.js';
 import { LearningsStore } from './storage/LearningsStore.js';
 import { TimerManager } from './orchestrator/TimerManager.js';
 import { AgentManager } from './agents/AgentManager.js';
+import { SuggestionStore } from './storage/SuggestionStore.js';
 import { MessageStore } from './comms/MessageStore.js';
 
 /**
@@ -41,6 +42,7 @@ export class Flightdeck {
   readonly timers: TimerManager;
   readonly agentManager: AgentManager;
   readonly chatMessages: MessageStore | null;
+  readonly suggestions: SuggestionStore;
 
   constructor(projectName: string, acpAdapter?: AcpAdapter | null) {
     this.project = new ProjectStore(projectName);
@@ -78,6 +80,8 @@ export class Flightdeck {
     } catch {
       this.chatMessages = null;
     }
+
+    this.suggestions = new SuggestionStore(this.project.subpath('.'));
   }
 
   // ── Task operations ──
