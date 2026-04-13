@@ -46,6 +46,7 @@ function DependencyTree({ task, allTasks }: { task: Task; allTasks: Task[] }) {
 }
 
 function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { projectName } = useFlightdeck();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [role, setRole] = useState('developer');
@@ -54,11 +55,11 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || !projectName) return;
     setSubmitting(true);
     setError('');
     try {
-      await api.createTask({ title: title.trim(), description, role, priority });
+      await api.createTask(projectName, { title: title.trim(), description, role, priority });
       onCreated();
       onClose();
     } catch (e: unknown) {

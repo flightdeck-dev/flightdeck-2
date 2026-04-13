@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api.ts';
+import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 
 interface Spec {
   id: string;
@@ -9,14 +10,16 @@ interface Spec {
 }
 
 export default function Specs() {
+  const { projectName } = useFlightdeck();
   const [specs] = useState<Spec[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [report, setReport] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
-    // Specs aren't in the main API yet — show report instead
-    api.getReport().then(r => { if (!cancelled) setReport(r); }).catch(() => {});
+    if (projectName) {
+      api.getReport(projectName).then(r => { if (!cancelled) setReport(r); }).catch(() => {});
+    }
     return () => { cancelled = true; };
   }, []);
 

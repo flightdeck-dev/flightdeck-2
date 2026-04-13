@@ -93,3 +93,11 @@ export interface Activity {
   agent?: string;
   timestamp: string;
 }
+
+export interface ProjectSummary {
+  name: string;
+  governance: string;
+  agentCount: number;
+  taskStats: Record<string, number>;
+  totalCost: number;
+}

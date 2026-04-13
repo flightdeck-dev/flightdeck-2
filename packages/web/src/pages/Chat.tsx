@@ -250,7 +250,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 }
 
 export default function Chat() {
-  const { messages, streamingMessages, streamingChunks, displayConfig, sendChat, connected } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, displayConfig, sendChat, connected, projectName } = useFlightdeck();
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(null);
@@ -261,7 +261,7 @@ export default function Chat() {
 
   // Fetch threads
   useEffect(() => {
-    api.getThreads().then(setThreads).catch(() => {});
+    if (projectName) api.getThreads(projectName).then(setThreads).catch(() => {});
   }, []);
 
   // Filter messages by thread

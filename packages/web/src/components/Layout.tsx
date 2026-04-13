@@ -1,26 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 
-const COMMANDS = [
-  { label: 'Go to Dashboard', path: '/', keys: ['g', 'd'] },
-  { label: 'Go to Chat', path: '/chat', keys: ['g', 'c'] },
-  { label: 'Go to Tasks', path: '/tasks', keys: ['g', 't'] },
-  { label: 'Go to Agents', path: '/agents', keys: ['g', 'a'] },
-  { label: 'Go to Specs', path: '/specs', keys: ['g', 's'] },
-  { label: 'Go to Decisions', path: '/decisions', keys: ['g', 'e'] },
-  { label: 'Go to Settings', path: '/settings', keys: ['g', '⚙'] },
-];
-
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { projectName } = useParams();
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const prefix = projectName ? `/${encodeURIComponent(projectName)}` : '';
+  const COMMANDS = [
+    ...(projectName ? [
+      { label: 'Go to Dashboard', path: `${prefix}`, keys: ['g', 'd'] },
+      { label: 'Go to Chat', path: `${prefix}/chat`, keys: ['g', 'c'] },
+      { label: 'Go to Tasks', path: `${prefix}/tasks`, keys: ['g', 't'] },
+      { label: 'Go to Agents', path: `${prefix}/agents`, keys: ['g', 'a'] },
+      { label: 'Go to Decisions', path: `${prefix}/decisions`, keys: ['g', 'e'] },
+    ] : []),
+    { label: 'Go to Settings', path: '/settings', keys: ['g', '⚙'] },
+  ];
 
   const filtered = COMMANDS.filter(c =>
     c.label.toLowerCase().includes(query.toLowerCase())
@@ -68,7 +71,7 @@ export function Layout() {
   const toggleCollapsed = useCallback(() => setCollapsed(c => !c), []);
   const toggleDisplaySettings = useCallback(() => setShowDisplaySettings(s => !s), []);
   const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
-  const { status, connected } = useFlightdeck();
+  const { status, connected, projectName } = useFlightdeck();
 
   // Cmd+K shortcut
   useEffect(() => {
@@ -87,7 +90,7 @@ export function Layout() {
       <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="flex items-center gap-2">
           <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
-            {status?.config?.name ?? '...'}
+            {projectName ?? status?.config?.name ?? 'Flightdeck'}
           </span>
           {status && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { api } from '../lib/api.ts';
 import { MAX_MESSAGES } from '../lib/constants.ts';
 import { wsClient, type WsEvent } from '../lib/ws.ts';
-import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from '../lib/types.ts';
+import type { Task, Agent, Decision, ChatMessage, ProjectStatus, ProjectSummary } from '../lib/types.ts';
 import { type DisplayConfig, type DisplayPreset, DEFAULT_DISPLAY, DISPLAY_PRESETS, type ContentType } from '@flightdeck-ai/shared/display';
 
 const STORAGE_KEY = 'flightdeck:display';
@@ -36,6 +36,8 @@ export interface StreamChunk {
 }
 
 interface FlightdeckState {
+  projects: ProjectSummary[];
+  projectName: string | null;
   status: ProjectStatus | null;
   tasks: Task[];
   agents: Agent[];
@@ -55,7 +57,8 @@ interface FlightdeckState {
 
 const Ctx = createContext<FlightdeckState | null>(null);
 
-export function FlightdeckProvider({ children }: { children: ReactNode }) {
+export function FlightdeckProvider({ projectName, children }: { projectName: string | null; children: ReactNode }) {
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [status, setStatus] = useState<ProjectStatus | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -71,14 +74,25 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
   const streamingDirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const p = await api.getProjects();
+      setProjects(p);
+    } catch { /* ignore */ }
+  }, []);
+
   const fetchAll = useCallback(async () => {
+    if (!projectName) {
+      setLoading(false);
+      return;
+    }
     try {
       const [s, t, a, d, m] = await Promise.all([
-        api.getStatus().catch(() => null),
-        api.getTasks().catch(() => []),
-        api.getAgents().catch(() => []),
-        api.getDecisions().catch(() => []),
-        api.getMessages({ limit: 100 }).catch(() => []),
+        api.getStatus(projectName).catch(() => null),
+        api.getTasks(projectName).catch(() => []),
+        api.getAgents(projectName).catch(() => []),
+        api.getDecisions(projectName).catch(() => []),
+        api.getMessages(projectName, { limit: 100 }).catch(() => []),
       ]);
       if (s) setStatus(s);
       setTasks(t);
@@ -87,10 +101,27 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
       setMessages(m);
     } catch { /* server not running — use empty state */ }
     setLoading(false);
-  }, []);
+  }, [projectName]);
 
   useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    setLoading(true);
+    setStatus(null);
+    setTasks([]);
+    setAgents([]);
+    setDecisions([]);
+    setMessages([]);
+    streamingRef.current.clear();
+    streamingChunksRef.current.clear();
+    setStreamingMessages(new Map());
+    setStreamingChunks(new Map());
     fetchAll();
+  }, [fetchAll]);
+
+  useEffect(() => {
     wsClient.connect();
 
     const unsub = wsClient.on((event: WsEvent) => {
@@ -100,7 +131,6 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
             if (prev.some(m => m.id === event.message.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
           });
-          // Clear streaming buffer for this message
           streamingRef.current.delete(event.message.id);
           setStreamingMessages(new Map(streamingRef.current));
           streamingChunksRef.current.delete(event.message.id);
@@ -109,11 +139,9 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
         case 'chat:stream': {
           const current = streamingRef.current.get(event.message_id) ?? '';
           streamingRef.current.set(event.message_id, current + event.delta);
-          // Track chunks with metadata
           const chunks = streamingChunksRef.current.get(event.message_id) ?? [];
           chunks.push({ content: event.delta, contentType: event.content_type, toolName: event.tool_name });
           streamingChunksRef.current.set(event.message_id, chunks);
-          // Throttle streaming state updates
           if (!streamingDirtyRef.current) {
             streamingDirtyRef.current = true;
             rafRef.current = requestAnimationFrame(() => {
@@ -122,9 +150,6 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
               streamingDirtyRef.current = false;
             });
           }
-          if (event.done) {
-            // done — will get a chat:message with full content
-          }
           break;
         }
         case 'display:config':
@@ -132,7 +157,6 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
           saveDisplayConfig(event.config);
           break;
         case 'task:comment':
-          // Could update task activity
           break;
       }
     });
@@ -145,7 +169,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       wsClient.disconnect();
     };
-  }, [fetchAll]);
+  }, []);
 
   const sendChat = useCallback((content: string, parentId?: string, threadId?: string) => {
     wsClient.sendChat(content, parentId, threadId);
@@ -157,7 +181,6 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
 
   const setDisplayConfig = useCallback((config: Partial<DisplayConfig>) => {
     wsClient.sendDisplayConfig(config);
-    // Optimistically update local state
     setDisplayConfigState(prev => {
       const merged = { ...prev, ...config };
       saveDisplayConfig(merged);
@@ -172,7 +195,7 @@ export function FlightdeckProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      status, tasks, agents, decisions, messages, streamingMessages, streamingChunks,
+      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks,
       displayConfig, connected, loading, sendChat, sendTaskComment,
       setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
     }}>

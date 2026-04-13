@@ -1,4 +1,4 @@
-import type { Task, Agent, Decision, ChatMessage, ProjectStatus } from './types.ts';
+import type { Task, Agent, Decision, ChatMessage, ProjectStatus, ProjectSummary } from './types.ts';
 import type { DisplayConfig } from '@flightdeck-ai/shared/display';
 
 const BASE = '';
@@ -29,31 +29,37 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
+function projectPath(project: string, path: string): string {
+  return `/api/projects/${encodeURIComponent(project)}${path}`;
+}
+
 export const api = {
-  getStatus: () => get<ProjectStatus>('/api/status'),
-  getTasks: () => get<Task[]>('/api/tasks'),
-  getTask: (id: string) => get<Task>(`/api/tasks/${id}`),
-  getAgents: () => get<Agent[]>('/api/agents'),
-  getDecisions: (limit = 20) => get<Decision[]>(`/api/decisions?limit=${limit}`),
-  getMessages: (opts?: { thread_id?: string; task_id?: string; limit?: number }) => {
+  getProjects: () => get<ProjectSummary[]>('/api/projects'),
+
+  getStatus: (project: string) => get<ProjectStatus>(projectPath(project, '/status')),
+  getTasks: (project: string) => get<Task[]>(projectPath(project, '/tasks')),
+  getTask: (project: string, id: string) => get<Task>(projectPath(project, `/tasks/${id}`)),
+  getAgents: (project: string) => get<Agent[]>(projectPath(project, '/agents')),
+  getDecisions: (project: string, limit = 20) => get<Decision[]>(projectPath(project, `/decisions?limit=${limit}`)),
+  getMessages: (project: string, opts?: { thread_id?: string; task_id?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (opts?.thread_id) params.set('thread_id', opts.thread_id);
     if (opts?.task_id) params.set('task_id', opts.task_id);
     if (opts?.limit) params.set('limit', String(opts.limit));
-    return get<ChatMessage[]>(`/api/messages?${params}`);
+    return get<ChatMessage[]>(projectPath(project, `/messages?${params}`));
   },
-  getReport: async (): Promise<string> => {
-    const res = await fetch(`${BASE}/api/report`);
+  getReport: async (project: string): Promise<string> => {
+    const res = await fetch(`${BASE}${projectPath(project, '/report')}`);
     if (!res.ok) return 'No report available.';
     return res.text();
   },
   getDisplayConfig: () => get<DisplayConfig>('/api/display'),
   updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
   applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),
-  createTask: (task: { title: string; description?: string; role?: string; priority?: number; depends_on?: string[] }) =>
-    post<import('./types.ts').Task>('/api/tasks', task),
-  getThreads: () => get<import('./types.ts').Thread[]>('/api/threads'),
+  createTask: (project: string, task: { title: string; description?: string; role?: string; priority?: number; depends_on?: string[] }) =>
+    post<Task>(projectPath(project, '/tasks'), task),
+  getThreads: (project: string) => get<import('./types.ts').Thread[]>(projectPath(project, '/threads')),
   getModels: () => get<Record<string, unknown>>('/api/models'),
-  sendMessage: (content: string, opts?: { thread_id?: string }) =>
-    post<import('./types.ts').ChatMessage>('/api/messages', { content, ...opts }),
+  sendMessage: (project: string, content: string, opts?: { thread_id?: string }) =>
+    post<import('./types.ts').ChatMessage>(projectPath(project, '/messages'), { content, ...opts }),
 };
