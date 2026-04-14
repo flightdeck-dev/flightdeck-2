@@ -54,6 +54,8 @@ export interface LeadManagerOptions {
   acpAdapter: AcpAdapter;
   heartbeat?: HeartbeatConfig;
   projectName?: string;
+  /** Working directory for spawned agents. Defaults to process.cwd(). */
+  cwd?: string;
   /** Runtime name for Lead (e.g. 'copilot', 'opencode'). Falls back to adapter default. */
   leadRuntime?: string;
   /** Runtime name for Planner. Falls back to leadRuntime, then adapter default. */
@@ -72,6 +74,7 @@ export class LeadManager {
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
   private projectName: string | undefined;
+  private agentCwd: string;
   private leadRuntime: string | undefined;
   private plannerRuntime: string | undefined;
 
@@ -86,6 +89,7 @@ export class LeadManager {
     this.acpAdapter = opts.acpAdapter;
     this.heartbeatConfig = opts.heartbeat ?? { enabled: false, interval: 30 * 60 * 1000, conditions: [] };
     this.projectName = opts.projectName;
+    this.agentCwd = opts.cwd ?? process.cwd();
     this.leadRuntime = opts.leadRuntime;
     this.plannerRuntime = opts.plannerRuntime;
   }
@@ -105,7 +109,7 @@ export class LeadManager {
 
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
-      cwd: process.cwd(),
+      cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.leadRuntime,
     });
@@ -315,7 +319,7 @@ export class LeadManager {
   async spawnPlanner(): Promise<string> {
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
-      cwd: process.cwd(),
+      cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.plannerRuntime,
     });

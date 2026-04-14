@@ -160,12 +160,14 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const plannerRoleConfig = modelConfig.getRoleConfig('planner');
 
     // Create LeadManager
+    const projectCwd = fd.status().config.cwd ?? process.cwd();
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
       project: fd.project,
       messageStore: fd.chatMessages ?? undefined,
       acpAdapter,
       projectName: name,
+      cwd: projectCwd,
       leadRuntime: leadRoleConfig.runtime,
       plannerRuntime: plannerRoleConfig.runtime,
     });
