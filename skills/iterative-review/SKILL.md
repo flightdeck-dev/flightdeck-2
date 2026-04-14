@@ -43,7 +43,7 @@ curl -sf -X POST http://localhost:18800/api/projects/<project>/messages \
   -d '{"content":"<message>"}'
 ```
 
-**Memory budget:** Each Copilot ACP agent ≈ 4GB RSS. On a 32GB machine, max ~6 concurrent agents. Prefer serial over parallel when possible.
+**Memory budget:** Each Copilot ACP agent ≈ 300–500MB RSS (not 4GB as previously assumed). On a 32GB machine you can comfortably run dozens of concurrent agents. Memory is rarely the bottleneck.
 
 ## 2. OBSERVE — Watch Behavior
 
@@ -156,6 +156,6 @@ curl -sf http://localhost:18800/api/projects/<project>/messages | \
 - **Lead hallucinates actions** — always verify task state via API, not Lead's messages
 - **Agents register but don't spawn** — check acpSessionId, not just status
 - **chat endpoint is synchronous** — use async POST for non-blocking messages
-- **One ACP agent ≈ 4GB** — plan agent count around available memory
+- **One ACP agent ≈ 300–500MB RSS** — much lighter than expected, dozens can run on 32GB
 - **Planner is autonomous** — it may create tasks you didn't ask for
 - **Subagent self-reports are unreliable** — run `pnpm test` yourself after fixes
