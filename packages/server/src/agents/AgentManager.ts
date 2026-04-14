@@ -117,6 +117,7 @@ export class AgentManager {
       id: newId,
       role: opts.role,
       runtime: this.adapter.runtime,
+      runtimeName: opts.runtime ?? null,
       acpSessionId: null,
       status: 'idle',
       currentSpecId: null,

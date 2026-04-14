@@ -38,6 +38,7 @@ export const agents = sqliteTable('agents', {
   id: text('id').primaryKey(),
   role: text('role').notNull(),
   runtime: text('runtime').notNull().default('acp'),
+  runtimeName: text('runtime_name'),
   acpSessionId: text('acp_session_id'),
   status: text('status').notNull().default('idle'),
   currentSpecId: text('current_spec_id'),

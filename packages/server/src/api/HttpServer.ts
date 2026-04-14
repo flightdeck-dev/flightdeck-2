@@ -29,7 +29,7 @@ export interface HttpServerDeps {
 export function createHttpServer(deps: HttpServerDeps): Server {
   const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers } = deps;
 
-  let modelCfg: InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig> | null = null;
+  let modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
   let presetNames: string[] = [];
   let modRegistry: typeof import('../agents/ModelTiers.js').modelRegistry | null = null;
   let displayModule: typeof import('@flightdeck-ai/shared') | null = null;
@@ -37,9 +37,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
   let serverDisplayConfig: any = null;
 
   const ensureModules = async () => {
-    if (!modelCfg) {
-      const { ModelConfig: MC, PRESET_NAMES } = await import('../agents/ModelConfig.js');
-      modelCfg = new MC(process.cwd());
+    if (presetNames.length === 0) {
+      const { PRESET_NAMES } = await import('../agents/ModelConfig.js');
       presetNames = PRESET_NAMES;
     }
     if (!modRegistry) {
@@ -49,6 +48,17 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       displayModule = await import('@flightdeck-ai/shared');
       serverDisplayConfig = { ...displayModule.DEFAULT_DISPLAY };
     }
+  };
+
+  /** Get or create a per-project ModelConfig instance. */
+  const getModelConfig = async (fd: Flightdeck, projName: string): Promise<InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>> => {
+    let mc = modelCfgCache.get(projName);
+    if (!mc) {
+      const { ModelConfig: MC } = await import('../agents/ModelConfig.js');
+      mc = new MC(fd.project.subpath('.'));
+      modelCfgCache.set(projName, mc);
+    }
+    return mc;
   };
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -331,14 +341,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath === '/threads' && method === 'GET') {
       json(200, fd.chatMessages?.listThreads() ?? []);
     } else if (subPath === '/models' && method === 'GET') {
-      json(200, { roles: modelCfg!.getRoleConfigs(), presets: presetNames });
+      const mc = await getModelConfig(fd, projectName);
+      json(200, { roles: mc.getRoleConfigs(), presets: presetNames });
     } else if (subPath === '/models/available' && method === 'GET') {
       const result: Record<string, unknown> = {};
       for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModelsGrouped(rt);
       json(200, result);
     } else if (subPath.startsWith('/models/preset/') && method === 'POST') {
       const preset = subPath.split('/').pop()!;
-      if (modelCfg!.applyPreset(preset)) json(200, { success: true, roles: modelCfg!.getRoleConfigs() });
+      const mc = await getModelConfig(fd, projectName);
+      if (mc.applyPreset(preset)) json(200, { success: true, roles: mc.getRoleConfigs() });
       else json(400, { error: `Unknown preset: ${preset}. Available: ${presetNames.join(', ')}` });
     } else if (subPath === '/display' && method === 'GET') {
       json(200, serverDisplayConfig!);
@@ -361,10 +373,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const role = subPath.split('/').pop()!;
       try {
         const body = await readBody();
-        if (body.runtime) modelCfg!.setRole(role, `${body.runtime}:${body.model ?? 'medium'}`);
-        else if (body.model) modelCfg!.setRole(role, body.model);
+        const mc = await getModelConfig(fd, projectName);
+        if (body.runtime) mc.setRole(role, `${body.runtime}:${body.model ?? 'medium'}`);
+        else if (body.model) mc.setRole(role, body.model);
         else { json(400, { error: 'Provide runtime and/or model' }); return; }
-        json(200, { success: true, config: modelCfg!.getRoleConfig(role) });
+        // Invalidate cache so next read picks up changes
+        modelCfgCache.delete(projectName);
+        json(200, { success: true, config: mc.getRoleConfig(role) });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid request body' }); }
     } else if (subPath === '/orchestrator/pause' && method === 'POST') {
       fd.orchestrator.pause(); json(200, { paused: true });

@@ -81,6 +81,8 @@ export interface Agent {
   id: AgentId;
   role: AgentRole;
   runtime: AgentRuntime;
+  /** Actual runtime name (e.g. 'opencode', 'codex', 'copilot'). May differ from `runtime` which is the adapter type. */
+  runtimeName?: string | null;
   acpSessionId: string | null;
   status: AgentStatus;
   currentSpecId: SpecId | null;

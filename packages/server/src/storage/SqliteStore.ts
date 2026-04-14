@@ -47,6 +47,7 @@ export class SqliteStore {
         id TEXT PRIMARY KEY,
         role TEXT NOT NULL,
         runtime TEXT NOT NULL DEFAULT 'acp',
+        runtime_name TEXT,
         acp_session_id TEXT,
         status TEXT NOT NULL DEFAULT 'idle',
         current_spec_id TEXT,
@@ -54,6 +55,11 @@ export class SqliteStore {
         last_heartbeat TEXT
       )
     `));
+
+    // Migration: add runtime_name column if missing (existing DBs)
+    try {
+      this._db.run(sql.raw(`ALTER TABLE agents ADD COLUMN runtime_name TEXT`));
+    } catch { /* column already exists */ }
 
     this._db.run(sql.raw(`
       CREATE TABLE IF NOT EXISTS cost_entries (
@@ -343,6 +349,7 @@ export class SqliteStore {
       id: agent.id,
       role: agent.role,
       runtime: agent.runtime,
+      runtimeName: agent.runtimeName ?? null,
       acpSessionId: agent.acpSessionId,
       status: agent.status,
       currentSpecId: agent.currentSpecId,
@@ -466,6 +473,7 @@ export class SqliteStore {
       id: row.id as AgentId,
       role: row.role as Agent['role'],
       runtime: row.runtime as Agent['runtime'],
+      runtimeName: row.runtimeName ?? null,
       acpSessionId: (row.acpSessionId ?? null) as string | null,
       status: row.status as Agent['status'],
       currentSpecId: (row.currentSpecId ?? null) as SpecId | null,
