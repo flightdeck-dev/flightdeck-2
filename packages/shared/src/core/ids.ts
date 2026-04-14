@@ -17,8 +17,8 @@ export function specId(...parts: string[]): SpecId {
   return hashId('spec', ...parts) as SpecId;
 }
 
-export function agentId(...parts: string[]): AgentId {
-  return hashId('agent', ...parts) as AgentId;
+export function agentId(role: string, ...parts: string[]): AgentId {
+  return hashId(role, ...parts) as AgentId;
 }
 
 export function projectId(...parts: string[]): ProjectId {

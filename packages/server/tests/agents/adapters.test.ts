@@ -19,7 +19,7 @@ describe('AcpAdapter', () => {
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp', systemPrompt: 'do stuff' });
     expect(meta.status).toBe('running');
     expect(meta.sessionId).toMatch(/^acp-/);
-    expect(meta.agentId).toMatch(/^agent-/);
+    expect(meta.agentId).toMatch(/^worker-/);
   });
 
   it('getMetadata returns ended after process exits', async () => {

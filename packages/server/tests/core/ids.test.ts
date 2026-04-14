@@ -17,7 +17,7 @@ describe('ID Generation', () => {
   it('uses correct prefixes', () => {
     expect(taskId('a').startsWith('task-')).toBe(true);
     expect(specId('a').startsWith('spec-')).toBe(true);
-    expect(agentId('a').startsWith('agent-')).toBe(true);
+    expect(agentId('worker', 'a').startsWith('worker-')).toBe(true);
     expect(decisionId('a').startsWith('dec-')).toBe(true);
     expect(messageId('a').startsWith('msg-')).toBe(true);
   });
