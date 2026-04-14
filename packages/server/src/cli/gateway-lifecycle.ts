@@ -349,9 +349,11 @@ export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
 
   const bindAddress = resolveBindAddress(opts.bind);
 
-  // Warn about non-loopback without auth
+  // Refuse to bind non-loopback without auth
   if (bindAddress !== '127.0.0.1' && authMode === 'none') {
-    console.error('⚠ WARNING: Binding to non-loopback address without auth. Use --auth token for security.');
+    console.error('Error: Cannot bind to non-loopback address without auth.');
+    console.error('Use --auth token when binding to 0.0.0.0 or a LAN address.');
+    process.exit(1);
   }
 
   const { startGateway } = await import('./gateway.js');
