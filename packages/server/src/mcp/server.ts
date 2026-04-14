@@ -449,6 +449,47 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse({ ...role, specialists });
   });
 
+  // ── Model discovery tool ──
+
+  server.tool('flightdeck_model_list', 'List available models and runtimes across all providers. Use this to decide which runtime:model to assign when spawning agents.', {
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_model_list');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'agent_spawn', 'flightdeck_model_list');
+    if (permErr) return permErr;
+
+    const { modelRegistry: registry } = await import('../agents/ModelTiers.js');
+    const { ModelConfig } = await import('../agents/ModelConfig.js');
+    const mc = new ModelConfig(fd.project.subpath('.'));
+    const roleConfigs = mc.getRoleConfigs();
+
+    const runtimes = registry.getRuntimes();
+    const output: Record<string, unknown> = {
+      config: {
+        default_runtime: mc.getAgentsConfig().default_runtime ?? 'copilot',
+        roles: Object.fromEntries(roleConfigs.map(rc => [rc.role, { runtime: rc.runtime, model: rc.model }])),
+      },
+      discovered_models: Object.fromEntries(
+        runtimes.map(rt => {
+          const grouped = registry.getModelsGrouped(rt);
+          return [rt, {
+            high: grouped.high.map(m => m.modelId),
+            medium: grouped.medium.map(m => m.modelId),
+            fast: grouped.fast.map(m => m.modelId),
+          }];
+        }),
+      ),
+    };
+
+    if (runtimes.length === 0) {
+      output.note = 'No models discovered yet. Models appear after agents connect. ' +
+        'You can still spawn agents with explicit model IDs.';
+    }
+
+    return jsonResponse(output);
+  });
+
   // ── Agent lifecycle tools ──
 
   server.tool('flightdeck_agent_spawn', 'Spawn a new agent', {
@@ -1183,15 +1224,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   });
 
   // ── Model tools ──
-
-  server.tool('flightdeck_model_list', 'List available models grouped by tier for all runtimes', {}, async () => {
-    const runtimes = modelRegistry.getRuntimes();
-    const result: Record<string, unknown> = {};
-    for (const rt of runtimes) {
-      result[rt] = modelRegistry.getModelsGrouped(rt);
-    }
-    return jsonResponse({ runtimes, models: result });
-  });
+  // flightdeck_model_list is defined above (model discovery section) with full config + discovered models
 
   server.tool('flightdeck_model_config', 'Get current model configuration per role', {}, async () => {
     const cwd = process.cwd();

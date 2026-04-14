@@ -499,11 +499,21 @@ export class AcpAdapter extends AgentAdapter {
       session.status = 'active';
       session.lastActivityAt = new Date();
 
-      // Cache available models if returned
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
-      if ((result as any).models?.availableModels) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
-        modelRegistry.registerModels(session.runtimeName, (result as any).models.availableModels);
+      // Cache available models from session response (standard ACP)
+      if (result.models?.availableModels) {
+        modelRegistry.registerModels(session.runtimeName, result.models.availableModels);
+      }
+
+      // Set model if specified and different from default
+      if (session.model && result.models?.currentModelId !== session.model) {
+        try {
+          await session.connection.unstable_setSessionModel({
+            sessionId: session.acpSessionId!,
+            modelId: session.model,
+          });
+        } catch {
+          // Best effort — agent may not support model switching
+        }
       }
 
       // Queue the initial prompt instead of sending it synchronously.
@@ -643,10 +653,6 @@ export class AcpAdapter extends AgentAdapter {
 
       session.agentCapabilities = initResult.agentCapabilities ?? null;
 
-      if (!session.agentCapabilities?.loadSession) {
-        throw new Error('Agent does not support session/load. Cannot resume session.');
-      }
-
       const defaultMcpServers: McpServer[] = [
         {
           name: 'flightdeck',
@@ -659,17 +665,42 @@ export class AcpAdapter extends AgentAdapter {
           ],
         } as any,
       ];
+      const servers = mcpServers ?? defaultMcpServers;
 
-      const _result = await session.connection.loadSession({
-        sessionId: previousSessionId,
-        cwd: session.cwd,
-        mcpServers: mcpServers ?? defaultMcpServers,
-      });
+      // Try session/resume first (unstable, no history replay — faster).
+      // Fall back to session/load (replays history). Fall back to error.
+      const supportsResume = session.agentCapabilities?.sessionCapabilities?.resume != null;
+      const supportsLoad = session.agentCapabilities?.loadSession === true;
 
-      // loadSession uses the same sessionId we passed in
-      session.acpSessionId = previousSessionId;
-      session.status = 'active';
-      session.lastActivityAt = new Date();
+      if (supportsResume) {
+        try {
+          await session.connection.unstable_resumeSession({
+            sessionId: previousSessionId,
+            cwd: session.cwd,
+            mcpServers: servers,
+          });
+          session.acpSessionId = previousSessionId;
+          session.status = 'active';
+          session.lastActivityAt = new Date();
+          return;
+        } catch (resumeErr) {
+          console.error(`  session/resume failed, trying session/load: ${resumeErr instanceof Error ? resumeErr.message : String(resumeErr)}`);
+        }
+      }
+
+      if (supportsLoad) {
+        const _result = await session.connection.loadSession({
+          sessionId: previousSessionId,
+          cwd: session.cwd,
+          mcpServers: servers,
+        });
+        session.acpSessionId = previousSessionId;
+        session.status = 'active';
+        session.lastActivityAt = new Date();
+        return;
+      }
+
+      throw new Error('Agent does not support session/resume or session/load. Cannot resume session.');
     } catch (err: unknown) {
       if (session.status === 'initializing') {
         session.error = (session.error ?? '') + `\nACP load error: ${err instanceof Error ? err.message : String(err)}`;
@@ -678,11 +709,13 @@ export class AcpAdapter extends AgentAdapter {
   }
 
   /**
-   * Check if a session's agent supports session loading.
+   * Check if a session's agent supports session restoration (resume or load).
    */
   supportsLoadSession(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
-    return session?.agentCapabilities?.loadSession === true;
+    if (!session?.agentCapabilities) return false;
+    return session.agentCapabilities.loadSession === true
+      || session.agentCapabilities.sessionCapabilities?.resume != null;
   }
 
   /**
@@ -895,8 +928,7 @@ export class AcpAdapter extends AgentAdapter {
     if (!session?.connection || !session.acpSessionId) {
       throw new Error(`Cannot set model: session ${sessionId} not initialized or not found`);
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unstable API not in type definitions
-    await (session.connection as any).unstable_setSessionModel({
+    await session.connection.unstable_setSessionModel({
       sessionId: session.acpSessionId,
       modelId,
     });
