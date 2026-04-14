@@ -108,4 +108,86 @@ describe('SqliteStore', () => {
     store.insertCostEntry({ ...entry, costUsd: 0.10 });
     expect(store.getTotalCost()).toBeCloseTo(0.15);
   });
+
+  describe('resetOrphanedTasks', () => {
+    it('resets running tasks assigned to non-existent agents', () => {
+      // Insert an agent and a task assigned to it
+      store.insertAgent({
+        id: 'agent-alive' as AgentId, role: 'worker', runtime: 'acp',
+        acpSessionId: 'acp-1', status: 'busy', currentSpecId: null,
+        costAccumulated: 0, lastHeartbeat: null,
+      });
+      store.insertTask({
+        id: 'task-orphan' as TaskId, specId: null, title: 'Orphan',
+        description: '', state: 'running', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-dead' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+      store.insertTask({
+        id: 'task-alive' as TaskId, specId: null, title: 'Alive',
+        description: '', state: 'running', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-alive' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+
+      const reset = store.resetOrphanedTasks();
+      expect(reset).toBe(1);
+
+      const orphan = store.getTask('task-orphan' as TaskId)!;
+      expect(orphan.state).toBe('ready');
+      expect(orphan.assignedAgent).toBeNull();
+
+      // Task with alive agent should be untouched
+      const alive = store.getTask('task-alive' as TaskId)!;
+      expect(alive.state).toBe('running');
+      expect(alive.assignedAgent).toBe('agent-alive');
+    });
+
+    it('resets in_review and claimed tasks too', () => {
+      store.insertTask({
+        id: 'task-review' as TaskId, specId: null, title: 'In Review',
+        description: '', state: 'in_review', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-gone' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+
+      const reset = store.resetOrphanedTasks();
+      expect(reset).toBe(1);
+      expect(store.getTask('task-review' as TaskId)!.state).toBe('ready');
+    });
+
+    it('does not reset done or failed tasks', () => {
+      store.insertTask({
+        id: 'task-done' as TaskId, specId: null, title: 'Done',
+        description: '', state: 'done', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-gone' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+      store.insertTask({
+        id: 'task-fail' as TaskId, specId: null, title: 'Failed',
+        description: '', state: 'failed', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-gone' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+
+      const reset = store.resetOrphanedTasks();
+      expect(reset).toBe(0);
+    });
+
+    it('returns 0 when no tasks are orphaned', () => {
+      store.insertAgent({
+        id: 'agent-ok' as AgentId, role: 'worker', runtime: 'acp',
+        acpSessionId: 'acp-1', status: 'busy', currentSpecId: null,
+        costAccumulated: 0, lastHeartbeat: null,
+      });
+      store.insertTask({
+        id: 'task-ok' as TaskId, specId: null, title: 'OK',
+        description: '', state: 'running', role: 'worker', dependsOn: [],
+        priority: 0, assignedAgent: 'agent-ok' as AgentId, acpSessionId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      });
+
+      expect(store.resetOrphanedTasks()).toBe(0);
+    });
+  });
 });

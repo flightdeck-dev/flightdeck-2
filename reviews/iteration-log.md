@@ -88,3 +88,35 @@ All 4 agents had real ACP sessions:
 - Worker code execution failures need investigation (separate from relay fix)
 - Old task records with orphaned agent references could be cleaned up
 - Consider adding task cleanup to --no-recover flag
+
+## Iteration 4 — 2026-04-14 (full skill cycle with DEBRIEF)
+
+### Test Setup
+- Clean daemon, --no-recover
+- Single task: "Add task priority sorting to task_list" (task-fac0bd3c5d78)
+- Full skill cycle: TEST → OBSERVE → DEBRIEF → DOCUMENT
+
+### OBSERVE Results
+- Relay works: all workers spawned with real ACP sessions ✅
+- Target task went running → failed
+- Lead spawned 6 workers total (!!) — picked up old stale tasks from previous sessions
+- Old tasks (hello world, health-check) still have orphaned agent IDs from purged agents
+- Memory usage: 9.3GB / 31GB — 8-10 Copilot processes running
+
+### DEBRIEF — Lead's Perspective (key insights)
+1. **flightdeck_agent_spawn worked correctly** — returned proper JSON with acpSessionId
+2. **Lead auto-retried old failed tasks** — saw 2 failed + 3 orphaned tasks, spawned workers for all of them without being asked. "Overzealous."
+3. **flightdeck_msg_inbox failed** — Lead guessed its ID as "lead" instead of its actual agent-cd513d8401fd. Minor friction.
+4. **Spawning workers for already-assigned tasks succeeded silently** — no warning about duplicate assignment
+5. **Lead's #1 request: task staleness detection** — auto-mark tasks as "orphaned" when assigned agent doesn't exist
+
+### Issues Found
+1. **[NEW] --no-recover doesn't clean stale tasks** — purges agents but leaves tasks with orphaned assignees. Lead sees them and wastes resources.
+2. **[NEW] No duplicate assignment guard** — can spawn worker for a task that's already running under another agent
+3. **[NEW] Agent ID discovery friction** — Lead has to call agent_list to find its own ID for msg_inbox
+4. **[CONFIRMED] Worker task execution failures** — workers keep failing at actual code changes (separate investigation needed)
+
+### Proposed Fixes (priority order)
+1. Add orphan detection: on startup with --no-recover, reset tasks assigned to purged agents back to "ready" or mark them "orphaned"
+2. Guard agent_spawn: warn if task already has an assigned active agent
+3. Inject agent ID as env var so Lead knows its own ID without calling agent_list (already done via FLIGHTDECK_AGENT_ID!)

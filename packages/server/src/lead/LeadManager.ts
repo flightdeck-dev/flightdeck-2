@@ -87,6 +87,11 @@ export class LeadManager {
     if (purged > 0) {
       console.log(`  Purged ${purged} offline agent(s)`);
     }
+    // Reset tasks that were assigned to now-deleted agents
+    const orphaned = this.sqlite.resetOrphanedTasks();
+    if (orphaned > 0) {
+      console.log(`  Reset ${orphaned} orphaned task(s) to ready`);
+    }
 
     const meta = await this.acpAdapter.spawn({
       role: 'lead',

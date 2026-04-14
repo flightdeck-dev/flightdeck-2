@@ -106,6 +106,7 @@ function createMockStore() {
     },
     getTaskStats() { return { ready: 2, running: 1, in_review: 0, done: 3, failed: 0 }; },
     getTotalCost() { return 1.23; },
+    resetOrphanedTasks() { return 0; },
     _agents: agents,
   };
 }

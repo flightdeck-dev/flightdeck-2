@@ -386,6 +386,23 @@ export class SqliteStore {
     return result.changes;
   }
 
+  /**
+   * Reset tasks whose assignedAgent no longer exists in the agents table.
+   * Running/in_review/claimed tasks are moved back to 'ready'; their agent assignment is cleared.
+   * Returns the number of tasks reset.
+   */
+  resetOrphanedTasks(): number {
+    const now = new Date().toISOString();
+    const result = this._db.run(sql`
+      UPDATE tasks
+      SET state = 'ready', assigned_agent = NULL, updated_at = ${now}
+      WHERE assigned_agent IS NOT NULL
+        AND state IN ('running', 'in_review', 'claimed')
+        AND assigned_agent NOT IN (SELECT id FROM agents)
+    `);
+    return result.changes;
+  }
+
   /** List all agents with status 'suspended'. */
   listSuspendedAgents(): Agent[] {
     return this._db.select().from(agents).where(eq(agents.status, 'suspended')).all().map(r => this.rowToAgent(r));
