@@ -1,4 +1,4 @@
-import type { TaskId, SideEffect, ProjectConfig } from '@flightdeck-ai/shared';
+import type { TaskId, SideEffect, ProjectConfig, AgentId } from '@flightdeck-ai/shared';
 import { type TaskDAG } from '../dag/TaskDAG.js';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
@@ -555,6 +555,13 @@ export class Orchestrator {
         this.store.updateAgentStatus(agent.id, 'busy');
         usedAgentIds.add(agent.id);
         assigned++;
+
+        // Auto-steer the worker with task details so it starts working immediately
+        if (this.agentManager && agent.acpSessionId) {
+          void this.agentManager.sendToAgent(agent.id as AgentId,
+            `You have been assigned task "${task.title}" (ID: ${task.id}).${task.description ? '\n\nDescription: ' + task.description : ''}\n\nPlease work on this task and submit your results using flightdeck_task_submit when done. If you're blocked, use flightdeck_escalate.`
+          ).catch(() => { /* best effort */ });
+        }
       } catch {
         // Skip
       }

@@ -49,6 +49,7 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
 - Always pass your agentId when calling Flightdeck tools
 - Report task completion via flightdeck_task_submit
 - If stuck, use flightdeck_escalate
+- After completing a task, check flightdeck_task_list for more ready tasks and claim one with flightdeck_task_claim. Keep working until no tasks are available.
 `;
 }
 
