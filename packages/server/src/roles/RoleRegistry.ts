@@ -46,9 +46,10 @@ function loadRoleFromFile(filePath: string): RoleDefinition | null {
   try {
     const content = readFileSync(filePath, 'utf-8');
     const { frontmatter, body } = parseFrontmatter(content);
-    if (!frontmatter.id) return null;
+    const id = (frontmatter.id as string) || (frontmatter.name as string);
+    if (!id) return null;
     return {
-      id: frontmatter.id as string,
+      id,
       name: (frontmatter.name as string) || frontmatter.id as string,
       description: (frontmatter.description as string) || '',
       icon: (frontmatter.icon as string) || '🔧',
