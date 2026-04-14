@@ -13,9 +13,10 @@ const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; 
   system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: '⚙' },
 };
 
-const MessageBubble = memo(function MessageBubble({ msg, onReply }: { msg: ChatMessage; onReply: (m: ChatMessage) => void }) {
+const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; onReply: (m: ChatMessage) => void }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
+  const parentMsg = msg.parentId && messages ? messages.find(m => m.id === msg.parentId) : null;
 
   if (msg.authorType === 'system') {
     return (
@@ -34,6 +35,11 @@ const MessageBubble = memo(function MessageBubble({ msg, onReply }: { msg: ChatM
         {style.icon}
       </div>
       <div className={`flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
+        {parentMsg && (
+          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] truncate ${isUser ? 'ml-auto' : ''}`}>
+            ↩ replying to {AUTHOR_STYLES[parentMsg.authorType]?.label ?? parentMsg.authorType}: {parentMsg.content.slice(0, 80)}{parentMsg.content.length > 80 ? '...' : ''}
+          </div>
+        )}
         <div className={`flex items-baseline gap-2 ${isUser ? 'justify-end' : ''}`}>
           <span className="text-sm font-medium" style={{ color: style.color }}>{style.label}</span>
           {msg.authorId && msg.authorType !== 'user' && (
@@ -340,7 +346,7 @@ export default function Chat() {
               </div>
             )}
             {filteredMessages.map(msg => (
-              <MessageBubble key={msg.id} msg={msg} onReply={handleReply} />
+              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} onReply={handleReply} />
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}
