@@ -16,7 +16,7 @@ let fd: Flightdeck;
 const projectName = `e2e-test-${Date.now()}`;
 
 function cleanup() {
-  const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+  const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
   if (existsSync(projDir)) {
     rmSync(projDir, { recursive: true, force: true });
   }

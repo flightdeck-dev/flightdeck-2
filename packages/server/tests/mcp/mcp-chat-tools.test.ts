@@ -30,7 +30,7 @@ describe('MCP chat & memory tools', () => {
 
   afterEach(() => {
     fd.close();
-    const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+    const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
 
@@ -92,7 +92,7 @@ describe('MCP chat & memory tools', () => {
   it('flightdeck_search searches memory recursively', async () => {
     // Write to a subdirectory
     const { mkdirSync, writeFileSync } = await import('node:fs');
-    const retroDir = join(homedir(), '.flightdeck', 'projects', projectName, 'memory', 'retrospectives');
+    const retroDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName, 'memory', 'retrospectives');
     mkdirSync(retroDir, { recursive: true });
     writeFileSync(join(retroDir, 'auth-spec.md'), '# Auth Retrospective\n\nPKCE was the right choice.\n');
     fd.memory.reindex();

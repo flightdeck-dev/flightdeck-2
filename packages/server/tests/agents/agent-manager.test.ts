@@ -45,7 +45,7 @@ class MockAdapter implements AgentAdapter {
 
 describe('AgentManager', () => {
   const projectName = `test-agent-mgr-${Date.now()}`;
-  const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+  const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
   let store: SqliteStore;
   let roles: RoleRegistry;
   let adapter: MockAdapter;
@@ -185,7 +185,7 @@ describe('buildSystemPrompt', () => {
 
 describe('AgentManager DM delivery', () => {
   const projectName = `test-dm-delivery-${Date.now()}`;
-  const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+  const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
   let store: SqliteStore;
   let roles: RoleRegistry;
   let adapter: MockAdapter;

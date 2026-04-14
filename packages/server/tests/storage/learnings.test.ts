@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { LearningsStore } from '../../src/storage/LearningsStore.js';
 
 describe('LearningsStore', () => {
-  const testDir = join(homedir(), '.flightdeck', 'projects', `test-learnings-${Date.now()}`);
+  const testDir = join(homedir(), '.flightdeck', 'v2', 'projects', `test-learnings-${Date.now()}`);
   let store: LearningsStore;
 
   beforeEach(() => {

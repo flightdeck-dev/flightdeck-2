@@ -7,7 +7,7 @@ import { readdirSync, rmSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-const PROJECTS_DIR = join(homedir(), '.flightdeck', 'projects');
+const PROJECTS_DIR = join(homedir(), '.flightdeck', 'v2', 'projects');
 
 export function teardown(): void {
   if (!existsSync(PROJECTS_DIR)) return;

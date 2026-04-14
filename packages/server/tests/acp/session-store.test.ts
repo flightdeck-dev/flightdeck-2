@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import { SessionStore, type SessionEntry } from '../../src/acp/SessionStore.js';
 
 const TEST_PROJECT = `test-session-store-${Date.now()}`;
-const BASE_DIR = path.join(os.homedir(), '.flightdeck', 'projects', TEST_PROJECT, 'sessions');
+const BASE_DIR = path.join(os.homedir(), '.flightdeck', 'v2', 'projects', TEST_PROJECT, 'sessions');
 
 describe('SessionStore', () => {
   let store: SessionStore;
@@ -16,7 +16,7 @@ describe('SessionStore', () => {
 
   afterEach(() => {
     // Clean up test files
-    try { fs.rmSync(path.join(os.homedir(), '.flightdeck', 'projects', TEST_PROJECT), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(path.join(os.homedir(), '.flightdeck', 'v2', 'projects', TEST_PROJECT), { recursive: true, force: true }); } catch {}
   });
 
   it('should create and list sessions', () => {

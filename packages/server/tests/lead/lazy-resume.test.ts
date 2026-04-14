@@ -23,7 +23,7 @@ describe('LeadManager lazy resume', () => {
 
   afterEach(() => {
     sqlite?.close();
-    const projDir = join(homedir(), '.flightdeck', 'projects', projectName);
+    const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
 
