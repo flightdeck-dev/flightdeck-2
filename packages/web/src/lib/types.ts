@@ -61,6 +61,7 @@ export interface ChatMessage {
   id: string;
   threadId: string | null;
   parentId: string | null;
+  parentIds?: string[] | null;
   taskId: string | null;
   authorType: 'user' | 'lead' | 'agent' | 'system';
   authorId: string | null;

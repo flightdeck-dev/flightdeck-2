@@ -137,6 +137,7 @@ export class SqliteStore {
         id TEXT PRIMARY KEY,
         thread_id TEXT,
         parent_id TEXT,
+        parent_ids TEXT,
         task_id TEXT,
         author_type TEXT NOT NULL,
         author_id TEXT,
@@ -159,6 +160,11 @@ export class SqliteStore {
         FOREIGN KEY (origin_id) REFERENCES messages(id)
       )
     `));
+
+    // Migration: add parent_ids column to messages (multi-parent support)
+    try {
+      this._db.run(sql.raw(`ALTER TABLE messages ADD COLUMN parent_ids TEXT`));
+    } catch { /* column already exists */ }
 
     // ── Indexes ──
 

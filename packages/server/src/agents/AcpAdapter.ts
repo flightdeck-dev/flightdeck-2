@@ -64,6 +64,7 @@ interface ManagedTerminal {
 export interface QueuedPrompt {
   content: string;
   priority: boolean;
+  sourceMessageId?: string;
   resolve?: (text: string) => void;
   reject?: (err: Error) => void;
 }
@@ -92,6 +93,8 @@ export interface AcpSession {
   error: string | null;
   agentCapabilities: AgentCapabilities | null;
   terminals: Map<string, ManagedTerminal>;
+  /** After a merged drain, the source message IDs that were merged (set by sendPrompt, read by callers) */
+  lastMergedSourceIds: string[];
   /** Whether a prompt() call is currently in-flight for this session. */
   isPrompting: boolean;
   /** Queue of messages received while a prompt was in-flight. */
@@ -411,6 +414,7 @@ export class AcpAdapter extends AgentAdapter {
       error: null,
       agentCapabilities: null,
       terminals: new Map(),
+      lastMergedSourceIds: [],
       isPrompting: false,
       promptQueue: [],
     };
@@ -630,6 +634,7 @@ export class AcpAdapter extends AgentAdapter {
       error: null,
       agentCapabilities: null,
       terminals: new Map(),
+      lastMergedSourceIds: [],
       isPrompting: false,
       promptQueue: [],
     };
@@ -756,7 +761,7 @@ export class AcpAdapter extends AgentAdapter {
       const ts = new Date().toISOString().slice(0, 19) + 'Z';
       const prefix = message.urgent ? `[${ts}] [URGENT] ` : '';
       return new Promise<string>((resolve, reject) => {
-        session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent, resolve, reject });
+        session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent, sourceMessageId: message.sourceMessageId, resolve, reject });
       });
     }
 
@@ -767,7 +772,7 @@ export class AcpAdapter extends AgentAdapter {
     // If a prompt is already in-flight, queue the message instead of interrupting
     if (session.isPrompting) {
       return new Promise<string>((resolve, reject) => {
-        const entry: QueuedPrompt = { content: text, priority: !!message.urgent, resolve, reject };
+        const entry: QueuedPrompt = { content: text, priority: !!message.urgent, sourceMessageId: message.sourceMessageId, resolve, reject };
         if (message.urgent) {
           // Priority messages go to the front of the queue
           const priorityCount = session.promptQueue.filter(q => q.priority).length;
@@ -827,7 +832,15 @@ export class AcpAdapter extends AgentAdapter {
         });
         session.status = 'active';
         const loopResponse = session.output.slice(loopOutputBefore);
-        for (const item of ordered) { item.resolve?.(loopResponse); }
+        // Dedup: only the first item gets the real response.
+        // Other merged items get empty string so callers skip creating duplicate messages.
+        const allSourceIds = ordered.filter(i => i.sourceMessageId).map(i => i.sourceMessageId!);
+        session.lastMergedSourceIds = allSourceIds.length > 1 ? allSourceIds : [];
+        if (ordered.length > 0) {
+          ordered[0].resolve?.(loopResponse);
+        }
+        // Remaining items resolve with empty string (wireWsToLead filters these out)
+        for (let i = 1; i < ordered.length; i++) { ordered[i].resolve?.(''); }
       } catch (err: unknown) {
         if ((session.status as AcpSessionStatus) !== 'ended') {
           session.status = 'active';
@@ -863,10 +876,13 @@ export class AcpAdapter extends AgentAdapter {
 
     try {
       const responseText = await this.sendPrompt(session, merged);
-      // Resolve all queued promises with the combined response
-      for (const item of ordered) {
-        item.resolve?.(responseText);
+      // Dedup: only the first item gets the real response
+      const allSourceIds = ordered.filter(i => i.sourceMessageId).map(i => i.sourceMessageId!);
+      session.lastMergedSourceIds = allSourceIds.length > 1 ? allSourceIds : [];
+      if (ordered.length > 0) {
+        ordered[0].resolve?.(responseText);
       }
+      for (let i = 1; i < ordered.length; i++) { ordered[i].resolve?.(''); }
     } catch (err: unknown) {
       for (const item of ordered) {
         item.reject?.(err instanceof Error ? err : new Error(String(err)));

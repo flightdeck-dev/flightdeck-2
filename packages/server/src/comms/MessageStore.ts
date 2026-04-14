@@ -7,6 +7,7 @@ export interface ChatMessage {
   id: string;
   threadId: string | null;
   parentId: string | null;
+  parentIds?: string[] | null;  // optional for backwards compat — defaults to null
   taskId: string | null;
   authorType: 'user' | 'lead' | 'agent' | 'system';
   authorId: string | null;
@@ -34,6 +35,7 @@ export class MessageStore {
       id,
       threadId: msg.threadId ?? null,
       parentId: msg.parentId ?? null,
+      parentIds: msg.parentIds ?? null,
       taskId: msg.taskId ?? null,
       authorType: msg.authorType,
       authorId: msg.authorId ?? null,
@@ -42,7 +44,9 @@ export class MessageStore {
       createdAt: now,
       updatedAt: null,
     };
-    this.db.insert(messages).values(record).run();
+    // Store parentIds as JSON string for SQLite
+    const dbRecord = { ...record, parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null } as any;
+    this.db.insert(messages).values(dbRecord).run();
     // Index in FTS5 for full-text search
     try {
       this.db.run(sql`INSERT INTO messages_fts (id, author_type, author_id, content) VALUES (${id}, ${record.authorType}, ${record.authorId}, ${record.content})`);
@@ -52,7 +56,16 @@ export class MessageStore {
 
   getMessage(id: string): ChatMessage | null {
     const row = this.db.select().from(messages).where(eq(messages.id, id)).get();
-    return (row as ChatMessage) ?? null;
+    if (!row) return null;
+    return this.hydrateMessage(row as any);
+  }
+
+  /** Parse parentIds from JSON string back to array */
+  private hydrateMessage(row: any): ChatMessage {
+    return {
+      ...row,
+      parentIds: row.parentIds ? JSON.parse(row.parentIds) : null,
+    };
   }
 
   listMessages(opts: { threadId?: string; taskId?: string; before?: string; limit?: number } = {}): ChatMessage[] {
@@ -75,7 +88,7 @@ export class MessageStore {
       .orderBy(desc(messages.createdAt))
       .limit(limit)
       .all();
-    return rows as ChatMessage[];
+    return rows.map(r => this.hydrateMessage(r as any));
   }
 
   createThread(opts: { originId: string; title?: string }): Thread {
@@ -199,7 +212,7 @@ export class MessageStore {
         .orderBy(desc(messages.createdAt))
         .limit(limit)
         .all();
-      return rows as ChatMessage[];
+      return rows.map(r => this.hydrateMessage(r as any));
     }
   }
 }

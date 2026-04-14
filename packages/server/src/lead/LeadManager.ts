@@ -184,7 +184,8 @@ export class LeadManager {
     }
     if (!this.leadSessionId) return '';
     const steer = this.buildSteer(event);
-    const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer });
+    const sourceMessageId = event.type === 'user_message' ? event.message.id : undefined;
+    const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
     this.lastSteerAt = new Date().toISOString();
 
     // Log to SessionStore for session transcript search
@@ -192,6 +193,13 @@ export class LeadManager {
     if (response) this.logSessionEvent('agent', response);
 
     return response;
+  }
+
+  /** Get merged source message IDs from the last steer (for multi-parent replies) */
+  getLastMergedSourceIds(): string[] {
+    if (!this.leadSessionId) return [];
+    const session = this.acpAdapter.getSession(this.leadSessionId);
+    return session?.lastMergedSourceIds ?? [];
   }
 
   /** Log a conversation event to SessionStore for transcript search. */

@@ -17,6 +17,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
   const parentMsg = msg.parentId && messages ? messages.find(m => m.id === msg.parentId) : null;
+  const parentMsgs = msg.parentIds && messages ? msg.parentIds.map(pid => messages.find(m => m.id === pid)).filter(Boolean) as ChatMessage[] : [];
 
   if (msg.authorType === 'system') {
     return (
@@ -35,7 +36,15 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
         {style.icon}
       </div>
       <div className={`flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
-        {parentMsg && (
+        {parentMsgs.length > 1 ? (
+          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] ${isUser ? 'ml-auto' : ''}`}>
+            {parentMsgs.map((pm, i) => (
+              <div key={pm.id} className="truncate">
+                ↩ replying to {AUTHOR_STYLES[pm.authorType]?.label ?? pm.authorType}: {pm.content.slice(0, 60)}{pm.content.length > 60 ? '...' : ''}
+              </div>
+            ))}
+          </div>
+        ) : parentMsg && (
           <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] truncate ${isUser ? 'ml-auto' : ''}`}>
             ↩ replying to {AUTHOR_STYLES[parentMsg.authorType]?.label ?? parentMsg.authorType}: {parentMsg.content.slice(0, 80)}{parentMsg.content.length > 80 ? '...' : ''}
           </div>

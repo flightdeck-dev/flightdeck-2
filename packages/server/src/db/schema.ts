@@ -55,6 +55,7 @@ export const messages = sqliteTable('messages', {
   id: text('id').primaryKey(),
   threadId: text('thread_id'),
   parentId: text('parent_id'),
+  parentIds: text('parent_ids'),  // JSON array of message IDs for multi-parent (merged replies)
   taskId: text('task_id'),
   authorType: text('author_type').notNull(), // 'user' | 'lead' | 'agent' | 'system'
   authorId: text('author_id'),

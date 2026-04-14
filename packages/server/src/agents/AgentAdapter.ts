@@ -24,6 +24,7 @@ export interface SpawnOptions {
 export interface SteerMessage {
   content: string;
   urgent?: boolean;
+  sourceMessageId?: string;
 }
 
 export interface AgentMetadata {

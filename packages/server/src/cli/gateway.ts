@@ -664,7 +664,7 @@ async function recoverWorkers(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null> }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[] }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wsServer.on('user:message', (msg: any) => {
     (async () => {
@@ -672,8 +672,11 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });
         if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
           if (fd.chatMessages) {
+            // Check for merged source IDs (multi-parent reply)
+            const mergedIds = leadManager.getLastMergedSourceIds?.() ?? [];
+            const parentIds = mergedIds.length > 1 ? mergedIds : null;
             const leadMsg = fd.chatMessages.createMessage({
-              threadId: msg.thread_id ?? null, parentId: msg.id ?? null, taskId: null,
+              threadId: msg.thread_id ?? null, parentId: msg.id ?? null, parentIds, taskId: null,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
             wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
