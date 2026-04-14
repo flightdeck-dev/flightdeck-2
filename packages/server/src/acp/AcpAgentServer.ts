@@ -16,6 +16,13 @@ import {
   type CancelNotification,
   type AuthenticateRequest,
   type AuthenticateResponse,
+  type SetSessionConfigOptionRequest,
+  type SetSessionConfigOptionResponse,
+  type SetSessionModeRequest,
+  type SetSessionModeResponse,
+  type SetSessionModelRequest,
+  type SetSessionModelResponse,
+  type SessionConfigOption,
 } from '@agentclientprotocol/sdk';
 
 import { SessionStore, type SessionEvent } from './SessionStore.js';
@@ -32,7 +39,10 @@ export class AcpAgentServer implements Agent {
   private sessionStore: SessionStore | null = null;
   private facade: Flightdeck | null = null;
   private leadManager: LeadManager | null = null;
+  private acpAdapter: AcpAdapter | null = null;
   private currentSessionId: string | null = null;
+  private currentModel: string | null = null;
+  private currentRuntime: string = 'copilot';
   private cancelled = false;
 
   constructor(opts: { project?: string }) {
@@ -50,6 +60,9 @@ export class AcpAgentServer implements Agent {
         loadSession: true,
         promptCapabilities: {
           embeddedContext: true,
+        },
+        sessionCapabilities: {
+          list: {},
         },
       },
       agentInfo: {
@@ -72,26 +85,68 @@ export class AcpAgentServer implements Agent {
   }
 
   private setupProject(projectName: string): void {
-    const acpAdapter = new AcpAdapter(DEFAULT_RUNTIMES, 'copilot');
-    this.facade = new Flightdeck(projectName, acpAdapter);
+    this.acpAdapter = new AcpAdapter(DEFAULT_RUNTIMES, this.currentRuntime);
+    this.facade = new Flightdeck(projectName, this.acpAdapter);
     this.sessionStore = new SessionStore(projectName);
     this.leadManager = new LeadManager({
       sqlite: this.facade.sqlite,
       project: this.facade.project,
       messageStore: this.facade.chatMessages ?? undefined,
-      acpAdapter,
+      acpAdapter: this.acpAdapter,
       projectName,
+      leadRuntime: this.currentRuntime,
     });
   }
 
+  /** Build the full config options array reflecting current state. */
+  private buildConfigOptions(): SessionConfigOption[] {
+    const runtimeNames = Object.keys(DEFAULT_RUNTIMES);
+
+    const options: SessionConfigOption[] = [
+      {
+        id: 'runtime',
+        name: 'Agent Runtime',
+        type: 'select' as const,
+        description: 'The ACP runtime used for the Lead agent (e.g. copilot, claude-code, codex)',
+        currentValue: this.currentRuntime,
+        options: runtimeNames.map(r => ({ value: r, name: r })),
+      },
+      {
+        id: 'model',
+        name: 'Model',
+        type: 'select' as const,
+        category: 'model',
+        description: 'The LLM model for the Lead agent',
+        currentValue: this.currentModel ?? 'default',
+        options: [
+          { value: 'default', name: 'Default' },
+        ],
+      },
+    ];
+
+    return options;
+  }
+
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+    // Read model/runtime from _meta if provided
+    const meta = params._meta as Record<string, unknown> | undefined;
+    if (meta?.model && typeof meta.model === 'string') {
+      this.currentModel = meta.model;
+    }
+    if (meta?.runtime && typeof meta.runtime === 'string') {
+      this.currentRuntime = meta.runtime;
+    }
+
     const projectName = this.resolveProject(params.cwd);
     this.setupProject(projectName);
 
     const entry = this.sessionStore!.createSession(projectName, params.cwd);
     this.currentSessionId = entry.id;
 
-    return { sessionId: entry.id };
+    return {
+      sessionId: entry.id,
+      configOptions: this.buildConfigOptions(),
+    };
   }
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
@@ -207,6 +262,46 @@ export class AcpAgentServer implements Agent {
   }
 
   async authenticate(_params: AuthenticateRequest): Promise<AuthenticateResponse> {
+    return {};
+  }
+
+  async setSessionConfigOption(params: SetSessionConfigOptionRequest): Promise<SetSessionConfigOptionResponse> {
+    const { configId, value } = params;
+
+    if (configId === 'model' && typeof value === 'string') {
+      this.currentModel = value === 'default' ? null : value;
+      // If Lead is already running, try to set model on the underlying agent
+      if (this.leadManager && this.currentModel) {
+        const leadSessionId = this.leadManager.getLeadSessionId();
+        if (leadSessionId && this.acpAdapter) {
+          try {
+            await this.acpAdapter.setModel(leadSessionId, this.currentModel);
+          } catch {
+            // Best effort — agent may not support model switching
+          }
+        }
+      }
+    } else if (configId === 'runtime' && typeof value === 'string') {
+      this.currentRuntime = value;
+      // Runtime change takes effect on next Lead spawn
+    }
+
+    return { configOptions: this.buildConfigOptions() };
+  }
+
+  async setSessionMode(_params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
+    // Flightdeck doesn't have modes yet, acknowledge gracefully
+    return {};
+  }
+
+  async unstable_setSessionModel(params: SetSessionModelRequest): Promise<SetSessionModelResponse> {
+    // Delegate to setSessionConfigOption for consistency
+    await this.setSessionConfigOption({
+      sessionId: params.sessionId,
+      configId: 'model',
+      value: params.modelId,
+      type: 'boolean', // SDK union type quirk — value is actually a string ID
+    } as unknown as SetSessionConfigOptionRequest);
     return {};
   }
 }
