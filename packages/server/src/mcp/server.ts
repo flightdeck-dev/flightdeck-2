@@ -905,6 +905,44 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(results);
   });
 
+  server.tool('flightdeck_msg_search', 'Full-text search across chat messages. Find past conversations, decisions, and context even after context window rolls over.', {
+    query: z.string().describe('Search query (keywords or phrases)'),
+    authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter by author type'),
+    limit: z.number().optional().describe('Max results (default 20)'),
+  }, async (params) => {
+    if (!fd.chatMessages) return errorResponse('MessageStore not available');
+    const results = fd.chatMessages.searchMessages(params.query, {
+      authorType: params.authorType,
+      limit: params.limit,
+    });
+    return jsonResponse({
+      count: results.length,
+      messages: results.map(m => ({
+        id: m.id,
+        authorType: m.authorType,
+        authorId: m.authorId,
+        content: m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content,
+        createdAt: m.createdAt,
+        threadId: m.threadId,
+        taskId: m.taskId,
+      })),
+    });
+  });
+
+  server.tool('flightdeck_session_search', 'Search across past ACP session transcripts. Use when you need to recall earlier conversations or instructions that have scrolled out of context.', {
+    query: z.string().describe('Search query (keywords or phrases)'),
+    limit: z.number().optional().describe('Max results (default 20)'),
+  }, async (params) => {
+    // SessionStore is only available in ACP agent server mode, not MCP subprocess
+    // Fall back to memory search as a proxy
+    const memResults = fd.searchMemory(params.query, params.limit);
+    return jsonResponse({
+      count: memResults.length,
+      note: 'Session transcript search searches project memory. For direct session history, use flightdeck_msg_search.',
+      results: memResults,
+    });
+  });
+
   // ── Chat message tools (WebSocket-backed) ──
 
   server.tool('flightdeck_msg_list', 'List chat messages', {

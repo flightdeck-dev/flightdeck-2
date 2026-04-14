@@ -177,6 +177,17 @@ export class SqliteStore {
     this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(action_type)`));
     this._db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_mq_target_status ON message_queue(target_agent_id, status)`));
 
+    // FTS5 virtual table for chat message full-text search
+    this._db.run(sql.raw(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+        id UNINDEXED,
+        author_type UNINDEXED,
+        author_id UNINDEXED,
+        content,
+        tokenize='porter unicode61'
+      )
+    `));
+
     // Migrations for older databases
     const cols = this._db.all(sql.raw("PRAGMA table_info(tasks)")) as { name: string }[];
     if (!cols.some(c => c.name === 'claim')) {

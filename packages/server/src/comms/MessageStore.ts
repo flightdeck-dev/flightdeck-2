@@ -1,4 +1,4 @@
-import { eq, desc, and, lt, isNull, isNotNull } from 'drizzle-orm';
+import { eq, desc, and, lt, isNull, isNotNull, sql } from 'drizzle-orm';
 import { messages, threads } from '../db/schema.js';
 import type { FlightdeckDatabase } from '../db/database.js';
 import { messageId } from '@flightdeck-ai/shared';
@@ -43,6 +43,10 @@ export class MessageStore {
       updatedAt: null,
     };
     this.db.insert(messages).values(record).run();
+    // Index in FTS5 for full-text search
+    try {
+      this.db.run(sql`INSERT INTO messages_fts (id, author_type, author_id, content) VALUES (${id}, ${record.authorType}, ${record.authorId}, ${record.content})`);
+    } catch { /* FTS table may not exist in test environments */ }
     return record;
   }
 
@@ -151,5 +155,51 @@ export class MessageStore {
       digest.length > 2000 ? digest.slice(0, 2000) + '...' : digest,
     ].join('\n');
     return { summary, messageCount: messages.length };
+  }
+
+  /**
+   * Full-text search across chat messages using FTS5.
+   * Returns matching messages ranked by relevance.
+   */
+  searchMessages(query: string, opts: { authorType?: string; limit?: number } = {}): ChatMessage[] {
+    const limit = opts.limit ?? 20;
+    // Sanitize query for FTS5: wrap each term in quotes
+    const sanitized = query
+      .replace(/"/g, '""')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(term => `"${term}"`)
+      .join(' ');
+    if (!sanitized) return [];
+
+    try {
+      let ftsQuery = `SELECT id FROM messages_fts WHERE content MATCH '${sanitized.replace(/'/g, "''")}'`;
+      if (opts.authorType) {
+        ftsQuery += ` AND author_type = '${opts.authorType.replace(/'/g, "''")}'`;
+      }
+      ftsQuery += ` ORDER BY rank LIMIT ${limit}`;
+
+      const rows = this.db.all(sql.raw(ftsQuery)) as Array<{ id: string }>;
+      if (rows.length === 0) return [];
+
+      // Fetch full message records
+      const results: ChatMessage[] = [];
+      for (const row of rows) {
+        const msg = this.getMessage(row.id);
+        if (msg) results.push(msg);
+      }
+      return results;
+    } catch {
+      // FTS table may not exist; fall back to LIKE search
+      const pattern = `%${query}%`;
+      const rows = this.db
+        .select()
+        .from(messages)
+        .where(sql`content LIKE ${pattern}`)
+        .orderBy(desc(messages.createdAt))
+        .limit(limit)
+        .all();
+      return rows as ChatMessage[];
+    }
   }
 }

@@ -98,4 +98,33 @@ export class SessionStore {
       this.writeIndex(entries);
     }
   }
+
+  /**
+   * Search across all session event logs for matching content.
+   * Returns matching events with session context.
+   */
+  searchEvents(query: string, opts: { limit?: number } = {}): Array<{ sessionId: string; projectName: string; role: string; content: string; ts: number }> {
+    const limit = opts.limit ?? 20;
+    const lowerQuery = query.toLowerCase();
+    const results: Array<{ sessionId: string; projectName: string; role: string; content: string; ts: number }> = [];
+    const entries = this.readIndex();
+
+    for (const entry of entries) {
+      if (results.length >= limit) break;
+      const events = this.readEvents(entry.id);
+      for (const event of events) {
+        if (results.length >= limit) break;
+        if (event.content.toLowerCase().includes(lowerQuery)) {
+          results.push({
+            sessionId: entry.id,
+            projectName: entry.projectName,
+            role: event.role,
+            content: event.content.length > 500 ? event.content.slice(0, 500) + '...' : event.content,
+            ts: event.ts,
+          });
+        }
+      }
+    }
+    return results;
+  }
 }
