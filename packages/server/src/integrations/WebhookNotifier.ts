@@ -45,6 +45,8 @@ export interface WebhookConfig {
   events: WebhookEventType[];
   /** Optional auth token (sent as Authorization: Bearer <token>). */
   token?: string;
+  /** Optional metadata passed to platform-specific payload builders. */
+  metadata?: Record<string, string>;
 }
 
 export interface NotificationsConfig {
@@ -135,17 +137,19 @@ function buildGenericPayload(event: WebhookEvent): object {
  * Build OpenClaw /hooks/agent payload.
  * Uses the hook to wake Claw with context about what happened in Flightdeck.
  */
-function buildOpenClawPayload(event: WebhookEvent): object {
+function buildOpenClawPayload(event: WebhookEvent, metadata?: Record<string, string>): object {
   const fieldsStr = event.fields?.map(f => `${f.name}: ${f.value}`).join('\n') ?? '';
   const message = fieldsStr
     ? `[Flightdeck/${event.project}] ${event.title}\n\n${event.body}\n\n${fieldsStr}`
     : `[Flightdeck/${event.project}] ${event.title}\n\n${event.body}`;
-  return {
+  const payload: Record<string, unknown> = {
     message,
     name: 'Flightdeck',
     deliver: true,
     channel: 'discord',
   };
+  if (metadata?.openclawTo) payload.to = metadata.openclawTo;
+  return payload;
 }
 
 // ── WebhookNotifier ──
@@ -202,7 +206,7 @@ export class WebhookNotifier {
       const platform = detectPlatform(wh.url);
       if (platform === 'discord' && !this.canSendDiscord()) continue;
 
-      this.send(wh.url, platform, event, wh.token);
+      this.send(wh.url, platform, event, wh.token, wh.metadata);
       sent++;
     }
     return sent;
@@ -249,18 +253,18 @@ export class WebhookNotifier {
 
   // ── Helpers (exported for testing) ──
 
-  buildPayload(platform: Platform, event: WebhookEvent): object {
+  buildPayload(platform: Platform, event: WebhookEvent, metadata?: Record<string, string>): object {
     switch (platform) {
       case 'discord': return buildDiscordPayload(event);
       case 'slack': return buildSlackPayload(event);
-      case 'openclaw': return buildOpenClawPayload(event);
+      case 'openclaw': return buildOpenClawPayload(event, metadata);
       default: return buildGenericPayload(event);
     }
   }
 
   /** Fire-and-forget send */
-  private send(url: string, platform: Platform, event: WebhookEvent, token?: string): void {
-    const payload = this.buildPayload(platform, event);
+  private send(url: string, platform: Platform, event: WebhookEvent, token?: string, metadata?: Record<string, string>): void {
+    const payload = this.buildPayload(platform, event, metadata);
     if (platform === 'discord') this.recordDiscordSend();
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
