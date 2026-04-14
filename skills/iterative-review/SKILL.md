@@ -10,7 +10,7 @@ A structured loop for testing Flightdeck's multi-agent orchestration, observing 
 ## The Loop
 
 ```
-TEST → OBSERVE → DOCUMENT → FIX → VERIFY → repeat
+TEST → OBSERVE → DEBRIEF → DOCUMENT → FIX → VERIFY → repeat
 ```
 
 Each iteration should produce: observed behaviors, filed issues, code fixes with tests, and verified green CI.
@@ -119,6 +119,36 @@ git diff --stat  # review changes
 ```
 
 Then restart the daemon and re-test the original scenario to confirm the behavioral fix.
+
+## 6. DEBRIEF — Ask Lead for the Inside View
+
+After each iteration, ask Lead what it experienced. You see the system from outside (API state, logs, task records); Lead sees it from inside (tool availability, prompt clarity, what was confusing).
+
+```bash
+# Ask Lead for its perspective (async to avoid hang)
+curl -sf -X POST "http://localhost:18800/api/projects/<project>/messages?async=true" \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"Debrief: What just happened from your perspective? What tools did you try to use? What was confusing or didn't work as expected? Any suggestions for improving the workflow?"}'
+```
+
+Wait ~60s, then read Lead's response:
+
+```bash
+curl -sf http://localhost:18800/api/projects/<project>/messages | \
+  jq '[.[] | select(.authorType=="lead")] | .[-1] | .content'
+```
+
+### Why this matters
+- **You see state; Lead sees experience.** A task showing `ready` tells you it wasn't claimed — Lead can tell you *why* (tool error? unclear task? permission issue?)
+- **Lead may have tried things that didn't surface.** Failed tool calls, confusing prompts, missing context — none of this shows in task state
+- **Combines outside-in + inside-out** for a complete picture
+- **Feed insights back** into the Known Failure Patterns table and Key Lessons
+
+### Good debrief questions
+- "What tools did you call and what happened?"
+- "Were any tool responses confusing or unexpected?"
+- "What information were you missing to do your job better?"
+- "If you could change one thing about the workflow, what would it be?"
 
 ## Key Lessons
 
