@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { readFile, writeFile, readdir, mkdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type Database from 'better-sqlite3';
@@ -198,6 +198,60 @@ export class MemoryStore {
       return this.searchFts(query, limit);
     }
     return this.searchGrep(query);
+  }
+
+  /** Get today's daily log filename */
+  getDailyLogFilename(): string {
+    return new Date().toISOString().split('T')[0] + '.md';
+  }
+
+  /** Append to today's daily log (append-only!) */
+  appendDailyLog(entry: string): void {
+    const filename = this.getDailyLogFilename();
+    const existing = this.read(filename) ?? `# ${this.getDailyLogFilename().replace('.md', '')}\n\n`;
+    const timestamp = new Date().toISOString().slice(11, 19) + 'Z';
+    this.write(filename, existing + `\n[${timestamp}] ${entry}\n`);
+  }
+
+  /** Read recent daily logs (today + yesterday) */
+  readRecentLogs(): { today: string | null; yesterday: string | null } {
+    const today = this.getDailyLogFilename();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0] + '.md';
+    return {
+      today: this.read(today),
+      yesterday: this.read(yesterday),
+    };
+  }
+
+  /** Archive daily logs older than N days by moving to archive/ subdir */
+  archiveOldLogs(daysToKeep: number = 7): number {
+    const archiveDir = join(this.memoryDir, 'archive');
+    mkdirSync(archiveDir, { recursive: true });
+    const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
+    const cutoff = Date.now() - daysToKeep * 86400000;
+    let archived = 0;
+    if (!existsSync(this.memoryDir)) return 0;
+    for (const entry of readdirSync(this.memoryDir)) {
+      if (!datePattern.test(entry)) continue;
+      const dateStr = entry.replace('.md', '');
+      const fileDate = new Date(dateStr + 'T00:00:00Z').getTime();
+      if (fileDate < cutoff) {
+        const src = join(this.memoryDir, entry);
+        const dest = join(archiveDir, entry);
+        const content = readFileSync(src, 'utf-8');
+        writeFileSync(dest, content);
+        unlinkSync(src);
+        archived++;
+      }
+    }
+    return archived;
+  }
+
+  /** Get MEMORY.md size in lines for budget awareness */
+  getMemorySize(): { lines: number; bytes: number } | null {
+    const content = this.read('MEMORY.md');
+    if (!content) return null;
+    return { lines: content.split('\n').length, bytes: Buffer.byteLength(content) };
   }
 
   /** Original grep-based search (fallback). */

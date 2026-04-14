@@ -7,7 +7,7 @@ import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
 import type { MessageLog } from '../storage/MessageLog.js';
-import { writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface SpawnAgentOptions {
@@ -33,6 +33,51 @@ const INSTRUCTION_FILE_CANDIDATES = [
   '.cursor/rules',
 ];
 
+/**
+ * Read memory files from a directory and build a memory context section.
+ */
+export function buildMemoryContext(memoryDir: string): string {
+  const sections: string[] = [];
+  const tryRead = (filename: string): string | null => {
+    const p = join(memoryDir, filename);
+    if (!existsSync(p)) return null;
+    return readFileSync(p, 'utf-8');
+  };
+
+  // SOUL.md
+  const soul = tryRead('SOUL.md');
+  if (soul) sections.push(`### SOUL.md\n${soul}`);
+
+  // USER.md
+  const user = tryRead('USER.md');
+  if (user) sections.push(`### USER.md\n${user}`);
+
+  // MEMORY.md (truncate if over 300 lines)
+  let memory = tryRead('MEMORY.md');
+  if (memory) {
+    const lines = memory.split('\n');
+    if (lines.length > 300) {
+      memory = lines.slice(lines.length - 200).join('\n');
+      sections.push(`### MEMORY.md (truncated to last 200 lines)\n${memory}`);
+    } else {
+      sections.push(`### MEMORY.md\n${memory}`);
+    }
+  }
+
+  // Today's daily log
+  const today = new Date().toISOString().split('T')[0] + '.md';
+  const todayLog = tryRead(today);
+  if (todayLog) sections.push(`### Today (${today})\n${todayLog}`);
+
+  // Yesterday's daily log
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0] + '.md';
+  const yesterdayLog = tryRead(yesterday);
+  if (yesterdayLog) sections.push(`### Yesterday (${yesterday})\n${yesterdayLog}`);
+
+  if (sections.length === 0) return '';
+  return `\n## Project Memory\n\n${sections.join('\n\n')}\n`;
+}
+
 export function buildSystemPrompt(opts: {
   roleName: string;
   roleInstructions: string;
@@ -40,6 +85,7 @@ export function buildSystemPrompt(opts: {
   projectName: string;
   permissions: Record<string, boolean>;
   cwd?: string;
+  memoryDir?: string;
 }): string {
   const permittedTools = Object.entries(opts.permissions)
     .filter(([, v]) => v)
@@ -60,6 +106,14 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
 - If stuck, use flightdeck_escalate
 - After completing a task, check flightdeck_task_list for more ready tasks and claim one with flightdeck_task_claim. Keep working until no tasks are available.
 `;
+
+  // Inject project memory if memoryDir provided
+  if (opts.memoryDir && existsSync(opts.memoryDir)) {
+    const memoryContext = buildMemoryContext(opts.memoryDir);
+    if (memoryContext) {
+      prompt += memoryContext;
+    }
+  }
 
   // Discover repo instruction files and add references (not contents)
   if (opts.cwd) {

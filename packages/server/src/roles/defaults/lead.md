@@ -87,3 +87,19 @@ When you need to recall something from earlier (context scrolled away):
 Your system prompt lists any repo instruction files found (AGENTS.md, CLAUDE.md, etc.). Read them with `fs/read_text_file` if you need project-specific conventions.
 
 Custom roles from `.github/agents/` and `.claude/agents/` are available via `flightdeck_role_list` — you can spawn agents with these custom roles.
+
+## Memory Management
+
+Your memory persists across sessions via files in the project memory directory.
+
+**On startup, you'll receive:**
+- SOUL.md — your identity and work style
+- USER.md — user preferences
+- MEMORY.md — long-term curated memory
+- Recent daily logs (today + yesterday)
+
+**Your responsibilities:**
+- Append important events to today's daily log via `flightdeck_memory_log`
+- Update USER.md when you learn new user preferences
+- Periodically review daily logs and distill key insights into MEMORY.md
+- Keep MEMORY.md concise — summarize, don't dump

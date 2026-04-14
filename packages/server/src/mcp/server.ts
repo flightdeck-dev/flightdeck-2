@@ -1008,6 +1008,30 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(threads);
   });
 
+  server.tool('flightdeck_memory_read', 'Read a project memory file', {
+    filename: z.string().describe('Memory filename (e.g. SOUL.md, MEMORY.md, 2026-04-14.md)'),
+  }, async (params) => {
+    const content = fd.memory.read(params.filename);
+    if (content === null) return errorResponse(`Memory file not found: ${params.filename}`);
+    return { content: [{ type: 'text' as const, text: content }] };
+  });
+
+  server.tool('flightdeck_memory_log', 'Append an entry to today\'s daily log (append-only)', {
+    entry: z.string().describe('Log entry text'),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_memory_log');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'memory_write', 'flightdeck_memory_log');
+    if (permErr) return permErr;
+    try {
+      fd.memory.appendDailyLog(`[${agent!.role}/${params.agentId}] ${params.entry}`);
+      return jsonResponse({ status: 'logged', filename: fd.memory.getDailyLogFilename() });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_memory_write', 'Write to project memory', {
     filename: z.string(),
     content: z.string(),

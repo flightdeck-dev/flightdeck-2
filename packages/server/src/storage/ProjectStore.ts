@@ -62,11 +62,58 @@ export class ProjectStore {
       writeFileSync(heartbeatPath, HEARTBEAT_TEMPLATE);
     }
 
+    // Create new memory subdirectories
+    mkdirSync(join(this.projectDir, 'memory', 'discoveries'), { recursive: true });
+
     // Write empty memory files
     const memoryFiles: Record<string, string> = {
       'memory/PROJECT.md': '# Project Overview\n\n_Describe the project architecture, key decisions, and conventions here._\n',
       'memory/decisions.md': '# Decision Summary\n\n_Lead will maintain a compressed summary of recent decisions here._\n',
       'memory/learnings.md': '# Learnings\n\n_Patterns, gotchas, and lessons learned across the project._\n',
+      'memory/SOUL.md': `# SOUL.md - Lead Identity
+
+You are Lead — the project coordinator and decision-maker.
+
+## Work Style
+- Decide and delegate, don't implement
+- Adapt plans when reality changes
+- Escalate to user when genuinely uncertain
+
+## Project Understanding
+_Updated automatically as the project evolves._
+
+---
+_This file defines who Lead is. Update it as the project personality develops._
+`,
+      'memory/USER.md': `# USER.md - About the User
+
+_Lead will learn user preferences over time and record them here._
+
+## Communication Style
+- (observed preferences will be added)
+
+## Technical Preferences
+- (coding style, tool preferences, etc.)
+
+---
+_Updated by Lead as it learns how the user works._
+`,
+      'memory/MEMORY.md': `# MEMORY.md - Long-Term Memory
+
+_Curated insights and key decisions. Distilled from daily logs._
+
+## Architecture Decisions
+_(none yet)_
+
+## Lessons Learned
+_(none yet)_
+
+## Key Context
+_(none yet)_
+
+---
+_Updated periodically by consolidating daily logs._
+`,
     };
     for (const [rel, content] of Object.entries(memoryFiles)) {
       const p = join(this.projectDir, rel);

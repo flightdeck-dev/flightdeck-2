@@ -3,6 +3,7 @@ import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import { buildMemoryContext } from '../agents/AgentManager.js';
 import { SessionStore } from '../acp/SessionStore.js';
 
 /**
@@ -111,11 +112,19 @@ export class LeadManager {
       console.log(`  Reset ${orphaned} orphaned task(s) to ready`);
     }
 
+    // Build memory context for Lead's system prompt
+    let memoryContext = '';
+    try {
+      const memoryDir = this.project.subpath('memory');
+      memoryContext = buildMemoryContext(memoryDir);
+    } catch { /* project may not support subpath in tests */ }
+
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.leadRuntime,
+      ...(memoryContext ? { systemPrompt: memoryContext } : {}),
     });
     this.leadSessionId = meta.sessionId;
 
