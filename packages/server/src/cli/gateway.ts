@@ -1,6 +1,6 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
-import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, markReloadFailed, clearReloadFailed, type SavedSession } from './gatewayState.js';
+import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, type SavedSession } from './gatewayState.js';
 
 export interface GatewayDeps {
   port: number;
@@ -422,6 +422,7 @@ async function spawnAgents(
     resumeLead(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
     resumePlanner(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
     setSuspendedPlanner(info: { acpSessionId: string; cwd: string; model?: string }): void;
+    setSuspendedLead(info: { acpSessionId: string; cwd: string; model?: string }): void;
   },
   projectName: string,
   savedSessions: SavedSession[] = [],
@@ -433,55 +434,44 @@ async function spawnAgents(
   const savedLead = savedSessions.find(s => s.role === 'lead');
   const savedPlanner = savedSessions.find(s => s.role === 'planner');
 
-  // Check if this project has active work (pending/ready/running/in_review tasks).
-  // If the project is idle, don't waste memory reloading the Lead.
-  const tasks = fd.listTasks();
-  const activeTasks = tasks.filter(t =>
-    t.state === 'pending' || t.state === 'ready' || t.state === 'running' || t.state === 'in_review'
-  );
-  const projectIsActive = activeTasks.length > 0;
+  // On restart, all agents hibernate by default. They wake on-demand when
+  // there's actual work (user message, task event, etc.). This avoids
+  // spawning many processes simultaneously on gateway start.
 
   if (!hasLead) {
-    if (!projectIsActive) {
-      // Don't waste memory spawning/reloading a Lead for an idle project.
-      // Lead will be spawned on-demand when new tasks arrive.
-      console.error(`  [${projectName}] Skipping Lead — no active tasks (project idle).`);
-    } else if (savedLead) {
-      try {
-        console.error(`  [${projectName}] Resuming Lead from session ${savedLead.acpSessionId}...`);
-        const sid = await leadManager.resumeLead(savedLead.acpSessionId, savedLead.cwd, savedLead.model);
-        console.error(`  [${projectName}] Lead resumed (session: ${sid})`);
-        clearReloadFailed();
-      } catch (err: unknown) {
-        console.error(`  [${projectName}] Failed to resume Lead: ${err instanceof Error ? err.message : String(err)}`);
-        markReloadFailed();
-        console.error(`  [${projectName}] Marked reload as failed. Next startup will skip session reload.`);
-        // Fall through to spawn fresh
-        try {
-          const sid = await leadManager.spawnLead();
-          console.error(`  [${projectName}] Lead spawned fresh after failed resume (session: ${sid})`);
-        } catch (err2: unknown) {
-          console.error(`  [${projectName}] Failed to spawn Lead: ${err2 instanceof Error ? err2.message : String(err2)}`);
-        }
-      }
+    if (savedLead) {
+      // Hibernate Lead — will auto-wake on first steerLead() call
+      console.error(`  [${projectName}] Lead → hibernated (will wake on-demand from session ${savedLead.acpSessionId})`);
+      leadManager.setSuspendedLead({
+        acpSessionId: savedLead.acpSessionId,
+        cwd: savedLead.cwd,
+        model: savedLead.model,
+      });
+      // Register a suspended agent record in SQLite so it shows in status
+      const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
+      const suspendedId = makeAgentId('lead', Date.now().toString());
+      fd.sqlite.insertAgent({
+        id: suspendedId,
+        role: 'lead',
+        runtime: 'acp',
+        acpSessionId: null,
+        status: 'suspended',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
     } else {
-      try {
-        const sid = await leadManager.spawnLead();
-        console.error(`  [${projectName}] Lead spawned (session: ${sid})`);
-      } catch (err: unknown) {
-        console.error(`  [${projectName}] Failed to spawn Lead: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      // No saved session — Lead will be spawned fresh on first steerLead() call
+      console.error(`  [${projectName}] Lead — no saved session (will spawn on-demand).`);
     }
   } else {
     console.error(`  [${projectName}] Lead already active.`);
   }
 
   if (!hasPlanner) {
-    if (!projectIsActive) {
-      console.error(`  [${projectName}] Skipping Planner — no active tasks (project idle).`);
-    } else if (savedPlanner) {
+    if (savedPlanner) {
       // Lazy resume: mark Planner as suspended, resume on-demand when Lead needs it
-      console.error(`  [${projectName}] Suspending Planner (will resume on-demand from session ${savedPlanner.acpSessionId})`);
+      console.error(`  [${projectName}] Planner → hibernated (will resume on-demand from session ${savedPlanner.acpSessionId})`);
       leadManager.setSuspendedPlanner({
         acpSessionId: savedPlanner.acpSessionId,
         cwd: savedPlanner.cwd,
@@ -501,13 +491,8 @@ async function spawnAgents(
         lastHeartbeat: null,
       });
     } else {
-      // No saved session — spawn fresh (first run)
-      try {
-        const sid = await leadManager.spawnPlanner();
-        console.error(`  [${projectName}] Planner spawned (session: ${sid})`);
-      } catch (err: unknown) {
-        console.error(`  [${projectName}] Failed to spawn Planner: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      // No saved session — Planner will be spawned fresh on-demand
+      console.error(`  [${projectName}] Planner — no saved session (will spawn on-demand).`);
     }
   } else {
     console.error(`  [${projectName}] Planner already active.`);

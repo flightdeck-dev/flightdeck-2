@@ -71,6 +71,7 @@ export class LeadManager {
 
   private plannerSessionId: string | null = null;
   private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
+  private suspendedLeadInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
 
   constructor(opts: LeadManagerOptions) {
     this.sqlite = opts.sqlite;
@@ -119,8 +120,50 @@ export class LeadManager {
     return meta.sessionId;
   }
 
+  /** Set suspended lead info for lazy resume on restart */
+  setSuspendedLead(info: { acpSessionId: string; cwd: string; model?: string }): void {
+    this.suspendedLeadInfo = info;
+  }
+
+  /** Check if lead is suspended (awaiting lazy resume) */
+  isLeadSuspended(): boolean {
+    return this.suspendedLeadInfo !== null && this.leadSessionId === null;
+  }
+
   /** Send an event steer to Lead and return its response text */
   async steerLead(event: LeadEvent): Promise<string> {
+    // Auto-wake suspended Lead on first steer
+    if (!this.leadSessionId && this.isLeadSuspended() && this.suspendedLeadInfo) {
+      const info = this.suspendedLeadInfo;
+      this.suspendedLeadInfo = null;
+      try {
+        console.error(`  Auto-resuming suspended Lead from session ${info.acpSessionId}...`);
+        await this.resumeLead(info.acpSessionId, info.cwd, info.model);
+        console.error(`  Lead resumed (session: ${this.leadSessionId})`);
+      } catch (err) {
+        console.error(`  Failed to auto-resume Lead: ${err instanceof Error ? err.message : String(err)}`);
+        // Fall back to fresh spawn
+        try {
+          console.error(`  Spawning fresh Lead...`);
+          await this.spawnLead();
+          console.error(`  Lead spawned fresh (session: ${this.leadSessionId})`);
+        } catch (err2) {
+          console.error(`  Failed to spawn Lead: ${err2 instanceof Error ? err2.message : String(err2)}`);
+          return '';
+        }
+      }
+    }
+    // If still no Lead (no saved session, first-ever boot) — spawn fresh
+    if (!this.leadSessionId && !this.isLeadSuspended()) {
+      try {
+        console.error(`  Spawning Lead on-demand...`);
+        await this.spawnLead();
+        console.error(`  Lead spawned on-demand (session: ${this.leadSessionId})`);
+      } catch (err) {
+        console.error(`  Failed to spawn Lead on-demand: ${err instanceof Error ? err.message : String(err)}`);
+        return '';
+      }
+    }
     if (!this.leadSessionId) return '';
     const steer = this.buildSteer(event);
     const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer });

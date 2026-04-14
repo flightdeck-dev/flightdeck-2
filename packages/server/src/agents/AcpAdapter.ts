@@ -115,7 +115,6 @@ export class AcpAdapter extends AgentAdapter {
   private sessions = new Map<string, AcpSession>();
   private runtimes: Record<string, RuntimeConfig>;
   private runtimeName: string;
-  private cleanupRegistered = false;
   /** Callback fired when a session ends (process exit, crash, etc.) */
   onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
 
@@ -136,25 +135,8 @@ export class AcpAdapter extends AgentAdapter {
     super();
     this.runtimes = runtimes ?? DEFAULT_RUNTIMES;
     this.runtimeName = runtimeName;
-    this.registerCleanup();
-  }
-
-  private registerCleanup(): void {
-    if (this.cleanupRegistered) return;
-    this.cleanupRegistered = true;
-
-    const cleanup = () => {
-      for (const session of this.sessions.values()) {
-        if (session.status !== 'ended') {
-          try { session.process.kill('SIGTERM'); } catch { /* already dead */ }
-        }
-      }
-    };
-    process.once('exit', cleanup);
-    // Don't call process.exit() here — let the gateway's signal handlers
-    // save state and exit gracefully. We just clean up child processes.
-    process.once('SIGINT', () => { cleanup(); });
-    process.once('SIGTERM', () => { cleanup(); });
+    // Note: no signal handlers here — gateway.ts calls clear() in its
+    // shutdown handler. Adding handlers here caused double-kill of children.
   }
 
   /**
