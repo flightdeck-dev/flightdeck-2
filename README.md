@@ -156,7 +156,7 @@ Flightdeck supports multiple AI coding agents via the [Agent Client Protocol (AC
 
 | Provider | Binary | Command | Notes |
 |----------|--------|---------|-------|
-| OpenAI Codex CLI | `codex` | `codex --message {prompt}` | Reference ACP implementation |
+| OpenAI Codex CLI | `codex-acp` | `codex-acp` | ACP bridge via @zed-industries/codex-acp |
 | GitHub Copilot | `copilot` | `copilot --acp --stdio --allow-all` | GitHub's coding agent |
 | Claude Code | `claude-agent-acp` | `claude-agent-acp` | Uses `_meta.systemPrompt` for system prompts |
 | Gemini CLI | `gemini` | `gemini {prompt}` | Google's reference ACP implementation |

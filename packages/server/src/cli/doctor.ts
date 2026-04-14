@@ -145,7 +145,7 @@ function checkProviders(): ProviderResult[] {
     { id: 'copilot', name: 'GitHub Copilot', commands: ['copilot', 'github-copilot'] },
     { id: 'claude', name: 'Claude Code', commands: ['claude'] },
     { id: 'cursor', name: 'Cursor', commands: ['cursor'] },
-    { id: 'codex', name: 'Codex CLI', commands: ['codex'] },
+    { id: 'codex', name: 'Codex CLI', commands: ['codex-acp'] },
     { id: 'gemini', name: 'Gemini CLI', commands: ['gemini'] },
     { id: 'opencode', name: 'OpenCode', commands: ['opencode'] },
     { id: 'hermes', name: 'Hermes', commands: ['hermes'] },
