@@ -58,3 +58,33 @@ Moved `FLIGHTDECK_URL` env var setting from `httpServer.listen` callback to BEFO
 
 ### Root Cause of Iteration 1 failure
 `FLIGHTDECK_URL` was set in the `httpServer.listen()` callback, AFTER Lead/Planner were already spawned. The MCP subprocess inherited the env at spawn time — before the URL was set. Fix: set env var before the spawn loop.
+
+## Iteration 3 — 2026-04-14 (confirmation run)
+
+### Test Setup
+- Clean daemon start with --no-recover
+- Created 2 tasks simultaneously (slugify utility + version endpoint)
+- Asked Lead to spawn workers for both
+
+### Results — Relay Confirmed ✅
+All 4 agents had real ACP sessions:
+- Lead: acp-112306e1
+- Planner: acp-f70f732f
+- Worker 1 (agent-e76de2ea9729): acp-b3f32ddc — assigned to slugify task
+- Worker 2 (agent-45a025e87202): acp-2ce7b438 — assigned to version endpoint task
+
+### Task Lifecycle
+- task-735cf5bfdbc8 (slugify): ready → running → in_review → failed
+- task-72af808f5102 (version): ready → running → failed
+- task-8888e1f9a231 (README relay): done ✅
+
+### Observations
+1. **HTTP relay works** — workers spawn with real ACP sessions, no more ghosts
+2. **Lead correctly spawns 2 workers in one response** — parallel dispatch works
+3. **Task failures are worker-level** — not relay issues. Workers failed during code execution (likely cwd/compilation issues)
+4. **Previous session's tasks persist in DB** — old tasks from iterations 1-2 still visible with old agent IDs (orphaned references since --no-recover purges agents)
+
+### Follow-up Issues (not relay-related)
+- Worker code execution failures need investigation (separate from relay fix)
+- Old task records with orphaned agent references could be cleaned up
+- Consider adding task cleanup to --no-recover flag
