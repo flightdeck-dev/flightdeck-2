@@ -539,6 +539,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         const newAgent = await relay.spawnAgent({
           role: params.role,
           model: params.model,
+          runtime: params.runtime,
           task: params.task,
           cwd: params.cwd ?? fd.project.subpath('.'),
         });
