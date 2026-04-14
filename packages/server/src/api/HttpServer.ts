@@ -340,6 +340,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       } catch { json(200, { report: 'No report available yet.' }); }
     } else if (subPath === '/threads' && method === 'GET') {
       json(200, fd.chatMessages?.listThreads() ?? []);
+    } else if (subPath === '/search/sessions' && method === 'GET') {
+      const query = url.searchParams.get('query');
+      if (!query) { json(400, { error: 'Missing query parameter' }); return; }
+      const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+      const { SessionStore } = await import('../acp/SessionStore.js');
+      const store = new SessionStore(projectName);
+      const results = store.searchEvents(query, { limit });
+      json(200, { count: results.length, results });
     } else if (subPath === '/models' && method === 'GET') {
       const mc = await getModelConfig(fd, projectName);
       json(200, { roles: mc.getRoleConfigs(), presets: presetNames });

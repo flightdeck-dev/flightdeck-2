@@ -77,4 +77,11 @@ export class GatewayRelay {
     });
     if (!res.ok) throw new Error(`Gateway retire failed: ${res.status} ${await res.text()}`);
   }
+
+  async searchSessions(query: string, limit = 20): Promise<{ count: number; results: unknown[] }> {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    const res = await fetch(`${this.baseUrl}/api/projects/${this.projectName}/search/sessions?${params}`);
+    if (!res.ok) throw new Error(`Gateway session search failed: ${res.status}`);
+    return res.json() as Promise<{ count: number; results: unknown[] }>;
+  }
 }
