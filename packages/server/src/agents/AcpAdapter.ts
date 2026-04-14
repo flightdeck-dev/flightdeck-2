@@ -435,7 +435,7 @@ export class AcpAdapter extends AgentAdapter {
     this.sessions.set(sessionLocalId, session);
 
     // Initialize + create session in background (don't block spawn)
-    this.initializeSession(session, prompt, opts.mcpServers, opts.systemPromptMeta, opts.role, opts.projectName).catch(err => {
+    this.initializeSession(session, prompt, opts.mcpServers, opts.systemPromptMeta, opts.role, opts.projectName, opts.allowedTools, opts.maxTurns).catch(err => {
       session.error = (session.error ?? '') + `\nACP init error: ${err.message}`;
     });
 
@@ -454,6 +454,8 @@ export class AcpAdapter extends AgentAdapter {
     systemPromptMeta?: string | { append: string },
     role?: string,
     projectName?: string,
+    allowedTools?: string[],
+    maxTurns?: number,
   ): Promise<void> {
     try {
       const initResult = await session.connection.initialize({
@@ -473,11 +475,25 @@ export class AcpAdapter extends AgentAdapter {
 
       // Build _meta for runtime-specific extensions (e.g., Claude Code systemPrompt)
       const meta: Record<string, unknown> = {};
-      if (systemPromptMeta) {
-        meta.systemPrompt = systemPromptMeta;
+      const isClaudeCode = session.runtimeName === 'claude-code';
+      if (isClaudeCode) {
+        // Claude Code expects _meta.claudeCode.options format
+        const claudeOptions: Record<string, unknown> = {};
+        if (systemPromptMeta) claudeOptions.systemPrompt = systemPromptMeta;
+        if (session.model) claudeOptions.model = session.model;
+        if (allowedTools) claudeOptions.allowedTools = allowedTools;
+        if (maxTurns != null) claudeOptions.maxTurns = maxTurns;
+        if (Object.keys(claudeOptions).length > 0) {
+          meta.claudeCode = { options: claudeOptions };
+        }
+      } else {
+        if (systemPromptMeta) {
+          meta.systemPrompt = systemPromptMeta;
+        }
       }
 
-      const result = await session.connection.newSession({
+      // Claude Code session creation can be slow — use a longer timeout
+      const newSessionPromise = session.connection.newSession({
         cwd: session.cwd,
         mcpServers: mcpServers ?? [
           {
@@ -494,6 +510,16 @@ export class AcpAdapter extends AgentAdapter {
         ],
         ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
       });
+
+      let result: Awaited<ReturnType<typeof session.connection.newSession>>;
+      if (isClaudeCode) {
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Claude Code session creation timed out after 60s')), 60_000)
+        );
+        result = await Promise.race([newSessionPromise, timeout]);
+      } else {
+        result = await newSessionPromise;
+      }
 
       session.acpSessionId = result.sessionId;
       session.status = 'active';
@@ -667,29 +693,11 @@ export class AcpAdapter extends AgentAdapter {
       ];
       const servers = mcpServers ?? defaultMcpServers;
 
-      // Try session/resume first (unstable, no history replay — faster).
-      // Fall back to session/load (replays history). Fall back to error.
-      const supportsResume = session.agentCapabilities?.sessionCapabilities?.resume != null;
+      // Use session/load to restore the previous session.
       const supportsLoad = session.agentCapabilities?.loadSession === true;
 
-      if (supportsResume) {
-        try {
-          await session.connection.unstable_resumeSession({
-            sessionId: previousSessionId,
-            cwd: session.cwd,
-            mcpServers: servers,
-          });
-          session.acpSessionId = previousSessionId;
-          session.status = 'active';
-          session.lastActivityAt = new Date();
-          return;
-        } catch (resumeErr) {
-          console.error(`  session/resume failed, trying session/load: ${resumeErr instanceof Error ? resumeErr.message : String(resumeErr)}`);
-        }
-      }
-
       if (supportsLoad) {
-        const _result = await session.connection.loadSession({
+        await session.connection.loadSession({
           sessionId: previousSessionId,
           cwd: session.cwd,
           mcpServers: servers,
@@ -700,7 +708,7 @@ export class AcpAdapter extends AgentAdapter {
         return;
       }
 
-      throw new Error('Agent does not support session/resume or session/load. Cannot resume session.');
+      throw new Error('Agent does not support session/load. Cannot resume session.');
     } catch (err: unknown) {
       if (session.status === 'initializing') {
         session.error = (session.error ?? '') + `\nACP load error: ${err instanceof Error ? err.message : String(err)}`;
@@ -714,8 +722,7 @@ export class AcpAdapter extends AgentAdapter {
   supportsLoadSession(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session?.agentCapabilities) return false;
-    return session.agentCapabilities.loadSession === true
-      || session.agentCapabilities.sessionCapabilities?.resume != null;
+    return session.agentCapabilities.loadSession === true;
   }
 
   /**

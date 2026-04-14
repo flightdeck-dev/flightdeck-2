@@ -15,6 +15,10 @@ export interface SpawnOptions {
   systemPromptMeta?: string | { append: string };
   /** Project name — passed as FLIGHTDECK_PROJECT env to MCP server. */
   projectName?: string;
+  /** Tools the agent is allowed to use (passed via _meta for Claude Code). */
+  allowedTools?: string[];
+  /** Maximum number of agentic turns (passed via _meta for Claude Code). */
+  maxTurns?: number;
 }
 
 export interface SteerMessage {
