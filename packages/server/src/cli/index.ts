@@ -63,6 +63,7 @@ Commands:
   gateway usage-cost       Show cost summary across projects
   gateway install          Install as OS service (launchd/systemd)
   gateway uninstall        Remove OS service
+  acp                      Run as ACP Agent server (stdin/stdout)
   start [--project X]     Alias for 'gateway run' (backward compat)
   pause                   Pause orchestrator (stop claiming new tasks)
   resume                  Resume orchestrator (start claiming tasks)
@@ -286,6 +287,12 @@ switch (command) {
         console.error('Usage: flightdeck gateway <start|stop|restart|status|run|health|probe|usage-cost|install|uninstall>');
         process.exit(1);
     }
+    break;
+  }
+
+  case 'acp': {
+    const { runAcpAgent } = await import('../acp/index.js');
+    await runAcpAgent({ project: values.project as string | undefined });
     break;
   }
 

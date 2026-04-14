@@ -87,6 +87,7 @@ export interface AcpSession {
   tokensOut: number;
   turnCount: number;
   output: string;          // accumulated agent text output
+  onOutputChunk?: (update: SessionNotification['update']) => void;
   exitCode: number | null;
   error: string | null;
   agentCapabilities: AgentCapabilities | null;
@@ -169,6 +170,8 @@ export class AcpAdapter extends AgentAdapter {
             if (update.content.type === 'text') {
               session.output += update.content.text;
             }
+            // Forward to external listener (e.g., ACP agent server)
+            session.onOutputChunk?.(update);
             break;
           case 'usage_update':
             session.tokensIn = update.used;
