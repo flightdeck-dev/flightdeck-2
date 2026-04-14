@@ -35,13 +35,13 @@ export interface RuntimeDefinition {
 export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
   codex: {
     name: 'OpenAI Codex CLI',
-    command: 'codex',
-    args: ['--message', '{prompt}', '--cwd', '{cwd}'],
+    command: 'codex-acp',
+    args: [],
     systemPromptMethod: 'agents-md',
     supportsAcp: true,
     supportsSessionLoad: true,
     adapter: 'acp',
-    notes: 'Reference ACP implementation by OpenAI. Reads AGENTS.md for system prompt.',
+    notes: 'Codex ACP bridge. Reads AGENTS.md for system prompt. Config from ~/.codex/config.toml.',
   },
 
   copilot: {

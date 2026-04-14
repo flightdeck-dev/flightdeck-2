@@ -1,8 +1,8 @@
 {
   "runtimes": {
     "codex": {
-      "command": "codex",
-      "args": ["--message", "{prompt}", "--cwd", "{cwd}"],
+      "command": "codex-acp",
+      "args": [],
       "adapter": "acp"
     },
     "copilot": {
