@@ -269,6 +269,31 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       fd.orchestrator.resume(); json(200, { paused: false });
     } else if (subPath === '/orchestrator/status' && method === 'GET') {
       json(200, { paused: fd.orchestrator.paused, running: fd.orchestrator.isRunning() });
+    } else if (subPath === '/notifications' && method === 'GET') {
+      const cfg = fd.project.getConfig();
+      json(200, cfg.notifications ?? { webhooks: [] });
+    } else if (subPath === '/notifications' && method === 'PUT') {
+      try {
+        const body = await readBody();
+        if (!body.webhooks || !Array.isArray(body.webhooks)) { json(400, { error: 'Expected { webhooks: [...] }' }); return; }
+        // Persist to project config
+        const cfg = fd.project.getConfig();
+        cfg.notifications = { webhooks: body.webhooks };
+        fd.project.setConfig(cfg);
+        // Hot-reload into active notifier
+        const activeNotifier = notifier ?? webhookNotifiers?.get(projectName) ?? null;
+        if (activeNotifier) {
+          activeNotifier.setWebhooks(body.webhooks);
+        } else {
+          // Create notifier if orchestrator has one now
+          const orchNotifier = fd.orchestrator.getWebhookNotifier();
+          if (orchNotifier) {
+            orchNotifier.setWebhooks(body.webhooks);
+            webhookNotifiers?.set(projectName, orchNotifier);
+          }
+        }
+        json(200, { notifications: cfg.notifications, active: true });
+      } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else {
       res.writeHead(404); res.end('Not found');
     }

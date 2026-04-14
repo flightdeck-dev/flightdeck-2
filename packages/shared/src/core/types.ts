@@ -142,6 +142,13 @@ export interface ProjectConfig {
   costThresholdPerDay?: number;
   maxConcurrentAgents?: number;
   agents?: AgentsConfig;
+  /** Webhook notification configuration. */
+  notifications?: {
+    webhooks?: Array<{
+      url: string;
+      events: string[];
+    }>;
+  };
   /** The working directory where .flightdeck.json lives (project root). */
   cwd?: string;
 }

@@ -70,7 +70,7 @@ export class Orchestrator {
   private suggestionStore: SuggestionStore | null;
   private specChangeDetector: SpecChangeDetector | null;
   private recentSpecChanges: SpecChange[] = [];
-  private webhookNotifier: WebhookNotifier | null;
+  private webhookNotifier: WebhookNotifier;
 
   constructor(
     private dag: TaskDAG,
@@ -104,9 +104,7 @@ export class Orchestrator {
     this.workflowEngine = opts?.workflowEngine ?? null;
     this.suggestionStore = opts?.suggestionStore ?? null;
     this.specChangeDetector = opts?.specStore ? new SpecChangeDetector(opts.specStore, store) : null;
-    this.webhookNotifier = opts?.notifications?.webhooks?.length
-      ? new WebhookNotifier(config, opts.notifications)
-      : null;
+    this.webhookNotifier = new WebhookNotifier(config, opts?.notifications);
 
     // Wire up effect handler so TaskDAG delegates complex effects to the Orchestrator
     this.dag.setEffectHandler((effect) => this.handleEffect(effect));
@@ -220,7 +218,7 @@ export class Orchestrator {
   }
 
   /** Access the webhook notifier (may be null if no webhooks configured). */
-  getWebhookNotifier(): WebhookNotifier | null {
+  getWebhookNotifier(): WebhookNotifier {
     return this.webhookNotifier;
   }
 

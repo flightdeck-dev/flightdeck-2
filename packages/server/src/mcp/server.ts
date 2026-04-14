@@ -1127,7 +1127,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Webhook test tool ──
   server.tool('flightdeck_webhook_test', 'Send a test message to all configured webhooks', {}, async () => {
     const notifier = fd.orchestrator.getWebhookNotifier();
-    if (!notifier || notifier.count === 0) {
+    if (notifier.count === 0) {
       return errorResponse('No webhooks configured. Add notifications.webhooks to your project config.');
     }
     const result = await notifier.sendTest();

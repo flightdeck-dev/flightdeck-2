@@ -143,21 +143,23 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Wire orchestrator
     fd.orchestrator.stop();
     const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
+    const projectConfig = fd.project.getConfig();
     const orchestrator = new OrchestratorClass(
-      fd.dag, fd.sqlite, fd.governance, acpAdapter, { ...fd.project.getConfig(), cwd: fd.project.subpath('.') },
+      fd.dag, fd.sqlite, fd.governance, acpAdapter, { ...projectConfig, cwd: fd.project.subpath('.') },
       undefined,
       {
         agentManager: fd.agentManager,
         leadManager,
         messageStore: fd.chatMessages ?? undefined,
         wsServer: wsServer ?? undefined,
-        governanceConfig: { costThresholdPerDay: fd.project.getConfig().costThresholdPerDay },
+        governanceConfig: { costThresholdPerDay: projectConfig.costThresholdPerDay },
+        notifications: projectConfig.notifications,
       },
     );
     orchestrator.start();
     orchestrators.push(orchestrator);
     const whNotifier = orchestrator.getWebhookNotifier();
-    if (whNotifier) webhookNotifiers.set(name, whNotifier);
+    webhookNotifiers.set(name, whNotifier);
     console.error(`  Orchestrator running.`);
 
     // Write .mcp.json to project cwd (once per project, not per-agent).
