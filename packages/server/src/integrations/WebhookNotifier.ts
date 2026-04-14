@@ -22,6 +22,8 @@ export const WEBHOOK_EVENT_TYPES = [
   'daily_report',
   'agent_stall',
   'budget_warning',
+  'agent_message',
+  'lead_response',
 ] as const;
 export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
 
@@ -67,6 +69,8 @@ const EVENT_COLORS: Record<WebhookEventType, number> = {
   daily_report: 0x3498db,   // blue
   agent_stall: 0x95a5a6,    // grey
   budget_warning: 0xe74c3c, // red
+  agent_message: 0x9b59b6,  // purple
+  lead_response: 0x1abc9c,  // teal
 };
 
 // ── Payload builders ──
@@ -323,5 +327,29 @@ export function budgetWarningEvent(project: string, current: number, limit: numb
       { name: 'Current', value: `$${current.toFixed(2)}`, inline: true },
       { name: 'Limit', value: `$${limit.toFixed(2)}`, inline: true },
     ],
+  };
+}
+
+export function agentMessageEvent(project: string, from: string, to: string, content: string, channel?: string): WebhookEvent {
+  const target = channel ? `#${channel}` : to;
+  return {
+    type: 'agent_message',
+    project,
+    title: `💬 Agent message`,
+    body: content,
+    fields: [
+      { name: 'From', value: from, inline: true },
+      { name: 'To', value: target, inline: true },
+    ],
+  };
+}
+
+export function leadResponseEvent(project: string, content: string, inReplyTo?: string): WebhookEvent {
+  return {
+    type: 'lead_response',
+    project,
+    title: `🎯 Lead`,
+    body: content,
+    fields: inReplyTo ? [{ name: 'In reply to', value: inReplyTo.slice(0, 100) }] : undefined,
   };
 }

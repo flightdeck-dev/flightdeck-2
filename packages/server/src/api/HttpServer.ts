@@ -2,6 +2,8 @@ import { createServer, type Server, type IncomingMessage, type ServerResponse } 
 import type { Flightdeck } from '../facade.js';
 import type { LeadManager } from '../lead/LeadManager.js';
 import type { ProjectManager } from '../projects/ProjectManager.js';
+import type { WebhookNotifier } from '../integrations/WebhookNotifier.js';
+import { leadResponseEvent } from '../integrations/WebhookNotifier.js';
 
 export interface HttpServerDeps {
   projectManager: ProjectManager;
@@ -12,6 +14,8 @@ export interface HttpServerDeps {
   wsServers: Map<string, any>;
   /** Auth check function. Returns true if request was blocked (401 sent). */
   authCheck?: (req: IncomingMessage, res: ServerResponse) => boolean;
+  /** Webhook notifiers per project, for firing lead_response and agent_message events. */
+  webhookNotifiers?: Map<string, WebhookNotifier>;
 }
 
 /**
@@ -19,7 +23,7 @@ export interface HttpServerDeps {
  * All project routes are scoped under /api/projects/:name/*.
  */
 export function createHttpServer(deps: HttpServerDeps): Server {
-  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck } = deps;
+  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers } = deps;
 
   let modelCfg: InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig> | null = null;
   let presetNames: string[] = [];
@@ -132,6 +136,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
     const wsServer = wsServers.get(projectName);
     const leadManager = leadManagers.get(projectName);
+    const notifier = webhookNotifiers?.get(projectName);
 
     // ── Route dispatch ──
 
@@ -162,6 +167,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
                   const leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
                   if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
                 }
+                // Fire webhook for Lead response
+                if (notifier) {
+                  notifier.notify(leadResponseEvent(projectName, raw.trim(), body.content));
+                }
               }
             }).catch(err => { console.error('Failed to steer Lead (async):', err instanceof Error ? err.message : String(err)); });
           }
@@ -178,6 +187,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
                 if (fd.chatMessages) {
                   leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
                   if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+                }
+                // Fire webhook for Lead response
+                if (notifier) {
+                  notifier.notify(leadResponseEvent(projectName, leadResponse, body.content));
                 }
               }
             } catch (err: unknown) { console.error('Failed to steer Lead:', err instanceof Error ? err.message : String(err)); }

@@ -15,6 +15,7 @@ import { modelRegistry } from '../agents/ModelTiers.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
 import { ModelConfig } from '../agents/ModelConfig.js';
 import { getToolsForRole } from './toolPermissions.js';
+import { agentMessageEvent } from '../integrations/WebhookNotifier.js';
 
 const _ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
@@ -594,6 +595,10 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     };
     fd.sendMessage(msg);
 
+    // Fire webhook for agent DM
+    const notifier = fd.orchestrator.getWebhookNotifier();
+    if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, params.from, params.to, params.content));
+
     // Deliver: steer the recipient agent (non-urgent, queued after current turn)
     if (agentManager) {
       try {
@@ -649,6 +654,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       timestamp: new Date().toISOString(),
     };
     fd.sendMessage(msg, params.channel);
+
+    // Fire webhook for channel message
+    const chNotifier = fd.orchestrator.getWebhookNotifier();
+    if (chNotifier) chNotifier.notify(agentMessageEvent(fd.status().config.name, params.from, '', params.message, params.channel));
+
     return jsonResponse({ status: 'sent', channel: params.channel });
   });
 

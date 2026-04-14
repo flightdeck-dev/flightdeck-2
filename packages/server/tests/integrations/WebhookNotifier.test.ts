@@ -8,6 +8,8 @@ import {
   dailyReportEvent,
   agentStallEvent,
   budgetWarningEvent,
+  agentMessageEvent,
+  leadResponseEvent,
   type WebhookEvent,
   type NotificationsConfig,
 } from '../../src/integrations/WebhookNotifier.js';
@@ -200,5 +202,64 @@ describe('WebhookNotifier', () => {
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
     expect(body.blocks).toBeDefined();
+  });
+
+  // ── New event types: agent_message and lead_response ──
+
+  it('fires agent_message webhook for DMs', () => {
+    
+    const notifications: NotificationsConfig = {
+      webhooks: [
+        { url: 'https://example.com/hook', events: ['agent_message'] },
+      ],
+    };
+    const notifier = new WebhookNotifier(config, notifications, { debounceMs: 0 });
+    const event = agentMessageEvent('test-project', 'worker-1', 'lead-1', 'Task done!');
+    const sent = notifier.notify(event);
+    expect(sent).toBe(1);
+    expect(event.type).toBe('agent_message');
+    expect(event.body).toBe('Task done!');
+    expect(event.fields).toContainEqual({ name: 'From', value: 'worker-1', inline: true });
+    expect(event.fields).toContainEqual({ name: 'To', value: 'lead-1', inline: true });
+  });
+
+  it('fires agent_message webhook with channel for channel messages', () => {
+    
+    const event = agentMessageEvent('proj', 'lead-1', '', 'Hey team!', 'general');
+    expect(event.fields).toContainEqual({ name: 'To', value: '#general', inline: true });
+  });
+
+  it('fires lead_response webhook', () => {
+    
+    const notifications: NotificationsConfig = {
+      webhooks: [
+        { url: 'https://example.com/hook', events: ['lead_response'] },
+      ],
+    };
+    const notifier = new WebhookNotifier(config, notifications, { debounceMs: 0 });
+    const event = leadResponseEvent('test-project', 'Here is my analysis...', 'What is the status?');
+    const sent = notifier.notify(event);
+    expect(sent).toBe(1);
+    expect(event.type).toBe('lead_response');
+    expect(event.body).toBe('Here is my analysis...');
+    expect(event.fields).toContainEqual({ name: 'In reply to', value: 'What is the status?' });
+  });
+
+  it('lead_response without inReplyTo has no fields', () => {
+    
+    const event = leadResponseEvent('proj', 'Autonomous update');
+    expect(event.fields).toBeUndefined();
+  });
+
+  it('does not fire agent_message when not subscribed', () => {
+    
+    const notifications: NotificationsConfig = {
+      webhooks: [
+        { url: 'https://example.com/hook', events: ['task_completed'] },
+      ],
+    };
+    const notifier = new WebhookNotifier(config, notifications, { debounceMs: 0 });
+    const sent = notifier.notify(agentMessageEvent('proj', 'w', 'l', 'hi'));
+    expect(sent).toBe(0);
   });
 });

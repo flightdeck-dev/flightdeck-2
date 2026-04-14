@@ -102,6 +102,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsServers = new Map<string, any>();
   const orchestrators: Array<{ stop: () => void; start: () => void }> = [];
+  const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
+  const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
 
   for (const name of projectNames) {
     const fd = projectManager.get(name)!;
@@ -154,6 +156,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     );
     orchestrator.start();
     orchestrators.push(orchestrator);
+    const whNotifier = orchestrator.getWebhookNotifier();
+    if (whNotifier) webhookNotifiers.set(name, whNotifier);
     console.error(`  Orchestrator running.`);
 
     // Write .mcp.json to project cwd (once per project, not per-agent).
@@ -184,7 +188,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
     // Wire WS user messages to Lead
     if (wsServer) {
-      wireWsToLead(wsServer, leadManager, fd, name);
+      wireWsToLead(wsServer, leadManager, fd, name, webhookNotifiers.get(name));
     }
   }
 
@@ -205,6 +209,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     corsOrigin,
     wsServers,
     authCheck: authCheckFn,
+    webhookNotifiers,
   });
 
   // Wire WebSocket upgrade for all projects
@@ -447,7 +452,7 @@ async function spawnAgents(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null> }, fd: Flightdeck, projectName: string): void {
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null> }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wsServer.on('user:message', (msg: any) => {
     (async () => {
@@ -460,6 +465,11 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
             wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+          }
+          // Fire webhook for Lead response
+          if (notifier) {
+            const { leadResponseEvent } = await import('../integrations/WebhookNotifier.js');
+            notifier.notify(leadResponseEvent(projectName, response.trim(), msg.content ?? ''));
           }
         }
       } catch (err) { console.error(`[${projectName}] Failed to steer Lead:`, err); }
@@ -478,6 +488,11 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
             wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: leadMsg });
+          }
+          // Fire webhook for Lead response (task comment)
+          if (notifier) {
+            const { leadResponseEvent } = await import('../integrations/WebhookNotifier.js');
+            notifier.notify(leadResponseEvent(projectName, response.trim(), msg.content ?? ''));
           }
         }
       } catch (err) { console.error(`[${projectName}] Failed to steer Lead (task comment):`, err); }
