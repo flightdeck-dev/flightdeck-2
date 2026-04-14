@@ -141,6 +141,45 @@ export class SkillManager {
   }
 
   /**
+   * Discover repo-level skills from convention paths:
+   * .github/skills/*, .agents/skills/*, .claude/skills/*
+   */
+  discoverRepoSkills(cwd?: string): SkillInfo[] {
+    const dir = cwd ?? this.projectDir;
+    const prefixes = [
+      '.github/skills',
+      '.agents/skills',
+      '.claude/skills',
+    ];
+    const skills: SkillInfo[] = [];
+    const seen = new Set<string>();
+
+    for (const prefix of prefixes) {
+      const skillsDir = join(dir, prefix);
+      if (!existsSync(skillsDir)) continue;
+      try {
+        for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const skillMd = join(skillsDir, entry.name, 'SKILL.md');
+          if (!existsSync(skillMd)) continue;
+
+          const content = readFileSync(skillMd, 'utf-8');
+          const { name, description } = parseSkillFrontmatter(content);
+          const skillName = name || entry.name;
+          if (seen.has(skillName)) continue;
+          seen.add(skillName);
+          skills.push({
+            name: skillName,
+            description,
+            path: `${prefix}/${entry.name}/SKILL.md`,
+          });
+        }
+      } catch { /* ignore */ }
+    }
+    return skills;
+  }
+
+  /**
    * Get SkillInfo for specific skill names, resolving from installed skills.
    */
   private resolveSkills(names: string[]): SkillInfo[] {

@@ -128,6 +128,20 @@ export class RoleRegistry {
     } catch { /* ignore */ }
   }
 
+  /**
+   * Discover and register custom agent roles from repo convention paths:
+   * .github/agents/*.md and .claude/agents/*.md
+   */
+  discoverRepoRoles(cwd: string): void {
+    const dirs = [
+      join(cwd, '.github', 'agents'),
+      join(cwd, '.claude', 'agents'),
+    ];
+    for (const dir of dirs) {
+      this.loadFromDir(dir);
+    }
+  }
+
   get(id: string): RoleDefinition | null {
     return this.roles.get(id) ?? null;
   }

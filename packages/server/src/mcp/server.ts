@@ -1241,13 +1241,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_skill_list', 'List available skills and their role assignments', {}, async () => {
     skillManager.loadProjectConfig();
     const installed = skillManager.listInstalledSkills();
+    const repoSkills = skillManager.discoverRepoSkills();
     skillManager.loadProjectConfig();
     const roleAssignments: Record<string, string[]> = {};
     const allRoles = ['lead', 'planner', 'worker', 'reviewer'] as const;
     for (const role of allRoles) {
       roleAssignments[role] = skillManager.getSkillsForRole(role);
     }
-    return jsonResponse({ installed, roleAssignments });
+    return jsonResponse({ installed, repoSkills, roleAssignments });
   });
 
   server.tool('flightdeck_skill_install', 'Install a skill from a source directory', {

@@ -7,7 +7,8 @@ import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
 import type { MessageLog } from '../storage/MessageLog.js';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 export interface SpawnAgentOptions {
   role: AgentRole;
@@ -25,18 +26,26 @@ export interface SpawnAgentOptions {
 /**
  * Build a system prompt for a spawned agent based on its role and context.
  */
+/** Known repo-level agent instruction file candidates. */
+const INSTRUCTION_FILE_CANDIDATES = [
+  'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
+  '.github/copilot-instructions.md',
+  '.cursor/rules',
+];
+
 export function buildSystemPrompt(opts: {
   roleName: string;
   roleInstructions: string;
   agentId: string;
   projectName: string;
   permissions: Record<string, boolean>;
+  cwd?: string;
 }): string {
   const permittedTools = Object.entries(opts.permissions)
     .filter(([, v]) => v)
     .map(([k]) => `flightdeck_${k}`);
 
-  return `You are a ${opts.roleName} agent in Flightdeck project "${opts.projectName}".
+  let prompt = `You are a ${opts.roleName} agent in Flightdeck project "${opts.projectName}".
 Your agent ID is: ${opts.agentId}
 
 ${opts.roleInstructions}
@@ -51,6 +60,25 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
 - If stuck, use flightdeck_escalate
 - After completing a task, check flightdeck_task_list for more ready tasks and claim one with flightdeck_task_claim. Keep working until no tasks are available.
 `;
+
+  // Discover repo instruction files and add references (not contents)
+  if (opts.cwd) {
+    const found: string[] = [];
+    for (const candidate of INSTRUCTION_FILE_CANDIDATES) {
+      if (existsSync(join(opts.cwd, candidate))) {
+        found.push(candidate);
+      }
+    }
+    if (found.length > 0) {
+      prompt += `\n## Repo Instruction Files\nThis repo contains agent instruction files you may want to read for project context:\n`;
+      for (const f of found) {
+        prompt += `- ${f}\n`;
+      }
+      prompt += `\nUse fs/read_text_file to read them if you need project-specific guidance.\n`;
+    }
+  }
+
+  return prompt;
 }
 
 /**
@@ -134,6 +162,7 @@ export class AgentManager {
       agentId: newId,
       projectName: this.projectName,
       permissions,
+      cwd: opts.cwd,
     });
 
     // 4. Set up isolation if configured
@@ -336,6 +365,7 @@ export class AgentManager {
       agentId,
       projectName: this.projectName,
       permissions: role?.permissions ?? {},
+      cwd: process.cwd(),
     });
 
     const meta = await this.adapter.spawn({
