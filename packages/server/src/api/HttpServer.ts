@@ -283,6 +283,30 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (msg === 'Body too large' || msg === 'Invalid JSON') json(400, { error: msg });
         else json(500, { error: `Failed to send to agent: ${msg}` });
       }
+    } else if (subPath.match(/^\/agents\/[^/]+\/hibernate$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        await am.hibernateAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, { success: true });
+      } catch (e: unknown) { json(500, { error: `Failed to hibernate agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/wake$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        const woken = await am.wakeAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, woken);
+      } catch (e: unknown) { json(500, { error: `Failed to wake agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/retire$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, { success: true });
+      } catch (e: unknown) { json(500, { error: `Failed to retire agent: ${e instanceof Error ? e.message : String(e)}` }); }
     } else if (subPath === '/decisions' && method === 'GET') {
       const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
       json(200, fd.decisions.readAll().slice(0, limit));

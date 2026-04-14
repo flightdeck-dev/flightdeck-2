@@ -356,8 +356,25 @@ export class SqliteStore {
     return row ? this.rowToAgent(row) : null;
   }
 
-  listAgents(): Agent[] {
-    return this._db.select().from(agents).all().map(r => this.rowToAgent(r));
+  listAgents(includeRetired = false): Agent[] {
+    const all = this._db.select().from(agents).all().map(r => this.rowToAgent(r));
+    return includeRetired ? all : all.filter(a => a.status !== 'retired');
+  }
+
+  /** Set agent status to 'hibernated', preserving acpSessionId for later resume. */
+  hibernateAgent(id: AgentId, savedSessionId: string): void {
+    this._db.update(agents)
+      .set({ status: 'hibernated', acpSessionId: savedSessionId })
+      .where(eq(agents.id, id))
+      .run();
+  }
+
+  /** Set agent status to 'retired', clearing acpSessionId. */
+  retireAgent(id: AgentId): void {
+    this._db.update(agents)
+      .set({ status: 'retired', acpSessionId: null })
+      .where(eq(agents.id, id))
+      .run();
   }
 
   updateAgentStatus(id: AgentId, status: Agent['status']): void {

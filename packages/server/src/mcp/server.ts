@@ -544,8 +544,135 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse({ status: 'terminated', agentId: params.targetAgentId });
   });
 
-  server.tool('flightdeck_agent_list', 'List all agents', {}, async () => {
-    return jsonResponse(fd.listAgents());
+  server.tool('flightdeck_agent_list', 'List all agents', {
+    includeRetired: z.boolean().optional(),
+  }, async (params) => {
+    const includeRetired = params.includeRetired ?? false;
+    if (agentManager) {
+      return jsonResponse(agentManager.listAgents(includeRetired));
+    }
+    return jsonResponse(fd.listAgents(includeRetired));
+  });
+
+  server.tool('flightdeck_agent_hibernate', 'Hibernate a worker — saves session, kills process, pauses assigned task', {
+    targetAgentId: z.string(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_hibernate');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'agent_hibernate', 'flightdeck_agent_hibernate');
+    if (permErr) return permErr;
+    const target = fd.sqlite.getAgent(params.targetAgentId as AgentId);
+    if (!target) return errorResponse(`Agent '${params.targetAgentId}' not found.`);
+
+    // Find and pause assigned task
+    const tasks = fd.listTasks();
+    const assignedTask = tasks.find(t => t.assignedAgent === params.targetAgentId && t.state === 'running');
+    if (assignedTask) {
+      fd.sqlite.updateTaskState(assignedTask.id, 'paused' as any);
+    }
+
+    if (agentManager) {
+      try {
+        await agentManager.hibernateAgent(params.targetAgentId as AgentId);
+      } catch (err) {
+        return errorResponse(`Error hibernating agent: ${(err as Error).message}`);
+      }
+    } else if (relay) {
+      try {
+        await relay.hibernateAgent(params.targetAgentId);
+      } catch (err) {
+        return errorResponse(`Error hibernating agent via gateway: ${(err as Error).message}`);
+      }
+    } else {
+      fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'hibernated');
+    }
+    return jsonResponse({
+      status: 'hibernated',
+      agentId: params.targetAgentId,
+      task: assignedTask ? { id: assignedTask.id, title: assignedTask.title, state: 'paused' } : null,
+    });
+  });
+
+  server.tool('flightdeck_agent_wake', 'Wake a hibernated worker — resumes session, resumes task', {
+    targetAgentId: z.string(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_wake');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'agent_wake', 'flightdeck_agent_wake');
+    if (permErr) return permErr;
+    const target = fd.sqlite.getAgent(params.targetAgentId as AgentId);
+    if (!target) return errorResponse(`Agent '${params.targetAgentId}' not found.`);
+
+    if (agentManager) {
+      try {
+        const woken = await agentManager.wakeAgent(params.targetAgentId as AgentId);
+        // Resume paused task
+        const tasks = fd.listTasks();
+        const pausedTask = tasks.find(t => t.assignedAgent === params.targetAgentId && t.state === 'paused');
+        if (pausedTask) {
+          fd.sqlite.updateTaskState(pausedTask.id, 'running' as any);
+        }
+        return jsonResponse({
+          status: 'woken',
+          agentId: params.targetAgentId,
+          agent: woken,
+          task: pausedTask ? { id: pausedTask.id, title: pausedTask.title, state: 'running' } : null,
+        });
+      } catch (err) {
+        return errorResponse(`Error waking agent: ${(err as Error).message}`);
+      }
+    } else if (relay) {
+      try {
+        const result = await relay.wakeAgent(params.targetAgentId);
+        return jsonResponse(result);
+      } catch (err) {
+        return errorResponse(`Error waking agent via gateway: ${(err as Error).message}`);
+      }
+    }
+    return errorResponse('No AgentManager or relay available to wake agent.');
+  });
+
+  server.tool('flightdeck_agent_retire', 'Permanently dismiss a worker — invisible to lead after this', {
+    targetAgentId: z.string(),
+    agentId: z.string(),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_retire');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'agent_retire', 'flightdeck_agent_retire');
+    if (permErr) return permErr;
+    const target = fd.sqlite.getAgent(params.targetAgentId as AgentId);
+    if (!target) return errorResponse(`Agent '${params.targetAgentId}' not found.`);
+
+    // Unassign and reset their task to 'ready'
+    const tasks = fd.listTasks();
+    const assignedTask = tasks.find(t => t.assignedAgent === params.targetAgentId && (t.state === 'running' || t.state === 'paused'));
+    if (assignedTask) {
+      fd.sqlite.updateTaskState(assignedTask.id, 'ready' as any, null);
+    }
+
+    if (agentManager) {
+      try {
+        await agentManager.retireAgent(params.targetAgentId as AgentId);
+      } catch (err) {
+        return errorResponse(`Error retiring agent: ${(err as Error).message}`);
+      }
+    } else if (relay) {
+      try {
+        await relay.retireAgent(params.targetAgentId);
+      } catch (err) {
+        return errorResponse(`Error retiring agent via gateway: ${(err as Error).message}`);
+      }
+    } else {
+      fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'retired');
+      fd.sqlite.updateAgentAcpSession(params.targetAgentId as AgentId, null);
+    }
+    return jsonResponse({
+      status: 'retired',
+      agentId: params.targetAgentId,
+      task: assignedTask ? { id: assignedTask.id, title: assignedTask.title, state: 'ready' } : null,
+    });
   });
 
   server.tool('flightdeck_agent_restart', 'Restart an agent', {

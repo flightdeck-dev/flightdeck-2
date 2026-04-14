@@ -81,7 +81,10 @@ function createMockStore() {
   return {
     insertAgent(agent: Agent) { agents.set(agent.id, { ...agent }); },
     getAgent(id: AgentId): Agent | null { return agents.get(id) ?? null; },
-    listAgents(): Agent[] { return [...agents.values()]; },
+    listAgents(includeRetired = false): Agent[] {
+      const all = [...agents.values()];
+      return includeRetired ? all : all.filter(a => a.status !== 'retired');
+    },
     updateAgentStatus(id: AgentId, status: Agent['status']) {
       const a = agents.get(id);
       if (a) a.status = status;

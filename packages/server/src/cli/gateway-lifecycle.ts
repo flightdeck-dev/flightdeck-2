@@ -113,6 +113,7 @@ export interface GatewaySubcommandOpts {
   port?: number;
   corsOrigin?: string;
   noRecover?: boolean;
+  continueWorkers?: boolean;
   projectFilter?: string;
   force?: boolean;
   bind?: BindMode;
@@ -358,6 +359,7 @@ export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
     port,
     corsOrigin: opts.corsOrigin ?? '*',
     noRecover: opts.noRecover ?? false,
+    continueWorkers: opts.continueWorkers ?? false,
     projectFilter: opts.projectFilter,
     bindAddress,
     authMode,

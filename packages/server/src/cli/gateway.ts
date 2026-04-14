@@ -6,6 +6,8 @@ export interface GatewayDeps {
   port: number;
   corsOrigin: string;
   noRecover: boolean;
+  /** If true, aggressively resume all workers on restart. */
+  continueWorkers?: boolean;
   /** If set, only serve this project. Otherwise serve all. */
   projectFilter?: string;
   /** Bind address: '127.0.0.1' (default), '0.0.0.0', or specific IP. */
@@ -21,7 +23,7 @@ export interface GatewayDeps {
  * spawns Lead/Planner per project, starts HTTP+WS server.
  */
 export async function startGateway(deps: GatewayDeps): Promise<void> {
-  const { port, corsOrigin, noRecover, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
+  const { port, corsOrigin, noRecover, continueWorkers = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
@@ -80,9 +82,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     if (rawState?.lastReloadFailed) {
       console.error('Session reload skipped: previous reload failed. Clear ~/.flightdeck/gateway-state.json to retry.');
     } else if (rawState && rawState.sessions.length > 0) {
-      // Filter sessions by allowed roles
+      // Filter sessions by allowed roles (workers are always kept for recovery/pause logic)
       const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
-      const filtered = rawState.sessions.filter(s => allowedRoles.has(s.role));
+      const filtered = rawState.sessions.filter(s => allowedRoles.has(s.role) || !['lead', 'planner'].includes(s.role));
       const skipped = rawState.sessions.length - filtered.length;
       if (skipped > 0) {
         console.error(`Reload: skipping ${skipped} session(s) with non-reloadable roles (allowed: ${[...allowedRoles].join(', ')}).`);
@@ -191,6 +193,12 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Spawn Lead + Planner (with session recovery if available)
     const projectSessions = savedState?.sessions.filter(s => s.project === name) ?? [];
     await spawnAgents(fd, leadManager, name, projectSessions);
+
+    // Worker recovery
+    const workerSessions = projectSessions.filter(s => !['lead', 'planner'].includes(s.role));
+    if (workerSessions.length > 0 && !noRecover) {
+      await recoverWorkers(fd, leadManager, acpAdapter, name, workerSessions, continueWorkers);
+    }
 
     // Wire WS user messages to Lead
     if (wsServer) {
@@ -302,6 +310,34 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
             cwd: s.cwd,
             model: s.model,
           });
+        }
+      }
+
+      // Save worker sessions
+      const fd = projectManager.get(projectName);
+      if (fd) {
+        const workerAgents = fd.listAgents().filter(a =>
+          a.status === 'busy' && a.acpSessionId && !['lead', 'planner'].includes(a.role)
+        );
+        for (const agent of workerAgents) {
+          // Find the local session ID from AcpAdapter by matching acpSessionId
+          const activeSessions = acpAdapter.getActiveSessions();
+          const workerSession = activeSessions.find(s => s.agentId === agent.id);
+          if (workerSession) {
+            const acpSid = acpAdapter.getAcpSessionId(workerSession.id);
+            if (acpSid && workerSession.status !== 'ended') {
+              sessions.push({
+                project: projectName,
+                agentId: agent.id as string,
+                role: agent.role,
+                acpSessionId: acpSid,
+                localSessionId: workerSession.id,
+                cwd: workerSession.cwd,
+                model: workerSession.model,
+                status: 'active',
+              });
+            }
+          }
         }
       }
     }
@@ -467,6 +503,131 @@ async function spawnAgents(
     }
   } else {
     console.error(`  [${projectName}] Planner already active.`);
+  }
+}
+
+/**
+ * Recover worker sessions from a previous gateway run.
+ * - Default mode: pause worker tasks, mark agents suspended, notify Lead
+ * - --continue mode: aggressively resume all worker sessions
+ */
+async function recoverWorkers(
+  fd: Flightdeck,
+  leadManager: { steerLead(event: { type: 'worker_recovery'; message: string }): Promise<string> },
+  acpAdapter: { resumeSession(opts: { previousSessionId: string; cwd: string; role: string; model?: string; projectName?: string }): Promise<{ agentId: string; sessionId: string }> },
+  projectName: string,
+  workerSessions: SavedSession[],
+  continueWorkers: boolean,
+): Promise<void> {
+  const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
+  const pausedTasks: Array<{ id: string; title: string }> = [];
+  const resumedCount = { success: 0, failed: 0 };
+
+  for (const ws of workerSessions) {
+    // Find the task assigned to this worker
+    const tasks = fd.listTasks();
+    const assignedTask = tasks.find(t => t.assignedAgent === ws.agentId && t.state === 'running');
+
+    if (continueWorkers) {
+      // --continue: try to resume the worker session
+      try {
+        console.error(`  [${projectName}] Resuming worker ${ws.agentId} (${ws.role}) from session ${ws.acpSessionId}...`);
+        const result = await acpAdapter.resumeSession({
+          previousSessionId: ws.acpSessionId,
+          cwd: ws.cwd,
+          role: ws.role,
+          model: ws.model,
+          projectName,
+        });
+
+        // Re-register agent as busy
+        fd.sqlite.insertAgent({
+          id: result.agentId as any,
+          role: ws.role as any,
+          runtime: 'acp',
+          acpSessionId: ws.acpSessionId,
+          status: 'busy',
+          currentSpecId: null,
+          costAccumulated: 0,
+          lastHeartbeat: null,
+        });
+
+        // Update task's assignedAgent to the new agent ID if it changed
+        if (assignedTask && result.agentId !== ws.agentId) {
+          fd.sqlite.updateTaskState(assignedTask.id as any, 'running', result.agentId as any);
+        }
+
+        resumedCount.success++;
+        console.error(`  [${projectName}] Worker resumed: ${result.agentId} (session: ${result.sessionId})`);
+      } catch (err: unknown) {
+        console.error(`  [${projectName}] Failed to resume worker ${ws.agentId}: ${err instanceof Error ? err.message : String(err)}`);
+        resumedCount.failed++;
+        // Graceful degradation: pause the task
+        if (assignedTask) {
+          try {
+            fd.sqlite.updateTaskState(assignedTask.id as any, 'paused' as any);
+            pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
+            console.error(`  [${projectName}] Paused task ${assignedTask.id} (${assignedTask.title})`);
+          } catch (e) {
+            console.error(`  [${projectName}] Failed to pause task ${assignedTask.id}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        // Register hibernated agent (preserving session for potential manual wake)
+        const hibernatedId = makeAgentId(ws.role, Date.now().toString());
+        fd.sqlite.insertAgent({
+          id: hibernatedId,
+          role: ws.role as any,
+          runtime: 'acp',
+          acpSessionId: ws.acpSessionId,
+          status: 'hibernated',
+          currentSpecId: null,
+          costAccumulated: 0,
+          lastHeartbeat: null,
+        });
+      }
+    } else {
+      // Default mode: pause task, mark agent hibernated (preserve session for potential wake)
+      if (assignedTask) {
+        try {
+          fd.sqlite.updateTaskState(assignedTask.id as any, 'paused' as any);
+          pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
+          console.error(`  [${projectName}] Paused worker task ${assignedTask.id} (${assignedTask.title})`);
+        } catch (e) {
+          console.error(`  [${projectName}] Failed to pause task ${assignedTask.id}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      // Register hibernated agent with saved session ID
+      const hibernatedId = makeAgentId(ws.role, Date.now().toString());
+      fd.sqlite.insertAgent({
+        id: hibernatedId,
+        role: ws.role as any,
+        runtime: 'acp',
+        acpSessionId: ws.acpSessionId,
+        status: 'hibernated',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
+      console.error(`  [${projectName}] Worker ${ws.agentId} → hibernated (session: ${ws.acpSessionId}).`);
+    }
+  }
+
+  // Notify Lead about worker recovery status
+  if (pausedTasks.length > 0) {
+    const summary = pausedTasks.map(t => `- ${t.title} (${t.id})`).join('\n');
+    try {
+      await leadManager.steerLead({
+        type: 'worker_recovery',
+        message: `Session reloaded. ${pausedTasks.length} worker task(s) paused from previous session:\n${summary}\n\nUse flightdeck_agent_wake to resume hibernated workers, flightdeck_agent_retire to dismiss ones you don't need, or spawn new workers.`,
+      });
+      console.error(`  [${projectName}] Notified Lead about ${pausedTasks.length} paused worker task(s).`);
+    } catch (err) {
+      console.error(`  [${projectName}] Failed to notify Lead about paused workers: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (continueWorkers) {
+    console.error(`  [${projectName}] Worker recovery: ${resumedCount.success} resumed, ${resumedCount.failed} failed.`);
   }
 }
 

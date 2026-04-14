@@ -40,4 +40,9 @@ export abstract class AgentAdapter {
   abstract steer(sessionId: string, message: SteerMessage): Promise<string>;
   abstract kill(sessionId: string): Promise<void>;
   abstract getMetadata(sessionId: string): Promise<AgentMetadata | null>;
+
+  /** Resume a previously saved session. Not all adapters support this. */
+  async resumeSession(_opts: { previousSessionId: string; cwd: string; role: string; model?: string; projectName?: string }): Promise<AgentMetadata> {
+    throw new Error('resumeSession not supported by this adapter');
+  }
 }

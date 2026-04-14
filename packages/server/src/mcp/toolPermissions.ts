@@ -17,6 +17,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_compact',
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',
     'flightdeck_agent_restart', 'flightdeck_agent_interrupt',
+    'flightdeck_agent_hibernate', 'flightdeck_agent_wake', 'flightdeck_agent_retire',
     'flightdeck_msg_send', 'flightdeck_msg_inbox', 'flightdeck_msg_list',
     'flightdeck_channel_send', 'flightdeck_channel_read', 'flightdeck_discuss',
     'flightdeck_thread_create', 'flightdeck_thread_list',

@@ -367,8 +367,86 @@ export class AgentManager {
     return this.store.getAgent(agentId);
   }
 
-  listAgents(): Agent[] {
-    return this.store.listAgents();
+  listAgents(includeRetired = false): Agent[] {
+    return this.store.listAgents(includeRetired);
+  }
+
+  async hibernateAgent(agentId: AgentId): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+
+    // Save session info for potential resume
+    const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
+
+    // Kill the process (but preserve the session ID in DB for resume)
+    if (sessionId) {
+      try { await this.adapter.kill(sessionId); } catch { /* best effort */ }
+      this.sessionToAgent.delete(sessionId);
+    }
+    this.agentToSession.delete(agentId);
+
+    // Update DB: keep acpSessionId so we can resume later
+    this.store.updateAgentStatus(agentId, 'hibernated');
+    console.error(`[hibernate] Agent ${agentId} hibernated (session preserved: ${sessionId ?? 'none'})`);
+  }
+
+  async wakeAgent(agentId: AgentId): Promise<Agent> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    if (agent.status !== 'hibernated') throw new Error(`Agent ${agentId} is not hibernated (status: ${agent.status})`);
+
+    const savedSessionId = agent.acpSessionId;
+    if (!savedSessionId) {
+      // No saved session — can't resume, retire instead
+      this.store.updateAgentStatus(agentId, 'retired');
+      this.store.updateAgentAcpSession(agentId, null);
+      throw new Error(`No saved session for hibernated agent ${agentId}. Agent has been retired.`);
+    }
+
+    try {
+      // Try to resume the ACP session
+      const meta = await this.adapter.resumeSession({
+        previousSessionId: savedSessionId,
+        cwd: process.cwd(),
+        role: agent.role,
+      });
+
+      // Success — update mappings
+      this.store.updateAgentAcpSession(agentId, meta.sessionId);
+      this.store.updateAgentStatus(agentId, 'busy');
+      this.sessionToAgent.set(meta.sessionId, agentId);
+      this.agentToSession.set(agentId, meta.sessionId);
+
+      console.error(`[wake] Agent ${agentId} resumed (session: ${meta.sessionId})`);
+      return { ...agent, acpSessionId: meta.sessionId, status: 'busy' };
+    } catch (err) {
+      // Resume failed — retire the agent, don't retry
+      console.error(`[wake] Resume failed for ${agentId}: ${(err as Error).message}. Retiring.`);
+      this.store.updateAgentStatus(agentId, 'retired');
+      this.store.updateAgentAcpSession(agentId, null);
+      throw new Error(`Failed to resume agent ${agentId}: ${(err as Error).message}. Agent has been retired.`);
+    }
+  }
+
+  async retireAgent(agentId: AgentId): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+
+    // Kill process if alive
+    const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
+    if (sessionId && agent.status !== 'hibernated' && agent.status !== 'retired') {
+      try { await this.adapter.kill(sessionId); } catch { /* best effort */ }
+      this.sessionToAgent.delete(sessionId);
+    }
+    this.agentToSession.delete(agentId);
+
+    // Clean up worktree/workdir
+    await this.cleanupWorktree(agentId);
+    this.cleanupWorkdir(agentId);
+
+    this.store.updateAgentStatus(agentId, 'retired');
+    this.store.updateAgentAcpSession(agentId, null);
+    console.error(`[retire] Agent ${agentId} retired`);
   }
 
   async getAgentMetadata(agentId: AgentId): Promise<AgentMetadata | null> {

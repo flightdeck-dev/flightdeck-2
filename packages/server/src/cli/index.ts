@@ -20,6 +20,7 @@ const { values, positionals } = parseArgs({
     'cors-origin': { type: 'string' },
     'no-recover': { type: 'boolean', default: false },
     'fresh': { type: 'boolean', default: false },
+    'continue': { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     bind: { type: 'string' },
     auth: { type: 'string' },
@@ -77,6 +78,7 @@ Options:
   --force                 Kill existing process on port before starting
   --json                  JSON output for query commands
   --no-recover / --fresh  Skip session recovery on start
+  --continue              Resume all workers aggressively on restart
   -h, --help              Show help
 `);
 }
@@ -252,6 +254,7 @@ switch (command) {
       port: values.port ? parseInt(String(values.port), 10) : undefined,
       corsOrigin: values['cors-origin'] as string | undefined,
       noRecover: !!(values['no-recover'] || values['fresh'] as unknown),
+      continueWorkers: !!(values['continue'] as unknown),
       projectFilter: values.project as string | undefined,
       force: !!(values.force as unknown),
       bind: values.bind as string | undefined,
@@ -292,8 +295,9 @@ switch (command) {
     const port = values.port ? parseInt(String(values.port), 10) : undefined;
     const corsOrigin = (values['cors-origin'] as string | undefined);
     const noRecover = !!(values['no-recover'] || values['fresh'] as unknown);
+    const continueWorkers = !!(values['continue'] as unknown);
     const projectFilter = values.project as string | undefined;
-    await gatewayRun({ port, corsOrigin, noRecover, projectFilter });
+    await gatewayRun({ port, corsOrigin, noRecover, continueWorkers, projectFilter });
     break;
   }
 

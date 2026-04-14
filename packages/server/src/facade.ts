@@ -205,8 +205,8 @@ export class Flightdeck {
     this.sqlite.insertAgent(agent);
   }
 
-  listAgents(): Agent[] {
-    return this.sqlite.listAgents();
+  listAgents(includeRetired = false): Agent[] {
+    return this.sqlite.listAgents(includeRetired);
   }
 
   // ── Communication ──

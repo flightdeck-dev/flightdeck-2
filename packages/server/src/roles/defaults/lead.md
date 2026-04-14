@@ -12,6 +12,9 @@ permissions:
   discuss: true
   agent_spawn: true
   agent_terminate: true
+  agent_hibernate: true
+  agent_wake: true
+  agent_retire: true
   task_cancel: true
   task_pause: true
   task_retry: true

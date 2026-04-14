@@ -30,7 +30,8 @@ export type LeadEvent =
   | { type: 'spec_completed'; specId: string; summary: string }
   | { type: 'budget_warning'; currentSpend: number; limit: number }
   | { type: 'spec_changed'; specId: string; summary: string }
-  | { type: 'heartbeat' };
+  | { type: 'heartbeat' }
+  | { type: 'worker_recovery'; message: string };
 
 export interface HeartbeatCondition {
   type: 'tasks_completed' | 'idle_duration' | 'time_window' | 'spec_completed' | 'cost_threshold' | 'custom';
@@ -181,6 +182,11 @@ export class LeadManager {
 
       case 'heartbeat':
         return this.buildHeartbeatSteer();
+
+      case 'worker_recovery':
+        parts.push('[worker recovery]');
+        parts.push(event.message);
+        break;
     }
 
     return parts.join('\n');
