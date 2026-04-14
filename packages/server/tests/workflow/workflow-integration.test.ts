@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Flightdeck } from '../../src/facade.js';
 import type { TaskId, AgentId } from '@flightdeck-ai/shared';
 import type { WorkflowConfig } from '../../src/storage/WorkflowStore.js';
+import { rmSync } from 'node:fs';
 
 const tid = (s: string) => s as TaskId;
 const aid = (s: string) => s as AgentId;
@@ -11,6 +12,11 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
 
   beforeEach(() => {
     fd = new Flightdeck(`test-wf-int-${Date.now()}`);
+  });
+
+  afterEach(() => {
+    try { fd.sqlite.close(); } catch { /* ignore */ }
+    try { rmSync(fd.project.path, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
   it('facade passes WorkflowEngine to Orchestrator', () => {
