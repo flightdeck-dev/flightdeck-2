@@ -790,158 +790,206 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
   });
 
-  // ── Communication tools ──
+  // ── Communication tools (consolidated) ──
 
-  server.tool('flightdeck_msg_send', 'Send a DM to another agent (delivered immediately via steer)', {
-    from: z.string(),
-    to: z.string(),
-    content: z.string(),
-    agentId: z.string(),
-  }, async (params) => {
-    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_msg_send');
+  // --- New consolidated: flightdeck_send ---
+  async function handleSend(params: { from: string; to?: string; channel?: string; content: string; agentId: string }) {
+    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_send');
     if (error) return error;
     if (params.agentId !== params.from) {
       return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'. The agentId and from fields must match.`);
     }
-    const msg: Message = {
-      id: messageId(params.from, params.to, Date.now().toString()),
-      from: params.from as AgentId,
-      to: params.to as AgentId,
-      channel: null,
-      content: params.content,
-      timestamp: new Date().toISOString(),
-    };
-    fd.sendMessage(msg);
-
-    // Fire webhook for agent DM
-    const notifier = fd.orchestrator.getWebhookNotifier();
-    if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, params.from, params.to, params.content));
-
-    // Deliver: steer the recipient agent (non-urgent, queued after current turn)
-    if (agentManager) {
-      try {
-        await agentManager.sendToAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
-        return jsonResponse({ status: 'delivered', to: params.to });
-      } catch {
-        // Agent may not have an active session — message is stored for later
-        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message will be delivered when agent comes online.' });
-      }
+    if (!params.to && !params.channel) {
+      return errorResponse('Error: Either "to" (for DM) or "channel" (for group) must be set.');
     }
-    if (relay) {
-      try {
-        await relay.sendToAgent(params.to, `[DM from ${params.from}]: ${params.content}`);
-        return jsonResponse({ status: 'delivered', to: params.to });
-      } catch {
-        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable via gateway; message stored for later.' });
+    if (params.to) {
+      // DM path
+      const msg: Message = {
+        id: messageId(params.from, params.to, Date.now().toString()),
+        from: params.from as AgentId,
+        to: params.to as AgentId,
+        channel: null,
+        content: params.content,
+        timestamp: new Date().toISOString(),
+      };
+      fd.sendMessage(msg);
+      const notifier = fd.orchestrator.getWebhookNotifier();
+      if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, params.from, params.to, params.content));
+      if (agentManager) {
+        try {
+          await agentManager.sendToAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
+          return jsonResponse({ status: 'delivered', to: params.to });
+        } catch {
+          return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message will be delivered when agent comes online.' });
+        }
       }
+      if (relay) {
+        try {
+          await relay.sendToAgent(params.to, `[DM from ${params.from}]: ${params.content}`);
+          return jsonResponse({ status: 'delivered', to: params.to });
+        } catch {
+          return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable via gateway; message stored for later.' });
+        }
+      }
+      return jsonResponse({ status: 'sent', to: params.to });
+    } else {
+      // Channel path
+      const ch = params.channel!;
+      const msg: Message = {
+        id: messageId(params.from, ch, Date.now().toString()),
+        from: params.from as AgentId,
+        to: null,
+        channel: ch,
+        content: params.content,
+        timestamp: new Date().toISOString(),
+      };
+      fd.sendMessage(msg, ch);
+      const chNotifier = fd.orchestrator.getWebhookNotifier();
+      if (chNotifier) chNotifier.notify(agentMessageEvent(fd.status().config.name, params.from, '', params.content, ch));
+      return jsonResponse({ status: 'sent', channel: ch });
     }
-    return jsonResponse({ status: 'sent', to: params.to });
-  });
+  }
 
-  server.tool('flightdeck_msg_inbox', 'Check your unread DMs. Call this at the start of a session or periodically to see messages sent to you while you were offline.', {
+  server.tool('flightdeck_send', 'Send a message. If "to" is set, sends a DM. If "channel" is set, posts to a group channel.', {
+    from: z.string(),
+    to: z.string().optional().describe('Agent ID for DM'),
+    channel: z.string().optional().describe('Channel name for group message'),
+    content: z.string(),
     agentId: z.string(),
-  }, async (params) => {
-    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_msg_inbox');
-    if (error) return error;
-    const unread = fd.getUnreadDMs(params.agentId as AgentId);
-    // Mark as read so they don't show up again
-    fd.markDMsRead(params.agentId as AgentId);
-    if (unread.length === 0) {
-      return jsonResponse({ status: 'empty', messages: [] });
-    }
-    return jsonResponse({
-      status: 'unread',
-      count: unread.length,
-      messages: unread.map(m => ({
-        from: m.from,
-        content: m.content,
-        timestamp: m.timestamp,
-      })),
-    });
-  });
+  }, async (params) => handleSend(params));
 
-  server.tool('flightdeck_channel_send', 'Send to group chat', {
+  // --- New consolidated: flightdeck_read ---
+  async function handleRead(params: { channel?: string; since?: string; agentId: string }) {
+    if (params.channel) {
+      const messages = fd.readMessages(params.channel, params.since);
+      return jsonResponse(messages);
+    } else {
+      // DM inbox
+      const { error } = resolveAgent(fd, params.agentId, 'flightdeck_read');
+      if (error) return error;
+      const unread = fd.getUnreadDMs(params.agentId as AgentId);
+      fd.markDMsRead(params.agentId as AgentId);
+      if (unread.length === 0) {
+        return jsonResponse({ status: 'empty', messages: [] });
+      }
+      return jsonResponse({
+        status: 'unread',
+        count: unread.length,
+        messages: unread.map(m => ({
+          from: m.from,
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+      });
+    }
+  }
+
+  server.tool('flightdeck_read', 'Read messages. If "channel" is set, reads group channel. Otherwise reads your DM inbox.', {
+    channel: z.string().optional().describe('Channel name to read. Omit for DM inbox.'),
+    since: z.string().optional().describe('ISO timestamp to filter messages since'),
+    agentId: z.string(),
+  }, async (params) => handleRead(params));
+
+  // --- Backward-compat aliases for messaging ---
+
+  server.tool('flightdeck_msg_send', '[Alias → flightdeck_send] Send a DM to another agent', {
+    from: z.string(),
+    to: z.string(),
+    content: z.string(),
+    agentId: z.string(),
+  }, async (params) => handleSend({ ...params, channel: undefined }));
+
+  server.tool('flightdeck_msg_inbox', '[Alias → flightdeck_read] Check your unread DMs', {
+    agentId: z.string(),
+  }, async (params) => handleRead({ agentId: params.agentId }));
+
+  server.tool('flightdeck_channel_send', '[Alias → flightdeck_send] Send to group chat', {
     from: z.string(),
     channel: z.string(),
     message: z.string(),
     agentId: z.string(),
-  }, async (params) => {
-    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_channel_send');
-    if (error) return error;
-    if (params.agentId !== params.from) {
-      return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'.`);
-    }
-    const msg: Message = {
-      id: messageId(params.from, params.channel, Date.now().toString()),
-      from: params.from as AgentId,
-      to: null,
-      channel: params.channel,
-      content: params.message,
-      timestamp: new Date().toISOString(),
-    };
-    fd.sendMessage(msg, params.channel);
+  }, async (params) => handleSend({ from: params.from, channel: params.channel, content: params.message, agentId: params.agentId }));
 
-    // Fire webhook for channel message
-    const chNotifier = fd.orchestrator.getWebhookNotifier();
-    if (chNotifier) chNotifier.notify(agentMessageEvent(fd.status().config.name, params.from, '', params.message, params.channel));
-
-    return jsonResponse({ status: 'sent', channel: params.channel });
-  });
-
-  server.tool('flightdeck_channel_read', 'Read group chat messages', {
+  server.tool('flightdeck_channel_read', '[Alias → flightdeck_read] Read group chat messages', {
     channel: z.string(),
     since: z.string().optional(),
-  }, async (params) => {
-    const messages = fd.readMessages(params.channel, params.since);
-    return jsonResponse(messages);
-  });
+  }, async (params) => handleRead({ channel: params.channel, since: params.since, agentId: '' }));
 
-  // ── Memory tools ──
+  // ── Search tools (consolidated) ──
 
-  server.tool('flightdeck_memory_search', 'Search project memory (full-text across memory/*.md)', {
+  async function handleSearch(params: { query: string; source?: string; authorType?: string; limit?: number }) {
+    const source = params.source ?? 'all';
+    const limit = params.limit ?? 10;
+    const results: Array<{ source: string; [key: string]: unknown }> = [];
+
+    // Memory search
+    if (source === 'all' || source === 'memory') {
+      const memResults = fd.searchMemory(params.query, limit);
+      for (const r of memResults) {
+        results.push({ source: 'memory', ...r });
+      }
+    }
+
+    // Chat message search
+    if (source === 'all' || source === 'chat') {
+      if (fd.chatMessages) {
+        const chatResults = fd.chatMessages.searchMessages(params.query, {
+          authorType: params.authorType as 'user' | 'lead' | 'agent' | 'system' | undefined,
+          limit,
+        });
+        for (const m of chatResults) {
+          results.push({
+            source: 'chat',
+            id: m.id,
+            authorType: m.authorType,
+            authorId: m.authorId,
+            content: m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content,
+            createdAt: m.createdAt,
+            threadId: m.threadId,
+            taskId: m.taskId,
+          });
+        }
+      }
+    }
+
+    // Session transcript search (falls back to memory)
+    if (source === 'all' || source === 'session') {
+      const sessionResults = fd.searchMemory(params.query, limit);
+      for (const r of sessionResults) {
+        results.push({ source: 'session', ...r });
+      }
+    }
+
+    return jsonResponse({ count: results.length, results });
+  }
+
+  server.tool('flightdeck_search', 'Search across all project data sources: chat messages, project memory files, and session transcripts. Results are tagged with their source.', {
+    query: z.string().describe('Search query (keywords or phrases)'),
+    source: z.enum(['all', 'chat', 'memory', 'session']).optional().describe('Data source to search. Default: all'),
+    authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter chat results by author type'),
+    limit: z.number().optional().describe('Max results per source (default 10)'),
+    agentId: z.string(),
+  }, async (params) => handleSearch(params));
+
+  // --- Backward-compat aliases for search ---
+
+  server.tool('flightdeck_memory_search', '[Alias → flightdeck_search] Search project memory', {
     query: z.string(),
   }, async (params) => {
     const results = fd.searchMemory(params.query);
     return jsonResponse(results);
   });
 
-  server.tool('flightdeck_msg_search', 'Full-text search across chat messages. Find past conversations, decisions, and context even after context window rolls over.', {
+  server.tool('flightdeck_msg_search', '[Alias → flightdeck_search] Search chat messages', {
     query: z.string().describe('Search query (keywords or phrases)'),
     authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter by author type'),
     limit: z.number().optional().describe('Max results (default 20)'),
-  }, async (params) => {
-    if (!fd.chatMessages) return errorResponse('MessageStore not available');
-    const results = fd.chatMessages.searchMessages(params.query, {
-      authorType: params.authorType,
-      limit: params.limit,
-    });
-    return jsonResponse({
-      count: results.length,
-      messages: results.map(m => ({
-        id: m.id,
-        authorType: m.authorType,
-        authorId: m.authorId,
-        content: m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content,
-        createdAt: m.createdAt,
-        threadId: m.threadId,
-        taskId: m.taskId,
-      })),
-    });
-  });
+  }, async (params) => handleSearch({ query: params.query, source: 'chat', authorType: params.authorType, limit: params.limit }));
 
-  server.tool('flightdeck_session_search', 'Search across past ACP session transcripts. Use when you need to recall earlier conversations or instructions that have scrolled out of context.', {
+  server.tool('flightdeck_session_search', '[Alias → flightdeck_search] Search session transcripts', {
     query: z.string().describe('Search query (keywords or phrases)'),
     limit: z.number().optional().describe('Max results (default 20)'),
-  }, async (params) => {
-    // SessionStore is only available in ACP agent server mode, not MCP subprocess
-    // Fall back to memory search as a proxy
-    const memResults = fd.searchMemory(params.query, params.limit);
-    return jsonResponse({
-      count: memResults.length,
-      note: 'Session transcript search searches project memory. For direct session history, use flightdeck_msg_search.',
-      results: memResults,
-    });
-  });
+  }, async (params) => handleSearch({ query: params.query, source: 'session', limit: params.limit }));
 
   // ── Chat message tools (WebSocket-backed) ──
 
