@@ -26,6 +26,8 @@ const { values, positionals } = parseArgs({
     auth: { type: 'string' },
     token: { type: 'string' },
     days: { type: 'string' },
+    tz: { type: 'string' },
+    skill: { type: 'string' },
   },
 });
 
@@ -48,6 +50,7 @@ Commands:
   models list             List available models grouped by tier
   models set <role> <m>   Set model for a role (tier or model ID)
   log                     View decision log
+  cron list|add|enable|disable|remove   Manage cron jobs
   report                  View latest report
   display                 Show current display config
   display preset <name>   Apply display preset (minimal|summary|detail|debug)
@@ -287,6 +290,55 @@ switch (command) {
         console.error('Usage: flightdeck gateway <start|stop|restart|status|run|health|probe|usage-cost|install|uninstall>');
         process.exit(1);
     }
+    break;
+  }
+
+  case 'cron': {
+    const projName = resolveProject();
+    const fd = new Flightdeck(projName);
+    const cronStore = fd.cron;
+    if (subcommand === 'list') {
+      const jobs = cronStore.listJobs();
+      if (jobs.length === 0) { console.log('No cron jobs.'); }
+      for (const j of jobs) {
+        const status = j.enabled ? 'enabled' : 'disabled';
+        const next = j.state.nextRunAt ? new Date(j.state.nextRunAt).toLocaleString() : 'n/a';
+        console.log(`  [${status.padEnd(8)}] ${j.id.slice(0, 8)}  ${j.schedule.expr.padEnd(15)} ${j.name}  (next: ${next})`);
+      }
+    } else if (subcommand === 'add') {
+      const name = positionals[2];
+      const schedule = positionals[3];
+      const prompt = positionals.slice(4).join(' ');
+      if (!name || !schedule || !prompt) {
+        console.error('Usage: flightdeck cron add <name> <schedule> <prompt> [--tz <timezone>] [--skill <name>]');
+        fd.close();
+        break;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
+      const tz = (values as any).tz as string | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
+      const skill = (values as any).skill as string | undefined;
+      const job = cronStore.addJob({ name, schedule: { kind: 'cron', expr: schedule, tz }, prompt, skill });
+      console.log(`Cron job created: ${job.id} [${job.schedule.expr}] ${job.name}`);
+    } else if (subcommand === 'enable') {
+      const id = positionals[2];
+      if (!id) { console.error('Usage: flightdeck cron enable <id>'); fd.close(); break; }
+      const ok = cronStore.enableJob(id);
+      console.log(ok ? `Enabled: ${id}` : `Job not found: ${id}`);
+    } else if (subcommand === 'disable') {
+      const id = positionals[2];
+      if (!id) { console.error('Usage: flightdeck cron disable <id>'); fd.close(); break; }
+      const ok = cronStore.disableJob(id);
+      console.log(ok ? `Disabled: ${id}` : `Job not found: ${id}`);
+    } else if (subcommand === 'remove') {
+      const id = positionals[2];
+      if (!id) { console.error('Usage: flightdeck cron remove <id>'); fd.close(); break; }
+      const ok = cronStore.removeJob(id);
+      console.log(ok ? `Removed: ${id}` : `Job not found: ${id}`);
+    } else {
+      console.error('Usage: flightdeck cron <list|add|enable|disable|remove>');
+    }
+    fd.close();
     break;
   }
 

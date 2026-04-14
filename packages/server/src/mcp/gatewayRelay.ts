@@ -84,4 +84,11 @@ export class GatewayRelay {
     if (!res.ok) throw new Error(`Gateway session search failed: ${res.status}`);
     return res.json() as Promise<{ count: number; results: unknown[] }>;
   }
+
+  async getAgentOutput(agentId: string, tail = 50): Promise<{ agentId: string; lines: string[]; totalLines: number }> {
+    const params = new URLSearchParams({ tail: String(tail) });
+    const res = await fetch(`${this.baseUrl}/api/projects/${this.projectName}/agents/${agentId}/output?${params}`);
+    if (!res.ok) throw new Error(`Gateway agent output failed: ${res.status} ${await res.text()}`);
+    return res.json() as Promise<{ agentId: string; lines: string[]; totalLines: number }>;
+  }
 }

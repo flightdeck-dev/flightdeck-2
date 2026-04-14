@@ -618,6 +618,26 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     return jsonResponse(fd.listAgents(includeRetired));
   });
 
+  server.tool('flightdeck_agent_output', 'Get the accumulated output of a running agent', {
+    agentId: z.string().describe('The agent ID to get output from'),
+    tail: z.number().optional().describe('Number of lines from the end to return (default 50)'),
+  }, async (params) => {
+    const tail = params.tail ?? 50;
+    try {
+      if (agentManager) {
+        const result = agentManager.getAgentOutput(params.agentId as import('@flightdeck-ai/shared').AgentId, tail);
+        return jsonResponse(result);
+      }
+      if (relay) {
+        const result = await relay.getAgentOutput(params.agentId, tail);
+        return jsonResponse(result);
+      }
+      return errorResponse('No AgentManager or relay available');
+    } catch (e: unknown) {
+      return errorResponse(e instanceof Error ? e.message : String(e));
+    }
+  });
+
   server.tool('flightdeck_agent_hibernate', 'Hibernate a worker — saves session, kills process, pauses assigned task', {
     targetAgentId: z.string(),
     agentId: z.string(),
@@ -1123,6 +1143,90 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_list');
     if (error) return error;
     return jsonResponse(fd.timers.listTimers(params.agentId));
+  });
+
+  // ── Cron tools ──
+
+  server.tool('flightdeck_cron_list', 'List all cron jobs', {}, async () => {
+    const jobs = fd.cron.listJobs();
+    return jsonResponse(jobs.map(j => ({
+      id: j.id,
+      name: j.name,
+      enabled: j.enabled,
+      schedule: j.schedule.expr,
+      tz: j.schedule.tz ?? 'UTC',
+      skill: j.skill,
+      prompt: j.prompt,
+      nextRunAt: j.state.nextRunAt,
+      lastRunAt: j.state.lastRunAt,
+      lastRunStatus: j.state.lastRunStatus,
+    })));
+  });
+
+  server.tool('flightdeck_cron_add', 'Add a new cron job', {
+    name: z.string().describe('Job name'),
+    schedule: z.string().describe('Cron expression (e.g. "0 9 * * *")'),
+    prompt: z.string().describe('Message to send to Lead when triggered'),
+    tz: z.string().optional().describe('IANA timezone (default UTC)'),
+    skill: z.string().optional().describe('Skill name to activate'),
+    enabled: z.boolean().optional().describe('Whether the job is enabled (default true)'),
+  }, async (params) => {
+    const job = fd.cron.addJob({
+      name: params.name,
+      schedule: { kind: 'cron', expr: params.schedule, tz: params.tz },
+      prompt: params.prompt,
+      skill: params.skill,
+      enabled: params.enabled ?? true,
+    });
+    return jsonResponse(job);
+  });
+
+  server.tool('flightdeck_cron_enable', 'Enable a cron job', {
+    jobId: z.string().describe('Job ID to enable'),
+  }, async (params) => {
+    const ok = fd.cron.enableJob(params.jobId);
+    if (!ok) return errorResponse(`Cron job '${params.jobId}' not found.`);
+    return jsonResponse({ success: true, jobId: params.jobId, enabled: true });
+  });
+
+  server.tool('flightdeck_cron_disable', 'Disable a cron job', {
+    jobId: z.string().describe('Job ID to disable'),
+  }, async (params) => {
+    const ok = fd.cron.disableJob(params.jobId);
+    if (!ok) return errorResponse(`Cron job '${params.jobId}' not found.`);
+    return jsonResponse({ success: true, jobId: params.jobId, enabled: false });
+  });
+
+  server.tool('flightdeck_cron_remove', 'Remove a cron job', {
+    jobId: z.string().describe('Job ID to remove'),
+  }, async (params) => {
+    const ok = fd.cron.removeJob(params.jobId);
+    if (!ok) return errorResponse(`Cron job '${params.jobId}' not found.`);
+    return jsonResponse({ success: true, jobId: params.jobId, removed: true });
+  });
+
+  server.tool('flightdeck_cron_run', 'Manually trigger a cron job now', {
+    jobId: z.string().describe('Job ID to run'),
+  }, async (params) => {
+    const job = fd.cron.getJob(params.jobId);
+    if (!job) return errorResponse(`Cron job '${params.jobId}' not found.`);
+    // Steer Lead via gateway HTTP API if available
+    const gatewayBaseUrl = process.env.FLIGHTDECK_URL;
+    if (gatewayBaseUrl) {
+      try {
+        const url = `${gatewayBaseUrl}/api/projects/${encodeURIComponent(name)}/chat`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: job.prompt, source: 'cron', jobId: job.id }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return jsonResponse({ success: true, jobId: job.id, message: 'Job triggered — Lead has been steered.' });
+      } catch (err) {
+        return errorResponse(`Failed to steer Lead: ${(err as Error).message}`);
+      }
+    }
+    return jsonResponse({ success: true, jobId: job.id, prompt: job.prompt, skill: job.skill, message: 'Job details returned — steer Lead with this prompt.' });
   });
 
   // ── Status tools ──

@@ -230,59 +230,97 @@ export class LeadManager {
     switch (event.type) {
       case 'user_message': {
         const ts = new Date().toISOString().slice(0, 19) + 'Z';
-        parts.push(`[${ts}] [USER] ${event.message.content}`);
+        parts.push(`[${ts}] [USER]`);
+        if (event.message.id) parts.push(`message_id: ${event.message.id}`);
+        parts.push(`source: web-dashboard`);
+        if (event.message.parentId) parts.push(`reply_to: ${event.message.parentId}`);
+        if (event.message.taskId) parts.push(`task_id: ${event.message.taskId}`);
+        parts.push('---');
+        parts.push(event.message.content);
         parts.push('');
         parts.push(`For project status: read .flightdeck/status.md`);
         break;
       }
 
-      case 'task_comment':
-        parts.push(`[task comment]`);
-        parts.push(`User commented on task ${event.taskId}:`);
-        parts.push(`"${event.message.content}"`);
+      case 'task_comment': {
+        const tcTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${tcTs}] [USER]`);
+        if (event.message.id) parts.push(`message_id: ${event.message.id}`);
+        parts.push(`task_id: ${event.taskId}`);
+        parts.push(`source: task_comment`);
+        if (event.message.parentId) parts.push(`reply_to: ${event.message.parentId}`);
+        parts.push('---');
+        parts.push(event.message.content);
         parts.push('');
         parts.push(`For full task history: flightdeck_task_get("${event.taskId}")`);
         break;
+      }
 
-      case 'task_failure':
-        parts.push(`[task failure]`);
+      case 'task_failure': {
+        const tfTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${tfTs}] [SYSTEM]`);
+        parts.push(`task_id: ${event.taskId}`);
+        parts.push(`source: task_failure`);
+        parts.push('---');
         parts.push(`Task ${event.taskId} failed after retries: ${event.error}`);
         parts.push('');
         parts.push(`For task details: flightdeck_task_get("${event.taskId}")`);
         break;
+      }
 
-      case 'escalation':
-        parts.push(`[escalation]`);
-        parts.push(`Agent ${event.agentId} escalated on task ${event.taskId}:`);
-        parts.push(`"${event.reason}"`);
+      case 'escalation': {
+        const escTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${escTs}] [AGENT ${event.agentId}]`);
+        parts.push(`agent_id: ${event.agentId}`);
+        parts.push(`task_id: ${event.taskId}`);
+        parts.push(`source: escalation`);
+        parts.push('---');
+        parts.push(event.reason);
         break;
+      }
 
-      case 'spec_completed':
-        parts.push(`[spec completed]`);
+      case 'spec_completed': {
+        const scTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${scTs}] [SYSTEM]`);
+        parts.push(`source: spec_completed`);
+        parts.push('---');
         parts.push(`Spec ${event.specId} is complete. ${event.summary}`);
         parts.push('');
         parts.push('Please write a retrospective to memory/retrospectives/ and update memory/PROJECT.md.');
         break;
+      }
 
-      case 'budget_warning':
-        parts.push(`[budget warning]`);
+      case 'budget_warning': {
+        const bwTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${bwTs}] [SYSTEM]`);
+        parts.push(`source: budget_warning`);
+        parts.push('---');
         parts.push(`Spending: $${event.currentSpend.toFixed(2)} / $${event.limit.toFixed(2)} limit`);
         break;
+      }
 
-      case 'spec_changed':
-        parts.push(`[spec changed]`);
+      case 'spec_changed': {
+        const schTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${schTs}] [SYSTEM]`);
+        parts.push(`source: spec_changed`);
+        parts.push('---');
         parts.push(`Spec ${event.specId} was modified. ${event.summary}`);
         parts.push('');
         parts.push('Review affected tasks with flightdeck_task_list and re-plan if needed.');
         break;
+      }
 
       case 'heartbeat':
         return this.buildHeartbeatSteer();
 
-      case 'worker_recovery':
-        parts.push('[worker recovery]');
+      case 'worker_recovery': {
+        const wrTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${wrTs}] [SYSTEM]`);
+        parts.push(`source: worker_recovery`);
+        parts.push('---');
         parts.push(event.message);
         break;
+      }
 
       case 'cron': {
         parts.push(`[cron: ${event.job.name}]`);

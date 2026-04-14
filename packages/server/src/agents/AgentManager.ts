@@ -458,6 +458,19 @@ export class AgentManager {
     return this.store.listAgents(includeRetired);
   }
 
+  getAgentOutput(agentId: AgentId, tail = 50): { agentId: string; lines: string[]; totalLines: number } {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
+    if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
+    const session = this.adapter.getSession(sessionId);
+    if (!session) throw new Error(`Session not found for agent: ${agentId}`);
+    const allLines = session.output.split('\n');
+    const totalLines = allLines.length;
+    const lines = allLines.slice(-tail);
+    return { agentId, lines, totalLines };
+  }
+
   async hibernateAgent(agentId: AgentId): Promise<void> {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);

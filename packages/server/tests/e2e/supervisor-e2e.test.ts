@@ -364,7 +364,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
 
       expect(adapter.steerLog).toHaveLength(1);
       const content = adapter.steerLog[0].message.content;
-      expect(content).toContain('[escalation]');
+      expect(content).toContain('[AGENT worker-1]');
+      expect(content).toContain('source: escalation');
       expect(content).toContain('worker-1');
       expect(content).toContain('REST vs GraphQL');
     });
@@ -559,7 +560,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
         taskId: 'task-5',
         message: { id: 'msg-2', role: 'user', content: 'Also handle edge case', timestamp: new Date().toISOString() } as any,
       });
-      expect(steer).toContain('[task comment]');
+      expect(steer).toContain('[USER]');
+      expect(steer).toContain('source: task_comment');
       expect(steer).toContain('task-5');
       expect(steer).toContain('Also handle edge case');
     });
@@ -570,7 +572,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
         currentSpend: 8.50,
         limit: 10.00,
       });
-      expect(steer).toContain('[budget warning]');
+      expect(steer).toContain('[SYSTEM]');
+      expect(steer).toContain('source: budget_warning');
       expect(steer).toContain('$8.50');
       expect(steer).toContain('$10.00');
     });

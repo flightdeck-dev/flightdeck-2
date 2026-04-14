@@ -18,6 +18,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',
     'flightdeck_agent_restart', 'flightdeck_agent_interrupt',
     'flightdeck_agent_hibernate', 'flightdeck_agent_wake', 'flightdeck_agent_retire',
+    'flightdeck_agent_output',
     'flightdeck_send', 'flightdeck_read', 'flightdeck_msg_list',
     'flightdeck_discuss',
     'flightdeck_thread_create', 'flightdeck_thread_list',
@@ -31,6 +32,8 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_timer_set', 'flightdeck_timer_list', 'flightdeck_timer_cancel',
     'flightdeck_learning_search', 'flightdeck_learning_add',
     'flightdeck_suggestion_list', 'flightdeck_suggestion_approve', 'flightdeck_suggestion_reject',
+    'flightdeck_cron_list', 'flightdeck_cron_add', 'flightdeck_cron_enable',
+    'flightdeck_cron_disable', 'flightdeck_cron_remove', 'flightdeck_cron_run',
     'flightdeck_tools_available',
   ],
   planner: [
@@ -57,6 +60,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_escalate',
     'flightdeck_learning_add',
     'flightdeck_decision_log',
+    'flightdeck_cron_list',
     'flightdeck_tools_available',
   ],
   reviewer: [
@@ -66,6 +70,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_search',
     'flightdeck_decision_log', 'flightdeck_decision_list',
     'flightdeck_escalate',
+    'flightdeck_cron_list',
     'flightdeck_tools_available',
   ],
   'product-thinker': [

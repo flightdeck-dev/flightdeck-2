@@ -328,6 +328,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
         json(200, { success: true });
       } catch (e: unknown) { json(500, { error: `Failed to retire agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/output$/) && method === 'GET') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      const tail = parseInt(url.searchParams.get('tail') ?? '50', 10) || 50;
+      try {
+        const output = am.getAgentOutput(agentId as import('@flightdeck-ai/shared').AgentId, tail);
+        json(200, output);
+      } catch (e: unknown) { json(404, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath === '/decisions' && method === 'GET') {
       const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
       json(200, fd.decisions.readAll().slice(0, limit));

@@ -44,7 +44,8 @@ describe('LeadManager', () => {
       taskId: 'task-001',
       error: 'npm test failed',
     });
-    expect(steer).toContain('[task failure]');
+    expect(steer).toContain('[SYSTEM]');
+    expect(steer).toContain('task_failure');
     expect(steer).toContain('task-001');
     expect(steer).toContain('npm test failed');
   });

@@ -19,6 +19,7 @@ import { TimerManager } from './orchestrator/TimerManager.js';
 import { AgentManager } from './agents/AgentManager.js';
 import { SuggestionStore } from './storage/SuggestionStore.js';
 import { MessageStore } from './comms/MessageStore.js';
+import { CronStore } from './cron/CronStore.js';
 
 /**
  * High-level facade wrapping all Flightdeck subsystems.
@@ -43,6 +44,7 @@ export class Flightdeck {
   readonly agentManager: AgentManager;
   readonly chatMessages: MessageStore | null;
   readonly suggestions: SuggestionStore;
+  readonly cron: CronStore;
 
   constructor(projectName: string, acpAdapter?: AcpAdapter | null) {
     this.project = new ProjectStore(projectName);
@@ -71,6 +73,7 @@ export class Flightdeck {
     this.roles = new RoleRegistry(projectName);
     // Repo role discovery deferred to MCP subprocess where cwd is the project repo root
     this.learnings = new LearningsStore(this.project.subpath('.'));
+    this.cron = new CronStore(this.project.subpath('.'));
     this.timers = new TimerManager((_agentId, _message) => {
       // Default callback — messages can be wired to agent queues later
     });

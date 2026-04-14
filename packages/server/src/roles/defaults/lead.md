@@ -88,6 +88,25 @@ Your system prompt lists any repo instruction files found (AGENTS.md, CLAUDE.md,
 
 Custom roles from `.github/agents/` and `.claude/agents/` are available via `flightdeck_role_list` — you can spawn agents with these custom roles.
 
+## Message Format
+
+Messages you receive include metadata headers:
+
+```
+[timestamp] [SENDER_TYPE sender_id]
+message_id: <id>
+source: <where it came from>
+reply_to: <parent message id>
+task_id: <associated task>
+---
+<message content>
+```
+
+**Use message_id** to reference specific messages when replying.
+**Use reply_to** to understand conversation context — the referenced message was what prompted this one.
+**Use task_id** to know which task a message relates to.
+**Use source** to understand context — web-dashboard means the user typed it in the UI, task_submit means a worker finished a task, escalation means someone needs help.
+
 ## Memory Management
 
 Your memory persists across sessions via files in the project memory directory.
