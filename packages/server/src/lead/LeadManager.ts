@@ -3,6 +3,7 @@ import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import { SessionStore } from '../acp/SessionStore.js';
 
 /**
  * Events that can trigger a Lead steer.
@@ -79,6 +80,8 @@ export class LeadManager {
   private plannerRuntime: string | undefined;
 
   private plannerSessionId: string | null = null;
+  private sessionStore: SessionStore;
+  private transcriptSessionId: string | null = null;
   private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
   private suspendedLeadInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
 
@@ -90,6 +93,7 @@ export class LeadManager {
     this.heartbeatConfig = opts.heartbeat ?? { enabled: false, interval: 30 * 60 * 1000, conditions: [] };
     this.projectName = opts.projectName;
     this.agentCwd = opts.cwd ?? process.cwd();
+    this.sessionStore = new SessionStore(opts.projectName ?? 'default');
     this.leadRuntime = opts.leadRuntime;
     this.plannerRuntime = opts.plannerRuntime;
   }
@@ -182,7 +186,23 @@ export class LeadManager {
     const steer = this.buildSteer(event);
     const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer });
     this.lastSteerAt = new Date().toISOString();
+
+    // Log to SessionStore for session transcript search
+    this.logSessionEvent('user', steer);
+    if (response) this.logSessionEvent('agent', response);
+
     return response;
+  }
+
+  /** Log a conversation event to SessionStore for transcript search. */
+  private logSessionEvent(role: 'user' | 'agent', content: string): void {
+    try {
+      if (!this.transcriptSessionId) {
+        const entry = this.sessionStore.createSession(this.projectName ?? 'default', this.agentCwd);
+        this.transcriptSessionId = entry.id;
+      }
+      this.sessionStore.appendEvent(this.transcriptSessionId, { role, content, ts: Date.now() });
+    } catch { /* best effort */ }
   }
 
   /** Build a self-contained steer message with context */
