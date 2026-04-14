@@ -5,7 +5,7 @@ function hashId(prefix: string, ...parts: string[]): string {
   const hash = createHash('sha256')
     .update(parts.join(':'))
     .digest('hex')
-    .slice(0, 12);
+    .slice(0, 6);
   return `${prefix}-${hash}`;
 }
 
