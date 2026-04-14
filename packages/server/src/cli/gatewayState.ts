@@ -180,7 +180,7 @@ function isProcessAlive(pid: number): boolean {
  * Only kills if the original gateway PID is no longer alive (unclean shutdown).
  * Returns the number of processes killed.
  */
-export function cleanupOrphanedAgents(): number {
+export async function cleanupOrphanedAgents(): Promise<number> {
   const saved = loadAgentPids();
   if (!saved || saved.pids.length === 0) return 0;
 
@@ -206,8 +206,7 @@ export function cleanupOrphanedAgents(): number {
 
   // Give SIGTERM a moment, then SIGKILL any survivors
   if (killed > 0) {
-    // Synchronous sleep — acceptable at startup. Atomics.wait is non-busy.
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     for (const pid of saved.pids) {
       if (isProcessAlive(pid)) {

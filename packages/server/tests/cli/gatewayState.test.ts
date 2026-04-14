@@ -193,18 +193,18 @@ describe('gatewayState', () => {
     expect(fs.existsSync(AGENT_PIDS_FILE)).toBe(false);
   });
 
-  it('should not kill agents if gateway is still alive', () => {
+  it('should not kill agents if gateway is still alive', async () => {
     // Use our own PID as the "gateway" — it's alive
     saveAgentPids(process.pid, [999999]); // bogus PID
-    const killed = cleanupOrphanedAgents();
+    const killed = await cleanupOrphanedAgents();
     expect(killed).toBe(0);
   });
 
-  it('should detect dead gateway and clean up orphans', () => {
+  it('should detect dead gateway and clean up orphans', async () => {
     // Use a definitely-dead PID as the gateway
     // PID 2147483647 is max int, almost certainly not running
     saveAgentPids(2147483647, [2147483646]); // also dead
-    const killed = cleanupOrphanedAgents();
+    const killed = await cleanupOrphanedAgents();
     // Both PIDs are dead, so nothing actually killed, but cleanup runs
     expect(killed).toBe(0);
     // PID file should be cleaned up

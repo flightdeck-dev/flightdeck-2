@@ -30,7 +30,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
 
   // Clean up orphaned agent processes from a previous unclean shutdown
-  cleanupOrphanedAgents();
+  await cleanupOrphanedAgents();
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'copilot');
   const projectManager = new ProjectManager(acpAdapter);
