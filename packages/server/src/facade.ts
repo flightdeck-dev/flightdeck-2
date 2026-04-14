@@ -69,7 +69,7 @@ export class Flightdeck {
       specStore: this.specs,
     });
     this.roles = new RoleRegistry(projectName);
-    this.roles.discoverRepoRoles(process.cwd());
+    // Repo role discovery deferred to MCP subprocess where cwd is the project repo root
     this.learnings = new LearningsStore(this.project.subpath('.'));
     this.timers = new TimerManager((_agentId, _message) => {
       // Default callback — messages can be wired to agent queues later

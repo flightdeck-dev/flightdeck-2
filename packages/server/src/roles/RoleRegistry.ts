@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 import { fileURLToPath } from 'node:url';
+import { FD_HOME } from '../cli/constants.js';
 
 export interface RolePermissions {
   [key: string]: boolean;
@@ -92,12 +92,12 @@ export class RoleRegistry {
     this.loadFromDir(DEFAULTS_DIR);
 
     // Load global roles (can override built-ins)
-    const globalDir = join(homedir(), '.flightdeck', 'roles');
+    const globalDir = join(FD_HOME, 'roles');
     this.loadFromDir(globalDir);
 
     // Load project roles (can override global)
     if (projectName) {
-      const projectDir = join(homedir(), '.flightdeck', 'projects', projectName, 'roles');
+      const projectDir = join(FD_HOME, 'projects', projectName, 'roles');
       this.loadFromDir(projectDir);
     }
   }

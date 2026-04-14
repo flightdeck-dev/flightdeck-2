@@ -433,7 +433,9 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Role tools ──
 
-  server.tool('flightdeck_role_list', 'List all available roles', {}, async () => {
+  server.tool('flightdeck_role_list', 'List all available roles (built-in + custom from .github/agents/ and .claude/agents/)', {}, async () => {
+    // Discover repo-level custom roles on demand (cwd is the project repo root in MCP subprocess)
+    roleRegistry.discoverRepoRoles(process.cwd());
     const roles = roleRegistry.list().map(r => ({
       id: r.id, name: r.name, description: r.description, icon: r.icon, permissions: r.permissions,
     }));
@@ -1241,7 +1243,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_skill_list', 'List available skills and their role assignments', {}, async () => {
     skillManager.loadProjectConfig();
     const installed = skillManager.listInstalledSkills();
-    const repoSkills = skillManager.discoverRepoSkills();
+    const repoSkills = skillManager.discoverRepoSkills(process.cwd());
     skillManager.loadProjectConfig();
     const roleAssignments: Record<string, string[]> = {};
     const allRoles = ['lead', 'planner', 'worker', 'reviewer'] as const;
