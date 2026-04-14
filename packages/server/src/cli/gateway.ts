@@ -222,6 +222,19 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wss.on('connection', (socket: any, req: any) => {
+    // Auth check for WebSocket connections
+    if (authMode === 'token' && authToken) {
+      const wsAuthUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
+      const queryToken = wsAuthUrl.searchParams.get('token');
+      const authHeader = req.headers.authorization;
+      const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      const providedToken = queryToken || headerToken;
+      if (!providedToken || providedToken !== authToken) {
+        socket.close(4401, 'Unauthorized');
+        return;
+      }
+    }
+
     // Determine project from URL path: /ws/:projectName
     const wsUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
     const wsMatch = wsUrl.pathname.match(/^\/ws\/([^/]+)$/);

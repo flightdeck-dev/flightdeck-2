@@ -208,6 +208,10 @@ export class AcpAdapter extends AgentAdapter {
         // They should coordinate, not implement
         if (session.role === 'lead' || session.role === 'planner') {
           const rel = path.relative(session.cwd, filePath);
+          // Block path traversal: reject paths that resolve outside the project cwd
+          if (rel.startsWith('..') || path.isAbsolute(rel)) {
+            throw new Error(`Role '${session.role}' cannot write to '${params.path}'. Path resolves outside the project directory.`);
+          }
           const isAllowed = rel.startsWith('.flightdeck') || rel.startsWith('memory') || rel.endsWith('.md');
           if (!isAllowed) {
             throw new Error(`Role '${session.role}' cannot write to '${params.path}'. Only .flightdeck/, memory/, and .md files are allowed. Delegate implementation to worker agents.`);
@@ -237,9 +241,19 @@ export class AcpAdapter extends AgentAdapter {
       async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
         // Lead should not run arbitrary commands — only read operations
         if (session.role === 'lead') {
-          const cmd = params.command.toLowerCase();
+          const cmd = params.command;
+          const cmdLower = cmd.toLowerCase();
+          // Reject any command containing shell metacharacters to prevent injection
+          const shellMetaPattern = /[;|&`$(){}\n\r]/;
+          if (shellMetaPattern.test(cmd)) {
+            throw new Error(`Role 'lead' cannot run '${cmd}'. Commands with shell metacharacters are not allowed for lead agents.`);
+          }
+          // Extract the first token (the actual command) and check against allowlist
+          const firstToken = cmdLower.trim().split(/\s+/)[0];
+          // Handle absolute paths like /usr/bin/cat → cat
+          const cmdBasename = firstToken.split('/').pop() ?? firstToken;
           const allowedLeadCmds = ['cat', 'ls', 'find', 'grep', 'head', 'tail', 'wc', 'echo', 'flightdeck'];
-          if (!allowedLeadCmds.some(c => cmd.startsWith(c) || cmd.endsWith('/' + c))) {
+          if (!allowedLeadCmds.includes(cmdBasename)) {
             throw new Error(`Role 'lead' cannot run '${params.command}'. Lead agents can only run read-only commands. Delegate implementation to worker agents.`);
           }
         }
