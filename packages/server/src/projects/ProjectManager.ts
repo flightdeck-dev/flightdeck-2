@@ -1,10 +1,10 @@
 import { readdirSync, existsSync, statSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { Flightdeck } from '../facade.js';
 import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import { FD_HOME } from '../cli/constants.js';
 
-const PROJECTS_DIR = join(homedir(), '.flightdeck', 'projects');
+const PROJECTS_DIR = join(FD_HOME, 'projects');
 
 /**
  * Manages multiple Flightdeck project instances in a single daemon.

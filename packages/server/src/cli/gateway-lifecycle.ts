@@ -15,9 +15,9 @@ import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import type { AuthMode } from './gateway/auth.js';
-import { DEFAULT_PORT } from './constants.js';
+import { DEFAULT_PORT, FD_HOME } from './constants.js';
 
-const FD_DIR = join(homedir(), '.flightdeck');
+const FD_DIR = FD_HOME;
 const PID_FILE = join(FD_DIR, 'gateway.pid');
 const PORT_FILE = join(FD_DIR, 'gateway.port');
 const STATE_FILE = join(FD_DIR, 'gateway-state.json');

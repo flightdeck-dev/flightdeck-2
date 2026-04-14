@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { homedir } from 'node:os';
+import { FD_HOME } from '../cli/constants.js';
 
 export interface SessionEntry {
   id: string;
@@ -21,7 +21,7 @@ export class SessionStore {
   private baseDir: string;
 
   constructor(projectName: string) {
-    this.baseDir = path.join(homedir(), '.flightdeck', 'projects', projectName, 'sessions');
+    this.baseDir = path.join(FD_HOME, 'projects', projectName, 'sessions');
     fs.mkdirSync(this.baseDir, { recursive: true });
   }
 

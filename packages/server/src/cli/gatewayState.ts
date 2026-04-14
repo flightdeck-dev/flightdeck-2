@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
+import { FD_HOME } from './constants.js';
 
 export interface SavedSession {
   project: string;
@@ -24,7 +24,7 @@ export interface GatewayState {
   gatewayPid?: number;
 }
 
-const STATE_DIR = path.join(os.homedir(), '.flightdeck');
+const STATE_DIR = FD_HOME;
 const STATE_FILE = path.join(STATE_DIR, 'gateway-state.json');
 const RELOAD_CONFIG_FILE = path.join(STATE_DIR, 'reload-config.json');
 

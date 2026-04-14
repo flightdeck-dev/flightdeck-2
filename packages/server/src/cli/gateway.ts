@@ -1,6 +1,10 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents, type SavedSession } from './gatewayState.js';
+import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { FD_HOME } from './constants.js';
 
 export interface GatewayDeps {
   port: number;
@@ -28,6 +32,20 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
+
+  // One-time migration: move v2 data from ~/.flightdeck/ to ~/.flightdeck/v2/
+  const oldProjectsDir = join(homedir(), '.flightdeck', 'projects');
+  const newProjectsDir = join(FD_HOME, 'projects');
+  if (existsSync(oldProjectsDir) && !existsSync(newProjectsDir)) {
+    console.error('Migrating v2 data to ~/.flightdeck/v2/...');
+    mkdirSync(FD_HOME, { recursive: true });
+    renameSync(oldProjectsDir, newProjectsDir);
+    for (const f of ['gateway-state.json', 'agent-pids.json', 'reload-config.json']) {
+      const old = join(homedir(), '.flightdeck', f);
+      if (existsSync(old)) renameSync(old, join(FD_HOME, f));
+    }
+    console.error('Migration complete.');
+  }
 
   // Clean up orphaned agent processes from a previous unclean shutdown
   await cleanupOrphanedAgents();

@@ -6,6 +6,7 @@ import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { execSync } from 'node:child_process';
+import { FD_HOME } from '../constants.js';
 
 const PLIST_LABEL = 'ai.flightdeck.gateway';
 
@@ -74,9 +75,9 @@ function installLaunchd(): void {
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>${join(homedir(), '.flightdeck', 'gateway.log')}</string>
+  <string>${join(FD_HOME, 'gateway.log')}</string>
   <key>StandardErrorPath</key>
-  <string>${join(homedir(), '.flightdeck', 'gateway.log')}</string>
+  <string>${join(FD_HOME, 'gateway.log')}</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
@@ -96,7 +97,7 @@ function installLaunchd(): void {
 
   console.log(`Installed launchd service: ${plistPath}`);
   console.log('Gateway will start automatically on login.');
-  console.log(`Logs: ${join(homedir(), '.flightdeck', 'gateway.log')}`);
+  console.log(`Logs: ${join(FD_HOME, 'gateway.log')}`);
 }
 
 function uninstallLaunchd(): void {

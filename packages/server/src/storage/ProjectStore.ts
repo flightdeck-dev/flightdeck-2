@@ -1,10 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { homedir } from 'node:os';
 import type { ProjectConfig, FlightdeckJson, AgentRole } from '@flightdeck-ai/shared';
 import { generateAgentConfigs, type AgentConfigOutput } from '../agents/AgentConfigs.js';
+import { FD_HOME } from '../cli/constants.js';
 
-const FLIGHTDECK_HOME = join(homedir(), '.flightdeck');
+const FLIGHTDECK_HOME = FD_HOME;
 const SUBDIRS = ['specs', 'decisions', 'memory', 'agents', 'messages', 'reports'];
 
 const HEARTBEAT_TEMPLATE = `# Heartbeat Instructions

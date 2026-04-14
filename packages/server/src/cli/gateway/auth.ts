@@ -11,11 +11,11 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { FD_HOME } from '../constants.js';
 
-const FD_DIR = join(homedir(), '.flightdeck');
+const FD_DIR = FD_HOME;
 const TOKEN_FILE = join(FD_DIR, 'gateway.token');
 
 export type AuthMode = 'none' | 'token';

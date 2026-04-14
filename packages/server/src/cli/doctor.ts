@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { FD_HOME } from './constants.js';
 
 interface CheckResult {
   name: string;
@@ -32,7 +32,7 @@ interface DoctorReport {
   summary: { passed: number; warnings: number; errors: number };
 }
 
-const FD_DIR = join(homedir(), '.flightdeck');
+const FD_DIR = FD_HOME;
 const PID_FILE = join(FD_DIR, 'gateway.pid');
 const PORT_FILE = join(FD_DIR, 'gateway.port');
 
