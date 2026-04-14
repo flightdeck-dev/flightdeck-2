@@ -11,6 +11,8 @@ import {
   type NewSessionResponse,
   type LoadSessionRequest,
   type LoadSessionResponse,
+  type ListSessionsRequest,
+  type ListSessionsResponse,
   type PromptRequest,
   type PromptResponse,
   type CancelNotification,
@@ -259,6 +261,41 @@ export class AcpAgentServer implements Agent {
 
   async cancel(_params: CancelNotification): Promise<void> {
     this.cancelled = true;
+  }
+
+  async listSessions(params: ListSessionsRequest): Promise<ListSessionsResponse> {
+    if (!this.sessionStore) {
+      return { sessions: [] };
+    }
+
+    // Get all sessions from the store
+    let sessions = this.sessionStore.listAll();
+
+    // Filter by cwd if specified
+    if (params.cwd) {
+      sessions = sessions.filter(s => s.cwd === params.cwd);
+    }
+
+    // Map to ACP SessionInfo format
+    const sessionInfos = sessions.map(s => ({
+      sessionId: s.id,
+      cwd: s.cwd,
+      title: s.projectName,
+      updatedAt: s.lastActiveAt,
+    }));
+
+    // Simple cursor-based pagination (use index as cursor)
+    const pageSize = 50;
+    const startIdx = params.cursor ? parseInt(params.cursor, 10) : 0;
+    const page = sessionInfos.slice(startIdx, startIdx + pageSize);
+    const nextCursor = startIdx + pageSize < sessionInfos.length
+      ? String(startIdx + pageSize)
+      : null;
+
+    return {
+      sessions: page,
+      nextCursor,
+    };
   }
 
   async authenticate(_params: AuthenticateRequest): Promise<AuthenticateResponse> {

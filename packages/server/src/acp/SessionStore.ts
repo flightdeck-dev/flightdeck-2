@@ -71,6 +71,11 @@ export class SessionStore {
     return this.readIndex().filter(e => e.projectName === projectName);
   }
 
+  /** List all sessions regardless of project. */
+  listAll(): SessionEntry[] {
+    return this.readIndex();
+  }
+
   appendEvent(sessionId: string, event: SessionEvent): void {
     fs.appendFileSync(this.eventLogPath(sessionId), JSON.stringify(event) + '\n');
   }
