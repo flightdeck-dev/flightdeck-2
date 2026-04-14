@@ -8,6 +8,8 @@ export { MemoryStore } from './storage/MemoryStore.js';
 export { MessageLog } from './storage/MessageLog.js';
 export { ReportStore } from './storage/ReportStore.js';
 export { TaskDAG } from './dag/TaskDAG.js';
+export { CronStore } from './cron/CronStore.js';
+export { CronScheduler } from './cron/CronScheduler.js';
 export { GovernanceEngine } from './governance/GovernanceEngine.js';
 export { Verifier } from './verification/Verifier.js';
 export { Orchestrator } from './orchestrator/Orchestrator.js';

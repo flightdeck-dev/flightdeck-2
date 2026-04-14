@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
+import { CronStore } from '../cron/CronStore.js';
+import { CronScheduler } from '../cron/CronScheduler.js';
 
 export interface GatewayDeps {
   port: number;
@@ -125,6 +127,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wsServers = new Map<string, any>();
   const orchestrators: Array<{ stop: () => void; start: () => void }> = [];
+  const cronSchedulers: Array<{ stop: () => void }> = [];
   const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
   const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
 
@@ -172,6 +175,18 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       plannerRuntime: plannerRoleConfig.runtime,
     });
     leadManagers.set(name, leadManager);
+
+    // Create and start cron scheduler
+    const cronStore = new CronStore(fd.project.subpath('.'));
+    const cronScheduler = new CronScheduler(cronStore, async (job) => {
+      const response = await leadManager.steerLead({
+        type: 'cron',
+        job: { id: job.id, name: job.name, prompt: job.prompt, skill: job.skill },
+      });
+      return response;
+    });
+    cronScheduler.start();
+    cronSchedulers.push(cronScheduler);
 
     // Create WebSocketServer
     const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
@@ -380,6 +395,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
 
     for (const o of orchestrators) o.stop();
+    for (const cs of cronSchedulers) cs.stop();
     for (const lm of leadManagers.values()) lm.stop();
     acpAdapter.clear();
     // Clean up PID tracking — graceful shutdown means no orphans

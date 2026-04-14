@@ -33,7 +33,8 @@ export type LeadEvent =
   | { type: 'budget_warning'; currentSpend: number; limit: number }
   | { type: 'spec_changed'; specId: string; summary: string }
   | { type: 'heartbeat' }
-  | { type: 'worker_recovery'; message: string };
+  | { type: 'worker_recovery'; message: string }
+  | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } };
 
 export interface HeartbeatCondition {
   type: 'tasks_completed' | 'idle_duration' | 'time_window' | 'spec_completed' | 'cost_threshold' | 'custom';
@@ -282,6 +283,12 @@ export class LeadManager {
         parts.push('[worker recovery]');
         parts.push(event.message);
         break;
+
+      case 'cron': {
+        parts.push(`[cron: ${event.job.name}]`);
+        parts.push(event.job.prompt);
+        break;
+      }
     }
 
     return parts.join('\n');
