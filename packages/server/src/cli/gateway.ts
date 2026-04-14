@@ -256,6 +256,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   });
 
   httpServer.listen(port, bindAddress, () => {
+    // Set FLIGHTDECK_URL so MCP subprocesses can relay agent operations back to gateway
+    process.env.FLIGHTDECK_URL = `http://${bindAddress === '0.0.0.0' ? '127.0.0.1' : bindAddress}:${port}`;
     console.error(`\nHTTP server listening on ${bindAddress}:${port}.`);
     console.error(`Projects: ${projectNames.join(', ')}`);
     console.error(`WebSocket: connect to /ws/:projectName`);

@@ -5,9 +5,13 @@ import type { ProjectManager } from '../projects/ProjectManager.js';
 import type { WebhookNotifier } from '../integrations/WebhookNotifier.js';
 import { leadResponseEvent } from '../integrations/WebhookNotifier.js';
 
+import type { AgentManager } from '../agents/AgentManager.js';
+import type { AgentRole } from '@flightdeck-ai/shared';
+
 export interface HttpServerDeps {
   projectManager: ProjectManager;
   leadManagers: Map<string, LeadManager>;
+  agentManagers?: Map<string, AgentManager>;
   port: number;
   corsOrigin: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,7 +27,7 @@ export interface HttpServerDeps {
  * All project routes are scoped under /api/projects/:name/*.
  */
 export function createHttpServer(deps: HttpServerDeps): Server {
-  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers } = deps;
+  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers } = deps;
 
   let modelCfg: InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig> | null = null;
   let presetNames: string[] = [];
@@ -215,6 +219,70 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       if (task) json(200, task); else json(404, { error: 'Task not found' });
     } else if (subPath === '/agents' && method === 'GET') {
       json(200, fd.listAgents());
+    } else if (subPath === '/agents/spawn' && method === 'POST') {
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available for this project' }); return; }
+      try {
+        const body = await readBody();
+        if (!body.role) { json(400, { error: 'Missing required field: role' }); return; }
+        const newAgent = await am.spawnAgent({
+          role: body.role as AgentRole,
+          model: body.model,
+          task: body.task,
+          cwd: body.cwd ?? fd.project.subpath('.'),
+          projectName,
+        });
+        json(201, newAgent);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg === 'Body too large') json(413, { error: msg });
+        else if (msg === 'Invalid JSON') json(400, { error: msg });
+        else json(500, { error: `Failed to spawn agent: ${msg}` });
+      }
+    } else if (subPath.match(/^\/agents\/[^/]+\/terminate$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        await am.terminateAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, { success: true });
+      } catch (e: unknown) { json(500, { error: `Failed to terminate agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/restart$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        const restarted = await am.restartAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, restarted);
+      } catch (e: unknown) { json(500, { error: `Failed to restart agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/interrupt$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        const body = await readBody();
+        if (!body.message) { json(400, { error: 'Missing required field: message' }); return; }
+        await am.interruptAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message);
+        json(200, { success: true });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg === 'Body too large' || msg === 'Invalid JSON') json(400, { error: msg });
+        else json(500, { error: `Failed to interrupt agent: ${msg}` });
+      }
+    } else if (subPath.match(/^\/agents\/[^/]+\/send$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        const body = await readBody();
+        if (!body.message) { json(400, { error: 'Missing required field: message' }); return; }
+        await am.sendToAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message);
+        json(200, { success: true });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg === 'Body too large' || msg === 'Invalid JSON') json(400, { error: msg });
+        else json(500, { error: `Failed to send to agent: ${msg}` });
+      }
     } else if (subPath === '/decisions' && method === 'GET') {
       const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
       json(200, fd.decisions.readAll().slice(0, limit));

@@ -16,6 +16,7 @@ import type { AcpAdapter } from '../agents/AcpAdapter.js';
 import { ModelConfig } from '../agents/ModelConfig.js';
 import { getToolsForRole } from './toolPermissions.js';
 import { agentMessageEvent } from '../integrations/WebhookNotifier.js';
+import { GatewayRelay } from './gatewayRelay.js';
 
 const _ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
@@ -99,6 +100,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   const fd = new Flightdeck(name);
   const roleRegistry = fd.roles;
   const agentManager = opts.agentManager ?? null;
+
+  // When no AgentManager (MCP subprocess), create HTTP relay to gateway
+  // Only create relay when FLIGHTDECK_URL is explicitly set (indicates gateway is running)
+  const gatewayUrl = process.env.FLIGHTDECK_URL;
+  const relay = !agentManager && gatewayUrl ? new GatewayRelay(gatewayUrl, name) : null;
+
   const server = new McpServer({ name: 'flightdeck', version: '2.0.0' });
 
   // Helper: check permission
@@ -479,7 +486,21 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       }
     }
 
-    // Fallback: SQLite-only registration (no real process)
+    // Relay via gateway HTTP when in MCP subprocess mode
+    if (relay) {
+      try {
+        const newAgent = await relay.spawnAgent({
+          role: params.role,
+          model: params.model,
+          task: params.task,
+          cwd: params.cwd ?? fd.project.subpath('.'),
+        });
+        return jsonResponse(newAgent);
+      } catch (err) {
+        return errorResponse(`Error spawning agent via gateway: ${(err as Error).message}`);
+      }
+    }
+    // Fallback: SQLite-only registration (no real process — ghost record)
     const newId = makeAgentId(params.role, Date.now().toString());
     const newAgent: Agent = {
       id: newId,
@@ -511,6 +532,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       } catch (err) {
         return errorResponse(`Error terminating agent: ${(err as Error).message}`);
       }
+    } else if (relay) {
+      try {
+        await relay.terminateAgent(params.targetAgentId);
+      } catch (err) {
+        return errorResponse(`Error terminating agent via gateway: ${(err as Error).message}`);
+      }
     } else {
       fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'offline');
     }
@@ -539,6 +566,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         return errorResponse(`Error restarting agent: ${(err as Error).message}`);
       }
     }
+    if (relay) {
+      try {
+        const restarted = await relay.restartAgent(params.targetAgentId);
+        return jsonResponse({ status: 'restarted', agentId: params.targetAgentId, agent: restarted });
+      } catch (err) {
+        return errorResponse(`Error restarting agent via gateway: ${(err as Error).message}`);
+      }
+    }
     fd.sqlite.updateAgentStatus(params.targetAgentId as AgentId, 'idle');
     return jsonResponse({ status: 'restarted', agentId: params.targetAgentId });
   });
@@ -558,6 +593,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
       } catch (err) {
         return errorResponse(`Error interrupting agent: ${(err as Error).message}`);
+      }
+    }
+    if (relay) {
+      try {
+        await relay.interruptAgent(params.targetAgentId, params.message);
+        return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
+      } catch (err) {
+        return errorResponse(`Error interrupting agent via gateway: ${(err as Error).message}`);
       }
     }
     const msg: Message = {
@@ -607,6 +650,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       } catch {
         // Agent may not have an active session — message is stored for later
         return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message will be delivered when agent comes online.' });
+      }
+    }
+    if (relay) {
+      try {
+        await relay.sendToAgent(params.to, `[DM from ${params.from}]: ${params.content}`);
+        return jsonResponse({ status: 'delivered', to: params.to });
+      } catch {
+        return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable via gateway; message stored for later.' });
       }
     }
     return jsonResponse({ status: 'sent', to: params.to });
