@@ -32,6 +32,7 @@ import { Flightdeck } from '../facade.js';
 import { LeadManager, type LeadEvent } from '../lead/LeadManager.js';
 import { AcpAdapter } from '../agents/AcpAdapter.js';
 import { DEFAULT_RUNTIMES } from '../agents/SessionManager.js';
+import { modelRegistry } from '../agents/ModelTiers.js';
 
 export class AcpAgentServer implements Agent {
   private conn!: AgentSideConnection;
@@ -62,6 +63,7 @@ export class AcpAgentServer implements Agent {
         loadSession: true,
         promptCapabilities: {
           embeddedContext: true,
+          image: true,
         },
         sessionCapabilities: {
           list: {},
@@ -129,6 +131,33 @@ export class AcpAgentServer implements Agent {
     return options;
   }
 
+  /** Build available models state from the model registry, grouped by runtime. */
+  private buildModelState(): { availableModels: Array<{ modelId: string; name: string; description?: string }>; currentModelId: string } | null {
+    const runtimes = modelRegistry.getRuntimes();
+    if (runtimes.length === 0) {
+      // No models registered yet (Lead hasn't spawned)
+      return null;
+    }
+
+    const availableModels: Array<{ modelId: string; name: string; description?: string }> = [];
+    for (const rt of runtimes) {
+      const models = modelRegistry.getModels(rt);
+      for (const m of models) {
+        // Prefix with runtime name for disambiguation across providers
+        availableModels.push({
+          modelId: m.modelId,
+          name: `${m.displayName} (${rt})`,
+          description: `${m.tier} tier via ${rt} runtime`,
+        });
+      }
+    }
+
+    return {
+      availableModels,
+      currentModelId: this.currentModel ?? 'default',
+    };
+  }
+
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     // Read model/runtime from _meta if provided
     const meta = params._meta as Record<string, unknown> | undefined;
@@ -148,6 +177,7 @@ export class AcpAgentServer implements Agent {
     return {
       sessionId: entry.id,
       configOptions: this.buildConfigOptions(),
+      models: this.buildModelState(),
     };
   }
 
@@ -183,11 +213,24 @@ export class AcpAgentServer implements Agent {
     const sessionId = params.sessionId;
     this.currentSessionId = sessionId;
 
-    // Extract text from content blocks
+    // Extract content from all block types
     const textParts: string[] = [];
     for (const block of params.prompt) {
       if (block.type === 'text') {
         textParts.push(block.text);
+      } else if (block.type === 'image') {
+        textParts.push(`[Image: ${(block as { mimeType?: string }).mimeType ?? 'image'}]`);
+      } else if (block.type === 'resource') {
+        // Embedded resource — extract text content if available
+        const res = block as { resource?: { uri?: string; text?: string } };
+        if (res.resource?.text) {
+          textParts.push(`[Resource: ${res.resource.uri ?? 'unknown'}]\n${res.resource.text}`);
+        } else {
+          textParts.push(`[Resource: ${res.resource?.uri ?? 'unknown'}]`);
+        }
+      } else if (block.type === 'resource_link') {
+        const link = block as { uri?: string };
+        textParts.push(`[ResourceLink: ${link.uri ?? 'unknown'}]`);
       }
     }
     const text = textParts.join('\n');
@@ -261,6 +304,21 @@ export class AcpAgentServer implements Agent {
 
   async cancel(_params: CancelNotification): Promise<void> {
     this.cancelled = true;
+
+    // Relay cancel to the Lead's underlying ACP session
+    if (this.leadManager && this.acpAdapter) {
+      const leadSessionId = this.leadManager.getLeadSessionId();
+      if (leadSessionId) {
+        const session = this.acpAdapter.getSession(leadSessionId);
+        if (session?.acpSessionId && session.status !== 'ended') {
+          try {
+            await session.connection.cancel({ sessionId: session.acpSessionId });
+          } catch {
+            // Best effort — agent may have already finished
+          }
+        }
+      }
+    }
   }
 
   async listSessions(params: ListSessionsRequest): Promise<ListSessionsResponse> {
