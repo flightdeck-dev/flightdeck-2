@@ -929,20 +929,16 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       }
     }
 
-    // Session transcript search (falls back to memory)
-    if (source === 'all' || source === 'session') {
-      const sessionResults = fd.searchMemory(params.query, limit);
-      for (const r of sessionResults) {
-        results.push({ source: 'session', ...r });
-      }
-    }
+    // TODO: Session transcript search via gateway API (SessionStore lives in gateway process)
+    // For now, 'session' source is not available in MCP subprocess.
+    // Use source='chat' for message history or source='memory' for project notes.
 
     return jsonResponse({ count: results.length, results });
   }
 
   server.tool('flightdeck_search', 'Search across all project data sources: chat messages, project memory files, and session transcripts. Results are tagged with their source.', {
     query: z.string().describe('Search query (keywords or phrases)'),
-    source: z.enum(['all', 'chat', 'memory', 'session']).optional().describe('Data source to search. Default: all'),
+    source: z.enum(['all', 'chat', 'memory']).optional().describe('Data source to search. Default: all'),
     authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter chat results by author type'),
     limit: z.number().optional().describe('Max results per source (default 10)'),
     agentId: z.string(),
