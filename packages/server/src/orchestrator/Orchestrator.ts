@@ -462,7 +462,7 @@ export class Orchestrator {
         if (meta.status === 'idle') {
           // Idle session, task not submitted — light ping
           await this.adapter.steer(task.acpSessionId, {
-            content: `Task ${task.id} ("${task.title}") is still assigned to you. Please submit progress or report if you're blocked.`,
+            content: `[${new Date().toISOString().slice(0, 19)}Z] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
           });
           detected++;
         }
@@ -558,8 +558,9 @@ export class Orchestrator {
 
         // Auto-steer the worker with task details so it starts working immediately
         if (this.agentManager && agent.acpSessionId) {
+          const ts = new Date().toISOString().slice(0, 19) + 'Z';
           void this.agentManager.sendToAgent(agent.id as AgentId,
-            `You have been assigned task "${task.title}" (ID: ${task.id}).${task.description ? '\n\nDescription: ' + task.description : ''}\n\nPlease work on this task and submit your results using flightdeck_task_submit when done. If you're blocked, use flightdeck_escalate.`
+            `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`
           ).catch(() => { /* best effort */ });
         }
       } catch {

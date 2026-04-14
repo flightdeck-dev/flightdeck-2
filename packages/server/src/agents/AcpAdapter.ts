@@ -753,13 +753,15 @@ export class AcpAdapter extends AgentAdapter {
 
     if (!session.acpSessionId) {
       // Session not yet initialized — queue the message for later
-      const prefix = message.urgent ? '[URGENT] ' : '';
+      const ts = new Date().toISOString().slice(0, 19) + 'Z';
+      const prefix = message.urgent ? `[${ts}] [URGENT] ` : '';
       return new Promise<string>((resolve, reject) => {
         session.promptQueue.push({ content: prefix + message.content, priority: !!message.urgent, resolve, reject });
       });
     }
 
-    const prefix = message.urgent ? '[URGENT] ' : '';
+    const ts = new Date().toISOString().slice(0, 19) + 'Z';
+    const prefix = message.urgent ? `[${ts}] [URGENT] ` : '';
     const text = prefix + message.content;
 
     // If a prompt is already in-flight, queue the message instead of interrupting

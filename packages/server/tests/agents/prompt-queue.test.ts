@@ -77,7 +77,7 @@ describe('AcpAdapter prompt queue', () => {
 
     expect(session.promptQueue).toHaveLength(3);
     // Priority item should be first
-    expect(session.promptQueue[0].content).toBe('[URGENT] urgent!');
+    expect(session.promptQueue[0].content).toContain('[URGENT] urgent!');
     expect(session.promptQueue[0].priority).toBe(true);
     expect(session.promptQueue[1].content).toBe('normal 1');
     expect(session.promptQueue[2].content).toBe('normal 2');
@@ -101,8 +101,8 @@ describe('AcpAdapter prompt queue', () => {
     await new Promise(r => setTimeout(r, 10));
 
     expect(session.promptQueue).toHaveLength(3);
-    expect(session.promptQueue[0].content).toBe('[URGENT] urgent 1');
-    expect(session.promptQueue[1].content).toBe('[URGENT] urgent 2');
+    expect(session.promptQueue[0].content).toContain('[URGENT] urgent 1');
+    expect(session.promptQueue[1].content).toContain('[URGENT] urgent 2');
     expect(session.promptQueue[2].content).toBe('normal');
 
     // Clean up

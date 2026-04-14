@@ -210,12 +210,13 @@ export class LeadManager {
     const parts: string[] = [];
 
     switch (event.type) {
-      case 'user_message':
-        parts.push(`[user message]`);
-        parts.push(`User says: ${event.message.content}`);
+      case 'user_message': {
+        const ts = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${ts}] [USER] ${event.message.content}`);
         parts.push('');
         parts.push(`For project status: read .flightdeck/status.md`);
         break;
+      }
 
       case 'task_comment':
         parts.push(`[task comment]`);

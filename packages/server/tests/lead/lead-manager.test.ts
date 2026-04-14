@@ -33,7 +33,7 @@ describe('LeadManager', () => {
       type: 'user_message',
       message: { id: 'msg-1', threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'user', content: 'Hello Lead', metadata: null, createdAt: new Date().toISOString(), updatedAt: null },
     });
-    expect(steer).toContain('[user message]');
+    expect(steer).toContain('[USER]');
     expect(steer).toContain('Hello Lead');
   });
 

@@ -218,7 +218,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
       });
 
       expect(adapter.steerLog).toHaveLength(1);
-      expect(adapter.steerLog[0].message.content).toContain('User says: Implement the auth module');
+      expect(adapter.steerLog[0].message.content).toContain('Implement the auth module');
     });
 
     it('steers lead with urgent interrupt via AgentManager', async () => {
@@ -549,7 +549,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
         type: 'user_message',
         message: { id: 'msg-1', role: 'user', content: 'Fix the bug in login', timestamp: new Date().toISOString() } as any,
       });
-      expect(steer).toContain('[user message]');
+      expect(steer).toContain('[USER]');
       expect(steer).toContain('Fix the bug in login');
     });
 

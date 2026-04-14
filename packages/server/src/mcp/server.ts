@@ -30,6 +30,20 @@ function jsonResponse(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
+/** Format a timestamped message for agent consumption. */
+function formatAgentMessage(type: 'dm' | 'user' | 'system' | 'urgent', opts: {
+  from?: string;
+  fromRole?: string;
+  content: string;
+}): string {
+  const ts = new Date().toISOString().slice(0, 19) + 'Z';
+  const sender = opts.from
+    ? opts.fromRole ? `${opts.fromRole} (${opts.from})` : opts.from
+    : type;
+  const tag = type === 'urgent' ? 'URGENT' : type.toUpperCase();
+  return `[${ts}] [${tag} from ${sender}] ${opts.content}`;
+}
+
 function resolveAgent(fd: Flightdeck, agentId: string, _toolName: string) {
   const agent = fd.sqlite.getAgent(agentId as AgentId);
   if (!agent) {
@@ -817,9 +831,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       fd.sendMessage(msg);
       const notifier = fd.orchestrator.getWebhookNotifier();
       if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, params.from, params.to, params.content));
+      const senderAgent = fd.sqlite.getAgent(params.from as AgentId);
+      const dmText = formatAgentMessage('dm', { from: params.from, fromRole: senderAgent?.role, content: params.content });
       if (agentManager) {
         try {
-          await agentManager.sendToAgent(params.to as AgentId, `[DM from ${params.from}]: ${params.content}`);
+          await agentManager.sendToAgent(params.to as AgentId, dmText);
           return jsonResponse({ status: 'delivered', to: params.to });
         } catch {
           return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable; message will be delivered when agent comes online.' });
@@ -827,7 +843,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       }
       if (relay) {
         try {
-          await relay.sendToAgent(params.to, `[DM from ${params.from}]: ${params.content}`);
+          await relay.sendToAgent(params.to, dmText);
           return jsonResponse({ status: 'delivered', to: params.to });
         } catch {
           return jsonResponse({ status: 'sent', to: params.to, note: 'Agent not reachable via gateway; message stored for later.' });
