@@ -121,6 +121,17 @@ export class AcpAdapter extends AgentAdapter {
   /** Callback fired when a session ends (process exit, crash, etc.) */
   onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
 
+  /** Get PIDs of all living child agent processes (for orphan tracking). */
+  getChildPids(): number[] {
+    const pids: number[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.status !== 'ended' && session.process.pid) {
+        pids.push(session.process.pid);
+      }
+    }
+    return pids;
+  }
+
   /** Schedule cleanup of ended session from memory after a grace period */
   private scheduleSessionCleanup(sessionId: string): void {
     setTimeout(() => {

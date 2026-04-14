@@ -1,6 +1,6 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
-import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, type SavedSession } from './gatewayState.js';
+import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents, type SavedSession } from './gatewayState.js';
 
 export interface GatewayDeps {
   port: number;
@@ -28,6 +28,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
+
+  // Clean up orphaned agent processes from a previous unclean shutdown
+  cleanupOrphanedAgents();
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'copilot');
   const projectManager = new ProjectManager(acpAdapter);
@@ -359,6 +362,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     for (const o of orchestrators) o.stop();
     for (const lm of leadManagers.values()) lm.stop();
     acpAdapter.clear();
+    // Clean up PID tracking — graceful shutdown means no orphans
+    clearAgentPids();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (wss as any).close();
     httpServer.close();
@@ -377,6 +382,13 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const sessions = collectSessions();
       if (sessions.length > 0) {
         saveGatewayState({ savedAt: new Date().toISOString(), sessions });
+      }
+      // Also persist child PIDs for orphan detection on unclean restart
+      const childPids = acpAdapter.getChildPids();
+      if (childPids.length > 0) {
+        saveAgentPids(process.pid, childPids);
+      } else {
+        clearAgentPids();
       }
     } catch { /* best effort — don't crash the gateway */ }
   }, STATE_SAVE_INTERVAL);

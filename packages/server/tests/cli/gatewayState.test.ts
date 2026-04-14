@@ -9,8 +9,13 @@ import {
   loadReloadConfig,
   markReloadFailed,
   clearReloadFailed,
+  saveAgentPids,
+  loadAgentPids,
+  clearAgentPids,
+  cleanupOrphanedAgents,
   STATE_FILE,
   RELOAD_CONFIG_FILE,
+  AGENT_PIDS_FILE,
   type GatewayState,
   type SavedSession,
 } from '../../src/cli/gatewayState.js';
@@ -18,6 +23,7 @@ import {
 describe('gatewayState', () => {
   afterEach(() => {
     clearGatewayState();
+    clearAgentPids();
     try { fs.unlinkSync(RELOAD_CONFIG_FILE); } catch { /* ignore */ }
   });
 
@@ -163,5 +169,45 @@ describe('gatewayState', () => {
     clearGatewayState();
     markReloadFailed(); // should not throw
     expect(loadGatewayState()).toBeNull();
+  });
+
+  // --- Agent PID tracking tests ---
+
+  it('should save and load agent PIDs', () => {
+    saveAgentPids(12345, [100, 200, 300]);
+    const loaded = loadAgentPids();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.gatewayPid).toBe(12345);
+    expect(loaded!.pids).toEqual([100, 200, 300]);
+  });
+
+  it('should return null when no PID file exists', () => {
+    clearAgentPids();
+    expect(loadAgentPids()).toBeNull();
+  });
+
+  it('should clear agent PIDs file', () => {
+    saveAgentPids(12345, [100]);
+    expect(fs.existsSync(AGENT_PIDS_FILE)).toBe(true);
+    clearAgentPids();
+    expect(fs.existsSync(AGENT_PIDS_FILE)).toBe(false);
+  });
+
+  it('should not kill agents if gateway is still alive', () => {
+    // Use our own PID as the "gateway" — it's alive
+    saveAgentPids(process.pid, [999999]); // bogus PID
+    const killed = cleanupOrphanedAgents();
+    expect(killed).toBe(0);
+  });
+
+  it('should detect dead gateway and clean up orphans', () => {
+    // Use a definitely-dead PID as the gateway
+    // PID 2147483647 is max int, almost certainly not running
+    saveAgentPids(2147483647, [2147483646]); // also dead
+    const killed = cleanupOrphanedAgents();
+    // Both PIDs are dead, so nothing actually killed, but cleanup runs
+    expect(killed).toBe(0);
+    // PID file should be cleaned up
+    expect(loadAgentPids()).toBeNull();
   });
 });
