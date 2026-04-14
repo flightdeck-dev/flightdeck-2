@@ -218,7 +218,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const task = fd.listTasks().find(t => t.id === taskId);
       if (task) json(200, task); else json(404, { error: 'Task not found' });
     } else if (subPath === '/agents' && method === 'GET') {
-      json(200, fd.listAgents());
+      const includeRetired = url.searchParams.get('includeRetired') === 'true';
+      json(200, fd.listAgents(includeRetired));
     } else if (subPath === '/agents/spawn' && method === 'POST') {
       const am = agentManagers?.get(projectName) ?? fd.agentManager;
       if (!am) { json(500, { error: 'No AgentManager available for this project' }); return; }
