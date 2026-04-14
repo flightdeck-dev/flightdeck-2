@@ -514,7 +514,7 @@ export class AcpAdapter extends AgentAdapter {
       let result: Awaited<ReturnType<typeof session.connection.newSession>>;
       if (isClaudeCode) {
         const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Claude Code session creation timed out after 60s')), 60_000)
+          setTimeout(() => reject(new Error('Claude Code session creation timed out after 5min')), 300_000)
         );
         result = await Promise.race([newSessionPromise, timeout]);
       } else {
