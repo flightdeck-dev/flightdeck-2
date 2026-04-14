@@ -320,24 +320,17 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           a.status === 'busy' && a.acpSessionId && !['lead', 'planner'].includes(a.role)
         );
         for (const agent of workerAgents) {
-          // Find the local session ID from AcpAdapter by matching acpSessionId
-          const activeSessions = acpAdapter.getActiveSessions();
-          const workerSession = activeSessions.find(s => s.agentId === agent.id);
-          if (workerSession) {
-            const acpSid = acpAdapter.getAcpSessionId(workerSession.id);
-            if (acpSid && workerSession.status !== 'ended') {
-              sessions.push({
-                project: projectName,
-                agentId: agent.id as string,
-                role: agent.role,
-                acpSessionId: acpSid,
-                localSessionId: workerSession.id,
-                cwd: workerSession.cwd,
-                model: workerSession.model,
-                status: 'active',
-              });
-            }
-          }
+          // Workers spawned via HTTP relay have their acpSessionId in the DB.
+          // Use it directly instead of looking up via AcpAdapter (which may not track relay-spawned workers).
+          sessions.push({
+            project: projectName,
+            agentId: agent.id as string,
+            role: agent.role,
+            acpSessionId: agent.acpSessionId!,
+            localSessionId: agent.acpSessionId!,
+            cwd: process.cwd(),
+            status: 'active',
+          });
         }
       }
     }
@@ -347,6 +340,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Graceful shutdown
   const shutdown = () => {
     console.error('\nStopping Flightdeck gateway...');
+    clearInterval(stateSaveTimer);
 
     // Save session state before cleanup
     const sessions = collectSessions();
@@ -365,6 +359,20 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  // Periodic state persistence — saves sessions every 30s as a safety net.
+  // Handles cases where SIGTERM doesn't reach the process (e.g. npx/tsx wrappers,
+  // SIGKILL, OOM kills). On restart, the latest state file is used for recovery.
+  const STATE_SAVE_INTERVAL = 30_000;
+  const stateSaveTimer = setInterval(() => {
+    try {
+      const sessions = collectSessions();
+      if (sessions.length > 0) {
+        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
+      }
+    } catch { /* best effort — don't crash the gateway */ }
+  }, STATE_SAVE_INTERVAL);
+  stateSaveTimer.unref(); // Don't prevent process exit
 
   // SIGUSR1: hot reload — re-scan projects, restart orchestrators, keep agent processes alive
   process.on('SIGUSR1', () => {
@@ -612,18 +620,17 @@ async function recoverWorkers(
     }
   }
 
-  // Notify Lead about worker recovery status
+  // Notify Lead about worker recovery status (non-blocking — don't hold up gateway startup)
   if (pausedTasks.length > 0) {
     const summary = pausedTasks.map(t => `- ${t.title} (${t.id})`).join('\n');
-    try {
-      await leadManager.steerLead({
-        type: 'worker_recovery',
-        message: `Session reloaded. ${pausedTasks.length} worker task(s) paused from previous session:\n${summary}\n\nUse flightdeck_agent_wake to resume hibernated workers, flightdeck_agent_retire to dismiss ones you don't need, or spawn new workers.`,
-      });
+    leadManager.steerLead({
+      type: 'worker_recovery',
+      message: `Session reloaded. ${pausedTasks.length} worker task(s) paused from previous session:\n${summary}\n\nUse flightdeck_agent_wake to resume hibernated workers, flightdeck_agent_retire to dismiss ones you don't need, or spawn new workers.`,
+    }).then(() => {
       console.error(`  [${projectName}] Notified Lead about ${pausedTasks.length} paused worker task(s).`);
-    } catch (err) {
+    }).catch((err: unknown) => {
       console.error(`  [${projectName}] Failed to notify Lead about paused workers: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    });
   }
 
   if (continueWorkers) {
