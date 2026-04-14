@@ -105,6 +105,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
   const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
 
+  // Set FLIGHTDECK_URL early so MCP subprocesses (spawned during agent init) inherit it.
+  // This must happen BEFORE spawnAgents() so Lead/Planner MCP can relay back to gateway.
+  process.env.FLIGHTDECK_URL = `http://${bindAddress === '0.0.0.0' ? '127.0.0.1' : bindAddress}:${port}`;
+
   for (const name of projectNames) {
     const fd = projectManager.get(name)!;
     const profile = fd.status().config.governance;
@@ -256,8 +260,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   });
 
   httpServer.listen(port, bindAddress, () => {
-    // Set FLIGHTDECK_URL so MCP subprocesses can relay agent operations back to gateway
-    process.env.FLIGHTDECK_URL = `http://${bindAddress === '0.0.0.0' ? '127.0.0.1' : bindAddress}:${port}`;
     console.error(`\nHTTP server listening on ${bindAddress}:${port}.`);
     console.error(`Projects: ${projectNames.join(', ')}`);
     console.error(`WebSocket: connect to /ws/:projectName`);

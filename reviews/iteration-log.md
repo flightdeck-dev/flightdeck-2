@@ -42,3 +42,19 @@ When Lead calls `flightdeck_agent_spawn` via MCP stdio:
    - Problem: MCP runs as separate stdio process, can't share objects
 3. **Event/queue**: MCP writes a "spawn request" to SQLite, gateway polls and spawns
    - More complex but decoupled
+
+## Iteration 2 — 2026-04-14
+
+### Fix Applied
+Moved `FLIGHTDECK_URL` env var setting from `httpServer.listen` callback to BEFORE the project loop where agents are spawned. The MCP subprocess inherits env from its parent ACP process (`...process.env` in AcpAdapter.spawn), so it now has `FLIGHTDECK_URL` available for the relay.
+
+### Verification
+- Workers now spawn with real ACP sessions:
+  - `agent-b6dc086c3e05`: worker, busy, acp=acp-e2bc4034 ✅
+  - `agent-d77ca8a5653c`: worker, busy, acp=acp-54f83ce6 ✅
+- Task `task-36a39724164a` state: `running` with assigned agent ✅
+- Task `task-8888e1f9a231` state: `in_review` ✅
+- 702 tests all green ✅
+
+### Root Cause of Iteration 1 failure
+`FLIGHTDECK_URL` was set in the `httpServer.listen()` callback, AFTER Lead/Planner were already spawned. The MCP subprocess inherited the env at spawn time — before the URL was set. Fix: set env var before the spawn loop.
