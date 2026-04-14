@@ -120,3 +120,19 @@ All 4 agents had real ACP sessions:
 1. Add orphan detection: on startup with --no-recover, reset tasks assigned to purged agents back to "ready" or mark them "orphaned"
 2. Guard agent_spawn: warn if task already has an assigned active agent
 3. Inject agent ID as env var so Lead knows its own ID without calling agent_list (already done via FLIGHTDECK_AGENT_ID!)
+
+### Fix Applied
+Added `SqliteStore.resetOrphanedTasks()` — after purging offline agents, reset running/in_review/claimed tasks whose assignedAgent no longer exists back to 'ready'.
+
+### Verify
+- 706 tests, all green
+- E2E: startup now shows "Reset 4 orphaned task(s) to ready"
+- Tasks correctly reset: running→ready with null agent
+- Done/failed tasks preserved (not touched)
+
+### DEBRIEF Impact
+This fix came directly from Lead's debrief answer. Lead said:
+> "I should have asked for clarification or checked before assuming [old tasks] needed work. That was overzealous."
+> "When a task is running but its assigned agent no longer exists, the system should auto-mark it as stale or orphaned."
+
+Without the debrief step, I would have focused on worker execution failures (the symptom) instead of the orphan detection issue (the root cause of resource waste).
