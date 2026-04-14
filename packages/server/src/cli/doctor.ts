@@ -124,7 +124,7 @@ function checkGateway(): CheckResult {
   } catch {
     return { name: 'Gateway', status: 'warn', message: `Gateway PID ${pid} not running (stale PID file)` };
   }
-  const port = existsSync(PORT_FILE) ? readFileSync(PORT_FILE, 'utf-8').trim() : '3000';
+  const port = existsSync(PORT_FILE) ? readFileSync(PORT_FILE, 'utf-8').trim() : '18800';
   return { name: 'Gateway', status: 'pass', message: `Gateway: running on port ${port} (PID ${pid})` };
 }
 

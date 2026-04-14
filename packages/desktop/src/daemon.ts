@@ -14,7 +14,7 @@ interface DaemonEvents {
 export class DaemonManager extends EventEmitter {
   private process: ChildProcess | null = null;
   private _status: DaemonStatus = "stopped";
-  private _port: number = 3000;
+  private _port: number = 18800;
   private restartCount = 0;
   private maxRestarts = 5;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -40,7 +40,7 @@ export class DaemonManager extends EventEmitter {
   async start(): Promise<void> {
     if (this._status === "running" || this._status === "starting") return;
     this.shuttingDown = false;
-    this._port = await this.findFreePort(3000);
+    this._port = await this.findFreePort(18800);
     this.setStatus("starting");
     this.spawnDaemon();
     await this.waitForHealth();

@@ -15,6 +15,7 @@ import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import type { AuthMode } from './gateway/auth.js';
+import { DEFAULT_PORT } from './constants.js';
 
 const FD_DIR = join(homedir(), '.flightdeck');
 const PID_FILE = join(FD_DIR, 'gateway.pid');
@@ -162,7 +163,7 @@ async function saveStateFromGateway(port: number, token?: string | null): Promis
 // ── Subcommands ──
 
 export async function gatewayStart(opts: GatewaySubcommandOpts): Promise<void> {
-  const port = opts.port ?? 3000;
+  const port = opts.port ?? DEFAULT_PORT;
 
   // --force: kill existing process on port
   if (opts.force) {
@@ -264,7 +265,7 @@ export async function gatewayRestart(opts: GatewaySubcommandOpts): Promise<void>
     await gatewayStop();
   }
 
-  await gatewayStart({ ...opts, port: opts.port ?? existingPort ?? 3000 });
+  await gatewayStart({ ...opts, port: opts.port ?? existingPort ?? DEFAULT_PORT });
 }
 
 export async function gatewayStatus(opts: GatewaySubcommandOpts): Promise<void> {
@@ -314,7 +315,7 @@ export async function gatewayStatus(opts: GatewaySubcommandOpts): Promise<void> 
 }
 
 export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
-  const port = opts.port ?? 3000;
+  const port = opts.port ?? DEFAULT_PORT;
 
   // --force: kill existing process on port
   if (opts.force) {
@@ -456,5 +457,5 @@ export async function gatewayUsageCost(opts: GatewaySubcommandOpts): Promise<voi
 export function autoDetectPort(explicitPort: string | undefined): string {
   if (explicitPort) return explicitPort;
   const port = readPort();
-  return port ? String(port) : '3000';
+  return port ? String(port) : String(DEFAULT_PORT);
 }

@@ -43,6 +43,8 @@ export interface WebhookEvent {
 export interface WebhookConfig {
   url: string;
   events: WebhookEventType[];
+  /** Optional auth token (sent as Authorization: Bearer <token>). */
+  token?: string;
 }
 
 export interface NotificationsConfig {
@@ -51,11 +53,13 @@ export interface NotificationsConfig {
 
 // ── Platform detection ──
 
-type Platform = 'discord' | 'slack' | 'generic';
+type Platform = 'discord' | 'slack' | 'openclaw' | 'generic';
 
 function detectPlatform(url: string): Platform {
   if (url.includes('discord.com/api/webhooks')) return 'discord';
   if (url.includes('hooks.slack.com')) return 'slack';
+  // OpenClaw hook endpoints: /hooks/wake or /hooks/agent
+  if (url.includes('/hooks/agent') || url.includes('/hooks/wake')) return 'openclaw';
   return 'generic';
 }
 
@@ -127,6 +131,23 @@ function buildGenericPayload(event: WebhookEvent): object {
   return { text: `${event.title}\n\n${event.body}`, event: event.type, project: event.project };
 }
 
+/**
+ * Build OpenClaw /hooks/agent payload.
+ * Uses the hook to wake Claw with context about what happened in Flightdeck.
+ */
+function buildOpenClawPayload(event: WebhookEvent): object {
+  const fieldsStr = event.fields?.map(f => `${f.name}: ${f.value}`).join('\n') ?? '';
+  const message = fieldsStr
+    ? `[Flightdeck/${event.project}] ${event.title}\n\n${event.body}\n\n${fieldsStr}`
+    : `[Flightdeck/${event.project}] ${event.title}\n\n${event.body}`;
+  return {
+    message,
+    name: 'Flightdeck',
+    deliver: true,
+    channel: 'discord',
+  };
+}
+
 // ── WebhookNotifier ──
 
 export class WebhookNotifier {
@@ -181,7 +202,7 @@ export class WebhookNotifier {
       const platform = detectPlatform(wh.url);
       if (platform === 'discord' && !this.canSendDiscord()) continue;
 
-      this.send(wh.url, platform, event);
+      this.send(wh.url, platform, event, wh.token);
       sent++;
     }
     return sent;
@@ -207,9 +228,11 @@ export class WebhookNotifier {
       };
       try {
         const payload = this.buildPayload(platform, event);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (wh.token) headers['Authorization'] = `Bearer ${wh.token}`;
         const res = await fetch(wh.url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
@@ -230,18 +253,22 @@ export class WebhookNotifier {
     switch (platform) {
       case 'discord': return buildDiscordPayload(event);
       case 'slack': return buildSlackPayload(event);
+      case 'openclaw': return buildOpenClawPayload(event);
       default: return buildGenericPayload(event);
     }
   }
 
   /** Fire-and-forget send */
-  private send(url: string, platform: Platform, event: WebhookEvent): void {
+  private send(url: string, platform: Platform, event: WebhookEvent, token?: string): void {
     const payload = this.buildPayload(platform, event);
     if (platform === 'discord') this.recordDiscordSend();
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     }).catch(err => {
       // Log but don't crash

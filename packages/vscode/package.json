@@ -58,7 +58,7 @@
       "properties": {
         "flightdeck.gatewayUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
+          "default": "http://localhost:18800",
           "description": "URL of the Flightdeck gateway server"
         },
         "flightdeck.defaultProject": {

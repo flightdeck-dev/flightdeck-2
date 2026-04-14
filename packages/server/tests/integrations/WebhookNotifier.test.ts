@@ -262,4 +262,41 @@ describe('WebhookNotifier', () => {
     const sent = notifier.notify(agentMessageEvent('proj', 'w', 'l', 'hi'));
     expect(sent).toBe(0);
   });
+
+  // ── OpenClaw platform detection ──
+
+  it('auto-detects OpenClaw from /hooks/agent URL', () => {
+    const notifications: NotificationsConfig = {
+      webhooks: [
+        { url: 'http://localhost:18789/hooks/agent', events: ['lead_response'], token: 'test-secret' },
+      ],
+    };
+    const notifier = new WebhookNotifier(config, notifications, { debounceMs: 0 });
+    notifier.notify(leadResponseEvent('test', 'Hello from Lead'));
+
+    expect(fetchSpy).toHaveBeenCalled();
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(url).toBe('http://localhost:18789/hooks/agent');
+    const body = JSON.parse(opts.body);
+    expect(body.message).toContain('Hello from Lead');
+    expect(body.name).toBe('Flightdeck');
+    expect(body.deliver).toBe(true);
+    // Auth header
+    expect(opts.headers['Authorization']).toBe('Bearer test-secret');
+  });
+
+  it('OpenClaw payload includes project and event context', () => {
+    const notifications: NotificationsConfig = {
+      webhooks: [
+        { url: 'http://localhost:18789/hooks/agent', events: ['task_completed'] },
+      ],
+    };
+    const notifier = new WebhookNotifier(config, notifications, { debounceMs: 0 });
+    notifier.notify(taskCompletedEvent('my-project', 'Fix bug', 'worker-1'));
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.message).toContain('my-project');
+    expect(body.message).toContain('Fix bug');
+    expect(body.channel).toBe('discord');
+  });
 });

@@ -70,7 +70,7 @@ Commands:
 
 Options:
   -p, --project <name>    Project name (default: from .flightdeck.json)
-  --port <port>           Gateway port (default: 3000)
+  --port <port>           Gateway port (default: 18800)
   --bind <mode>           Bind address: loopback (default), lan (0.0.0.0), or IP
   --auth <mode>           Auth mode: none (default) or token
   --token <token>         Explicit auth token (with --auth token)
@@ -449,7 +449,7 @@ switch (command) {
   case 'display': {
     const { DEFAULT_DISPLAY, DISPLAY_PRESET_NAMES, } = await import('@flightdeck-ai/shared');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
-    const displayPort = values.port || '3000';
+    const displayPort = values.port || '18800';
     const displayBase = `http://localhost:${displayPort}`;
 
     if (!subcommand) {
