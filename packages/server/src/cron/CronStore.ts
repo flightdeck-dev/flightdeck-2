@@ -97,6 +97,21 @@ export class CronStore {
     return this.load().jobs.find(j => j.id === id) ?? null;
   }
 
+  /** Resolve a job by exact ID, ID prefix, or name (case-insensitive). */
+  resolveJob(idOrName: string): CronJob | null {
+    const jobs = this.load().jobs;
+    // Exact ID match
+    const exact = jobs.find(j => j.id === idOrName);
+    if (exact) return exact;
+    // Prefix match
+    const prefixMatches = jobs.filter(j => j.id.startsWith(idOrName));
+    if (prefixMatches.length === 1) return prefixMatches[0];
+    // Name match (case-insensitive)
+    const nameMatch = jobs.find(j => j.name.toLowerCase() === idOrName.toLowerCase());
+    if (nameMatch) return nameMatch;
+    return null;
+  }
+
   listJobs(): CronJob[] {
     return this.load().jobs;
   }

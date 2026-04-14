@@ -321,20 +321,26 @@ switch (command) {
       const job = cronStore.addJob({ name, schedule: { kind: 'cron', expr: schedule, tz }, prompt, skill });
       console.log(`Cron job created: ${job.id} [${job.schedule.expr}] ${job.name}`);
     } else if (subcommand === 'enable') {
-      const id = positionals[2];
-      if (!id) { console.error('Usage: flightdeck cron enable <id>'); fd.close(); break; }
-      const ok = cronStore.enableJob(id);
-      console.log(ok ? `Enabled: ${id}` : `Job not found: ${id}`);
+      const idOrName = positionals[2];
+      if (!idOrName) { console.error('Usage: flightdeck cron enable <id|name>'); fd.close(); break; }
+      const job = cronStore.resolveJob(idOrName);
+      if (!job) { console.log(`Job not found: ${idOrName}`); fd.close(); break; }
+      cronStore.enableJob(job.id);
+      console.log(`Enabled: ${job.name} (${job.id.slice(0, 8)})`);
     } else if (subcommand === 'disable') {
-      const id = positionals[2];
-      if (!id) { console.error('Usage: flightdeck cron disable <id>'); fd.close(); break; }
-      const ok = cronStore.disableJob(id);
-      console.log(ok ? `Disabled: ${id}` : `Job not found: ${id}`);
+      const idOrName = positionals[2];
+      if (!idOrName) { console.error('Usage: flightdeck cron disable <id|name>'); fd.close(); break; }
+      const job = cronStore.resolveJob(idOrName);
+      if (!job) { console.log(`Job not found: ${idOrName}`); fd.close(); break; }
+      cronStore.disableJob(job.id);
+      console.log(`Disabled: ${job.name} (${job.id.slice(0, 8)})`);
     } else if (subcommand === 'remove') {
-      const id = positionals[2];
-      if (!id) { console.error('Usage: flightdeck cron remove <id>'); fd.close(); break; }
-      const ok = cronStore.removeJob(id);
-      console.log(ok ? `Removed: ${id}` : `Job not found: ${id}`);
+      const idOrName = positionals[2];
+      if (!idOrName) { console.error('Usage: flightdeck cron remove <id|name>'); fd.close(); break; }
+      const job = cronStore.resolveJob(idOrName);
+      if (!job) { console.log(`Job not found: ${idOrName}`); fd.close(); break; }
+      cronStore.removeJob(job.id);
+      console.log(`Removed: ${job.name} (${job.id.slice(0, 8)})`);
     } else {
       console.error('Usage: flightdeck cron <list|add|enable|disable|remove>');
     }
