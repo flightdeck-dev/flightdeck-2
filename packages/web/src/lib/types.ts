@@ -29,6 +29,7 @@ export interface Agent {
   role: string;
   status: string;
   runtime?: string;
+  runtimeName?: string;
   model?: string;
   cost?: number;
   acp_session_id?: string;

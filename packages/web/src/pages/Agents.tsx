@@ -57,7 +57,7 @@ function AgentCard({ agent }: { agent: Agent }) {
         </div>
         <div>
           <p className="text-[var(--color-text-tertiary)]">Runtime</p>
-          <p className="font-mono mt-0.5">{agent.runtime ?? 'acp'}</p>
+          <p className="font-mono mt-0.5">{agent.runtimeName ?? agent.runtime ?? 'acp'}</p>
         </div>
         <div>
           <p className="text-[var(--color-text-tertiary)]">Cost</p>
