@@ -5,7 +5,7 @@
 export class GatewayRelay {
   constructor(private baseUrl: string, private projectName: string) {}
 
-  async spawnAgent(params: { role: string; model?: string; task?: string; cwd?: string }): Promise<unknown> {
+  async spawnAgent(params: { role: string; model?: string; runtime?: string; task?: string; cwd?: string }): Promise<unknown> {
     console.log(`[relay] Spawning agent via gateway: role=${params.role}`);
     const res = await fetch(`${this.baseUrl}/api/projects/${this.projectName}/agents/spawn`, {
       method: 'POST',

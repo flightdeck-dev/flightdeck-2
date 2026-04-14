@@ -181,6 +181,7 @@ export class AgentManager {
         role: opts.role,
         cwd: effectiveCwd,
         model: opts.model,
+        runtime: opts.runtime,
         projectName: opts.projectName ?? this.projectName,
         systemPrompt,
         ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),

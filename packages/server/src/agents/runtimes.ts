@@ -92,6 +92,20 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
       'See https://opencode.ai/docs/acp/',
   },
 
+  'codex-acp': {
+    name: 'Zed Codex ACP (OpenAI)',
+    command: 'codex-acp',
+    args: [],
+    systemPromptMethod: 'agents-md',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    notes:
+      'Zed\'s Codex ACP bridge (@zed-industries/codex-acp). Rust binary, launches over stdin/stdout. ' +
+      'Model override via -c model="model-name". Config from ~/.codex/config.toml. ' +
+      'Supports sandbox_permissions, shell_environment_policy.',
+  },
+
   kiro: {
     name: 'Kiro CLI (Amazon/AWS)',
     command: 'kiro-cli',

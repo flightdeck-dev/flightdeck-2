@@ -5,6 +5,9 @@ export interface SpawnOptions {
   role: AgentRole;
   cwd: string;
   model?: string;
+  /** Runtime name override (e.g. 'copilot', 'opencode', 'cursor', 'codex-acp').
+   *  If not set, the adapter's default runtime is used. */
+  runtime?: string;
   systemPrompt?: string;
   /** MCP servers to inject into the agent session (ACP only). */
   mcpServers?: McpServer[];

@@ -54,6 +54,10 @@ export interface LeadManagerOptions {
   acpAdapter: AcpAdapter;
   heartbeat?: HeartbeatConfig;
   projectName?: string;
+  /** Runtime name for Lead (e.g. 'copilot', 'opencode'). Falls back to adapter default. */
+  leadRuntime?: string;
+  /** Runtime name for Planner. Falls back to leadRuntime, then adapter default. */
+  plannerRuntime?: string;
 }
 
 export class LeadManager {
@@ -68,6 +72,8 @@ export class LeadManager {
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
   private projectName: string | undefined;
+  private leadRuntime: string | undefined;
+  private plannerRuntime: string | undefined;
 
   private plannerSessionId: string | null = null;
   private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
@@ -80,6 +86,8 @@ export class LeadManager {
     this.acpAdapter = opts.acpAdapter;
     this.heartbeatConfig = opts.heartbeat ?? { enabled: false, interval: 30 * 60 * 1000, conditions: [] };
     this.projectName = opts.projectName;
+    this.leadRuntime = opts.leadRuntime;
+    this.plannerRuntime = opts.plannerRuntime;
   }
 
   /** Start Lead ACP session */
@@ -99,6 +107,7 @@ export class LeadManager {
       role: 'lead',
       cwd: process.cwd(),
       projectName: this.projectName,
+      runtime: this.leadRuntime,
     });
     this.leadSessionId = meta.sessionId;
 
@@ -307,6 +316,7 @@ export class LeadManager {
       role: 'planner',
       cwd: process.cwd(),
       projectName: this.projectName,
+      runtime: this.plannerRuntime,
     });
     this.plannerSessionId = meta.sessionId;
 

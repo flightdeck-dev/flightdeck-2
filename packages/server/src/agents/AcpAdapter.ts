@@ -72,6 +72,8 @@ export interface AcpSession {
   id: string;
   agentId: AgentId;
   role?: string;
+  /** The runtime name used to spawn this session (e.g. 'copilot', 'opencode'). */
+  runtimeName: string;
   process: ChildProcess;
   connection: ClientSideConnection;
   acpSessionId: string | null; // set after newSession/loadSession completes
@@ -343,9 +345,10 @@ export class AcpAdapter extends AgentAdapter {
   }
 
   async spawn(opts: SpawnOptions): Promise<AgentMetadata> {
-    const runtime = this.runtimes[this.runtimeName];
+    const runtimeName = opts.runtime ?? this.runtimeName;
+    const runtime = this.runtimes[runtimeName];
     if (!runtime) {
-      throw new Error(`Unknown runtime "${this.runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
+      throw new Error(`Unknown runtime "${runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
     }
 
     const prompt = opts.systemPrompt ?? `You are a ${opts.role} agent. Complete your assigned tasks.`;
@@ -353,10 +356,9 @@ export class AcpAdapter extends AgentAdapter {
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
     const aid = agentId(opts.role, Date.now().toString());
 
-    // Inject role + agent ID into Copilot process env.
-    // Copilot's MCP subprocess inherits parent env, so the MCP server
+    // Inject role + agent ID into agent process env.
+    // The MCP subprocess inherits parent env, so the MCP server
     // (flightdeck-mcp) will see FLIGHTDECK_AGENT_ROLE for tool filtering.
-    // The .mcp.json is written once at gateway start (no role env there).
     const spawnEnv = {
       ...process.env,
       FLIGHTDECK_AGENT_ID: aid,
@@ -377,6 +379,7 @@ export class AcpAdapter extends AgentAdapter {
       id: sessionLocalId,
       agentId: aid,
       role: opts.role,
+      runtimeName,
       process: child,
       connection: null!, // set below
       acpSessionId: null,
@@ -500,7 +503,7 @@ export class AcpAdapter extends AgentAdapter {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
       if ((result as any).models?.availableModels) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing undocumented ACP result property
-        modelRegistry.registerModels(this.runtimeName, (result as any).models.availableModels);
+        modelRegistry.registerModels(session.runtimeName, (result as any).models.availableModels);
       }
 
       // Queue the initial prompt instead of sending it synchronously.
@@ -536,10 +539,12 @@ export class AcpAdapter extends AgentAdapter {
     model?: string;
     projectName?: string;
     mcpServers?: McpServer[];
+    runtime?: string;
   }): Promise<AgentMetadata> {
-    const runtime = this.runtimes[this.runtimeName];
+    const runtimeName = opts.runtime ?? this.runtimeName;
+    const runtime = this.runtimes[runtimeName];
     if (!runtime) {
-      throw new Error(`Unknown runtime "${this.runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
+      throw new Error(`Unknown runtime "${runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
     }
 
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
@@ -557,6 +562,7 @@ export class AcpAdapter extends AgentAdapter {
       id: sessionLocalId,
       agentId: aid,
       role: opts.role,
+      runtimeName,
       process: child,
       connection: null!,
       acpSessionId: null,

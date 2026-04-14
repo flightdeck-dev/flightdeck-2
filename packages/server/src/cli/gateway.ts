@@ -132,6 +132,12 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       }
     }
 
+    // Read per-role runtime config from .flightdeck/config.yaml
+    const { ModelConfig } = await import('../agents/ModelConfig.js');
+    const modelConfig = new ModelConfig(fd.project.subpath('.'));
+    const leadRoleConfig = modelConfig.getRoleConfig('lead');
+    const plannerRoleConfig = modelConfig.getRoleConfig('planner');
+
     // Create LeadManager
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
@@ -139,6 +145,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       messageStore: fd.chatMessages ?? undefined,
       acpAdapter,
       projectName: name,
+      leadRuntime: leadRoleConfig.runtime,
+      plannerRuntime: plannerRoleConfig.runtime,
     });
     leadManagers.set(name, leadManager);
 

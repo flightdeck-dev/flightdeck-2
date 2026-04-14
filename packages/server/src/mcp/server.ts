@@ -454,6 +454,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_agent_spawn', 'Spawn a new agent', {
     role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']),
     model: z.string().optional(),
+    runtime: z.string().optional().describe('Runtime name (e.g. copilot, opencode, cursor, codex-acp). Uses project config default if not set.'),
     task: z.string().optional(),
     cwd: z.string().optional(),
     agentId: z.string(),
@@ -473,9 +474,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
     if (agentManager) {
       try {
+        // Resolve per-role runtime from project config
+        const { ModelConfig } = await import('../agents/ModelConfig.js');
+        const mc = new ModelConfig(fd.project.subpath('.'));
+        const roleConfig = mc.getRoleConfig(params.role);
         const newAgent = await agentManager.spawnAgent({
           role: params.role as AgentRole,
           model: params.model,
+          runtime: params.runtime ?? roleConfig.runtime,
           task: params.task,
           cwd: params.cwd ?? fd.project.subpath('.'),
           projectName: name,

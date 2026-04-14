@@ -226,9 +226,19 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.role) { json(400, { error: 'Missing required field: role' }); return; }
+        // Resolve per-role runtime from project config
+        let resolvedRuntime = body.runtime;
+        if (!resolvedRuntime) {
+          try {
+            const { ModelConfig } = await import('../agents/ModelConfig.js');
+            const mc = new ModelConfig(fd.project.subpath('.'));
+            resolvedRuntime = mc.getRoleConfig(body.role).runtime;
+          } catch { /* fallback to adapter default */ }
+        }
         const newAgent = await am.spawnAgent({
           role: body.role as AgentRole,
           model: body.model,
+          runtime: resolvedRuntime,
           task: body.task,
           cwd: body.cwd ?? fd.project.subpath('.'),
           projectName,
