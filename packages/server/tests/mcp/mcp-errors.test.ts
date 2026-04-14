@@ -103,9 +103,9 @@ describe('MCP Server Error Messages', () => {
     expect(text).toContain('flightdeck_escalate');
   });
 
-  it('msg_send rejects impersonation', async () => {
+  it('send rejects impersonation', async () => {
     const server = createMcpServer(projectName);
-    const result = await callTool(server, 'flightdeck_msg_send', {
+    const result = await callTool(server, 'flightdeck_send', {
       from: 'agent-lead-1', to: 'agent-worker-1', content: 'hi', agentId: 'agent-worker-1',
     });
     const text = result.content[0].text;

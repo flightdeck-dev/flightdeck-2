@@ -890,32 +890,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     agentId: z.string(),
   }, async (params) => handleRead(params));
 
-  // --- Backward-compat aliases for messaging ---
-
-  server.tool('flightdeck_msg_send', '[Alias → flightdeck_send] Send a DM to another agent', {
-    from: z.string(),
-    to: z.string(),
-    content: z.string(),
-    agentId: z.string(),
-  }, async (params) => handleSend({ ...params, channel: undefined }));
-
-  server.tool('flightdeck_msg_inbox', '[Alias → flightdeck_read] Check your unread DMs', {
-    agentId: z.string(),
-  }, async (params) => handleRead({ agentId: params.agentId }));
-
-  server.tool('flightdeck_channel_send', '[Alias → flightdeck_send] Send to group chat', {
-    from: z.string(),
-    channel: z.string(),
-    message: z.string(),
-    agentId: z.string(),
-  }, async (params) => handleSend({ from: params.from, channel: params.channel, content: params.message, agentId: params.agentId }));
-
-  server.tool('flightdeck_channel_read', '[Alias → flightdeck_read] Read group chat messages', {
-    channel: z.string(),
-    since: z.string().optional(),
-  }, async (params) => handleRead({ channel: params.channel, since: params.since, agentId: '' }));
-
-  // ── Search tools (consolidated) ──
+    // ── Search tools (consolidated) ──
 
   async function handleSearch(params: { query: string; source?: string; authorType?: string; limit?: number }) {
     const source = params.source ?? 'all';
@@ -970,26 +945,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     limit: z.number().optional().describe('Max results per source (default 10)'),
     agentId: z.string(),
   }, async (params) => handleSearch(params));
-
-  // --- Backward-compat aliases for search ---
-
-  server.tool('flightdeck_memory_search', '[Alias → flightdeck_search] Search project memory', {
-    query: z.string(),
-  }, async (params) => {
-    const results = fd.searchMemory(params.query);
-    return jsonResponse(results);
-  });
-
-  server.tool('flightdeck_msg_search', '[Alias → flightdeck_search] Search chat messages', {
-    query: z.string().describe('Search query (keywords or phrases)'),
-    authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter by author type'),
-    limit: z.number().optional().describe('Max results (default 20)'),
-  }, async (params) => handleSearch({ query: params.query, source: 'chat', authorType: params.authorType, limit: params.limit }));
-
-  server.tool('flightdeck_session_search', '[Alias → flightdeck_search] Search session transcripts', {
-    query: z.string().describe('Search query (keywords or phrases)'),
-    limit: z.number().optional().describe('Max results (default 20)'),
-  }, async (params) => handleSearch({ query: params.query, source: 'session', limit: params.limit }));
 
   // ── Chat message tools (WebSocket-backed) ──
 

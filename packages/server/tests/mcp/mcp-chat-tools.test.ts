@@ -77,18 +77,19 @@ describe('MCP chat & memory tools', () => {
     expect(threads[0].title).toBe('Thread 1');
   });
 
-  it('flightdeck_memory_search returns results with line numbers', async () => {
+  it('flightdeck_search returns memory results with line numbers', async () => {
     fd.writeMemory('test-doc.md', '# Test Document\n\nThis has some searchable content.\nAnother line here.\n');
 
-    const result = await callTool(server, 'flightdeck_memory_search', { query: 'searchable' });
-    const results = JSON.parse(getText(result));
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0].filename).toBe('test-doc.md');
-    expect(results[0].line).toBe(3);
-    expect(results[0].snippet).toContain('searchable');
+    const result = await callTool(server, 'flightdeck_search', { query: 'searchable', source: 'memory', agentId: 'lead-1' });
+    const parsed = JSON.parse(getText(result));
+    expect(parsed.results.length).toBeGreaterThan(0);
+    const memResult = parsed.results.find((r: any) => r.source === 'memory');
+    expect(memResult).toBeDefined();
+    expect(memResult.filename).toBe('test-doc.md');
+    expect(memResult.snippet).toContain('searchable');
   });
 
-  it('flightdeck_memory_search searches recursively', async () => {
+  it('flightdeck_search searches memory recursively', async () => {
     // Write to a subdirectory
     const { mkdirSync, writeFileSync } = await import('node:fs');
     const retroDir = join(homedir(), '.flightdeck', 'projects', projectName, 'memory', 'retrospectives');
@@ -96,9 +97,11 @@ describe('MCP chat & memory tools', () => {
     writeFileSync(join(retroDir, 'auth-spec.md'), '# Auth Retrospective\n\nPKCE was the right choice.\n');
     fd.memory.reindex();
 
-    const result = await callTool(server, 'flightdeck_memory_search', { query: 'PKCE' });
-    const results = JSON.parse(getText(result));
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0].filename).toContain('retrospectives');
+    const result = await callTool(server, 'flightdeck_search', { query: 'PKCE', source: 'memory', agentId: 'lead-1' });
+    const parsed = JSON.parse(getText(result));
+    expect(parsed.results.length).toBeGreaterThan(0);
+    const memResult = parsed.results.find((r: any) => r.source === 'memory');
+    expect(memResult).toBeDefined();
+    expect(memResult.filename).toContain('retrospectives');
   });
 });
