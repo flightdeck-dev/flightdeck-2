@@ -799,20 +799,13 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const permErr = checkPerm(agent!, 'agent_spawn', 'flightdeck_agent_interrupt');
     if (permErr) return permErr;
     if (agentManager) {
-      try {
-        await agentManager.interruptAgent(params.targetAgentId as AgentId, params.message);
-        return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
-      } catch (err) {
-        return errorResponse(`Error interrupting agent: ${(err as Error).message}`);
-      }
+      // Fire-and-forget to avoid MCP timeout on long steer operations
+      agentManager.interruptAgent(params.targetAgentId as AgentId, params.message).catch(() => {});
+      return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
     }
     if (relay) {
-      try {
-        await relay.interruptAgent(params.targetAgentId, params.message);
-        return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
-      } catch (err) {
-        return errorResponse(`Error interrupting agent via gateway: ${(err as Error).message}`);
-      }
+      relay.interruptAgent(params.targetAgentId, params.message).catch(() => {});
+      return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
     }
     const msg: Message = {
       id: messageId(params.agentId, params.targetAgentId, Date.now().toString()),
@@ -963,32 +956,36 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
     // Memory search
     if (source === 'all' || source === 'memory') {
-      const memResults = fd.searchMemory(params.query, limit);
-      for (const r of memResults) {
-        results.push({ source: 'memory', ...r });
-      }
+      try {
+        const memResults = fd.searchMemory(params.query, limit);
+        for (const r of memResults) {
+          results.push({ source: 'memory', ...r });
+        }
+      } catch { /* memory search may fail on malformed FTS queries */ }
     }
 
     // Chat message search
     if (source === 'all' || source === 'chat') {
-      if (fd.chatMessages) {
-        const chatResults = fd.chatMessages.searchMessages(params.query, {
-          authorType: params.authorType as 'user' | 'lead' | 'agent' | 'system' | undefined,
-          limit,
-        });
-        for (const m of chatResults) {
-          results.push({
-            source: 'chat',
-            id: m.id,
-            authorType: m.authorType,
-            authorId: m.authorId,
-            content: m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content,
-            createdAt: m.createdAt,
-            threadId: m.threadId,
-            taskId: m.taskId,
+      try {
+        if (fd.chatMessages) {
+          const chatResults = fd.chatMessages.searchMessages(params.query, {
+            authorType: params.authorType as 'user' | 'lead' | 'agent' | 'system' | undefined,
+            limit,
           });
+          for (const m of chatResults) {
+            results.push({
+              source: 'chat',
+              id: m.id,
+              authorType: m.authorType,
+              authorId: m.authorId,
+              content: m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content,
+              createdAt: m.createdAt,
+              threadId: m.threadId,
+              taskId: m.taskId,
+            });
+          }
         }
-      }
+      } catch { /* chat search may fail on FTS query issues */ }
     }
 
     // Session transcript search via gateway API
@@ -1329,7 +1326,9 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if (error) return error;
     const permErr = checkPerm(agent!, 'discuss', 'flightdeck_discuss');
     if (permErr) return permErr;
-    const channel = params.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    // Use hash-based slug to avoid truncation with non-ASCII (e.g. Chinese) topics
+    const topicHash = Array.from(params.topic).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+    const channel = `discuss-${Math.abs(topicHash).toString(36)}-${Date.now().toString(36)}`;
     const now = new Date().toISOString();
     const initMsg: Message = {
       id: messageId('system', channel, now),

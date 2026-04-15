@@ -446,7 +446,15 @@ export class TaskDAG {
     for (let i = 0; i < subTasks.length; i++) {
       const deps = subTasks[i].dependsOn;
       if (deps && deps.length > 0) {
-        const resolvedDeps = deps.map(d => idMap.get(d) ?? d as TaskId);
+        const resolvedDeps = deps.map(d => {
+          // Support #N index references (0-based)
+          if (d.startsWith('#') && /^#\d+$/.test(d)) {
+            const idx = parseInt(d.slice(1), 10);
+            if (idx >= 0 && idx < results.length) return results[idx].id;
+            return d as TaskId;
+          }
+          return idMap.get(d) ?? d as TaskId;
+        });
         this.store.updateTaskDependsOn(results[i].id, resolvedDeps);
         results[i] = { ...results[i], dependsOn: resolvedDeps };
         const allDone = resolvedDeps.every(d => {

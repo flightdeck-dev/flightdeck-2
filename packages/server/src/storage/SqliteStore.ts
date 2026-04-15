@@ -156,8 +156,7 @@ export class SqliteStore {
         title TEXT,
         origin_id TEXT,
         created_at TEXT NOT NULL,
-        archived_at TEXT,
-        FOREIGN KEY (origin_id) REFERENCES messages(id)
+        archived_at TEXT
       )
     `));
 
