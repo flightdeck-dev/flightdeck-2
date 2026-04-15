@@ -56,6 +56,7 @@ interface FlightdeckState {
   streamingChunks: Map<string, StreamChunk[]>;
   toolCallMap: Map<string, ToolCallState>;
   agentOutputs: Map<string, string>;
+  agentStreamChunks: Map<string, StreamChunk[]>;
   displayConfig: DisplayConfig;
   connected: boolean;
   loading: boolean;
@@ -86,6 +87,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   const [toolCallMap, setToolCallMap] = useState(new Map<string, ToolCallState>());
   const agentOutputsRef = useRef(new Map<string, string>());
   const [agentOutputs, setAgentOutputs] = useState(new Map<string, string>());
+  const agentStreamChunksRef = useRef(new Map<string, StreamChunk[]>());
+  const [agentStreamChunks, setAgentStreamChunks] = useState(new Map<string, StreamChunk[]>());
   const streamingDirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
@@ -145,6 +148,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     setToolCallMap(new Map());
     agentOutputsRef.current.clear();
     setAgentOutputs(new Map());
+    agentStreamChunksRef.current.clear();
+    setAgentStreamChunks(new Map());
     fetchAll();
   }, [fetchAll]);
 
@@ -222,6 +227,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
               setStreamingChunks(new Map(streamingChunksRef.current));
               setToolCallMap(new Map(toolCallMapRef.current));
               setAgentOutputs(new Map(agentOutputsRef.current));
+              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
               streamingDirtyRef.current = false;
             });
           }
@@ -248,6 +254,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
         case 'agent:stream': {
           const prev = agentOutputsRef.current.get(event.agentId) ?? '';
           agentOutputsRef.current.set(event.agentId, prev + event.delta);
+          const prevChunks = agentStreamChunksRef.current.get(event.agentId) ?? [];
+          agentStreamChunksRef.current.set(event.agentId, [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName }]);
           if (!streamingDirtyRef.current) {
             streamingDirtyRef.current = true;
             rafRef.current = requestAnimationFrame(() => {
@@ -255,6 +263,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
               setStreamingChunks(new Map(streamingChunksRef.current));
               setToolCallMap(new Map(toolCallMapRef.current));
               setAgentOutputs(new Map(agentOutputsRef.current));
+              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
               streamingDirtyRef.current = false;
             });
           }
@@ -295,7 +304,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
 
   return (
     <Ctx.Provider value={{
-      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap, agentOutputs,
+      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap, agentOutputs, agentStreamChunks,
       displayConfig, connected, loading, sendChat, sendTaskComment,
       setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
     }}>

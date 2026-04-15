@@ -103,7 +103,7 @@ function getToolIcon(name: string) {
   return <Wrench size={14} strokeWidth={1.5} className="inline mr-1" />;
 }
 
-function ToolCallCard({ tc, level }: { tc: ToolCallState; level: 'summary' | 'detail' | 'off' }) {
+export function ToolCallCard({ tc, level }: { tc: ToolCallState; level: 'summary' | 'detail' | 'off' }) {
   if (level === 'off') return null;
   if (!tc.name) return null; // Hide empty tool calls
 
@@ -202,9 +202,9 @@ function StreamingBubble({ content, chunks, toolCallMap, displayConfig }: {
   );
 }
 
-interface ChunkSection { contentType: ContentType; toolName?: string; content: string; }
+export interface ChunkSection { contentType: ContentType; toolName?: string; content: string; }
 
-function groupChunks(chunks: StreamChunk[]): ChunkSection[] {
+export function groupChunks(chunks: StreamChunk[]): ChunkSection[] {
   const sections: ChunkSection[] = [];
   for (const chunk of chunks) {
     const ct = chunk.contentType ?? 'text';
@@ -218,7 +218,7 @@ function groupChunks(chunks: StreamChunk[]): ChunkSection[] {
   return sections;
 }
 
-function ThinkingBlock({ content }: { content: string }) {
+export function ThinkingBlock({ content }: { content: string }) {
   const preview = content.split('\n').slice(0, 2).join('\n');
   const isLong = content.length > 200;
   return (
@@ -233,7 +233,7 @@ function ThinkingBlock({ content }: { content: string }) {
   );
 }
 
-function ToolCallBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
+export function ToolCallBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
   if (level === 'off') return null;
   if (level === 'summary') {
     const brief = content.slice(0, 80).replace(/\n/g, ' ');
@@ -256,7 +256,7 @@ function ToolCallBlock({ content, toolName, level }: { content: string; toolName
   );
 }
 
-function ToolResultBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
+export function ToolResultBlock({ content, toolName, level }: { content: string; toolName?: string; level: 'summary' | 'detail' | 'off' }) {
   if (level === 'off') return null;
   if (level === 'summary') {
     const brief = content.slice(0, 60).replace(/\n/g, ' ');

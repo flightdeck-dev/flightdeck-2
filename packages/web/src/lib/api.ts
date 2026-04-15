@@ -66,6 +66,9 @@ export const api = {
     get<{ agentId: string; lines: string[]; totalLines: number }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/output?tail=${tail ?? 100}`)),
   sendAgentMessage: (project: string, agentId: string, message: string, urgent?: boolean) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/${urgent ? 'interrupt' : 'send'}`), { message }),
+  setAgentModel: (project: string, agentId: string, model: string) =>
+    put<{ success: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/model`), { model }),
+  getAvailableModels: (project: string) => get<Record<string, unknown>>(projectPath(project, '/models/available')),
   hibernateAgent: (project: string, agentId: string) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/hibernate`)),
   wakeAgent: (project: string, agentId: string) =>

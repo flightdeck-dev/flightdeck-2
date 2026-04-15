@@ -397,6 +397,18 @@ export class AgentManager {
     await this.adapter.steer(sessionId, { content: message, urgent: false });
   }
 
+  async setAgentModel(agentId: AgentId, model: string): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
+    if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
+    if (typeof (this.adapter as any).setModel === 'function') {
+      await (this.adapter as any).setModel(sessionId, model);
+    } else {
+      throw new Error('Adapter does not support setModel');
+    }
+  }
+
   async restartAgent(agentId: AgentId): Promise<Agent> {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);

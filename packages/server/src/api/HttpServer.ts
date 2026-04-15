@@ -355,6 +355,19 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
         json(200, { success: true });
       } catch (e: unknown) { json(500, { error: `Failed to retire agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/model$/) && method === 'PUT') {
+      const agentId = subPath.split('/')[2];
+      const am = agentManagers?.get(projectName) ?? fd.agentManager;
+      if (!am) { json(500, { error: 'No AgentManager available' }); return; }
+      try {
+        const body = await readBody();
+        if (!body.model) { json(400, { error: 'Missing required field: model' }); return; }
+        await am.setAgentModel(agentId as import('@flightdeck-ai/shared').AgentId, body.model);
+        json(200, { success: true });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        json(500, { error: `Failed to set agent model: ${msg}` });
+      }
     } else if (subPath.match(/^\/agents\/[^/]+\/output$/) && method === 'GET') {
       const agentId = subPath.split('/')[2];
       const am = agentManagers?.get(projectName) ?? fd.agentManager;

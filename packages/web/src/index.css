@@ -49,5 +49,5 @@ body {
 }
 
 .animate-slide-in-right {
-  animation: slide-in-right 200ms ease-out;
+  animation: slide-in-right 125ms ease-out;
 }
