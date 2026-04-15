@@ -118,7 +118,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
         <div className={`inline-block mt-1 text-sm break-words max-w-[85%] ${
           isUser
             ? 'px-3 py-2 rounded-2xl bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap'
-            : ''
+            : 'px-3 py-2 rounded-2xl bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
           {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
         </div>
@@ -539,57 +539,25 @@ export default function Chat() {
             />
             {speechSupported && (
               <div className="flex items-center">
-                <select value={speechLang} onChange={e => {
-                  setSpeechLang(e.target.value);
-                  try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
-                }}
-                  className="py-2 pl-2 pr-1 text-[11px] font-mono bg-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] border-none focus:outline-none cursor-pointer appearance-none"
-                  title="Speech recognition language">
-                  <optgroup label="Common">
-                    <option value="en-US">English (US)</option>
-                    <option value="en-GB">English (UK)</option>
-                    <option value="zh-CN">中文 (简体)</option>
-                    <option value="zh-TW">中文 (繁體)</option>
-                    <option value="zh-HK">粵語 (香港)</option>
-                    <option value="ja-JP">日本語</option>
-                    <option value="ko-KR">한국어</option>
-                  </optgroup>
-                  <optgroup label="European">
-                    <option value="es-ES">Español</option>
-                    <option value="fr-FR">Français</option>
-                    <option value="de-DE">Deutsch</option>
-                    <option value="it-IT">Italiano</option>
-                    <option value="pt-BR">Português (BR)</option>
-                    <option value="pt-PT">Português (PT)</option>
-                    <option value="nl-NL">Nederlands</option>
-                    <option value="pl-PL">Polski</option>
-                    <option value="ru-RU">Русский</option>
-                    <option value="uk-UA">Українська</option>
-                    <option value="sv-SE">Svenska</option>
-                    <option value="da-DK">Dansk</option>
-                    <option value="nb-NO">Norsk</option>
-                    <option value="fi-FI">Suomi</option>
-                    <option value="el-GR">Ελληνικά</option>
-                    <option value="cs-CZ">Čeština</option>
-                    <option value="ro-RO">Română</option>
-                    <option value="hu-HU">Magyar</option>
-                    <option value="tr-TR">Türkçe</option>
-                  </optgroup>
-                  <optgroup label="Asian">
-                    <option value="hi-IN">हिन्दी</option>
-                    <option value="th-TH">ไทย</option>
-                    <option value="vi-VN">Tiếng Việt</option>
-                    <option value="id-ID">Bahasa Indonesia</option>
-                    <option value="ms-MY">Bahasa Melayu</option>
-                    <option value="fil-PH">Filipino</option>
-                  </optgroup>
-                  <optgroup label="Other">
-                    <option value="ar-SA">العربية</option>
-                    <option value="he-IL">עברית</option>
-                    <option value="af-ZA">Afrikaans</option>
-                    <option value="ca-ES">Català</option>
-                  </optgroup>
-                </select>
+                <div className="relative">
+                  <select value={speechLang} onChange={e => {
+                    setSpeechLang(e.target.value);
+                    try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
+                  }}
+                    className="appearance-none bg-transparent text-[11px] font-mono text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] cursor-pointer focus:outline-none pl-1.5 pr-4 py-2.5"
+                    title="Speech language">
+                    {[
+                      ['af-ZA','AF'],['ar-SA','AR'],['ca-ES','CA'],['cs-CZ','CS'],['da-DK','DA'],
+                      ['de-DE','DE'],['el-GR','EL'],['en-GB','EN-GB'],['en-US','EN-US'],['es-ES','ES'],
+                      ['fi-FI','FI'],['fil-PH','FIL'],['fr-FR','FR'],['he-IL','HE'],['hi-IN','HI'],
+                      ['hu-HU','HU'],['id-ID','ID'],['it-IT','IT'],['ja-JP','JA'],['ko-KR','KO'],
+                      ['ms-MY','MS'],['nb-NO','NB'],['nl-NL','NL'],['pl-PL','PL'],['pt-BR','PT-BR'],
+                      ['pt-PT','PT-PT'],['ro-RO','RO'],['ru-RU','RU'],['sv-SE','SV'],['th-TH','TH'],
+                      ['tr-TR','TR'],['uk-UA','UK'],['vi-VN','VI'],['zh-CN','ZH-CN'],['zh-HK','ZH-HK'],['zh-TW','ZH-TW'],
+                    ].map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                  </select>
+                  <span className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[8px] text-[var(--color-text-tertiary)] pointer-events-none">▾</span>
+                </div>
                 <button onClick={toggleListening}
                   className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
                   title={isListening ? 'Stop listening' : 'Voice input'}>
