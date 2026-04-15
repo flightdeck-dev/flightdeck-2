@@ -542,6 +542,19 @@ export class LeadManager {
     return this.leadSessionId;
   }
 
+  /** Cancel the current Lead response (interrupt) */
+  async cancelLead(): Promise<void> {
+    if (!this.leadSessionId) return;
+    const session = this.acpAdapter.getSession(this.leadSessionId);
+    if (session?.acpSessionId && session.status !== 'ended') {
+      try {
+        await session.connection.cancel({ sessionId: session.acpSessionId });
+      } catch {
+        // Best effort — agent may have already finished
+      }
+    }
+  }
+
   /**
    * Resume a Lead agent from a previous ACP session.
    * Falls back to fresh spawn if resume fails.

@@ -64,6 +64,7 @@ interface FlightdeckState {
   sendTaskComment: (taskId: string, content: string) => void;
   setDisplayConfig: (config: Partial<DisplayConfig>) => void;
   applyDisplayPreset: (preset: DisplayPreset) => void;
+  interruptLead: () => void;
   refresh: () => void;
 }
 
@@ -302,11 +303,15 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     setDisplayConfig({ ...config });
   }, [setDisplayConfig]);
 
+  const interruptLead = useCallback(() => {
+    wsClient.interruptLead();
+  }, []);
+
   return (
     <Ctx.Provider value={{
       projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap, agentOutputs, agentStreamChunks,
       displayConfig, connected, loading, sendChat, sendTaskComment,
-      setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
+      setDisplayConfig, applyDisplayPreset, interruptLead, refresh: fetchAll,
     }}>
       {children}
     </Ctx.Provider>

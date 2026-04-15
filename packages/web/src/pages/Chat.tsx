@@ -420,27 +420,15 @@ export default function Chat() {
 
   return (
     <div className="flex h-full -m-8">
-      {/* Thread sidebar */}
-      {showThreads && (
-        <ThreadSidebar threads={threads} activeThread={activeThread} onSelect={id => setActiveThread(id)} />
-      )}
-
       <div className="flex flex-col flex-1 max-w-4xl mx-auto">
-        {/* Thread toggle bar */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-          <button onClick={() => setShowThreads(!showThreads)}
-            className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
-            {showThreads ? <><ChevronLeft size={14} strokeWidth={1.5} className="inline" /> Hide</> : <><ChevronRight size={14} strokeWidth={1.5} className="inline" /> Threads</>}
-          </button>
-          <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-            {activeThread ? threads.find(t => t.id === activeThread)?.title ?? 'Thread' : 'Main Chat'}
-          </span>
-          {!connected && (
-            <span className="ml-auto text-xs text-[var(--color-status-failed)] flex items-center gap-1">
+        {/* Status bar */}
+        {!connected && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+            <span className="text-xs text-[var(--color-status-failed)] flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[var(--color-status-failed)]" /> Disconnected
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Messages */}
         <MessageAreaErrorBoundary>

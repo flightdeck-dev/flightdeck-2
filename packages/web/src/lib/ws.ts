@@ -109,6 +109,10 @@ export class WebSocketClient {
     this.send({ type: 'thread:create', origin_id: originId, title });
   }
 
+  interruptLead(): void {
+    this.send({ type: 'chat:interrupt' });
+  }
+
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {

@@ -32,7 +32,11 @@ export interface DisplayConfigUpdateEvent {
   config: Partial<DisplayConfig>;
 }
 
-export type IncomingEvent = ChatSendEvent | ThreadCreateEvent | TaskCommentSendEvent | DisplayConfigUpdateEvent;
+export interface ChatInterruptEvent {
+  type: 'chat:interrupt';
+}
+
+export type IncomingEvent = ChatSendEvent | ThreadCreateEvent | TaskCommentSendEvent | DisplayConfigUpdateEvent | ChatInterruptEvent;
 
 // Server → UI
 export interface ChatMessageEvent {
@@ -119,6 +123,9 @@ export class WebSocketServer extends EventEmitter {
         break;
       case 'display:config':
         this.handleDisplayConfig(clientId, event);
+        break;
+      case 'chat:interrupt':
+        this.emit('chat:interrupt');
         break;
     }
   }

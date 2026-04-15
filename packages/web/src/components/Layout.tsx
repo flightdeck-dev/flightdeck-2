@@ -91,7 +91,11 @@ export function Layout() {
       <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="flex items-center gap-2">
           <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
-            {projectName ?? status?.config?.name ?? 'Flightdeck'}
+            Flightdeck <span className="text-[var(--color-text-tertiary)] opacity-60">v2.0.0-alpha</span>
+          </span>
+          <span className="text-[var(--color-border)]">·</span>
+          <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
+            {projectName ?? status?.config?.name ?? ''}
           </span>
           {status && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">

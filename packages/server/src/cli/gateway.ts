@@ -732,7 +732,7 @@ async function recoverWorkers(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void; cancelLead?(): Promise<void> }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
     const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
@@ -806,6 +806,13 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
         wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
       } catch (err) { console.error(`[${projectName}] Failed to steer Lead:`, err); }
     })();
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  wsServer.on('chat:interrupt', () => {
+    if (leadManager.cancelLead) {
+      leadManager.cancelLead().catch((err) => console.error(`[${projectName}] Failed to cancel Lead:`, err));
+    }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
