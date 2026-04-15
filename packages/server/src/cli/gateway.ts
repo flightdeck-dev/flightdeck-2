@@ -101,6 +101,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           break;
         case 'tool_call':
           toolName = (update as any).name ?? '';
+          if (!toolName) break; // Skip empty — wait for tool_call_update
           delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, input: (update as any).input ? JSON.stringify((update as any).input) : '', status: (update as any).status ?? 'pending' });
           contentType = 'tool_call';
           break;
@@ -755,6 +756,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
           break;
         case 'tool_call': {
           const toolName = update.name ?? '';
+          if (!toolName) break; // Skip empty tool calls — wait for tool_call_update with name
           const contentType = toolName.startsWith('flightdeck_') ? 'flightdeck_tool_call' : 'tool_call';
           const input = update.input ? JSON.stringify(update.input) : '';
           const delta = JSON.stringify({ toolCallId: update.toolCallId, name: toolName, input, status: update.status ?? 'pending' });
