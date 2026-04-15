@@ -112,6 +112,9 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     fetchProjects();
   }, [fetchProjects]);
 
+  const fetchAllRef = useRef(fetchAll);
+  fetchAllRef.current = fetchAll;
+
   useEffect(() => {
     setLoading(true);
     setStatus(null);
@@ -179,6 +182,10 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           saveDisplayConfig(event.config);
           break;
         case 'task:comment':
+          break;
+        case 'state:update':
+          // Tasks/agents changed — refetch
+          fetchAllRef.current();
           break;
       }
     });

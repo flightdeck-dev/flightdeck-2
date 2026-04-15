@@ -232,8 +232,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const body = await readBody();
         if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
         const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker' });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: task as any });
+        if (wsServer) {
+          wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        }
         json(201, task);
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/tasks' && method === 'GET') {

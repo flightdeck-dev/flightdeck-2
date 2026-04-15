@@ -7,7 +7,8 @@ export type WsEvent =
   | { type: 'chat:stream'; message_id: string; delta: string; done: boolean; content_type?: ContentType; tool_name?: string }
   | { type: 'thread:created'; thread: Thread }
   | { type: 'task:comment'; task_id: string; message: ChatMessage }
-  | { type: 'display:config'; config: DisplayConfig };
+  | { type: 'display:config'; config: DisplayConfig }
+  | { type: 'state:update'; stats: Record<string, number> };
 
 type EventHandler = (event: WsEvent) => void;
 

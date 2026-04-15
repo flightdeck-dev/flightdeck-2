@@ -724,21 +724,11 @@ export class Orchestrator {
   private broadcastStateChange(): void {
     if (!this.wsServer) return;
     const stats = this.dag.getStats();
+    // Broadcast structured state update for UI refresh
     this.wsServer.broadcast({
-      type: 'chat:message',
-      message: {
-        id: `system-${Date.now()}`,
-        threadId: null,
-        parentId: null,
-        taskId: null,
-        authorType: 'system',
-        authorId: null,
-        content: `[state update] ${JSON.stringify(stats)}`,
-        metadata: JSON.stringify({ stats }),
-        createdAt: new Date().toISOString(),
-        updatedAt: null,
-      },
-    });
+      type: 'state:update' as any,
+      stats,
+    } as any);
   }
 
   /**
