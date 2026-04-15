@@ -117,7 +117,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
         </div>
         <div className={`inline-block mt-1 text-sm break-words max-w-[85%] ${
           isUser
-            ? 'px-3 py-2 rounded-2xl bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap'
+            ? 'px-3 py-2 rounded-2xl bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap text-left'
             : 'px-3 py-2 rounded-2xl bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
           {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
