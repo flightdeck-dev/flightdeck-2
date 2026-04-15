@@ -126,6 +126,17 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     wsClient.setProject(projectName);
     wsClient.connect();
 
+    // After connecting, push saved display config to server (server sends DEFAULT on connect)
+    const unsubConn = wsClient.onConnectionChange((connected) => {
+      setConnected(connected);
+      if (connected) {
+        // Push our saved config to override server default
+        const saved = loadDisplayConfig();
+        wsClient.sendDisplayConfig(saved);
+      }
+    });
+
+    let ignoreFirstConfig = true; // Skip server's initial DEFAULT_DISPLAY push
     const unsub = wsClient.on((event: WsEvent) => {
       switch (event.type) {
         case 'chat:message':
@@ -155,6 +166,10 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           break;
         }
         case 'display:config':
+          if (ignoreFirstConfig) {
+            ignoreFirstConfig = false;
+            break;
+          }
           setDisplayConfigState(event.config);
           saveDisplayConfig(event.config);
           break;
@@ -162,8 +177,6 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           break;
       }
     });
-
-    const unsubConn = wsClient.onConnectionChange(setConnected);
 
     return () => {
       unsub();
