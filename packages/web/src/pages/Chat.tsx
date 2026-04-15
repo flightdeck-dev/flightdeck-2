@@ -475,7 +475,7 @@ export default function Chat() {
 
   return (
     <div className="flex" style={{ margin: '-2rem', height: 'calc(100% + 4rem)' }}>
-      <div className="flex flex-col flex-1 max-w-4xl mx-auto min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Status bar */}
         {!connected && (
           <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -487,7 +487,8 @@ export default function Chat() {
 
         {/* Messages */}
         <MessageAreaErrorBoundary>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="max-w-4xl mx-auto space-y-1">
             {filteredMessages.length === 0 && streamEntries.length === 0 && (
               <div className="text-center py-16 text-[var(--color-text-secondary)]">
                 <MessageSquare size={40} strokeWidth={1.5} className="mx-auto mb-4 text-[var(--color-text-tertiary)]" />
@@ -508,11 +509,13 @@ export default function Chat() {
               <TypingIndicator />
             )}
             <div ref={bottomRef} />
+            </div>
           </div>
         </MessageAreaErrorBoundary>
 
         {/* Input */}
         <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)] flex-shrink-0">
+          <div className="max-w-4xl mx-auto">
           {isStreaming && (
             <div className="flex items-center justify-between mb-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--color-status-failed)_8%,transparent)]">
               <span className="text-xs text-[var(--color-text-secondary)] animate-pulse">Lead is responding...</span>
@@ -570,8 +573,8 @@ export default function Chat() {
               <Send size={16} strokeWidth={1.5} />
             </button>
           </div>
+          </div>
         </div>
-      </div>
     </div>
   );
 }
