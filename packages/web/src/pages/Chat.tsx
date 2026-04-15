@@ -69,7 +69,15 @@ function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: bo
   );
 }
 
-const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; onReply: (m: ChatMessage) => void }) {
+function scrollToMessage(id: string) {
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('animate-highlight');
+  setTimeout(() => el.classList.remove('animate-highlight'), 1500);
+}
+
+const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
   const parentMsg = msg.parentId && messages ? messages.find(m => m.id === msg.parentId) : null;
@@ -85,8 +93,10 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
     );
   }
 
+  const replies = replyCountMap?.get(msg.id);
+
   return (
-    <div className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div id={`msg-${msg.id}`} className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: style.bg, color: style.color }}>
         {style.icon}
@@ -94,7 +104,8 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
       <div className={`relative flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
         <MessageToolbar msg={msg} isUser={isUser} onReply={onReply} />
         {parentMsgs.length > 1 ? (
-          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] ${isUser ? 'ml-auto' : ''}`}>
+          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] cursor-pointer hover:bg-[var(--color-surface-hover)] ${isUser ? 'ml-auto' : ''}`}
+            onClick={() => parentMsgs[0] && scrollToMessage(parentMsgs[0].id)}>
             {parentMsgs.map((pm, i) => (
               <div key={pm.id} className="truncate">
                 ↩ replying to {AUTHOR_STYLES[pm.authorType]?.label ?? pm.authorType}: {pm.content.slice(0, 60)}{pm.content.length > 60 ? '...' : ''}
@@ -102,7 +113,8 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
             ))}
           </div>
         ) : parentMsg && (
-          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] truncate ${isUser ? 'ml-auto' : ''}`}>
+          <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] truncate cursor-pointer hover:bg-[var(--color-surface-hover)] ${isUser ? 'ml-auto' : ''}`}
+            onClick={() => scrollToMessage(parentMsg.id)}>
             ↩ replying to {AUTHOR_STYLES[parentMsg.authorType]?.label ?? parentMsg.authorType}: {parentMsg.content.slice(0, 80)}{parentMsg.content.length > 80 ? '...' : ''}
           </div>
         )}
@@ -122,6 +134,13 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
         }`}>
           {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
         </div>
+        {replies && replies.length > 0 && (
+          <button
+            onClick={() => scrollToMessage(replies[0])}
+            className={`text-xs text-[var(--color-primary)] hover:underline mt-1 ${isUser ? 'block ml-auto' : ''}`}>
+            ↓ {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -406,6 +425,19 @@ export default function Chat() {
     [messages, activeThread]
   );
 
+  const replyCountMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of filteredMessages) {
+      const pids = m.parentIds ?? (m.parentId ? [m.parentId] : []);
+      for (const pid of pids) {
+        const arr = map.get(pid);
+        if (arr) arr.push(m.id);
+        else map.set(pid, [m.id]);
+      }
+    }
+    return map;
+  }, [filteredMessages]);
+
   const handleReply = useCallback((m: ChatMessage) => setReplyTo(m), []);
 
   useEffect(() => {
@@ -516,7 +548,7 @@ export default function Chat() {
               </div>
             )}
             {filteredMessages.map(msg => (
-              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} onReply={handleReply} />
+              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} />
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}

@@ -51,3 +51,11 @@ body {
 .animate-slide-in-right {
   animation: slide-in-right 125ms ease-out;
 }
+
+@keyframes highlight-flash {
+  0% { background-color: color-mix(in srgb, var(--color-primary) 20%, transparent); }
+  100% { background-color: transparent; }
+}
+.animate-highlight {
+  animation: highlight-flash 1.5s ease-out;
+}
