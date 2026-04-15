@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
-import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, X, Clock } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const PROJECT_NAV: SubNavItem[] = [
   { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/agents', label: 'Agents', icon: Bot },
   { path: '/decisions', label: 'Decisions', icon: Scale },
+  { path: '/cron', label: 'Cron', icon: Clock },
 ];
 
 function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: ProjectSummary; isActive: boolean; collapsed: boolean; onDeleted: () => void }) {

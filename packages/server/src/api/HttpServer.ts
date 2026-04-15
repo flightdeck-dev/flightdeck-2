@@ -7,6 +7,7 @@ import { leadResponseEvent } from '../integrations/WebhookNotifier.js';
 
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { AgentRole } from '@flightdeck-ai/shared';
+import type { CronStore } from '../cron/CronStore.js';
 
 export interface HttpServerDeps {
   projectManager: ProjectManager;
@@ -20,6 +21,8 @@ export interface HttpServerDeps {
   authCheck?: (req: IncomingMessage, res: ServerResponse) => boolean;
   /** Webhook notifiers per project, for firing lead_response and agent_message events. */
   webhookNotifiers?: Map<string, WebhookNotifier>;
+  /** Cron stores per project. */
+  cronStores?: Map<string, CronStore>;
 }
 
 /**
@@ -27,7 +30,7 @@ export interface HttpServerDeps {
  * All project routes are scoped under /api/projects/:name/*.
  */
 export function createHttpServer(deps: HttpServerDeps): Server {
-  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers } = deps;
+  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers, cronStores } = deps;
 
   let modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
   let presetNames: string[] = [];
@@ -475,6 +478,55 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
         json(200, { notifications: cfg.notifications, active: true });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/cron' && method === 'GET') {
+      const cronStore = cronStores?.get(projectName);
+      if (!cronStore) { json(500, { error: 'Cron not available for this project' }); return; }
+      json(200, cronStore.listJobs());
+    } else if (subPath === '/cron' && method === 'POST') {
+      const cronStore = cronStores?.get(projectName);
+      if (!cronStore) { json(500, { error: 'Cron not available for this project' }); return; }
+      try {
+        const body = await readBody();
+        if (!body.name || !body.prompt) { json(400, { error: 'Missing required fields: name, prompt' }); return; }
+        const schedule = body.schedule || '0 * * * *';
+        const job = cronStore.addJob({
+          name: body.name,
+          description: body.description,
+          schedule: { kind: 'cron', expr: typeof schedule === 'string' ? schedule : (schedule.cron || schedule.expr || '0 * * * *'), tz: typeof schedule === 'object' ? schedule.tz : undefined },
+          prompt: body.prompt,
+          skill: body.skill,
+          enabled: body.enabled ?? true,
+        });
+        json(201, job);
+      } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath.match(/^\/cron\/[^/]+\/enable$/) && method === 'PUT') {
+      const cronStore = cronStores?.get(projectName);
+      if (!cronStore) { json(500, { error: 'Cron not available' }); return; }
+      const jobId = subPath.split('/')[2];
+      if (cronStore.enableJob(jobId)) json(200, { success: true });
+      else json(404, { error: 'Cron job not found' });
+    } else if (subPath.match(/^\/cron\/[^/]+\/disable$/) && method === 'PUT') {
+      const cronStore = cronStores?.get(projectName);
+      if (!cronStore) { json(500, { error: 'Cron not available' }); return; }
+      const jobId = subPath.split('/')[2];
+      if (cronStore.disableJob(jobId)) json(200, { success: true });
+      else json(404, { error: 'Cron job not found' });
+    } else if (subPath.match(/^\/cron\/[^/]+$/) && method === 'DELETE') {
+      const cronStore = cronStores?.get(projectName);
+      if (!cronStore) { json(500, { error: 'Cron not available' }); return; }
+      const jobId = subPath.split('/')[2];
+      if (cronStore.removeJob(jobId)) json(200, { success: true });
+      else json(404, { error: 'Cron job not found' });
+    } else if (subPath.match(/^\/cron\/[^/]+\/run$/) && method === 'POST') {
+      const cronStore = cronStores?.get(projectName);
+      const lm = leadManagers.get(projectName);
+      if (!cronStore || !lm) { json(500, { error: 'Cron or Lead not available' }); return; }
+      const jobId = subPath.split('/')[2];
+      const job = cronStore.getJob(jobId);
+      if (!job) { json(404, { error: 'Cron job not found' }); return; }
+      // Fire and forget
+      lm.steerLead({ type: 'cron', job: { id: job.id, name: job.name, prompt: job.prompt, skill: job.skill } }).catch(() => {});
+      json(202, { status: 'triggered' });
     } else {
       res.writeHead(404); res.end('Not found');
     }

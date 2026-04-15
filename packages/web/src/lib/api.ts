@@ -88,4 +88,17 @@ export const api = {
     if (!res.ok) throw new Error(`DELETE /api/projects/${name}: ${res.status}`);
     return res.json();
   },
+
+  // Cron
+  listCron: (project: string) => get<import('./types.ts').CronJob[]>(projectPath(project, '/cron')),
+  createCron: (project: string, body: { name: string; schedule: string; prompt: string; skill?: string; enabled?: boolean; description?: string }) =>
+    post<import('./types.ts').CronJob>(projectPath(project, '/cron'), { ...body, schedule: { cron: body.schedule } }),
+  enableCron: (project: string, id: string) => put<{ success: boolean }>(projectPath(project, `/cron/${encodeURIComponent(id)}/enable`), {}),
+  disableCron: (project: string, id: string) => put<{ success: boolean }>(projectPath(project, `/cron/${encodeURIComponent(id)}/disable`), {}),
+  deleteCron: async (project: string, id: string): Promise<{ success: boolean }> => {
+    const res = await fetch(`${BASE}${projectPath(project, `/cron/${encodeURIComponent(id)}`)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`DELETE cron: ${res.status}`);
+    return res.json();
+  },
+  runCron: (project: string, id: string) => post<{ status: string }>(projectPath(project, `/cron/${encodeURIComponent(id)}/run`)),
 };

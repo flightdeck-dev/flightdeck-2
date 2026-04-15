@@ -182,6 +182,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const cronSchedulers: Array<{ stop: () => void }> = [];
   const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
   const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
+  const cronStores = new Map<string, InstanceType<typeof CronStore>>();
 
   // Set FLIGHTDECK_URL early so MCP subprocesses (spawned during agent init) inherit it.
   // This must happen BEFORE spawnAgents() so Lead/Planner MCP can relay back to gateway.
@@ -230,6 +231,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
     // Create and start cron scheduler
     const cronStore = new CronStore(fd.project.subpath('.'));
+    cronStores.set(name, cronStore);
     const cronScheduler = new CronScheduler(cronStore, async (job) => {
       const response = await leadManager.steerLead({
         type: 'cron',
@@ -322,6 +324,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     wsServers,
     authCheck: authCheckFn,
     webhookNotifiers,
+    cronStores,
   });
 
   // Wire WebSocket upgrade for all projects

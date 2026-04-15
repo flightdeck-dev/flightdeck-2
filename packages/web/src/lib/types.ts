@@ -104,3 +104,24 @@ export interface ProjectSummary {
   taskStats: Record<string, number>;
   totalCost: number;
 }
+
+export interface CronJob {
+  id: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  schedule: { kind: string; expr: string; tz?: string };
+  skill?: string;
+  prompt: string;
+  delivery?: { mode: string; webhookUrl?: string };
+  state: {
+    nextRunAt: string | null;
+    lastRunAt: string | null;
+    lastRunStatus: 'ok' | 'error' | null;
+    lastDurationMs: number | null;
+    consecutiveErrors: number;
+    lastError?: string;
+  };
+}
