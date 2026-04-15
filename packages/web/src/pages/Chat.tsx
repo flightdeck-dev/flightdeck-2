@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
@@ -365,7 +365,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 }
 
 export default function Chat() {
-  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, connected, projectName } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName } = useFlightdeck();
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(null);
@@ -418,8 +418,45 @@ export default function Chat() {
   const streamEntries = [...streamingMessages.entries()].filter(([id]) => !messageIds.has(id));
   const isStreaming = streamEntries.length > 0;
 
+  // Speech recognition
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const speechSupported = useMemo(() => {
+    return typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  }, []);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language?.startsWith('zh') ? 'zh-CN' : navigator.language || 'en-US';
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setInput(transcript);
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+        inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 128) + 'px';
+      }
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [isListening]);
+
   return (
-    <div className="flex h-full -m-8">
+    <div className="flex h-full" style={{ margin: '-2rem' }}>
       <div className="flex flex-col flex-1 max-w-4xl mx-auto">
         {/* Status bar */}
         {!connected && (
@@ -457,7 +494,17 @@ export default function Chat() {
         </MessageAreaErrorBoundary>
 
         {/* Input */}
-        <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)]">
+        <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)] flex-shrink-0">
+          {isStreaming && (
+            <div className="flex items-center justify-between mb-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--color-status-failed)_8%,transparent)]">
+              <span className="text-xs text-[var(--color-text-secondary)] animate-pulse">Lead is responding...</span>
+              <button onClick={interruptLead}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--color-status-failed)' }}>
+                <Square size={12} strokeWidth={2} fill="currentColor" /> Interrupt
+              </button>
+            </div>
+          )}
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg bg-[var(--color-surface-secondary)] text-xs">
               <span className="text-[var(--color-text-tertiary)]">Replying to</span>
@@ -472,6 +519,13 @@ export default function Chat() {
               disabled={!connected} rows={1}
               className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] disabled:opacity-50 max-h-32 overflow-y-auto"
             />
+            {speechSupported && (
+              <button onClick={toggleListening}
+                className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
+                title={isListening ? 'Stop listening' : 'Voice input'}>
+                {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
+              </button>
+            )}
             <button onClick={handleSend} disabled={!connected || !input.trim()}
               className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
               <Send size={16} strokeWidth={1.5} />
