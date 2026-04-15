@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { join, dirname } from 'node:path';
 import { CronExpressionParser } from 'cron-parser';
 
@@ -54,7 +55,7 @@ export class CronStore {
 
   save(file: CronFile): void {
     mkdirSync(dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, JSON.stringify(file, null, 2));
+    writeJsonAtomicSync(this.filePath, file);
   }
 
   addJob(opts: { name: string; description?: string; schedule: CronSchedule; skill?: string; prompt: string; enabled?: boolean; delivery?: CronJob['delivery'] }): CronJob {

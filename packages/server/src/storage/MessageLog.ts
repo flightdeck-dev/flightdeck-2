@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
 import type { Message, AgentId } from '@flightdeck-ai/shared';
 
@@ -41,7 +42,7 @@ export class MessageLog {
     mkdirSync(this.messagesDir, { recursive: true });
     const state = this.readReadState();
     state[agentId] = new Date().toISOString();
-    writeFileSync(this.readStatePath(), JSON.stringify(state, null, 2));
+    writeJsonAtomicSync(this.readStatePath(), state);
   }
 
   /** Get the last-read timestamp for an agent, or null if never read. */

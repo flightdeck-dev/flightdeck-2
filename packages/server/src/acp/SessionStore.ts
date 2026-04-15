@@ -29,7 +29,6 @@ export class SessionStore {
     fs.mkdirSync(this.baseDir, { recursive: true });
     this.db = db;
     this.ensureTable();
-    this.migrateFromJson();
   }
 
   /** Create the sessions table if it doesn't exist (runtime migration). */
@@ -42,36 +41,6 @@ export class SessionStore {
       last_active_at TEXT NOT NULL
     )`));
     this.db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_name)`));
-  }
-
-  /** Migrate legacy index.json into SQLite if it exists. */
-  private migrateFromJson(): void {
-    const indexPath = path.join(this.baseDir, 'index.json');
-    if (!fs.existsSync(indexPath)) return;
-    try {
-      const entries: SessionEntry[] = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-      if (Array.isArray(entries) && entries.length > 0) {
-        for (const entry of entries) {
-          // Skip if already exists
-          const existing = this.db.select().from(sessions).where(eq(sessions.id, entry.id)).get();
-          if (!existing) {
-            this.db.insert(sessions).values({
-              id: entry.id,
-              cwd: entry.cwd,
-              projectName: entry.projectName,
-              createdAt: entry.createdAt,
-              lastActiveAt: entry.lastActiveAt,
-            }).run();
-          }
-        }
-      }
-      // Remove legacy file after successful migration
-      fs.unlinkSync(indexPath);
-      // Also remove tmp file if it exists
-      try { fs.unlinkSync(indexPath + '.tmp'); } catch { /* ignore */ }
-    } catch {
-      // Corrupted index.json — just ignore
-    }
   }
 
   private eventLogPath(sessionId: string): string {

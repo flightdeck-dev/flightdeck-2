@@ -9,7 +9,8 @@
  * When --auth none: no authentication (for local dev)
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { writeTextAtomicSync } from '../../infra/json-files.js';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -26,7 +27,7 @@ export function resolveToken(): string {
     return readFileSync(TOKEN_FILE, 'utf-8').trim();
   }
   const token = randomBytes(32).toString('hex');
-  writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
+  writeTextAtomicSync(TOKEN_FILE, token, { mode: 0o600 });
   return token;
 }
 

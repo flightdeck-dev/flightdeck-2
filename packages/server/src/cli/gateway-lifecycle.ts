@@ -10,6 +10,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { writeJsonAtomicSync, writeTextAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
@@ -134,7 +135,7 @@ export interface AgentState {
 
 function saveAgentState(agents: AgentState[]): void {
   ensureDir();
-  writeFileSync(STATE_FILE, JSON.stringify(agents, null, 2));
+  writeJsonAtomicSync(STATE_FILE, agents);
 }
 
 export function loadAgentState(): AgentState[] {
@@ -210,8 +211,8 @@ export async function gatewayStart(opts: GatewaySubcommandOpts): Promise<void> {
     process.exit(1);
   }
 
-  writeFileSync(PID_FILE, String(pid));
-  writeFileSync(PORT_FILE, String(port));
+  writeTextAtomicSync(PID_FILE, String(pid));
+  writeTextAtomicSync(PORT_FILE, String(port));
 
   await new Promise(r => setTimeout(r, 1000));
   try {
@@ -330,8 +331,8 @@ export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
   }
 
   ensureDir();
-  writeFileSync(PID_FILE, String(process.pid));
-  writeFileSync(PORT_FILE, String(port));
+  writeTextAtomicSync(PID_FILE, String(process.pid));
+  writeTextAtomicSync(PORT_FILE, String(port));
 
   const cleanup = () => { cleanPidFiles(); };
   process.on('exit', cleanup);

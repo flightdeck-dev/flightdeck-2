@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { FD_HOME } from './constants.js';
 
 export interface SavedSession {
@@ -33,8 +34,7 @@ const RELOAD_CONFIG_FILE = path.join(STATE_DIR, 'reload-config.json');
  */
 export function saveGatewayState(state: GatewayState): void {
   try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    writeJsonAtomicSync(STATE_FILE, state);
     console.error(`Saved ${state.sessions.length} session(s) to ${STATE_FILE}`);
   } catch (err) {
     console.error('Failed to save gateway state:', err);
@@ -100,7 +100,7 @@ export function markReloadFailed(): void {
     const state = loadGatewayState();
     if (state) {
       state.lastReloadFailed = true;
-      fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      writeJsonAtomicSync(STATE_FILE, state);
       console.error('Marked reload as failed in gateway state.');
     }
   } catch (err) {
@@ -116,7 +116,7 @@ export function clearReloadFailed(): void {
     const state = loadGatewayState();
     if (state && state.lastReloadFailed) {
       state.lastReloadFailed = false;
-      fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+      writeJsonAtomicSync(STATE_FILE, state);
     }
   } catch {
     // ignore
@@ -133,8 +133,7 @@ const AGENT_PIDS_FILE = path.join(STATE_DIR, 'agent-pids.json');
  */
 export function saveAgentPids(gatewayPid: number, pids: number[]): void {
   try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(AGENT_PIDS_FILE, JSON.stringify({ gatewayPid, pids, savedAt: new Date().toISOString() }), 'utf-8');
+    writeJsonAtomicSync(AGENT_PIDS_FILE, { gatewayPid, pids, savedAt: new Date().toISOString() });
   } catch {
     // best effort
   }

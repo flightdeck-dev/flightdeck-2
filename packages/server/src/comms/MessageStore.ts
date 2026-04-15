@@ -186,13 +186,17 @@ export class MessageStore {
     if (!sanitized) return [];
 
     try {
-      let ftsQuery = `SELECT id FROM messages_fts WHERE content MATCH '${sanitized.replace(/'/g, "''")}'`;
+      // Use parameterized queries to prevent SQL injection
+      let rows: Array<{ id: string }>;
       if (opts.authorType) {
-        ftsQuery += ` AND author_type = '${opts.authorType.replace(/'/g, "''")}'`;
+        rows = this.db.all(
+          sql`SELECT id FROM messages_fts WHERE content MATCH ${sanitized} AND author_type = ${opts.authorType} ORDER BY rank LIMIT ${limit}`,
+        ) as Array<{ id: string }>;
+      } else {
+        rows = this.db.all(
+          sql`SELECT id FROM messages_fts WHERE content MATCH ${sanitized} ORDER BY rank LIMIT ${limit}`,
+        ) as Array<{ id: string }>;
       }
-      ftsQuery += ` ORDER BY rank LIMIT ${limit}`;
-
-      const rows = this.db.all(sql.raw(ftsQuery)) as Array<{ id: string }>;
       if (rows.length === 0) return [];
 
       // Fetch full message records

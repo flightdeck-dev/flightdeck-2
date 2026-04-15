@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { join, resolve } from 'node:path';
 import type { ProjectConfig, FlightdeckJson, AgentRole } from '@flightdeck-ai/shared';
 import { generateAgentConfigs, type AgentConfigOutput } from '../agents/AgentConfigs.js';
@@ -131,7 +132,7 @@ _Updated periodically by consolidating daily logs._
 
   setConfig(config: ProjectConfig): void {
     const configPath = join(this.projectDir, 'config.json');
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    writeJsonAtomicSync(configPath, config);
   }
 
   static resolve(cwd: string): string | null {
@@ -156,7 +157,7 @@ _Updated periodically by consolidating daily logs._
 
   static writeFlightdeckJson(dir: string, projectName: string): void {
     const data: FlightdeckJson = { project: projectName };
-    writeFileSync(join(dir, '.flightdeck.json'), JSON.stringify(data, null, 2));
+    writeJsonAtomicSync(join(dir, '.flightdeck.json'), data);
   }
 
   ensureDirs(): void {

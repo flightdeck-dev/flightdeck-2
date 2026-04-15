@@ -2,7 +2,8 @@
  * WorkflowStore — reads/writes workflow.json from the project directory.
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
 import YAML from 'yaml';
 import type { AgentRole } from '@flightdeck-ai/shared';
@@ -76,7 +77,7 @@ export class WorkflowStore {
   }
 
   save(config: WorkflowConfig): void {
-    writeFileSync(this.filePath, JSON.stringify(config, null, 2));
+    writeJsonAtomicSync(this.filePath, config);
   }
 
   exists(): boolean {

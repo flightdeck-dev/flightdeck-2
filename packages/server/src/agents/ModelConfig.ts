@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { writeTextAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { AgentsConfig } from '@flightdeck-ai/shared';
@@ -39,7 +40,7 @@ export class ModelConfig {
   }
 
   private writeFull(config: Record<string, unknown>): void {
-    writeFileSync(this.configPath, stringifyYaml(config, { lineWidth: 120 }));
+    writeTextAtomicSync(this.configPath, stringifyYaml(config, { lineWidth: 120 }));
   }
 
   getAgentsConfig(): AgentsConfig {

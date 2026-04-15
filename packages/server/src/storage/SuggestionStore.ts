@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { join, dirname } from 'node:path';
 import type { Suggestion, SuggestionStatus } from '../orchestrator/Scout.js';
 
@@ -51,6 +52,6 @@ export class SuggestionStore {
 
   private writeAll(suggestions: Suggestion[]): void {
     mkdirSync(dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, JSON.stringify(suggestions, null, 2));
+    writeJsonAtomicSync(this.filePath, suggestions);
   }
 }
