@@ -122,6 +122,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   }, [fetchAll]);
 
   useEffect(() => {
+    if (!projectName) return;
+    wsClient.setProject(projectName);
     wsClient.connect();
 
     const unsub = wsClient.on((event: WsEvent) => {

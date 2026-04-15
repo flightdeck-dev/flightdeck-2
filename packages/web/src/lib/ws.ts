@@ -16,13 +16,24 @@ export class WebSocketClient {
   private handlers = new Set<EventHandler>();
   private connectionHandlers = new Set<(connected: boolean) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private baseUrl: string;
   private url: string;
   private _connected = false;
   private backoffMs = WS_INITIAL_BACKOFF_MS;
 
   constructor(url?: string) {
     const loc = window.location;
-    this.url = url ?? `${loc.protocol === 'https:' ? 'wss:' : 'ws:'}//${loc.host}`;
+    this.baseUrl = url ?? `${loc.protocol === 'https:' ? 'wss:' : 'ws:'}//${loc.host}`;
+    this.url = this.baseUrl;
+  }
+
+  setProject(projectName: string): void {
+    this.url = `${this.baseUrl}/ws/${encodeURIComponent(projectName)}`;
+    // Reconnect if already connected
+    if (this.ws) {
+      this.disconnect();
+      this.connect();
+    }
   }
 
   get connected() { return this._connected; }
