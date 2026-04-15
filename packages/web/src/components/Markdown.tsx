@@ -21,7 +21,7 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-400 underline hover:text-blue-300"
+      className="text-[var(--color-status-ready)] underline hover:opacity-80"
     >
       {children}
     </a>
@@ -43,40 +43,40 @@ const components: Components = {
       );
     }
     return (
-      <code className="bg-zinc-700 rounded px-1 py-0.5 text-sm font-mono">
+      <code className="bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] rounded px-1.5 py-0.5 text-sm font-mono border border-[var(--color-border)]">
         {children}
       </code>
     );
   },
   pre: ({ children }) => (
-    <pre className="bg-zinc-800 rounded p-3 text-sm font-mono overflow-x-auto mb-2">
+    <pre className="bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg p-3 text-sm font-mono overflow-x-auto mb-2">
       {children}
     </pre>
   ),
   table: ({ children }) => (
     <div className="overflow-x-auto mb-2">
-      <table className="min-w-full border border-zinc-600 text-sm">
+      <table className="min-w-full border border-[var(--color-border)] text-sm">
         {children}
       </table>
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-zinc-700">{children}</thead>
+    <thead className="bg-[var(--color-surface-secondary)]">{children}</thead>
   ),
   th: ({ children }) => (
-    <th className="border border-zinc-600 px-3 py-1.5 text-left font-semibold">
+    <th className="border border-[var(--color-border)] px-3 py-1.5 text-left font-semibold">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border border-zinc-600 px-3 py-1.5">{children}</td>
+    <td className="border border-[var(--color-border)] px-3 py-1.5">{children}</td>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-zinc-500 pl-3 italic text-zinc-400 mb-2">
+    <blockquote className="border-l-2 border-[var(--color-text-tertiary)] pl-3 italic text-[var(--color-text-secondary)] mb-2">
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="border-zinc-600 my-3" />,
+  hr: () => <hr className="border-[var(--color-border)] my-3" />,
 };
 
 export function Markdown({ content }: { content: string }) {
