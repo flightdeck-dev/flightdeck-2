@@ -43,7 +43,7 @@ describe('Orchestrator suspended agents', () => {
     store.insertAgent({
       id: 'agent-w1' as AgentId,
       role: 'worker', runtime: 'acp', acpSessionId: null,
-      status: 'suspended', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
     const result = await orch.tick();
@@ -54,18 +54,18 @@ describe('Orchestrator suspended agents', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
       role: 'planner', runtime: 'acp', acpSessionId: null,
-      status: 'suspended', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
     // getActiveAgentCount only counts idle/busy
     expect(store.getActiveAgentCount()).toBe(0);
   });
 
-  it('listSuspendedAgents returns only suspended agents', () => {
+  it('listHibernatedAgents returns only hibernated agents', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
       role: 'planner', runtime: 'acp', acpSessionId: null,
-      status: 'suspended', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
     store.insertAgent({
       id: 'agent-w1' as AgentId,
@@ -73,17 +73,17 @@ describe('Orchestrator suspended agents', () => {
       status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
-    const suspended = store.listSuspendedAgents();
+    const suspended = store.listHibernatedAgents();
     expect(suspended).toHaveLength(1);
     expect(suspended[0].id).toBe('agent-s1');
-    expect(suspended[0].status).toBe('suspended');
+    expect(suspended[0].status).toBe('hibernated');
   });
 
   it('purgeOfflineAgents does not purge suspended agents', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
       role: 'planner', runtime: 'acp', acpSessionId: null,
-      status: 'suspended', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
     store.insertAgent({
       id: 'agent-off1' as AgentId,
@@ -96,6 +96,6 @@ describe('Orchestrator suspended agents', () => {
     
     const remaining = store.listAgents();
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].status).toBe('suspended');
+    expect(remaining[0].status).toBe('hibernated');
   });
 });

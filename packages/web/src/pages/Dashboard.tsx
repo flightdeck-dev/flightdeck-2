@@ -75,7 +75,7 @@ export default function Dashboard() {
   }
 
   const tasksByState = (state: TaskState) => tasks.filter(t => t.state === state);
-  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'suspended', 'hibernated', 'retired'].includes(a.status));
+  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'hibernated', 'retired'].includes(a.status));
   const leadMessage = [...messages].reverse().find(m => m.authorType === 'lead' && !m.threadId);
 
   return (

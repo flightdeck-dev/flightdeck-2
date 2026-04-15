@@ -393,10 +393,18 @@ export class SqliteStore {
       .run();
   }
 
-  /** Set agent status to 'retired', clearing acpSessionId. */
+  /** Set agent status to 'retired', preserving acpSessionId for potential unretire. */
   retireAgent(id: AgentId): void {
     this._db.update(agents)
-      .set({ status: 'retired', acpSessionId: null })
+      .set({ status: 'retired' })
+      .where(eq(agents.id, id))
+      .run();
+  }
+
+  /** Unretire an agent — set status back to 'hibernated'. */
+  unretireAgent(id: AgentId): void {
+    this._db.update(agents)
+      .set({ status: 'hibernated' })
       .where(eq(agents.id, id))
       .run();
   }
@@ -444,9 +452,9 @@ export class SqliteStore {
     return result.changes;
   }
 
-  /** List all agents with status 'suspended'. */
-  listSuspendedAgents(): Agent[] {
-    return this._db.select().from(agents).where(eq(agents.status, 'suspended')).all().map(r => this.rowToAgent(r));
+  /** List all agents with status 'hibernated'. */
+  listHibernatedAgents(): Agent[] {
+    return this._db.select().from(agents).where(eq(agents.status, 'hibernated')).all().map(r => this.rowToAgent(r));
   }
 
   getActiveAgentCount(): number {

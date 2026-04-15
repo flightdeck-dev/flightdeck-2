@@ -75,6 +75,8 @@ export const api = {
     post<Agent>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/wake`)),
   retireAgent: (project: string, agentId: string) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/retire`)),
+  unretireAgent: (project: string, agentId: string) =>
+    post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/unretire`)),
   terminateAgent: (project: string, agentId: string) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/terminate`)),
   restartAgent: (project: string, agentId: string) =>

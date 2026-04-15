@@ -375,8 +375,8 @@ export class AgentManager {
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
     // Suspended agents cannot be steered — they need to be resumed first
-    if (agent.status === 'suspended') {
-      throw new Error(`Agent ${agentId} is suspended. Resume it before steering.`);
+    if (agent.status === 'hibernated') {
+      throw new Error(`Agent ${agentId} is hibernated. Resume it before steering.`);
     }
 
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
@@ -389,8 +389,8 @@ export class AgentManager {
   async sendToAgent(agentId: AgentId, message: string): Promise<void> {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
-    if (agent.status === 'suspended') {
-      throw new Error(`Agent ${agentId} is suspended. Resume it before sending.`);
+    if (agent.status === 'hibernated') {
+      throw new Error(`Agent ${agentId} is hibernated. Resume it before sending.`);
     }
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);

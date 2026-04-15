@@ -29,7 +29,7 @@ export const AGENT_RUNTIMES = ['acp', 'pty'] as const;
 export type AgentRuntime = typeof AGENT_RUNTIMES[number];
 
 // Agent status
-export const AGENT_STATUSES = ['idle', 'busy', 'offline', 'errored', 'suspended', 'hibernated', 'retired'] as const;
+export const AGENT_STATUSES = ['idle', 'busy', 'offline', 'errored', 'hibernated', 'retired'] as const;
 export type AgentStatus = typeof AGENT_STATUSES[number];
 
 // Governance profiles

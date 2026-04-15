@@ -101,7 +101,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { projects, agents } = useFlightdeck();
   const { projectName } = useParams();
 
-  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'suspended', 'hibernated', 'retired'].includes(a.status)).length;
+  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'hibernated', 'retired'].includes(a.status)).length;
   const busyAgents = agents.filter(a => a.status === 'busy' || a.status === 'working').length;
 
   return (

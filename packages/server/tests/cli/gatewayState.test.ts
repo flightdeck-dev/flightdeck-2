@@ -114,7 +114,7 @@ describe('gatewayState', () => {
           acpSessionId: 'acp-def',
           localSessionId: 'acp-local-2',
           cwd: '/tmp/test',
-          status: 'suspended',
+          status: 'hibernated',
         },
       ],
     };
@@ -122,7 +122,7 @@ describe('gatewayState', () => {
     const loaded = loadGatewayState();
     expect(loaded).not.toBeNull();
     expect(loaded!.sessions[0].status).toBe('active');
-    expect(loaded!.sessions[1].status).toBe('suspended');
+    expect(loaded!.sessions[1].status).toBe('hibernated');
   });
 
   // --- Reload config tests ---

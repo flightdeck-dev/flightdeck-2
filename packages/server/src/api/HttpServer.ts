@@ -355,6 +355,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
         json(200, { success: true });
       } catch (e: unknown) { json(500, { error: `Failed to retire agent: ${e instanceof Error ? e.message : String(e)}` }); }
+    } else if (subPath.match(/^\/agents\/[^/]+\/unretire$/) && method === 'POST') {
+      const agentId = subPath.split('/')[2];
+      try {
+        fd.sqlite.unretireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, { success: true });
+      } catch (e: unknown) { json(500, { error: `Failed to unretire agent: ${e instanceof Error ? e.message : String(e)}` }); }
     } else if (subPath.match(/^\/agents\/[^/]+\/model$/) && method === 'PUT') {
       const agentId = subPath.split('/')[2];
       const am = agentManagers?.get(projectName) ?? fd.agentManager;

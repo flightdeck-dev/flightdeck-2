@@ -555,7 +555,7 @@ async function spawnAgents(
         cwd: savedLead.cwd,
         model: savedLead.model,
       });
-      // Register a suspended agent record in SQLite so it shows in status
+      // Register a hibernated agent record in SQLite so it shows in status
       const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
       const suspendedId = makeAgentId('lead', Date.now().toString());
       fd.sqlite.insertAgent({
@@ -563,7 +563,7 @@ async function spawnAgents(
         role: 'lead',
         runtime: 'acp',
         acpSessionId: null,
-        status: 'suspended',
+        status: 'hibernated',
         currentSpecId: null,
         costAccumulated: 0,
         lastHeartbeat: null,
@@ -585,7 +585,7 @@ async function spawnAgents(
         cwd: savedPlanner.cwd,
         model: savedPlanner.model,
       });
-      // Register a suspended agent record in SQLite so it shows in status
+      // Register a hibernated agent record in SQLite so it shows in status
       const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
       const suspendedId = makeAgentId('planner', Date.now().toString());
       fd.sqlite.insertAgent({
@@ -593,7 +593,7 @@ async function spawnAgents(
         role: 'planner',
         runtime: 'acp',
         acpSessionId: null,
-        status: 'suspended',
+        status: 'hibernated',
         currentSpecId: null,
         costAccumulated: 0,
         lastHeartbeat: null,
@@ -609,7 +609,7 @@ async function spawnAgents(
 
 /**
  * Recover worker sessions from a previous gateway run.
- * - Default mode: pause worker tasks, mark agents suspended, notify Lead
+ * - Default mode: pause worker tasks, mark agents hibernated, notify Lead
  * - --continue mode: aggressively resume all worker sessions
  */
 async function recoverWorkers(
