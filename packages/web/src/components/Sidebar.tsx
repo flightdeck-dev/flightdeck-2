@@ -1,8 +1,9 @@
-import { NavLink, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { NavLink, useParams, useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
-import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, X } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -20,10 +21,33 @@ const PROJECT_NAV: SubNavItem[] = [
   { path: '/decisions', label: 'Decisions', icon: Scale },
 ];
 
-function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary; isActive: boolean; collapsed: boolean }) {
+function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: ProjectSummary; isActive: boolean; collapsed: boolean; onDeleted: () => void }) {
   const [expanded, setExpanded] = useState(isActive);
-  const { projectName } = useParams();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const activeTasks = (project.taskStats?.running ?? 0) + (project.taskStats?.ready ?? 0) + (project.taskStats?.in_review ?? 0);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete project "${project.name}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteProject(project.name);
+      setMenuOpen(false);
+      if (isActive) navigate('/');
+      onDeleted();
+    } catch (e) {
+      alert(`Failed to delete: ${e}`);
+    }
+  };
 
   // Auto-expand active project
   if (isActive && !expanded) setExpanded(true);
@@ -48,7 +72,7 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
     <div>
       <button
         onClick={() => setExpanded(e => !e)}
-        className={`w-full flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors ${
+        className={`group w-full flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors ${
           isActive
             ? 'text-[var(--color-text-primary)] font-medium'
             : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
@@ -58,7 +82,26 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
           {expanded ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />}
         </span>
         <span className="flex-1 text-left truncate">{project.name}</span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(m => !m); }}
+              className="p-0.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <MoreHorizontal size={14} strokeWidth={1.5} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[120px]">
+                <button
+                  onClick={handleDelete}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-[var(--color-surface-hover)] transition-colors"
+                >
+                  <Trash2 size={12} strokeWidth={1.5} />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
           {project.agentCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-status-running)] text-white font-medium min-w-[18px] text-center">
               {project.agentCount}
@@ -98,8 +141,9 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
 }
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { projects, agents } = useFlightdeck();
+  const { projects, agents, refresh } = useFlightdeck();
   const { projectName } = useParams();
+  const [showCreate, setShowCreate] = useState(false);
 
   const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'hibernated', 'retired'].includes(a.status)).length;
   const busyAgents = agents.filter(a => a.status === 'busy' || a.status === 'working').length;
@@ -128,8 +172,15 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       {/* Projects */}
       <div className="flex-1 py-2 space-y-0.5 overflow-y-auto">
         {!collapsed && (
-          <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">
-            Projects
+          <div className="flex items-center justify-between px-4 py-1">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Projects</span>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="p-0.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+              title="Create project"
+            >
+              <Plus size={14} strokeWidth={1.5} />
+            </button>
           </div>
         )}
         {projects.map((project) => (
@@ -138,6 +189,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             project={project}
             isActive={projectName === project.name}
             collapsed={collapsed}
+            onDeleted={refresh}
           />
         ))}
         {projects.length === 0 && !collapsed && (
@@ -175,6 +227,90 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           </div>
         </div>
       )}
+
+      {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={refresh} />}
     </aside>
+  );
+}
+
+function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('');
+  const [cwd, setCwd] = useState('');
+  const [governance, setGovernance] = useState('collaborative');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !cwd.trim()) return;
+    setLoading(true);
+    try {
+      await api.createProject(name.trim(), cwd.trim(), governance);
+      onCreated();
+      onClose();
+      navigate(`/${encodeURIComponent(name.trim())}`);
+    } catch (err) {
+      alert(`Failed to create project: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl w-[400px] p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Create Project</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]">
+            <X size={14} strokeWidth={1.5} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Project name</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+              placeholder="my-project"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Working directory</label>
+            <input
+              value={cwd}
+              onChange={e => setCwd(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+              placeholder="/home/user/projects/my-project"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Governance mode</label>
+            <select
+              value={governance}
+              onChange={e => setGovernance(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+            >
+              <option value="autonomous">Autonomous</option>
+              <option value="collaborative">Collaborative</option>
+              <option value="supervised">Supervised</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !name.trim() || !cwd.trim()}
+              className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-accent)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
