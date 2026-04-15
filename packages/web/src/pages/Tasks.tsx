@@ -83,13 +83,13 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Title</label>
             <input value={title} onChange={e => setTitle(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit(); }}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-status-ready)]"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
               placeholder="Task title..." autoFocus />
           </div>
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Description</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-status-ready)] resize-none"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
               placeholder="What needs to be done..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -121,7 +121,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
             Cancel
           </button>
           <button onClick={handleSubmit} disabled={!title.trim() || submitting}
-            className="px-4 py-2 text-sm rounded-lg bg-[var(--color-status-ready)] text-white font-medium hover:opacity-90 disabled:opacity-40">
+            className="px-4 py-2 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-40">
             {submitting ? 'Creating...' : 'Create Task'}
           </button>
         </div>
@@ -196,9 +196,9 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
               <input value={comment} onChange={e => setComment(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleComment(); }}
                 placeholder="Add a comment..."
-                className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-status-ready)]" />
+                className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)]" />
               <button onClick={handleComment}
-                className="text-xs px-3 py-1.5 rounded-lg bg-[var(--color-status-ready)] text-white hover:opacity-90 disabled:opacity-40"
+                className="text-xs px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-40"
                 disabled={!comment.trim()}>
                 Comment
               </button>
@@ -234,7 +234,7 @@ export default function Tasks() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Tasks ({tasks.length})</h1>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-status-ready)] text-white font-medium hover:opacity-90">
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90">
           <Plus size={16} strokeWidth={1.5} /> Create Task
         </button>
       </div>

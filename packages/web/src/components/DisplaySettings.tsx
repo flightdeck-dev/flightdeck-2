@@ -41,7 +41,7 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
                 onClick={() => applyDisplayPreset(p as DisplayPreset)}
                 className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                   currentPreset === p
-                    ? 'border-[var(--color-status-ready)] bg-[color-mix(in_srgb,var(--color-status-ready)_10%,transparent)] text-[var(--color-status-ready)]'
+                    ? 'border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-[var(--color-primary)]'
                     : 'border-[var(--color-border)] hover:border-[var(--color-text-tertiary)]'
                 }`}
                 title={PRESET_DESCRIPTIONS[p]}
@@ -60,7 +60,7 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
             <button
               onClick={() => setDisplayConfig({ thinking: !displayConfig.thinking })}
               className={`w-10 h-5 rounded-full transition-colors relative ${
-                displayConfig.thinking ? 'bg-[var(--color-status-ready)]' : 'bg-[var(--color-surface-secondary)]'
+                displayConfig.thinking ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)]'
               }`}
             >
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -131,7 +131,7 @@ function VisibilitySelector({ value, onChange }: { value: ToolVisibility; onChan
           onClick={() => onChange(opt)}
           className={`px-2 py-0.5 transition-colors ${
             value === opt
-              ? 'bg-[var(--color-status-ready)] text-white'
+              ? 'bg-[var(--color-primary)] text-white'
               : 'hover:bg-[var(--color-surface-secondary)]'
           }`}
         >

@@ -21,7 +21,7 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-[var(--color-status-ready)] underline hover:opacity-80"
+      className="text-[var(--color-primary)] underline hover:opacity-80"
     >
       {children}
     </a>

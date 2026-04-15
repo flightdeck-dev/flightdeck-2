@@ -18,7 +18,7 @@ function VisibilitySelector({ value, onChange }: { value: ToolVisibility; onChan
         <button key={o} onClick={() => onChange(o)}
           className={`px-3 py-1 text-xs capitalize transition-colors ${
             value === o
-              ? 'bg-[var(--color-status-ready)] text-white'
+              ? 'bg-[var(--color-primary)] text-white'
               : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
           }`}>
           {o}
@@ -32,7 +32,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   return (
     <button onClick={() => onChange(!value)}
       className={`w-10 h-5 rounded-full transition-colors relative ${
-        value ? 'bg-[var(--color-status-ready)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
+        value ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
       }`}>
       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
         value ? 'left-5' : 'left-0.5'
@@ -89,7 +89,7 @@ export default function Settings() {
             <button key={p} onClick={() => applyDisplayPreset(p as DisplayPreset)}
               className={`p-4 rounded-xl border text-left transition-colors ${
                 currentPreset === p
-                  ? 'border-[var(--color-status-ready)] bg-[color-mix(in_srgb,var(--color-status-ready)_8%,transparent)]'
+                  ? 'border-[var(--color-primary)] bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-text-tertiary)]'
               }`}>
               <p className="text-sm font-medium capitalize">{p}</p>
