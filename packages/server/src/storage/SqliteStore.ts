@@ -25,11 +25,18 @@ export class SqliteStore {
     const schemaPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../sql/schema.sql');
     const schema = readFileSync(schemaPath, 'utf-8');
     for (const stmt of schema.split(';').map(s => s.trim()).filter(Boolean)) {
-      this._db.run(sql.raw(stmt));
+      try {
+        this._db.run(sql.raw(stmt));
+      } catch {
+        // Ignore errors from indexes on columns that don't exist yet (will be added below)
+      }
     }
     // Add new columns to existing tables (idempotent)
     this.addColumnIfMissing('messages', 'channel', 'text');
     this.addColumnIfMissing('messages', 'recipient', 'text');
+    // Re-run index creation after columns are ensured
+    try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
+    try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
   }
 
   private addColumnIfMissing(table: string, column: string, type: string): void {
