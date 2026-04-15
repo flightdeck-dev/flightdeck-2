@@ -736,9 +736,11 @@ async function recoverWorkers(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void; cancelLead?(): Promise<void> }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+  // Pre-generate message ID for stream↔final message consistency
+  const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
+
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
-    const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
     leadManager.setStreamHandler((update: any) => {
       switch (update.sessionUpdate) {
         case 'agent_message_chunk':
@@ -784,6 +786,8 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wsServer.on('user:message', (msg: any) => {
+    // Generate fresh ID for this response
+    msgIdRef.current = makeMessageId('lead', Date.now().toString());
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });
