@@ -40,17 +40,32 @@ function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: bo
   }, [msg.content]);
 
   return (
-    <div className={`absolute ${isUser ? '-left-2 -translate-x-full' : '-right-2 translate-x-full'} top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg`}>
-      <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
-        {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
-      </button>
-      <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply">
-        <Reply size={14} strokeWidth={1.5} />
-      </button>
-      <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud">
-        {speaking ? <VolumeX size={14} strokeWidth={1.5} /> : <Volume2 size={14} strokeWidth={1.5} />}
-      </button>
-    </div>
+    <>
+      {/* Top toolbar */}
+      <div className={`absolute ${isUser ? 'left-0' : 'right-0'} -top-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg z-10`}>
+        <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
+          {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+        </button>
+        <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply">
+          <Reply size={14} strokeWidth={1.5} />
+        </button>
+        <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud">
+          {speaking ? <VolumeX size={14} strokeWidth={1.5} /> : <Volume2 size={14} strokeWidth={1.5} />}
+        </button>
+      </div>
+      {/* Bottom toolbar */}
+      <div className={`absolute ${isUser ? 'right-0' : 'left-0'} -bottom-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg z-10`}>
+        <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
+          {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+        </button>
+        <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply">
+          <Reply size={14} strokeWidth={1.5} />
+        </button>
+        <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud">
+          {speaking ? <VolumeX size={14} strokeWidth={1.5} /> : <Volume2 size={14} strokeWidth={1.5} />}
+        </button>
+      </div>
+    </>
   );
 }
 
