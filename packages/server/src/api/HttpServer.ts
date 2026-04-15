@@ -127,7 +127,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             governance: fd.config.governance ?? 'autonomous',
             agentCount: fd.listAgents().length,
             taskStats: stats,
-            totalCost: fd.getTotalCost(),
+            totalCost: fd.sqlite.getTotalCost(),
           };
         } catch {
           return { name };
