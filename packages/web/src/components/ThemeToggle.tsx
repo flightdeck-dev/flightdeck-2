@@ -1,27 +1,55 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Sun, Moon, Monitor } from 'lucide-react';
+
+type Theme = 'light' | 'dark' | 'system';
+
+function getSystemDark(): boolean {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
+function applyTheme(theme: Theme): void {
+  const isDark = theme === 'system' ? getSystemDark() : theme === 'dark';
+  document.documentElement.classList.toggle('dark', isDark);
+}
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(() => {
+  const [theme, setTheme] = useState<Theme>(() => {
     try {
-      const stored = localStorage.getItem('flightdeck:theme');
-      return stored ? stored === 'dark' : true;
-    } catch { return true; }
+      return (localStorage.getItem('flightdeck:theme') as Theme) ?? 'system';
+    } catch { return 'system'; }
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    try { localStorage.setItem('flightdeck:theme', dark ? 'dark' : 'light'); } catch {}
-  }, [dark]);
+    applyTheme(theme);
+    try { localStorage.setItem('flightdeck:theme', theme); } catch {}
 
-  const toggle = useCallback(() => setDark(d => !d), []);
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => applyTheme('system');
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [theme]);
+
+  const cycle = useCallback(() => {
+    setTheme(t => t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system');
+  }, []);
+
+  const icon = theme === 'system' ? <Monitor size={16} strokeWidth={1.5} />
+    : theme === 'dark' ? <Sun size={16} strokeWidth={1.5} />
+    : <Moon size={16} strokeWidth={1.5} />;
+
+  const label = theme === 'system' ? 'System theme'
+    : theme === 'dark' ? 'Switch to light'
+    : 'Switch to dark';
 
   return (
     <button
-      onClick={toggle}
-      className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] transition-colors"
-      title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={cycle}
+      className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+      title={label}
     >
-      {dark ? '☀️' : '🌙'}
+      {icon}
     </button>
   );
 }
