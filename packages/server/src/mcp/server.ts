@@ -829,14 +829,36 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Communication tools (consolidated) ──
 
   // --- New consolidated: flightdeck_send ---
-  async function handleSend(params: { from: string; to?: string; channel?: string; content: string; agentId: string }) {
+  async function handleSend(params: { from: string; to?: string; channel?: string; taskId?: string; parentId?: string; content: string; agentId: string }) {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_send');
     if (error) return error;
     if (params.agentId !== params.from) {
       return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'. The agentId and from fields must match.`);
     }
-    if (!params.to && !params.channel) {
-      return errorResponse('Error: Either "to" (for DM) or "channel" (for group) must be set.');
+    if (!params.to && !params.channel && !params.taskId) {
+      return errorResponse('Error: Either "to" (for DM), "channel" (for group), or "taskId" (for task comment) must be set.');
+    }
+
+    // Task comment path
+    if (params.taskId) {
+      if (!fd.chatMessages) return errorResponse('MessageStore not available');
+      const senderAgent = fd.sqlite.getAgent(params.from as AgentId);
+      const msg = fd.chatMessages.createMessage({
+        threadId: null,
+        parentId: params.parentId ?? null,
+        taskId: params.taskId,
+        authorType: (senderAgent?.role === 'lead' ? 'lead' : 'agent') as 'lead' | 'agent',
+        authorId: params.from,
+        content: params.content,
+        metadata: null,
+      });
+      // Broadcast via relay (gateway has WS) or agentManager
+      if (relay) {
+        try {
+          await relay.postTaskComment(params.taskId, msg);
+        } catch { /* stored in DB, will show on refresh */ }
+      }
+      return jsonResponse({ status: 'sent', taskId: params.taskId, messageId: msg.id });
     }
     if (params.to) {
       // DM path
@@ -847,6 +869,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         channel: null,
         content: params.content,
         timestamp: new Date().toISOString(),
+        parentId: params.parentId ?? null,
       };
       fd.sendMessage(msg);
       const notifier = fd.orchestrator.getWebhookNotifier();
@@ -880,6 +903,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         channel: ch,
         content: params.content,
         timestamp: new Date().toISOString(),
+        parentId: params.parentId ?? null,
       };
       fd.sendMessage(msg, ch);
       const chNotifier = fd.orchestrator.getWebhookNotifier();
@@ -888,10 +912,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   }
 
-  server.tool('flightdeck_send', 'Send a message. If "to" is set, sends a DM. If "channel" is set, posts to a group channel.', {
+  server.tool('flightdeck_send', 'Send a message. If "to" is set, sends a DM. If "channel" is set, posts to a group channel. If "taskId" is set, posts a task comment.', {
     from: z.string(),
     to: z.string().optional().describe('Agent ID for DM'),
     channel: z.string().optional().describe('Channel name for group message'),
+    taskId: z.string().optional().describe('Task ID to post a comment on'),
+    parentId: z.string().optional().describe('Message ID to reply to (quote)'),
     content: z.string(),
     agentId: z.string(),
   }, async (params) => handleSend(params));

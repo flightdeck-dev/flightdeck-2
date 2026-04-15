@@ -91,4 +91,13 @@ export class GatewayRelay {
     if (!res.ok) throw new Error(`Gateway agent output failed: ${res.status} ${await res.text()}`);
     return res.json() as Promise<{ agentId: string; lines: string[]; totalLines: number }>;
   }
+
+  async postTaskComment(taskId: string, message: unknown): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/projects/${this.projectName}/tasks/${taskId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok) throw new Error(`Gateway task comment failed: ${res.status} ${await res.text()}`);
+  }
 }

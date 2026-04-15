@@ -182,6 +182,10 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           saveDisplayConfig(event.config);
           break;
         case 'task:comment':
+          setMessages(prev => {
+            if (prev.some(m => m.id === event.message.id)) return prev;
+            return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
+          });
           break;
         case 'state:update':
           // Tasks/agents changed — refetch

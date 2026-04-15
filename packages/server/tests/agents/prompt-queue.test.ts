@@ -59,12 +59,14 @@ describe('AcpAdapter prompt queue', () => {
     expect(await promise).toBe('response');
   });
 
-  it('priority messages jump to front of queue', async () => {
+  it('priority messages jump to front of queue (no connection)', async () => {
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp', systemPrompt: 'test' });
     const session = adapter.getSession(meta.sessionId)!;
 
     session.acpSessionId = 'test-session-id';
     session.isPrompting = true;
+    // Nullify connection to test fallback queueing behavior
+    session.connection = null!;
 
     // Queue normal messages (don't await — they return pending promises)
     const p1 = adapter.steer(meta.sessionId, { content: 'normal 1' });
@@ -87,12 +89,14 @@ describe('AcpAdapter prompt queue', () => {
     await Promise.all([p1, p2, p3]);
   });
 
-  it('multiple priority messages maintain order among themselves', async () => {
+  it('multiple priority messages maintain order among themselves (no connection)', async () => {
     const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp', systemPrompt: 'test' });
     const session = adapter.getSession(meta.sessionId)!;
 
     session.acpSessionId = 'test-session-id';
     session.isPrompting = true;
+    // Nullify connection to test fallback queueing behavior
+    session.connection = null!;
 
     const p1 = adapter.steer(meta.sessionId, { content: 'normal' });
     const p2 = adapter.steer(meta.sessionId, { content: 'urgent 1', urgent: true });

@@ -243,6 +243,17 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/').pop()!;
       const task = fd.listTasks().find(t => t.id === taskId);
       if (task) json(200, task); else json(404, { error: 'Task not found' });
+    } else if (subPath.match(/^\/tasks\/[^/]+\/comments$/) && method === 'POST') {
+      // POST /api/projects/:name/tasks/:id/comments — broadcast a pre-created task comment
+      try {
+        const body = await readBody();
+        if (!body.message) { json(400, { error: 'Missing required field: message' }); return; }
+        const taskId = subPath.split('/')[2];
+        if (wsServer) {
+          wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: body.message });
+        }
+        json(200, { status: 'broadcast' });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/agents' && method === 'GET') {
       const includeRetired = url.searchParams.get('includeRetired') === 'true';
       json(200, fd.listAgents(includeRetired));

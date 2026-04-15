@@ -780,6 +780,20 @@ export class AcpAdapter extends AgentAdapter {
 
     // If a prompt is already in-flight, queue the message instead of interrupting
     if (session.isPrompting) {
+      // Urgent messages: cancel+write pattern (like V1 interruptWithMessage)
+      if (message.urgent && session.acpSessionId && session.connection) {
+        // Drain and reject all pending queued prompts
+        const pending = session.promptQueue.splice(0);
+        for (const p of pending) p.reject(new Error('interrupted'));
+        // Cancel the in-flight prompt
+        try {
+          await session.connection.cancel({ sessionId: session.acpSessionId });
+        } catch { /* ignore cancel errors */ }
+        // Wait for agent to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Send the new message directly
+        return this.sendPrompt(session, text);
+      }
       return new Promise<string>((resolve, reject) => {
         const entry: QueuedPrompt = { content: text, priority: !!message.urgent, sourceMessageId: message.sourceMessageId, resolve, reject };
         if (message.urgent) {

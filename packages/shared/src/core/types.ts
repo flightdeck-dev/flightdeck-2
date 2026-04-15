@@ -123,6 +123,7 @@ export interface Message {
   channel: string | null;
   content: string;
   timestamp: string;
+  parentId?: string | null;
 }
 
 export interface RoleModelConfig {
