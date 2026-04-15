@@ -521,16 +521,6 @@ export default function Chat() {
         {/* Input */}
         <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)] flex-shrink-0">
           <div className="max-w-4xl mx-auto">
-          {isStreaming && (
-            <div className="flex items-center justify-between mb-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--color-status-failed)_8%,transparent)]">
-              <span className="text-xs text-[var(--color-text-secondary)] animate-pulse">Lead is responding...</span>
-              <button onClick={interruptLead}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80"
-                style={{ backgroundColor: 'var(--color-status-failed)' }}>
-                <Square size={12} strokeWidth={2} fill="currentColor" /> Interrupt
-              </button>
-            </div>
-          )}
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg bg-[var(--color-surface-secondary)] text-xs">
               <span className="text-[var(--color-text-tertiary)]">Replying to</span>
@@ -573,10 +563,18 @@ export default function Chat() {
                 </button>
               </div>
             )}
-            <button onClick={handleSend} disabled={!connected || !input.trim()}
-              className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
-              <Send size={16} strokeWidth={1.5} />
-            </button>
+            {isStreaming ? (
+              <button onClick={interruptLead}
+                className="px-5 py-2.5 rounded-xl bg-[var(--color-status-failed)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                title="Stop Lead">
+                <Square size={16} strokeWidth={1.5} fill="currentColor" />
+              </button>
+            ) : (
+              <button onClick={handleSend} disabled={!connected || !input.trim()}
+                className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
+                <Send size={16} strokeWidth={1.5} />
+              </button>
+            )}
           </div>
           </div>
         </div>
