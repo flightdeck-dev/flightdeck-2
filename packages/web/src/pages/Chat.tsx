@@ -474,7 +474,7 @@ export default function Chat() {
   }, [isListening]);
 
   return (
-    <div className="flex h-full" style={{ margin: '-2rem' }}>
+    <div className="flex" style={{ margin: '-2rem', height: 'calc(100% + 4rem)' }}>
       <div className="flex flex-col flex-1 max-w-4xl mx-auto">
         {/* Status bar */}
         {!connected && (
