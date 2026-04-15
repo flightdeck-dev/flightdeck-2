@@ -834,9 +834,9 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
     // Task comment path
     if (params.taskId) {
-      if (!fd.chatMessages) return errorResponse('MessageStore not available');
+      if (!fd.messages) return errorResponse('MessageStore not available');
       const senderAgent = fd.sqlite.getAgent(params.from as AgentId);
-      const msg = fd.chatMessages.createMessage({
+      const msg = fd.messages.createMessage({
         threadId: null,
         parentId: params.parentId ?? null,
         taskId: params.taskId,
@@ -967,8 +967,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     // Chat message search
     if (source === 'all' || source === 'chat') {
       try {
-        if (fd.chatMessages) {
-          const chatResults = fd.chatMessages.searchMessages(params.query, {
+        if (fd.messages) {
+          const chatResults = fd.messages.searchMessages(params.query, {
             authorType: params.authorType as 'user' | 'lead' | 'agent' | 'system' | undefined,
             limit,
           });
@@ -1018,8 +1018,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     task_id: z.string().optional(),
     limit: z.number().optional(),
   }, async (params) => {
-    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
-    const msgs = fd.chatMessages.listMessages({
+    if (!fd.messages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const msgs = fd.messages.listMessages({
       threadId: params.thread_id,
       taskId: params.task_id,
       limit: params.limit,
@@ -1031,8 +1031,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     origin_id: z.string(),
     title: z.string().optional(),
   }, async (params) => {
-    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
-    const thread = fd.chatMessages.createThread({
+    if (!fd.messages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const thread = fd.messages.createThread({
       originId: params.origin_id,
       title: params.title,
     });
@@ -1043,8 +1043,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     archived: z.boolean().optional(),
     limit: z.number().optional(),
   }, async (params) => {
-    if (!fd.chatMessages) return errorResponse('MessageStore not available (no SQLite chat tables)');
-    const threads = fd.chatMessages.listThreads({
+    if (!fd.messages) return errorResponse('MessageStore not available (no SQLite chat tables)');
+    const threads = fd.messages.listThreads({
       archived: params.archived,
       limit: params.limit,
     });

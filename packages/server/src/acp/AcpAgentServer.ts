@@ -95,7 +95,7 @@ export class AcpAgentServer implements Agent {
     this.leadManager = new LeadManager({
       sqlite: this.facade.sqlite,
       project: this.facade.project,
-      messageStore: this.facade.chatMessages ?? undefined,
+      messageStore: this.facade.messages ?? undefined,
       acpAdapter: this.acpAdapter,
       projectName,
       leadRuntime: this.currentRuntime,
@@ -270,6 +270,8 @@ export class AcpAgentServer implements Agent {
           authorId: null,
           content: text,
           metadata: null,
+          channel: null,
+          recipient: null,
           createdAt: new Date().toISOString(),
           updatedAt: null,
         },

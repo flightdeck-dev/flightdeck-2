@@ -167,22 +167,22 @@ describe('Messaging (scenario 4)', () => {
   });
 
   it('4.3 - create thread + reply (via chatMessages)', () => {
-    if (!fd.chatMessages) return; // skip if not available
+    if (!fd.messages) return; // skip if not available
 
-    const msg = fd.chatMessages.createMessage({
+    const msg = fd.messages.createMessage({
       authorType: 'agent',
       authorId: 'agent-1',
       content: 'Starting discussion',
     });
 
-    const thread = fd.chatMessages.createThread({
+    const thread = fd.messages.createThread({
       originId: msg.id,
       title: 'Auth discussion',
     });
     expect(thread.originId).toBe(msg.id);
     expect(thread.title).toBe('Auth discussion');
 
-    const reply = fd.chatMessages.createMessage({
+    const reply = fd.messages.createMessage({
       authorType: 'agent',
       authorId: 'agent-2',
       content: 'Good idea!',
@@ -190,16 +190,16 @@ describe('Messaging (scenario 4)', () => {
     });
     expect(reply.threadId).toBe(thread.id);
 
-    const threadMsgs = fd.chatMessages.listMessages({ threadId: thread.id });
+    const threadMsgs = fd.messages.listMessages({ threadId: thread.id });
     expect(threadMsgs).toHaveLength(1);
     expect(threadMsgs[0].content).toBe('Good idea!');
   });
 
   it('4.4 - task comment (via chatMessages)', () => {
-    if (!fd.chatMessages) return;
+    if (!fd.messages) return;
 
     const task = fd.addTask({ title: 'Commentable task' });
-    const comment = fd.chatMessages.createMessage({
+    const comment = fd.messages.createMessage({
       authorType: 'agent',
       authorId: 'worker-1',
       content: 'Found a bug in this task',
@@ -207,7 +207,7 @@ describe('Messaging (scenario 4)', () => {
     });
     expect(comment.taskId).toBe(task.id);
 
-    const taskMsgs = fd.chatMessages.listMessages({ taskId: task.id });
+    const taskMsgs = fd.messages.listMessages({ taskId: task.id });
     expect(taskMsgs).toHaveLength(1);
   });
 });

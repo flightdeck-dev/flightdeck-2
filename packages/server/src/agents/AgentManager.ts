@@ -6,7 +6,7 @@ import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
-import type { MessageLog } from '../storage/MessageLog.js';
+import type { MessageStore } from '../comms/MessageStore.js';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -151,7 +151,7 @@ export class AgentManager {
   private adapter: AgentAdapter;
   private worktreeManager: WorktreeManager | null = null;
   private directoryManager: DirectoryManager | null = null;
-  private messageLog: MessageLog | null = null;
+  private messageStore: MessageStore | null = null;
 
   private skillManager: SkillManager | null;
 
@@ -181,10 +181,10 @@ export class AgentManager {
   }
 
   /**
-   * Set the MessageLog for unread DM delivery on agent spawn.
+   * Set the MessageStore for unread DM delivery on agent spawn.
    */
-  setMessageLog(ml: MessageLog): void {
-    this.messageLog = ml;
+  setMessageStore(ms: MessageStore): void {
+    this.messageStore = ms;
   }
 
   async spawnAgent(opts: SpawnAgentOptions): Promise<Agent> {
@@ -283,11 +283,11 @@ export class AgentManager {
       this.agentToSession.set(newId, meta.sessionId);
 
       // 7. Deliver any unread DMs to the newly spawned agent
-      if (this.messageLog) {
-        const unread = this.messageLog.getUnreadDMs(newId);
+      if (this.messageStore) {
+        const unread = this.messageStore.getUnreadDMs(newId);
         if (unread.length > 0) {
-          const dmSummary = unread.map(m => `[DM from ${m.from}]: ${m.content}`).join('\n');
-          this.messageLog.markRead(newId);
+          const dmSummary = unread.map(m => `[DM from ${m.authorId ?? 'unknown'}]: ${m.content}`).join('\n');
+          this.messageStore.markRead(newId);
           // Deliver async — don't block spawn on DM delivery
           this.adapter.steer(meta.sessionId, {
             content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
@@ -447,11 +447,11 @@ export class AgentManager {
     this.agentToSession.set(agentId, meta.sessionId);
 
     // Deliver any unread DMs to the restarted agent
-    if (this.messageLog) {
-      const unread = this.messageLog.getUnreadDMs(agentId);
+    if (this.messageStore) {
+      const unread = this.messageStore.getUnreadDMs(agentId);
       if (unread.length > 0) {
-        const dmSummary = unread.map(m => `[DM from ${m.from}]: ${m.content}`).join('\n');
-        this.messageLog.markRead(agentId);
+        const dmSummary = unread.map(m => `[DM from ${m.authorId ?? 'unknown'}]: ${m.content}`).join('\n');
+        this.messageStore.markRead(agentId);
         this.adapter.steer(meta.sessionId, {
           content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
           urgent: false,

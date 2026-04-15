@@ -61,13 +61,24 @@ export const messages = sqliteTable('messages', {
   authorId: text('author_id'),
   content: text('content').notNull(),
   metadata: text('metadata'), // JSON
+  channel: text('channel'),
+  recipient: text('recipient'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
 }, (table) => [
   index('idx_messages_thread').on(table.threadId),
   index('idx_messages_task').on(table.taskId),
   index('idx_messages_author_type').on(table.authorType),
+  index('idx_messages_channel').on(table.channel),
+  index('idx_messages_recipient').on(table.recipient),
 ]);
+
+// ── Read State (DM read tracking) ────────────────────────────────────
+
+export const readState = sqliteTable('read_state', {
+  agentId: text('agent_id').primaryKey(),
+  lastReadAt: text('last_read_at').notNull(),
+});
 
 // ── Threads ──────────────────────────────────────────────────────────
 

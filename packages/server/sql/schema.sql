@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `author_id` text,
   `content` text NOT NULL,
   `metadata` text,
+  `channel` text,
+  `recipient` text,
   `created_at` text NOT NULL,
   `updated_at` text
 );
@@ -119,6 +121,8 @@ CREATE TABLE IF NOT EXISTS `messages` (
 CREATE INDEX IF NOT EXISTS `idx_messages_thread` ON `messages` (`thread_id`);
 CREATE INDEX IF NOT EXISTS `idx_messages_task` ON `messages` (`task_id`);
 CREATE INDEX IF NOT EXISTS `idx_messages_author_type` ON `messages` (`author_type`);
+CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`);
+CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS `messages_fts` USING fts5(
   id UNINDEXED,
@@ -134,6 +138,11 @@ CREATE TABLE IF NOT EXISTS `threads` (
   `origin_id` text,
   `created_at` text NOT NULL,
   `archived_at` text
+);
+
+CREATE TABLE IF NOT EXISTS `read_state` (
+  `agent_id` text PRIMARY KEY NOT NULL,
+  `last_read_at` text NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `sessions` (

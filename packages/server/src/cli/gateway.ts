@@ -220,7 +220,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
       project: fd.project,
-      messageStore: fd.chatMessages ?? undefined,
+      messageStore: fd.messages ?? undefined,
       acpAdapter,
       projectName: name,
       cwd: projectCwd,
@@ -243,7 +243,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     cronSchedulers.push(cronScheduler);
 
     // Create WebSocketServer
-    const wsServer = fd.chatMessages ? new WsServer(fd.chatMessages) : null;
+    const wsServer = fd.messages ? new WsServer(fd.messages) : null;
     if (wsServer) wsServers.set(name, wsServer);
 
     // Wire orchestrator
@@ -256,7 +256,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       {
         agentManager: fd.agentManager,
         leadManager,
-        messageStore: fd.chatMessages ?? undefined,
+        messageStore: fd.messages ?? undefined,
         wsServer: wsServer ?? undefined,
         governanceConfig: { costThresholdPerDay: projectConfig.costThresholdPerDay },
         notifications: projectConfig.notifications as import('../integrations/WebhookNotifier.js').NotificationsConfig | undefined,
@@ -792,11 +792,11 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });
         if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-          if (fd.chatMessages) {
+          if (fd.messages) {
             // Check for merged source IDs (multi-parent reply)
             const mergedIds = leadManager.getLastMergedSourceIds?.() ?? [];
             const parentIds = mergedIds.length > 1 ? mergedIds : null;
-            const leadMsg = fd.chatMessages.createMessage({
+            const leadMsg = fd.messages.createMessage({
               id: msgIdRef.current,
               threadId: msg.thread_id ?? null, parentId: msg.id ?? null, parentIds, taskId: null,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
@@ -828,8 +828,8 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
       try {
         const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
         if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
-          if (fd.chatMessages) {
-            const leadMsg = fd.chatMessages.createMessage({
+          if (fd.messages) {
+            const leadMsg = fd.messages.createMessage({
               threadId: null, parentId: null, taskId,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });

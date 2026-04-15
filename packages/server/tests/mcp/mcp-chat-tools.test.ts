@@ -43,7 +43,7 @@ describe('MCP chat & memory tools', () => {
 
   it('flightdeck_thread_create creates a thread', async () => {
     // First create a message via the store directly
-    fd.chatMessages!.createMessage({
+    fd.messages.createMessage({
       id: 'msg-origin',
       authorType: 'user',
       authorId: 'user',
@@ -64,12 +64,12 @@ describe('MCP chat & memory tools', () => {
   });
 
   it('flightdeck_thread_list returns threads', async () => {
-    fd.chatMessages!.createMessage({
+    fd.messages.createMessage({
       id: 'msg-1',
       authorType: 'user', authorId: 'user', content: 'x',
       threadId: null, parentId: null, taskId: null, metadata: null,
     });
-    fd.chatMessages!.createThread({ originId: 'msg-1', title: 'Thread 1' });
+    fd.messages.createThread({ originId: 'msg-1', title: 'Thread 1' });
 
     const result = await callTool(server, 'flightdeck_thread_list', {});
     const threads = JSON.parse(getText(result));

@@ -178,15 +178,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const threadId = url.searchParams.get('thread_id') ?? undefined;
       const taskId = url.searchParams.get('task_id') ?? undefined;
       const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-      json(200, (fd.chatMessages?.listMessages({ threadId, taskId, limit }) ?? []).reverse());
+      json(200, (fd.messages?.listMessages({ threadId, taskId, limit }) ?? []).reverse());
     } else if (subPath === '/messages' && method === 'POST') {
       try {
         const body = await readBody();
         if (!body.content || typeof body.content !== 'string') { json(400, { error: 'Missing required field: content' }); return; }
         const isAsync = url.searchParams.get('async') === 'true' || url.searchParams.get('async') === '1';
         let userMsg = null;
-        if (fd.chatMessages) {
-          userMsg = fd.chatMessages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'http-api', content: body.content, metadata: null });
+        if (fd.messages) {
+          userMsg = fd.messages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'http-api', content: body.content, metadata: null });
           if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: userMsg });
         }
         if (isAsync) {
@@ -195,8 +195,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any }).then(raw => {
               if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
-                if (fd.chatMessages) {
-                  const leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
+                if (fd.messages) {
+                  const leadMsg = fd.messages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
                   if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
                 }
                 // Fire webhook for Lead response
@@ -216,8 +216,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
               const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
               if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
                 leadResponse = raw.trim();
-                if (fd.chatMessages) {
-                  leadMsg = fd.chatMessages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
+                if (fd.messages) {
+                  leadMsg = fd.messages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
                   if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
                 }
                 // Fire webhook for Lead response
@@ -397,7 +397,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         res.end(report.generate({}));
       } catch { json(200, { report: 'No report available yet.' }); }
     } else if (subPath === '/threads' && method === 'GET') {
-      json(200, fd.chatMessages?.listThreads() ?? []);
+      json(200, fd.messages?.listThreads() ?? []);
     } else if (subPath === '/search/sessions' && method === 'GET') {
       const query = url.searchParams.get('query');
       if (!query) { json(400, { error: 'Missing query parameter' }); return; }

@@ -5,7 +5,7 @@ import { SqliteStore } from './storage/SqliteStore.js';
 import { SpecStore, type SpecFile } from './storage/SpecStore.js';
 import { DecisionLog } from './storage/DecisionLog.js';
 import { MemoryStore } from './storage/MemoryStore.js';
-import { MessageLog } from './storage/MessageLog.js';
+
 import { ReportStore } from './storage/ReportStore.js';
 import { TaskDAG } from './dag/TaskDAG.js';
 import { GovernanceEngine } from './governance/GovernanceEngine.js';
@@ -31,7 +31,7 @@ export class Flightdeck {
   readonly specs: SpecStore;
   readonly decisions: DecisionLog;
   readonly memory: MemoryStore;
-  readonly messages: MessageLog;
+  readonly messages: MessageStore;
   readonly reports: ReportStore;
   readonly dag: TaskDAG;
   readonly governance: GovernanceEngine;
@@ -42,7 +42,7 @@ export class Flightdeck {
   readonly learnings: LearningsStore;
   readonly timers: TimerManager;
   readonly agentManager: AgentManager;
-  readonly chatMessages: MessageStore | null;
+
   readonly suggestions: SuggestionStore;
   readonly cron: CronStore;
 
@@ -57,7 +57,7 @@ export class Flightdeck {
     this.specs = new SpecStore(this.project.subpath('specs'));
     this.decisions = new DecisionLog(this.project.subpath('decisions'));
     this.memory = new MemoryStore(this.project.subpath('memory'), this.project.subpath('state.sqlite'));
-    this.messages = new MessageLog(this.project.subpath('messages'));
+
     this.reports = new ReportStore(this.project.subpath('reports'));
     this.dag = new TaskDAG(this.sqlite);
     const config = this.project.getConfig();
@@ -78,14 +78,8 @@ export class Flightdeck {
       // Default callback — messages can be wired to agent queues later
     });
     this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName);
-    this.agentManager.setMessageLog(this.messages);
-
-    // Initialize chat MessageStore (SQLite-backed)
-    try {
-      this.chatMessages = new MessageStore(this.sqlite.db);
-    } catch {
-      this.chatMessages = null;
-    }
+    this.messages = new MessageStore(this.sqlite.db);
+    this.agentManager.setMessageStore(this.messages);
 
     this.suggestions = new SuggestionStore(this.project.subpath('.'));
   }
@@ -217,19 +211,45 @@ export class Flightdeck {
 
   sendMessage(message: Message, channel?: string): void {
     if (channel) {
-      this.messages.append(message, channel);
+      this.messages.appendChannelMessage(channel, {
+        threadId: null,
+        parentId: null,
+        taskId: null,
+        authorType: 'agent',
+        authorId: message.from,
+        content: message.content,
+        metadata: JSON.stringify({ originalId: message.id, to: message.to }),
+        channel,
+        recipient: message.to ?? null,
+      });
     } else {
-      this.messages.append(message, 'dm');
+      this.messages.appendDM(message.from, message.to ?? '', message.content);
     }
   }
 
   readMessages(channel: string, since?: string): Message[] {
-    return this.messages.read(channel, since);
+    const rows = this.messages.listChannelMessages(channel, since);
+    return rows.map(r => ({
+      id: r.id as any,
+      from: (r.authorId ?? 'system') as AgentId,
+      to: (r.recipient ?? null) as AgentId | null,
+      channel: r.channel ?? channel,
+      content: r.content,
+      timestamp: r.createdAt,
+    }));
   }
 
   /** Get unread DMs for a specific agent (messages sent to them since last markRead). */
   getUnreadDMs(agentId: AgentId): Message[] {
-    return this.messages.getUnreadDMs(agentId);
+    const rows = this.messages.getUnreadDMs(agentId);
+    return rows.map(r => ({
+      id: r.id as any,
+      from: (r.authorId ?? 'system') as AgentId,
+      to: agentId,
+      channel: 'dm',
+      content: r.content,
+      timestamp: r.createdAt,
+    }));
   }
 
   /** Mark all current DMs as read for an agent. */

@@ -5,7 +5,6 @@ export { SqliteStore } from './storage/SqliteStore.js';
 export { SpecStore } from './storage/SpecStore.js';
 export { DecisionLog } from './storage/DecisionLog.js';
 export { MemoryStore } from './storage/MemoryStore.js';
-export { MessageLog } from './storage/MessageLog.js';
 export { ReportStore } from './storage/ReportStore.js';
 export { TaskDAG } from './dag/TaskDAG.js';
 export { CronStore } from './cron/CronStore.js';

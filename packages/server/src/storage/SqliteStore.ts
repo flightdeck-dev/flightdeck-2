@@ -27,6 +27,17 @@ export class SqliteStore {
     for (const stmt of schema.split(';').map(s => s.trim()).filter(Boolean)) {
       this._db.run(sql.raw(stmt));
     }
+    // Add new columns to existing tables (idempotent)
+    this.addColumnIfMissing('messages', 'channel', 'text');
+    this.addColumnIfMissing('messages', 'recipient', 'text');
+  }
+
+  private addColumnIfMissing(table: string, column: string, type: string): void {
+    try {
+      this._db.run(sql.raw(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${type}`));
+    } catch {
+      // Column already exists — ignore
+    }
   }
 
   // ── Tasks ──

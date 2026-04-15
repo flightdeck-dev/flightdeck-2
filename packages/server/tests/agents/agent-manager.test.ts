@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'node:os';
 import { AgentManager, buildSystemPrompt } from '../../src/agents/AgentManager.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { RoleRegistry } from '../../src/roles/RoleRegistry.js';
-import { MessageLog } from '../../src/storage/MessageLog.js';
+import { MessageStore } from '../../src/comms/MessageStore.js';
 import type { AgentAdapter, SpawnOptions, SteerMessage, AgentMetadata } from '../../src/agents/AgentAdapter.js';
 import type { AgentId, AgentRuntime, MessageId } from '@flightdeck-ai/shared';
 
@@ -190,8 +190,7 @@ describe('AgentManager DM delivery', () => {
   let roles: RoleRegistry;
   let adapter: MockAdapter;
   let manager: AgentManager;
-  let msgDir: string;
-  let messageLog: MessageLog;
+  let messageStore: MessageStore;
 
   beforeEach(() => {
     mkdirSync(projDir, { recursive: true });
@@ -199,9 +198,8 @@ describe('AgentManager DM delivery', () => {
     roles = new RoleRegistry(projectName);
     adapter = new MockAdapter();
     manager = new AgentManager(adapter, store, roles, projectName);
-    msgDir = mkdirSync(join(projDir, 'messages'), { recursive: true }) ?? join(projDir, 'messages');
-    messageLog = new MessageLog(join(projDir, 'messages'));
-    manager.setMessageLog(messageLog);
+    messageStore = new MessageStore(store.db);
+    manager.setMessageStore(messageStore);
   });
 
   afterEach(() => {
@@ -218,14 +216,7 @@ describe('AgentManager DM delivery', () => {
     adapter.steerCalls = [];
 
     // Send DMs while it's offline
-    messageLog.append({
-      id: 'msg-1' as MessageId,
-      from: 'lead-1' as AgentId,
-      to: agent.id,
-      channel: null,
-      content: 'Please check the test results',
-      timestamp: new Date().toISOString(),
-    }, 'dm');
+    messageStore.appendDM('lead-1' as AgentId, agent.id, 'Please check the test results');
 
     // Spawn a NEW agent (same role) — it gets a DIFFERENT ID
     // so DMs to old agent won't be delivered to new agent (correct behavior)
@@ -238,7 +229,7 @@ describe('AgentManager DM delivery', () => {
     
     // But restartAgent would deliver them (same ID)
     // Verify the DMs are still there for the original agent
-    const unread = messageLog.getUnreadDMs(agent.id);
+    const unread = messageStore.getUnreadDMs(agent.id);
     expect(unread).toHaveLength(1);
   });
 
@@ -254,14 +245,7 @@ describe('AgentManager DM delivery', () => {
   it('marks DMs as read after restart delivery so they are not re-delivered', async () => {
     const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
 
-    messageLog.append({
-      id: 'msg-2' as MessageId,
-      from: 'lead-1' as AgentId,
-      to: agent.id,
-      channel: null,
-      content: 'First message',
-      timestamp: new Date().toISOString(),
-    }, 'dm');
+    messageStore.appendDM('lead-1' as AgentId, agent.id, 'First message');
 
     // Restart delivers the DM
     adapter.steerCalls = [];
@@ -272,7 +256,7 @@ describe('AgentManager DM delivery', () => {
     expect(firstDelivery).toHaveLength(1);
 
     // After delivery + markRead, no more unread DMs
-    const unread = messageLog.getUnreadDMs(agent.id);
+    const unread = messageStore.getUnreadDMs(agent.id);
     expect(unread).toHaveLength(0);
 
     // Second restart should NOT re-deliver
@@ -288,14 +272,7 @@ describe('AgentManager DM delivery', () => {
     const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
 
     // Send a DM while the agent is running
-    messageLog.append({
-      id: 'msg-3' as MessageId,
-      from: 'planner-1' as AgentId,
-      to: agent.id,
-      channel: null,
-      content: 'New priority task available',
-      timestamp: new Date().toISOString(),
-    }, 'dm');
+    messageStore.appendDM('planner-1' as AgentId, agent.id, 'New priority task available');
 
     // Restart the agent
     adapter.steerCalls = []; // Clear previous steers

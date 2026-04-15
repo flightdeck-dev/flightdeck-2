@@ -1,5 +1,5 @@
-import { eq, desc, and, lt, isNull, isNotNull, sql } from 'drizzle-orm';
-import { messages, threads } from '../db/schema.js';
+import { eq, desc, and, lt, gt, isNull, isNotNull, sql } from 'drizzle-orm';
+import { messages, threads, readState } from '../db/schema.js';
 import type { FlightdeckDatabase } from '../db/database.js';
 import { messageId } from '@flightdeck-ai/shared';
 
@@ -7,12 +7,14 @@ export interface ChatMessage {
   id: string;
   threadId: string | null;
   parentId: string | null;
-  parentIds?: string[] | null;  // optional for backwards compat — defaults to null
+  parentIds?: string[] | null;
   taskId: string | null;
   authorType: 'user' | 'lead' | 'agent' | 'system';
   authorId: string | null;
   content: string;
   metadata: string | null;
+  channel: string | null;
+  recipient: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -28,7 +30,7 @@ export interface Thread {
 export class MessageStore {
   constructor(private db: FlightdeckDatabase) {}
 
-  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ChatMessage {
+  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient'> & { id?: string; channel?: string | null; recipient?: string | null }): ChatMessage {
     const now = new Date().toISOString();
     const id = msg.id ?? messageId(msg.authorId ?? 'anon', now, Math.random().toString());
     const record: ChatMessage = {
@@ -41,6 +43,8 @@ export class MessageStore {
       authorId: msg.authorId ?? null,
       content: msg.content,
       metadata: msg.metadata ?? null,
+      channel: (msg as any).channel ?? null,
+      recipient: (msg as any).recipient ?? null,
       createdAt: now,
       updatedAt: null,
     };
@@ -218,5 +222,78 @@ export class MessageStore {
         .all();
       return rows.map(r => this.hydrateMessage(r as any));
     }
+  }
+
+  // ── Channel messages ─────────────────────────────────────────────────
+
+  appendChannelMessage(channel: string, msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt'>): ChatMessage {
+    return this.createMessage({ ...msg, channel, recipient: null });
+  }
+
+  listChannelMessages(channel: string, since?: string, limit?: number): ChatMessage[] {
+    const conditions = [eq(messages.channel, channel)];
+    if (since) conditions.push(gt(messages.createdAt, since));
+    const rows = this.db
+      .select()
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.createdAt))
+      .limit(limit ?? 100)
+      .all();
+    return rows.map(r => this.hydrateMessage(r as any));
+  }
+
+  listChannels(): string[] {
+    const rows = this.db
+      .selectDistinct({ channel: messages.channel })
+      .from(messages)
+      .where(isNotNull(messages.channel))
+      .all();
+    return rows.map(r => r.channel!).filter(Boolean);
+  }
+
+  // ── DM ────────────────────────────────────────────────────────────────
+
+  appendDM(from: string, to: string, content: string): ChatMessage {
+    return this.createMessage({
+      threadId: null,
+      parentId: null,
+      taskId: null,
+      authorType: 'agent',
+      authorId: from,
+      content,
+      metadata: null,
+      channel: 'dm',
+      recipient: to,
+    });
+  }
+
+  getUnreadDMs(agentId: string): ChatMessage[] {
+    const lastRead = this.getLastRead(agentId);
+    const conditions = [
+      eq(messages.recipient, agentId),
+      eq(messages.channel, 'dm'),
+    ];
+    if (lastRead) conditions.push(gt(messages.createdAt, lastRead));
+    const rows = this.db
+      .select()
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(messages.createdAt)
+      .all();
+    return rows.map(r => this.hydrateMessage(r as any));
+  }
+
+  markRead(agentId: string): void {
+    const now = new Date().toISOString();
+    this.db.insert(readState)
+      .values({ agentId, lastReadAt: now })
+      .onConflictDoUpdate({ target: readState.agentId, set: { lastReadAt: now } })
+      .run();
+  }
+
+  getLastRead(agentId: string): string | null {
+    const row = this.db.select().from(readState).where(eq(readState.agentId, agentId)).get();
+    return row?.lastReadAt ?? null;
   }
 }
