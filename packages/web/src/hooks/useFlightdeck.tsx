@@ -269,6 +269,40 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           }
           break;
         }
+        case 'tool:event': {
+          // Convert tool:event into agent stream chunks for display
+          const agentId = event.agentId;
+          const prevChunks = agentStreamChunksRef.current.get(agentId) ?? [];
+          if (event.status === 'running') {
+            agentStreamChunksRef.current.set(agentId, [...prevChunks, {
+              content: `\n🔧 ${event.toolName}(...)`,
+              contentType: 'tool_call' as const,
+              toolName: event.toolName,
+            }]);
+          } else if (event.status === 'completed') {
+            const outputStr = typeof event.output === 'string' ? event.output : JSON.stringify(event.output);
+            const durationStr = event.durationMs ? ` (${event.durationMs}ms)` : '';
+            agentStreamChunksRef.current.set(agentId, [...prevChunks, {
+              content: `\n✅ ${event.toolName}${durationStr}: ${outputStr?.slice(0, 500) ?? '(no output)'}`,
+              contentType: 'tool_result' as const,
+              toolName: event.toolName,
+            }]);
+          } else if (event.status === 'error') {
+            agentStreamChunksRef.current.set(agentId, [...prevChunks, {
+              content: `\n❌ ${event.toolName}: ${event.error ?? 'unknown error'}`,
+              contentType: 'tool_result' as const,
+              toolName: event.toolName,
+            }]);
+          }
+          if (!streamingDirtyRef.current) {
+            streamingDirtyRef.current = true;
+            rafRef.current = requestAnimationFrame(() => {
+              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
+              streamingDirtyRef.current = false;
+            });
+          }
+          break;
+        }
       }
     });
 

@@ -16,17 +16,50 @@ import type { AcpAdapter } from '../agents/AcpAdapter.js';
 import { ModelConfig } from '../agents/ModelConfig.js';
 import { getToolsForRole } from './toolPermissions.js';
 import { agentMessageEvent } from '../integrations/WebhookNotifier.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { GatewayRelay } from './gatewayRelay.js';
 
 const _ENV_AGENT_ID = process.env.FLIGHTDECK_AGENT_ID || undefined;
 const ENV_AGENT_ROLE = process.env.FLIGHTDECK_AGENT_ROLE || undefined;
 const ENV_PROJECT = process.env.FLIGHTDECK_PROJECT || undefined;
 
+// AsyncLocalStorage to track tool call context for notifications
+const toolCallContext = new AsyncLocalStorage<{
+  toolName: string;
+  agentId: string;
+  input: unknown;
+  startTime: number;
+  relay: GatewayRelay | null;
+}>();
+
 function errorResponse(text: string) {
+  const ctx = toolCallContext.getStore();
+  if (ctx?.relay) {
+    ctx.relay.notifyToolCall({
+      toolName: ctx.toolName,
+      agentId: ctx.agentId,
+      input: ctx.input,
+      output: null,
+      status: 'error',
+      error: text,
+      durationMs: Date.now() - ctx.startTime,
+    });
+  }
   return { content: [{ type: 'text' as const, text }] };
 }
 
 function jsonResponse(data: unknown) {
+  const ctx = toolCallContext.getStore();
+  if (ctx?.relay) {
+    ctx.relay.notifyToolCall({
+      toolName: ctx.toolName,
+      agentId: ctx.agentId,
+      input: ctx.input,
+      output: data,
+      status: 'completed',
+      durationMs: Date.now() - ctx.startTime,
+    });
+  }
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
@@ -121,6 +154,26 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   const relay = !agentManager && gatewayUrl ? new GatewayRelay(gatewayUrl, name) : null;
 
   const server = new McpServer({ name: 'flightdeck', version: '2.0.0' });
+
+  // Wrap server.tool to inject AsyncLocalStorage context for tool call notifications
+  const originalTool = server.tool.bind(server);
+  server.tool = ((...args: any[]) => {
+    // server.tool(name, description, schema, handler) or server.tool(name, schema, handler)
+    const toolName = args[0] as string;
+    const handlerIdx = args.length - 1;
+    const originalHandler = args[handlerIdx];
+    args[handlerIdx] = (params: any) => {
+      const agentId = _ENV_AGENT_ID || 'unknown';
+      return toolCallContext.run(
+        { toolName, agentId, input: params, startTime: Date.now(), relay },
+        () => {
+          relay?.notifyToolCall({ toolName, agentId, input: params, output: null, status: 'running' });
+          return originalHandler(params);
+        }
+      );
+    };
+    return (originalTool as any)(...args);
+  }) as typeof server.tool;
 
   // Helper: check permission
   function checkPerm(agent: Agent, permission: string, toolName: string): ReturnType<typeof errorResponse> | null {

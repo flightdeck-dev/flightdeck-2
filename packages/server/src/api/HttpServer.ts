@@ -257,6 +257,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
         json(200, { status: 'broadcast' });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/tool-events' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.toolName) { json(400, { error: 'Missing required field: toolName' }); return; }
+        if (wsServer) {
+          wsServer.broadcast({ type: 'tool:event', project: projectName, ...body });
+        }
+        json(200, { status: 'broadcast' });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/agents' && method === 'GET') {
       const includeRetired = url.searchParams.get('includeRetired') === 'true';
       json(200, fd.listAgents(includeRetired));

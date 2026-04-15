@@ -92,6 +92,25 @@ export class GatewayRelay {
     return res.json() as Promise<{ agentId: string; lines: string[]; totalLines: number }>;
   }
 
+  async notifyToolCall(data: {
+    toolCallId?: string;
+    toolName: string;
+    agentId: string;
+    input: unknown;
+    output: unknown;
+    status: 'running' | 'completed' | 'error';
+    durationMs?: number;
+    error?: string;
+  }): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/api/projects/${this.projectName}/tool-events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch { /* best effort — don't block tool execution */ }
+  }
+
   async postTaskComment(taskId: string, message: unknown): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/projects/${this.projectName}/tasks/${taskId}/comments`, {
       method: 'POST',
