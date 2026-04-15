@@ -688,7 +688,8 @@ async function recoverWorkers(
 function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
-    const msgIdRef = { current: `stream-${Date.now()}` };
+    const { messageId: makeMessageId } = await import('@flightdeck-ai/shared');
+    const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
     leadManager.setStreamHandler((update: any) => {
       switch (update.sessionUpdate) {
         case 'agent_message_chunk':
@@ -728,7 +729,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
     });
     // Reset stream ID when a new user message comes in
     wsServer.on('user:message', () => {
-      msgIdRef.current = `stream-${Date.now()}`;
+      msgIdRef.current = makeMessageId('lead', Date.now().toString());
     });
   }
 
@@ -743,6 +744,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
             const mergedIds = leadManager.getLastMergedSourceIds?.() ?? [];
             const parentIds = mergedIds.length > 1 ? mergedIds : null;
             const leadMsg = fd.chatMessages.createMessage({
+              id: msgIdRef.current,
               threadId: msg.thread_id ?? null, parentId: msg.id ?? null, parentIds, taskId: null,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
