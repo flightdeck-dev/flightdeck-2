@@ -101,7 +101,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { projects, agents } = useFlightdeck();
   const { projectName } = useParams();
 
-  const activeAgents = agents.filter(a => a.status !== 'terminated' && a.status !== 'ended').length;
+  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'suspended', 'hibernated', 'retired'].includes(a.status)).length;
   const busyAgents = agents.filter(a => a.status === 'busy' || a.status === 'working').length;
 
   return (
@@ -168,7 +168,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       {!collapsed && activeAgents > 0 && (
         <div className="px-3 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-done)]'}`} />
+            <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
             <span>{busyAgents} busy</span>
             <span className="text-[var(--color-text-tertiary)]">·</span>
             <span>{activeAgents - busyAgents} idle</span>

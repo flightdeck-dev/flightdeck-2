@@ -150,7 +150,7 @@ export default function Dashboard() {
               {activeAgents.slice(0, 6).map(a => {
                 const statusColor = a.status === 'busy' || a.status === 'working'
                   ? 'var(--color-status-running)'
-                  : a.status === 'idle' ? 'var(--color-status-done)'
+                  : a.status === 'idle' ? 'var(--color-status-ready)'
                   : 'var(--color-status-cancelled)';
                 const currentTask = tasks.find(t => t.id === (a.currentTask ?? a.current_task));
                 return (

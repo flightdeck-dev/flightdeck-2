@@ -11,7 +11,7 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: boolean }> = {
   busy: { color: 'var(--color-status-running)', label: 'Busy', animate: true },
   working: { color: 'var(--color-status-running)', label: 'Working', animate: true },
-  idle: { color: 'var(--color-status-done)', label: 'Idle' },
+  idle: { color: 'var(--color-status-ready)', label: 'Idle' },
   terminated: { color: 'var(--color-status-cancelled)', label: 'Offline' },
   ended: { color: 'var(--color-status-cancelled)', label: 'Ended' },
 };
@@ -273,7 +273,7 @@ export default function Agents() {
             {active.filter(a => a.status === 'busy' || a.status === 'working').length} busy
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[var(--color-status-done)]" />
+            <span className="w-2 h-2 rounded-full bg-[var(--color-status-ready)]" />
             {active.filter(a => a.status === 'idle').length} idle
           </span>
         </div>
