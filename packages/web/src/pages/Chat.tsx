@@ -8,8 +8,8 @@ import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
 
 const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  user: { label: 'You', color: 'var(--color-status-ready)', bg: 'color-mix(in srgb, var(--color-status-ready) 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
-  lead: { label: 'Lead', color: 'var(--color-status-running)', bg: 'color-mix(in srgb, var(--color-status-running) 10%, transparent)', icon: <Crown size={16} strokeWidth={1.5} /> },
+  user: { label: 'You', color: '#2f80ed', bg: 'color-mix(in srgb, #2f80ed 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
+  lead: { label: 'Lead', color: '#d97706', bg: 'color-mix(in srgb, #d97706 10%, transparent)', icon: <Crown size={16} strokeWidth={1.5} /> },
   agent: { label: 'Agent', color: 'var(--color-status-in-review)', bg: 'color-mix(in srgb, var(--color-status-in-review) 10%, transparent)', icon: <Bot size={16} strokeWidth={1.5} /> },
   system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: <SettingsIcon size={16} strokeWidth={1.5} /> },
 };
@@ -61,7 +61,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
         </div>
         <div className={`inline-block mt-1 px-3 py-2 rounded-2xl text-sm break-words max-w-[85%] ${
           isUser
-            ? 'bg-[var(--color-status-ready)] text-white rounded-br-sm whitespace-pre-wrap'
+            ? 'bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap'
             : 'bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
           {isUser ? msg.content : <Markdown content={msg.content} />}
@@ -448,10 +448,10 @@ export default function Chat() {
             <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
               placeholder={connected ? 'Message Lead... (Enter to send)' : 'Connecting...'}
               disabled={!connected} rows={1}
-              className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-status-ready)] disabled:opacity-50 max-h-32 overflow-y-auto"
+              className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] disabled:opacity-50 max-h-32 overflow-y-auto"
             />
             <button onClick={handleSend} disabled={!connected || !input.trim()}
-              className="px-5 py-2.5 rounded-xl bg-[var(--color-status-ready)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
+              className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
               <Send size={16} strokeWidth={1.5} />
             </button>
           </div>
