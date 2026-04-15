@@ -1,17 +1,18 @@
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { Markdown } from '../components/Markdown.tsx';
+import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot } from 'lucide-react';
 import type { Task, TaskState } from '../lib/types.ts';
 
-const PIPELINE_COLUMNS: { state: TaskState; label: string; icon: string }[] = [
-  { state: 'ready', label: 'Ready', icon: '○' },
-  { state: 'running', label: 'Running', icon: '◉' },
-  { state: 'in_review', label: 'In Review', icon: '◎' },
-  { state: 'done', label: 'Done', icon: '●' },
+const PIPELINE_COLUMNS: { state: TaskState; label: string; icon: React.ReactNode }[] = [
+  { state: 'ready', label: 'Ready', icon: <Circle size={16} strokeWidth={1.5} /> },
+  { state: 'running', label: 'Running', icon: <Disc size={16} strokeWidth={1.5} /> },
+  { state: 'in_review', label: 'In Review', icon: <CircleDot size={16} strokeWidth={1.5} /> },
+  { state: 'done', label: 'Done', icon: <CheckCircle2 size={16} strokeWidth={1.5} /> },
 ];
 
-const ROLE_ICONS: Record<string, string> = {
-  lead: '👑', developer: '💻', worker: '💻', reviewer: '🔍', planner: '📋',
+const ROLE_ICONS: Record<string, React.ReactNode> = {
+  lead: <Crown size={18} strokeWidth={1.5} />, developer: <Code size={18} strokeWidth={1.5} />, worker: <Code size={18} strokeWidth={1.5} />, reviewer: <Search size={18} strokeWidth={1.5} />, planner: <ClipboardList size={18} strokeWidth={1.5} />,
 };
 
 function PipelineCard({ task }: { task: Task }) {
@@ -33,7 +34,7 @@ function PipelineCard({ task }: { task: Task }) {
   );
 }
 
-function PipelineColumn({ state, label, icon, tasks }: { state: TaskState; label: string; icon: string; tasks: Task[] }) {
+function PipelineColumn({ state, label, icon, tasks }: { state: TaskState; label: string; icon: React.ReactNode; tasks: Task[] }) {
   const color = STATE_COLORS[state];
   return (
     <div className="flex-1 min-w-[200px]">
@@ -152,7 +153,7 @@ export default function Dashboard() {
                 const currentTask = tasks.find(t => t.id === (a.currentTask ?? a.current_task));
                 return (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-                    <span className="text-base">{ROLE_ICONS[a.role] ?? '🤖'}</span>
+                    <span className="text-base">{ROLE_ICONS[a.role] ?? <Bot size={18} strokeWidth={1.5} />}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium capitalize">{a.role}</span>

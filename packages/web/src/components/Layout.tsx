@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 import { Sidebar } from './Sidebar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
@@ -111,7 +112,7 @@ export function Layout() {
             className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
             title="Display settings"
           >
-            ⚙
+            <Settings size={16} strokeWidth={1.5} />
           </button>
           <ThemeToggle />
         </div>

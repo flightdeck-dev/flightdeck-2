@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { Check, Circle, X, Landmark, Zap, Package, Palette, Pin, Scale } from 'lucide-react';
 import type { Decision, DecisionStatus } from '../lib/types.ts';
 
-const STATUS_STYLES: Record<DecisionStatus, { bg: string; text: string; icon: string }> = {
-  confirmed: { bg: 'color-mix(in srgb, var(--color-status-done) 15%, transparent)', text: 'var(--color-status-done)', icon: '✓' },
-  recorded: { bg: 'color-mix(in srgb, var(--color-status-ready) 15%, transparent)', text: 'var(--color-status-ready)', icon: '○' },
-  rejected: { bg: 'color-mix(in srgb, var(--color-status-failed) 15%, transparent)', text: 'var(--color-status-failed)', icon: '✕' },
+const STATUS_STYLES: Record<DecisionStatus, { bg: string; text: string; icon: React.ReactNode }> = {
+  confirmed: { bg: 'color-mix(in srgb, var(--color-status-done) 15%, transparent)', text: 'var(--color-status-done)', icon: <Check size={10} strokeWidth={2} /> },
+  recorded: { bg: 'color-mix(in srgb, var(--color-status-ready) 15%, transparent)', text: 'var(--color-status-ready)', icon: <Circle size={10} strokeWidth={2} /> },
+  rejected: { bg: 'color-mix(in srgb, var(--color-status-failed) 15%, transparent)', text: 'var(--color-status-failed)', icon: <X size={10} strokeWidth={2} /> },
 };
 
-const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
-  architecture: { color: 'var(--color-status-in-review)', icon: '🏗' },
-  implementation: { color: 'var(--color-status-running)', icon: '⚡' },
-  dependency: { color: 'var(--color-status-ready)', icon: '📦' },
-  design: { color: 'var(--color-status-done)', icon: '🎨' },
+const CATEGORY_STYLES: Record<string, { color: string; icon: React.ReactNode }> = {
+  architecture: { color: 'var(--color-status-in-review)', icon: <Landmark size={14} strokeWidth={1.5} /> },
+  implementation: { color: 'var(--color-status-running)', icon: <Zap size={14} strokeWidth={1.5} /> },
+  dependency: { color: 'var(--color-status-ready)', icon: <Package size={14} strokeWidth={1.5} /> },
+  design: { color: 'var(--color-status-done)', icon: <Palette size={14} strokeWidth={1.5} /> },
 };
 
 function DecisionCard({ decision, isExpanded, onToggle }: { decision: Decision; isExpanded: boolean; onToggle: () => void }) {
   const statusStyle = STATUS_STYLES[decision.status] ?? STATUS_STYLES.recorded;
-  const catStyle = CATEGORY_STYLES[decision.category] ?? { color: 'var(--color-text-tertiary)', icon: '📌' };
+  const catStyle = CATEGORY_STYLES[decision.category] ?? { color: 'var(--color-text-tertiary)', icon: <Pin size={14} strokeWidth={1.5} /> };
 
   return (
     <div className="relative pl-8">
@@ -36,7 +37,7 @@ function DecisionCard({ decision, isExpanded, onToggle }: { decision: Decision; 
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                       style={{ backgroundColor: `color-mix(in srgb, ${catStyle.color} 15%, transparent)`, color: catStyle.color }}>
-                  {catStyle.icon} {decision.category}
+              {catStyle.icon} {decision.category}
                 </span>
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                       style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}>
@@ -83,7 +84,7 @@ export default function Decisions() {
       <div className="max-w-4xl">
         <h1 className="text-xl font-semibold mb-8">Decisions</h1>
         <div className="text-center py-16 text-[var(--color-text-secondary)]">
-          <p className="text-4xl mb-4">⚖</p>
+          <Scale size={40} strokeWidth={1.5} className="mx-auto mb-4 text-[var(--color-text-tertiary)]" />
           <p>No decisions logged yet.</p>
           <p className="text-sm mt-1 text-[var(--color-text-tertiary)]">Decisions will appear here as the Lead makes architectural and implementation choices.</p>
         </div>
@@ -106,7 +107,7 @@ export default function Decisions() {
           {categories.map(c => (
             <button key={c} onClick={() => setCategoryFilter(c)}
               className={`text-xs px-2.5 py-1 rounded-md transition-colors ${categoryFilter === c ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
-              {CATEGORY_STYLES[c]?.icon ?? '📌'} {c}
+            {CATEGORY_STYLES[c]?.icon ?? <Pin size={14} strokeWidth={1.5} />} {c}
             </button>
           ))}
         </div>

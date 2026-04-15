@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
@@ -6,11 +7,11 @@ import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
 
-const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  user: { label: 'You', color: 'var(--color-status-ready)', bg: 'color-mix(in srgb, var(--color-status-ready) 10%, transparent)', icon: '👤' },
-  lead: { label: 'Lead', color: 'var(--color-status-running)', bg: 'color-mix(in srgb, var(--color-status-running) 10%, transparent)', icon: '👑' },
-  agent: { label: 'Agent', color: 'var(--color-status-in-review)', bg: 'color-mix(in srgb, var(--color-status-in-review) 10%, transparent)', icon: '🤖' },
-  system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: '⚙' },
+const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  user: { label: 'You', color: 'var(--color-status-ready)', bg: 'color-mix(in srgb, var(--color-status-ready) 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
+  lead: { label: 'Lead', color: 'var(--color-status-running)', bg: 'color-mix(in srgb, var(--color-status-running) 10%, transparent)', icon: <Crown size={16} strokeWidth={1.5} /> },
+  agent: { label: 'Agent', color: 'var(--color-status-in-review)', bg: 'color-mix(in srgb, var(--color-status-in-review) 10%, transparent)', icon: <Bot size={16} strokeWidth={1.5} /> },
+  system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: <SettingsIcon size={16} strokeWidth={1.5} /> },
 };
 
 const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; onReply: (m: ChatMessage) => void }) {
@@ -82,7 +83,7 @@ function TypingIndicator() {
     <div className="flex gap-3 py-2 px-3">
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: AUTHOR_STYLES.lead.bg, color: AUTHOR_STYLES.lead.color }}>
-        👑
+        <Crown size={16} strokeWidth={1.5} />
       </div>
       <div className="flex items-center gap-1 px-4 py-3 rounded-2xl rounded-bl-sm bg-[var(--color-surface-secondary)]">
         <span className="w-2 h-2 rounded-full bg-[var(--color-text-tertiary)] animate-bounce [animation-delay:0ms]" />
@@ -104,7 +105,7 @@ function StreamingBubble({ content, chunks, displayConfig }: {
     <div className="flex gap-3 py-2 px-3">
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: AUTHOR_STYLES.lead.bg, color: AUTHOR_STYLES.lead.color }}>
-        👑
+        <Crown size={16} strokeWidth={1.5} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
@@ -158,7 +159,7 @@ function ThinkingBlock({ content }: { content: string }) {
   return (
     <details className="rounded-lg bg-[var(--color-surface-secondary)] border border-[var(--color-border)]">
       <summary className="px-3 py-1.5 text-xs text-[var(--color-text-tertiary)] italic font-mono cursor-pointer select-none">
-        🧠 {isLong ? preview.slice(0, 120) + '...' : preview}
+        <Brain size={14} strokeWidth={1.5} className="inline mr-1" />{isLong ? preview.slice(0, 120) + '...' : preview}
       </summary>
       <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)] italic font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">
         {content}
@@ -174,7 +175,7 @@ function ToolCallBlock({ content, toolName, level }: { content: string; toolName
     return (
       <details className="inline-block">
         <summary className="text-xs px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--color-status-running)_15%,transparent)] text-[var(--color-status-running)] cursor-pointer select-none">
-          🔧 {toolName ?? 'tool'}({brief})
+          <Wrench size={14} strokeWidth={1.5} className="inline mr-1" />{toolName ?? 'tool'}({brief})
         </summary>
         <div className="mt-1 px-3 py-2 text-xs font-mono bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap">
           {content}
@@ -184,7 +185,7 @@ function ToolCallBlock({ content, toolName, level }: { content: string; toolName
   }
   return (
     <details open className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
-      <summary className="px-3 py-1.5 text-xs font-medium cursor-pointer select-none">🔧 {toolName ?? 'tool'}</summary>
+      <summary className="px-3 py-1.5 text-xs font-medium cursor-pointer select-none"><Wrench size={14} strokeWidth={1.5} className="inline mr-1" />{toolName ?? 'tool'}</summary>
       <div className="px-3 py-2 text-xs font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">{content}</div>
     </details>
   );
@@ -249,7 +250,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
       return (
         <div className="flex-1 flex items-center justify-center text-[var(--color-text-secondary)]">
           <div className="text-center">
-            <p className="text-2xl mb-2">⚠️</p>
+            <p className="text-2xl mb-2"><AlertTriangle size={28} strokeWidth={1.5} className="mx-auto" /></p>
             <p>Something went wrong rendering messages.</p>
             <p className="text-xs mt-1 text-[var(--color-text-tertiary)]">{this.state.error?.message}</p>
             <button onClick={() => this.setState({ hasError: false, error: null })}
@@ -330,7 +331,7 @@ export default function Chat() {
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
           <button onClick={() => setShowThreads(!showThreads)}
             className="text-xs px-2.5 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
-            {showThreads ? '◀ Hide' : '▶ Threads'}
+            {showThreads ? <><ChevronLeft size={14} strokeWidth={1.5} className="inline" /> Hide</> : <><ChevronRight size={14} strokeWidth={1.5} className="inline" /> Threads</>}
           </button>
           <span className="text-sm font-medium text-[var(--color-text-secondary)]">
             {activeThread ? threads.find(t => t.id === activeThread)?.title ?? 'Thread' : 'Main Chat'}
@@ -347,7 +348,7 @@ export default function Chat() {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
             {filteredMessages.length === 0 && streamEntries.length === 0 && (
               <div className="text-center py-16 text-[var(--color-text-secondary)]">
-                <p className="text-4xl mb-4">💬</p>
+                <MessageSquare size={40} strokeWidth={1.5} className="mx-auto mb-4 text-[var(--color-text-tertiary)]" />
                 <p>No messages yet.</p>
                 <p className="text-sm mt-1 text-[var(--color-text-tertiary)]">
                   {connected ? 'Send a message to start a conversation with Lead.' : 'Waiting for connection...'}
@@ -386,7 +387,7 @@ export default function Chat() {
             />
             <button onClick={handleSend} disabled={!connected || !input.trim()}
               className="px-5 py-2.5 rounded-xl bg-[var(--color-status-ready)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
-              Send
+              <Send size={16} strokeWidth={1.5} />
             </button>
           </div>
         </div>

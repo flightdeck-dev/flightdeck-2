@@ -2,19 +2,22 @@ import { NavLink, useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { ProjectSummary } from '../lib/types.ts';
+import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react';
+
+import type { LucideIcon } from 'lucide-react';
 
 interface SubNavItem {
   path: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 const PROJECT_NAV: SubNavItem[] = [
-  { path: '', label: 'Dashboard', icon: '◻' },
-  { path: '/chat', label: 'Chat', icon: '💬' },
-  { path: '/tasks', label: 'Tasks', icon: '☰' },
-  { path: '/agents', label: 'Agents', icon: '●' },
-  { path: '/decisions', label: 'Decisions', icon: '⚖' },
+  { path: '', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/chat', label: 'Chat', icon: MessageSquare },
+  { path: '/tasks', label: 'Tasks', icon: ListTodo },
+  { path: '/agents', label: 'Agents', icon: Bot },
+  { path: '/decisions', label: 'Decisions', icon: Scale },
 ];
 
 function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary; isActive: boolean; collapsed: boolean }) {
@@ -36,7 +39,7 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
         }`}
         title={project.name}
       >
-        <span className="w-5 text-center text-xs">📁</span>
+        <Folder size={16} strokeWidth={1.5} />
       </NavLink>
     );
   }
@@ -51,8 +54,8 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
             : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
         }`}
       >
-        <span className="text-[10px] w-3 text-center text-[var(--color-text-tertiary)]">
-          {expanded ? '▼' : '▶'}
+        <span className="w-3 text-center text-[var(--color-text-tertiary)]">
+          {expanded ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />}
         </span>
         <span className="flex-1 text-left truncate">{project.name}</span>
         <div className="flex items-center gap-1.5">
@@ -84,7 +87,7 @@ function ProjectItem({ project, isActive, collapsed }: { project: ProjectSummary
                 }`
               }
             >
-              <span className="w-4 text-center">{item.icon}</span>
+              <item.icon size={14} strokeWidth={1.5} />
               <span>{item.label}</span>
             </NavLink>
           ))}
@@ -113,7 +116,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           onClick={onToggle}
           className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] text-sm"
         >
-          {collapsed ? '▶' : '◀'}
+          {collapsed ? <PanelLeft size={16} strokeWidth={1.5} /> : <PanelLeftClose size={16} strokeWidth={1.5} />}
         </button>
         {!collapsed && (
           <span className="font-semibold text-sm text-[var(--color-text-primary)] truncate">
@@ -156,7 +159,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             }`
           }
         >
-          <span className="w-5 text-center text-xs">⚙</span>
+          <Settings size={16} strokeWidth={1.5} />
           {!collapsed && <span>Settings</span>}
         </NavLink>
       </div>

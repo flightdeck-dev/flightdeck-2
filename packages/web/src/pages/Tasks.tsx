@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ListTodo, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { api } from '../lib/api.ts';
@@ -157,7 +158,7 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
             {agent}
           </span>
         )}
-        <span className="text-xs text-[var(--color-text-tertiary)]">{isExpanded ? '▲' : '▼'}</span>
+        <span className="text-[var(--color-text-tertiary)]">{isExpanded ? <ChevronUp size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}</span>
       </div>
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
@@ -219,7 +220,7 @@ export default function Tasks() {
         <h1 className="text-xl font-semibold">Tasks ({tasks.length})</h1>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-status-ready)] text-white font-medium hover:opacity-90">
-          <span>+</span> Create Task
+          <Plus size={16} strokeWidth={1.5} /> Create Task
         </button>
       </div>
 
@@ -243,7 +244,7 @@ export default function Tasks() {
       {/* Task list */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-text-secondary)]">
-          <p className="text-4xl mb-4">☰</p>
+          <ListTodo size={40} strokeWidth={1.5} className="mx-auto mb-4 text-[var(--color-text-tertiary)]" />
           <p>No tasks{filter !== 'all' ? ` with state "${filter.replace('_', ' ')}"` : ''}.</p>
           <p className="text-sm mt-1 text-[var(--color-text-tertiary)]">Create a task or let Lead generate the task plan.</p>
         </div>

@@ -1,8 +1,9 @@
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { Crown, Code, Search, ClipboardList, Bot } from 'lucide-react';
 import type { Agent } from '../lib/types.ts';
 
-const ROLE_ICONS: Record<string, string> = {
-  lead: '👑', developer: '💻', worker: '💻', reviewer: '🔍', planner: '📋',
+const ROLE_ICONS: Record<string, React.ReactNode> = {
+  lead: <Crown size={20} strokeWidth={1.5} />, developer: <Code size={20} strokeWidth={1.5} />, worker: <Code size={20} strokeWidth={1.5} />, reviewer: <Search size={20} strokeWidth={1.5} />, planner: <ClipboardList size={20} strokeWidth={1.5} />,
 };
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: boolean }> = {
@@ -24,7 +25,7 @@ function AgentCard({ agent }: { agent: Agent }) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[var(--color-surface-secondary)] flex items-center justify-center text-lg">
-            {ROLE_ICONS[agent.role] ?? '🤖'}
+            {ROLE_ICONS[agent.role] ?? <Bot size={20} strokeWidth={1.5} />}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -104,7 +105,7 @@ export default function Agents() {
       <div className="max-w-4xl">
         <h1 className="text-xl font-semibold mb-8">Agents</h1>
         <div className="text-center py-16 text-[var(--color-text-secondary)]">
-          <p className="text-4xl mb-4">🤖</p>
+          <Bot size={40} strokeWidth={1.5} className="mx-auto mb-4 text-[var(--color-text-tertiary)]" />
           <p>No agents running.</p>
           <p className="text-sm mt-1 text-[var(--color-text-tertiary)]">The Lead will spawn agents when tasks are ready.</p>
         </div>
