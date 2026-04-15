@@ -75,7 +75,7 @@ export default function Dashboard() {
   }
 
   const tasksByState = (state: TaskState) => tasks.filter(t => t.state === state);
-  const activeAgents = agents.filter(a => a.status !== 'terminated' && a.status !== 'ended');
+  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'suspended', 'hibernated', 'retired'].includes(a.status));
   const leadMessage = [...messages].reverse().find(m => m.authorType === 'lead' && !m.threadId);
 
   return (
@@ -149,7 +149,9 @@ export default function Dashboard() {
             <div className="space-y-2">
               {activeAgents.slice(0, 6).map(a => {
                 const statusColor = a.status === 'busy' || a.status === 'working'
-                  ? 'var(--color-status-running)' : 'var(--color-status-done)';
+                  ? 'var(--color-status-running)'
+                  : a.status === 'idle' ? 'var(--color-status-done)'
+                  : 'var(--color-status-cancelled)';
                 const currentTask = tasks.find(t => t.id === (a.currentTask ?? a.current_task));
                 return (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
