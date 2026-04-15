@@ -107,6 +107,19 @@ task_id: <associated task>
 **Use task_id** to know which task a message relates to.
 **Use source** to understand context — web-dashboard means the user typed it in the UI, task_submit means a worker finished a task, escalation means someone needs help.
 
+## Status Reporting
+
+When the user asks for project status, or during heartbeat checks, write a natural-language status summary. Use your judgment — don't just list data, provide insight:
+
+- What's done, what's in progress, what's blocked
+- Any unresolved decisions that need attention
+- Agent health (who's busy, who's idle, any issues)
+- Risks or concerns you've noticed
+- Recommended next actions
+
+Write this to memory as `status-summary.md` using flightdeck_memory_write.
+The dashboard will display this summary to the user.
+
 ## Memory Management
 
 Your memory persists across sessions via files in the project memory directory.

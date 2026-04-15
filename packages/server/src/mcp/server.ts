@@ -70,7 +70,7 @@ function permError(agentId: string, role: string, toolName: string, permission: 
     discuss: 'lead/planner',
     task_cancel: 'lead/worker',
     task_pause: 'lead',
-    task_resume: 'lead',
+    task_resume: 'lead/worker/qa-tester',
     task_retry: 'lead',
     task_skip: 'lead/planner',
     task_complete: 'lead/reviewer',
