@@ -233,13 +233,16 @@ function StreamingBubble({ content, chunks, toolCallMap, displayConfig }: {
                   const level = isFlightdeck ? displayConfig.flightdeckTools : displayConfig.toolCalls;
                   return <ToolCallCard key={parsed.toolCallId} tc={tc} level={level} />;
                 }
+                if (!parsed.name) return null; // Hide empty tool calls
               } catch {}
               // Fallback for non-JSON tool calls (legacy)
               const level = (section.contentType === 'flightdeck_tool_call' || section.contentType === 'flightdeck_tool_result')
                 ? displayConfig.flightdeckTools : displayConfig.toolCalls;
               if (section.contentType === 'tool_call' || section.contentType === 'flightdeck_tool_call') {
+                if (!section.toolName) return null; // Hide empty tool calls
                 return <ToolCallBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
               }
+              if (!section.toolName) return null;
               return <ToolResultBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
             }
             return <div key={i} className="text-sm break-words"><Markdown content={section.content} /></div>;
