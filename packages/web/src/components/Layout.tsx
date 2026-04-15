@@ -66,10 +66,18 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
 }
 
 export function Layout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const toggleCollapsed = useCallback(() => setCollapsed(c => !c), []);
+
+  // Auto-collapse on narrow viewport
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setCollapsed(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   const toggleDisplaySettings = useCallback(() => setShowDisplaySettings(s => !s), []);
   const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
   const { status, connected, projectName } = useFlightdeck();

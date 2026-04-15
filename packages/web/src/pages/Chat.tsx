@@ -54,7 +54,7 @@ function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: bo
         </button>
       </div>
       {/* Bottom toolbar */}
-      <div className={`absolute ${isUser ? 'right-0' : 'left-0'} -bottom-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg z-10`}>
+      <div className={`absolute ${isUser ? 'right-0' : 'left-0'} -bottom-5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg z-10`}>
         <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
           {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
         </button>
