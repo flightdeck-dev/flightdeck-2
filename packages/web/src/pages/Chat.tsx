@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
@@ -13,6 +13,46 @@ const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; 
   agent: { label: 'Agent', color: 'var(--color-status-in-review)', bg: 'color-mix(in srgb, var(--color-status-in-review) 10%, transparent)', icon: <Bot size={16} strokeWidth={1.5} /> },
   system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: <SettingsIcon size={16} strokeWidth={1.5} /> },
 };
+
+function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: boolean; onReply: (m: ChatMessage) => void }) {
+  const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(msg.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    });
+  }, [msg.content]);
+
+  const handleSpeak = useCallback(() => {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(msg.content);
+    utterance.lang = /[\u4e00-\u9fff]/.test(msg.content) ? 'zh-CN' : 'en-US';
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    speechSynthesis.speak(utterance);
+  }, [msg.content]);
+
+  return (
+    <div className={`absolute ${isUser ? '-left-2 -translate-x-full' : '-right-2 translate-x-full'} top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg`}>
+      <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
+        {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+      </button>
+      <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply">
+        <Reply size={14} strokeWidth={1.5} />
+      </button>
+      <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud">
+        {speaking ? <VolumeX size={14} strokeWidth={1.5} /> : <Volume2 size={14} strokeWidth={1.5} />}
+      </button>
+    </div>
+  );
+}
 
 const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; onReply: (m: ChatMessage) => void }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
@@ -31,12 +71,13 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
   }
 
   return (
-    <div className={`group flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: style.bg, color: style.color }}>
         {style.icon}
       </div>
-      <div className={`flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
+      <div className={`relative flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
+        <MessageToolbar msg={msg} isUser={isUser} onReply={onReply} />
         {parentMsgs.length > 1 ? (
           <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] ${isUser ? 'ml-auto' : ''}`}>
             {parentMsgs.map((pm, i) => (
@@ -67,13 +108,6 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
           {isUser ? msg.content : <Markdown content={msg.content} />}
         </div>
       </div>
-      <button
-        onClick={() => onReply(msg)}
-        className="opacity-0 group-hover:opacity-100 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-opacity shrink-0 self-start mt-1"
-        title="Reply"
-      >
-        ↩
-      </button>
     </div>
   );
 });
