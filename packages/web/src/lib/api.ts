@@ -60,6 +60,8 @@ export const api = {
     post<Task>(projectPath(project, '/tasks'), task),
   getThreads: (project: string) => get<import('./types.ts').Thread[]>(projectPath(project, '/threads')),
   getModels: () => get<Record<string, unknown>>('/api/models'),
+  updateProjectConfig: (project: string, body: Record<string, unknown>) =>
+    put<{ config: unknown }>(projectPath(project, '/config'), body),
   sendMessage: (project: string, content: string, opts?: { thread_id?: string }) =>
     post<import('./types.ts').ChatMessage>(projectPath(project, '/messages'), { content, ...opts }),
   getAgentOutput: (project: string, agentId: string, tail?: number) =>

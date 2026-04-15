@@ -487,6 +487,18 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
         json(200, { notifications: cfg.notifications, active: true });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/config' && method === 'PUT') {
+      try {
+        const body = await readBody();
+        const cfg = fd.project.getConfig();
+        if (body.heartbeatIdleTimeoutDays !== undefined) {
+          const days = Number(body.heartbeatIdleTimeoutDays);
+          if (isNaN(days) || days < 1 || days > 30) { json(400, { error: 'heartbeatIdleTimeoutDays must be 1-30' }); return; }
+          cfg.heartbeatIdleTimeoutDays = days;
+        }
+        fd.project.setConfig(cfg);
+        json(200, { config: cfg });
+      } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/cron' && method === 'GET') {
       const cronStore = cronStores?.get(projectName);
       if (!cronStore) { json(500, { error: 'Cron not available for this project' }); return; }

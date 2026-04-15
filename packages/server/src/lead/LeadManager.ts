@@ -48,6 +48,7 @@ export interface HeartbeatConfig {
   enabled: boolean;
   interval: number;  // ms
   conditions: HeartbeatCondition[];
+  idleTimeoutDays?: number; // Default: 3. Stop heartbeat if no user interaction for this many days.
 }
 
 export interface LeadManagerOptions {
@@ -77,6 +78,7 @@ export class LeadManager {
   private lastHeartbeatAt: string | null = null;
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
+  private lastUserInteractionAt: number = Date.now();
   private projectName: string | undefined;
   private agentCwd: string;
   private leadRuntime: string | undefined;
@@ -199,6 +201,9 @@ export class LeadManager {
     if (!this.leadSessionId) return '';
     // Mark Lead as busy during steer
     if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'busy');
+    if (event.type === 'user_message') {
+      this.lastUserInteractionAt = Date.now();
+    }
     const steer = this.buildSteer(event);
     const sourceMessageId = event.type === 'user_message' ? event.message.id : undefined;
     const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
@@ -387,6 +392,12 @@ export class LeadManager {
 
   /** Check if all heartbeat conditions are met */
   checkHeartbeatConditions(): boolean {
+    // Check idle timeout — skip heartbeat if user has been inactive too long
+    const idleTimeoutMs = (this.heartbeatConfig.idleTimeoutDays ?? 3) * 86400_000;
+    if (Date.now() - this.lastUserInteractionAt > idleTimeoutMs) {
+      return false; // Skip heartbeat — user inactive
+    }
+
     for (const cond of this.heartbeatConfig.conditions) {
       switch (cond.type) {
         case 'tasks_completed': {

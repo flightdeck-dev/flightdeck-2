@@ -154,6 +154,8 @@ export interface ProjectConfig {
   };
   /** The working directory where .flightdeck.json lives (project root). */
   cwd?: string;
+  /** Stop heartbeat if no user interaction for this many days. Default: 3. */
+  heartbeatIdleTimeoutDays?: number;
 }
 
 export interface FlightdeckJson {

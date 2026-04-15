@@ -44,6 +44,14 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 export default function Settings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset, status } = useFlightdeck();
   const [models, setModels] = useState<Record<string, unknown> | null>(null);
+  const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(status?.config?.heartbeatIdleTimeoutDays ?? 3);
+  const [idleSaving, setIdleSaving] = useState(false);
+
+  useEffect(() => {
+    if (status?.config?.heartbeatIdleTimeoutDays !== undefined) {
+      setIdleTimeoutDays(status.config.heartbeatIdleTimeoutDays);
+    }
+  }, [status?.config?.heartbeatIdleTimeoutDays]);
 
   useEffect(() => {
     api.getModels().then(setModels).catch(() => {});
@@ -77,6 +85,43 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <span className="text-sm">Total Cost</span>
             <span className="text-sm font-mono">${(status?.totalCost ?? 0).toFixed(2)}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Heartbeat */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Heartbeat</h2>
+        <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">Idle timeout (days)</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">Stop heartbeat if no user interaction for this many days</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={idleTimeoutDays}
+                onChange={e => setIdleTimeoutDays(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+                className="w-16 px-2 py-1 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-right"
+              />
+              <button
+                disabled={idleSaving}
+                onClick={async () => {
+                  if (!status?.config?.name) return;
+                  setIdleSaving(true);
+                  try {
+                    await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: idleTimeoutDays });
+                  } catch { /* ignore */ }
+                  setIdleSaving(false);
+                }}
+                className="px-3 py-1 text-xs rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {idleSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       </section>
