@@ -414,6 +414,11 @@ export default function Chat() {
     sendChat(text, replyTo?.id, activeThread ?? undefined);
     setInput('');
     setReplyTo(null);
+    // Stop recording if active
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
     inputRef.current?.focus();
   }, [input, replyTo, sendChat, activeThread]);
 
