@@ -71,9 +71,10 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
 
   return (
     <div>
-      <button
+      <div
         onClick={() => setExpanded(e => !e)}
-        className={`group w-full flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors ${
+        role="button"
+        className={`group w-full flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors cursor-pointer ${
           isActive
             ? 'text-[var(--color-text-primary)] font-medium'
             : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
@@ -114,7 +115,7 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
             </span>
           )}
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <nav className="ml-4 mt-0.5 space-y-0.5">

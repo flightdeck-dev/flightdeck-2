@@ -510,9 +510,7 @@ export default function Chat() {
               <StreamingBubble key={id} content={content}
                 chunks={streamingChunks.get(id)} toolCallMap={toolCallMap} displayConfig={displayConfig} />
             ))}
-            {!isStreaming && filteredMessages.length > 0 && filteredMessages[filteredMessages.length - 1]?.authorType === 'user' && (
-              <TypingIndicator />
-            )}
+
             <div ref={bottomRef} />
             </div>
           </div>
