@@ -174,7 +174,7 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
             )}
             <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-tertiary)]">
               <span>Role: {task.role}</span>
-              {task.created_at && <span>Created: {new Date(task.created_at).toLocaleDateString()}</span>}
+              {task.created_at && <span>Created: {new Date(task.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
               {task.cost != null && <span>Cost: ${task.cost.toFixed(2)}</span>}
             </div>
             <DependencyTree task={task} allTasks={allTasks} />

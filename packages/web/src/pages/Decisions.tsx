@@ -46,7 +46,7 @@ function DecisionCard({ decision, isExpanded, onToggle }: { decision: Decision; 
               </div>
             </div>
             <span className="text-xs text-[var(--color-text-tertiary)] shrink-0">
-              {new Date(decision.timestamp).toLocaleDateString()}
+              {new Date(decision.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>
@@ -118,10 +118,24 @@ export default function Decisions() {
         {/* Timeline line */}
         <div className="absolute left-[7px] top-0 bottom-0 w-0.5 bg-[var(--color-border)]" />
 
-        {filtered.map(d => (
-          <DecisionCard key={d.id} decision={d} isExpanded={expanded === d.id}
-            onToggle={() => setExpanded(expanded === d.id ? null : d.id)} />
-        ))}
+        {filtered.map((d, i) => {
+          const dateStr = new Date(d.timestamp).toLocaleDateString();
+          const prevDateStr = i > 0 ? new Date(filtered[i - 1].timestamp).toLocaleDateString() : null;
+          const showDateSeparator = i === 0 || dateStr !== prevDateStr;
+          return (
+            <div key={d.id}>
+              {showDateSeparator && (
+                <div className="relative pl-8 py-2">
+                  <span className="text-xs font-medium text-[var(--color-text-tertiary)] bg-[var(--color-surface)] px-2 relative z-10">
+                    {new Date(d.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+              )}
+              <DecisionCard decision={d} isExpanded={expanded === d.id}
+                onToggle={() => setExpanded(expanded === d.id ? null : d.id)} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
