@@ -1,5 +1,7 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-import { Crown, Code, Search, ClipboardList, Bot } from 'lucide-react';
+import { api } from '../lib/api.ts';
+import { Crown, Code, Search, ClipboardList, Bot, ChevronDown, ChevronUp, Send, Zap, Terminal, MessageSquare } from 'lucide-react';
 import type { Agent } from '../lib/types.ts';
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
@@ -14,10 +16,146 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: bo
   ended: { color: 'var(--color-status-cancelled)', label: 'Ended' },
 };
 
+type OutputTab = 'output' | 'send';
+
+function AgentOutputPanel({ agentId, projectName, liveOutput }: { agentId: string; projectName: string; liveOutput: string }) {
+  const [tab, setTab] = useState<OutputTab>('output');
+  const [historicalOutput, setHistoricalOutput] = useState<string[]>([]);
+  const [loadingOutput, setLoadingOutput] = useState(true);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
+
+  // Load historical output
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingOutput(true);
+    api.getAgentOutput(projectName, agentId, 200).then(data => {
+      if (!cancelled) {
+        setHistoricalOutput(data.lines);
+        setLoadingOutput(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoadingOutput(false);
+    });
+    return () => { cancelled = true; };
+  }, [agentId, projectName]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (autoScrollRef.current && outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [historicalOutput, liveOutput]);
+
+  const handleScroll = useCallback(() => {
+    if (!outputRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = outputRef.current;
+    autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 40;
+  }, []);
+
+  const handleSend = async (urgent?: boolean) => {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      await api.sendAgentMessage(projectName, agentId, message.trim(), urgent);
+      setMessage('');
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+    setSending(false);
+  };
+
+  const fullOutput = [...historicalOutput, ...(liveOutput ? [liveOutput] : [])].join('\n');
+
+  return (
+    <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+      {/* Tabs */}
+      <div className="flex gap-1 mb-2">
+        <button
+          onClick={() => setTab('output')}
+          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${
+            tab === 'output'
+              ? 'bg-[var(--color-surface-secondary)] text-[var(--color-text)]'
+              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <Terminal size={12} /> Output
+        </button>
+        <button
+          onClick={() => setTab('send')}
+          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${
+            tab === 'send'
+              ? 'bg-[var(--color-surface-secondary)] text-[var(--color-text)]'
+              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <MessageSquare size={12} /> Send Message
+        </button>
+      </div>
+
+      {/* Output tab */}
+      {tab === 'output' && (
+        <div
+          ref={outputRef}
+          onScroll={handleScroll}
+          className="bg-[var(--color-surface-secondary)] rounded-lg p-3 font-mono text-xs leading-relaxed max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words"
+        >
+          {loadingOutput ? (
+            <span className="text-[var(--color-text-tertiary)]">Loading output...</span>
+          ) : fullOutput ? (
+            fullOutput
+          ) : (
+            <span className="text-[var(--color-text-tertiary)]">No output yet.</span>
+          )}
+        </div>
+      )}
+
+      {/* Send Message tab */}
+      {tab === 'send' && (
+        <div className="space-y-2">
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            placeholder="Type a message to this agent..."
+            className="w-full bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg p-2.5 text-sm resize-none focus:outline-none focus:border-[var(--color-text-tertiary)]"
+            rows={3}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleSend(false)}
+              disabled={sending || !message.trim()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity disabled:opacity-40"
+            >
+              <Send size={12} /> Send
+            </button>
+            <button
+              onClick={() => handleSend(true)}
+              disabled={sending || !message.trim()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[var(--color-status-failed)] text-[var(--color-status-failed)] hover:bg-[color-mix(in_srgb,var(--color-status-failed)_10%,transparent)] transition-colors disabled:opacity-40"
+            >
+              <Zap size={12} /> Interrupt
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgentCard({ agent }: { agent: Agent }) {
+  const [expanded, setExpanded] = useState(false);
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
-  const { tasks } = useFlightdeck();
+  const { tasks, projectName, agentOutputs } = useFlightdeck();
   const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
+  const liveOutput = agentOutputs.get(agent.id) ?? '';
 
   return (
     <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-tertiary)] transition-colors space-y-4">
@@ -67,15 +205,27 @@ function AgentCard({ agent }: { agent: Agent }) {
       </div>
 
       {/* Actions */}
-      {agent.status !== 'terminated' && agent.status !== 'ended' && (
-        <div className="flex gap-2 pt-1">
-          <button className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors flex-1">
-            Interrupt
-          </button>
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors flex items-center gap-1.5 flex-1"
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {expanded ? 'Collapse' : 'Output'}
+          {liveOutput && !expanded && (
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-status-running)] animate-pulse ml-auto" />
+          )}
+        </button>
+        {agent.status !== 'terminated' && agent.status !== 'ended' && (
           <button className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-status-failed)] hover:bg-[color-mix(in_srgb,var(--color-status-failed)_10%,transparent)] transition-colors flex-1">
             Terminate
           </button>
-        </div>
+        )}
+      </div>
+
+      {/* Expanded output panel */}
+      {expanded && projectName && (
+        <AgentOutputPanel agentId={agent.id} projectName={projectName} liveOutput={liveOutput} />
       )}
     </div>
   );

@@ -8,7 +8,8 @@ export type WsEvent =
   | { type: 'thread:created'; thread: Thread }
   | { type: 'task:comment'; task_id: string; message: ChatMessage }
   | { type: 'display:config'; config: DisplayConfig }
-  | { type: 'state:update'; stats: Record<string, number> };
+  | { type: 'state:update'; stats: Record<string, number> }
+  | { type: 'agent:stream'; agentId: string; delta: string; contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result'; toolName?: string };
 
 type EventHandler = (event: WsEvent) => void;
 

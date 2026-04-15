@@ -78,6 +78,52 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
+  // Broadcast all agent streaming output to WebSocket clients
+  acpAdapter.onAnySessionOutput = (agentId, update) => {
+    // Broadcast to all project WS servers
+    for (const wsServer of wsServers.values()) {
+      let delta = '';
+      let contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result' = 'text';
+      let toolName: string | undefined;
+
+      switch ((update as any).sessionUpdate) {
+        case 'agent_message_chunk':
+          if ((update as any).content?.type === 'text') {
+            delta = (update as any).content.text;
+            contentType = 'text';
+          }
+          break;
+        case 'agent_thought_chunk':
+          if ((update as any).content?.type === 'text') {
+            delta = (update as any).content.text;
+            contentType = 'thinking';
+          }
+          break;
+        case 'tool_call':
+          toolName = (update as any).name ?? '';
+          delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, input: (update as any).input ? JSON.stringify((update as any).input) : '', status: (update as any).status ?? 'pending' });
+          contentType = 'tool_call';
+          break;
+        case 'tool_call_update': {
+          toolName = (update as any).name ?? '';
+          let resultText = '';
+          if ((update as any).content && Array.isArray((update as any).content)) {
+            resultText = (update as any).content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('');
+          }
+          delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, result: resultText, status: (update as any).status ?? 'completed' });
+          contentType = 'tool_result';
+          break;
+        }
+        default:
+          return;
+      }
+
+      if (delta) {
+        wsServer.broadcast({ type: 'agent:stream', agentId, delta, contentType, toolName } as any);
+      }
+    }
+  };
+
   // Determine which projects to serve
   let projectNames = projectManager.list();
   if (projectFilter) {

@@ -124,6 +124,9 @@ export class AcpAdapter extends AgentAdapter {
   /** Callback fired when a session ends (process exit, crash, etc.) */
   onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
 
+  /** Callback fired when any session produces output (for global streaming). */
+  onAnySessionOutput: ((agentId: string, update: NonNullable<AcpSession['onOutputChunk']> extends (u: infer U) => void ? U : never) => void) | null = null;
+
   /** Get PIDs of all living child agent processes (for orphan tracking). */
   getChildPids(): number[] {
     const pids: number[] = [];
@@ -161,6 +164,7 @@ export class AcpAdapter extends AgentAdapter {
    * This is the core of "Flightdeck = Client" — we provide fs + terminal capabilities.
    */
   private buildClient(session: AcpSession): Client {
+    const self = this;
     return {
       async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
         // Auto-approve all permissions (Flightdeck manages permissions at a higher level)
@@ -186,6 +190,7 @@ export class AcpAdapter extends AgentAdapter {
             }
             // Forward to external listener (e.g., ACP agent server)
             session.onOutputChunk?.(update);
+            self.onAnySessionOutput?.(session.agentId, update);
             break;
           case 'usage_update':
             session.tokensIn = update.used;
@@ -194,14 +199,17 @@ export class AcpAdapter extends AgentAdapter {
           case 'tool_call':
             // Store tool call and forward to listener
             session.onOutputChunk?.(update);
+            self.onAnySessionOutput?.(session.agentId, update);
             break;
           case 'tool_call_update':
             // Forward tool call update to listener
             session.onOutputChunk?.(update);
+            self.onAnySessionOutput?.(session.agentId, update);
             break;
           case 'agent_thought_chunk':
             // Forward thought chunk to listener
             session.onOutputChunk?.(update);
+            self.onAnySessionOutput?.(session.agentId, update);
             break;
           case 'plan':
             break;

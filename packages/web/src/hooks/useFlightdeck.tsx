@@ -55,6 +55,7 @@ interface FlightdeckState {
   streamingMessages: Map<string, string>;
   streamingChunks: Map<string, StreamChunk[]>;
   toolCallMap: Map<string, ToolCallState>;
+  agentOutputs: Map<string, string>;
   displayConfig: DisplayConfig;
   connected: boolean;
   loading: boolean;
@@ -83,6 +84,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
   const [streamingChunks, setStreamingChunks] = useState(new Map<string, StreamChunk[]>());
   const [toolCallMap, setToolCallMap] = useState(new Map<string, ToolCallState>());
+  const agentOutputsRef = useRef(new Map<string, string>());
+  const [agentOutputs, setAgentOutputs] = useState(new Map<string, string>());
   const streamingDirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
@@ -140,6 +143,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     setStreamingMessages(new Map());
     setStreamingChunks(new Map());
     setToolCallMap(new Map());
+    agentOutputsRef.current.clear();
+    setAgentOutputs(new Map());
     fetchAll();
   }, [fetchAll]);
 
@@ -216,6 +221,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
               setStreamingMessages(new Map(streamingRef.current));
               setStreamingChunks(new Map(streamingChunksRef.current));
               setToolCallMap(new Map(toolCallMapRef.current));
+              setAgentOutputs(new Map(agentOutputsRef.current));
               streamingDirtyRef.current = false;
             });
           }
@@ -239,6 +245,21 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           // Tasks/agents changed — refetch
           fetchAllRef.current();
           break;
+        case 'agent:stream': {
+          const prev = agentOutputsRef.current.get(event.agentId) ?? '';
+          agentOutputsRef.current.set(event.agentId, prev + event.delta);
+          if (!streamingDirtyRef.current) {
+            streamingDirtyRef.current = true;
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingMessages(new Map(streamingRef.current));
+              setStreamingChunks(new Map(streamingChunksRef.current));
+              setToolCallMap(new Map(toolCallMapRef.current));
+              setAgentOutputs(new Map(agentOutputsRef.current));
+              streamingDirtyRef.current = false;
+            });
+          }
+          break;
+        }
       }
     });
 
@@ -274,7 +295,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
 
   return (
     <Ctx.Provider value={{
-      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap,
+      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap, agentOutputs,
       displayConfig, connected, loading, sendChat, sendTaskComment,
       setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
     }}>
