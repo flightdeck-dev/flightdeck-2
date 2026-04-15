@@ -52,6 +52,13 @@ Progress checkpoint. Review:
 2. Are estimates tracking? Any scope creep?
 3. Should priorities be reordered?
 
+## Review Decisions
+When creating tasks, decide whether each task needs review:
+- **`needsReview: true`** (default) — important tasks: architecture changes, security-sensitive code, public API changes, complex logic
+- **`needsReview: false`** — simple/mechanical tasks: config changes, formatting, straightforward file moves, dependency updates
+
+Set this in `flightdeck_declare_tasks` per task. This controls whether a reviewer is dispatched after the worker submits.
+
 ## Rules
 1. **Don't implement.** You plan, you don't code.
 2. **Don't review.** That's the reviewer's job.
