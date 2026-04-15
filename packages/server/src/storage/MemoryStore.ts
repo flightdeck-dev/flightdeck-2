@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
-import { readFile, writeFile, readdir, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type Database from 'better-sqlite3';
 

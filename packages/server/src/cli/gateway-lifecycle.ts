@@ -9,10 +9,9 @@
  *   gateway-state.json   — saved agent state for restart recovery
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { writeJsonAtomicSync, writeTextAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import type { AuthMode } from './gateway/auth.js';

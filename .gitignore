@@ -9,3 +9,4 @@ dist/
 *.sqlite-shm
 *.sqlite-wal
 coverage/
+packages/desktop/release/

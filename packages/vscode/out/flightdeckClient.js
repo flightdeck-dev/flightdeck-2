@@ -58,7 +58,7 @@ class FlightdeckClient {
     }
     get baseUrl() {
         const cfg = vscode.workspace.getConfiguration("flightdeck");
-        return cfg.get("gatewayUrl") || "http://localhost:3000";
+        return cfg.get("gatewayUrl") || "http://localhost:18800";
     }
     get authToken() {
         const cfg = vscode.workspace.getConfiguration("flightdeck");

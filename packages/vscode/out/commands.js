@@ -109,7 +109,7 @@ function registerCommands(context, client, taskTree, agentTree, outputChannel) {
     // ── View Dashboard ──
     vscode.commands.registerCommand("flightdeck.viewDashboard", () => {
         const cfg = vscode.workspace.getConfiguration("flightdeck");
-        const baseUrl = cfg.get("gatewayUrl") || "http://localhost:3000";
+        const baseUrl = cfg.get("gatewayUrl") || "http://localhost:18800";
         const project = client.project;
         const url = project ? `${baseUrl}/projects/${project}` : baseUrl;
         vscode.env.openExternal(vscode.Uri.parse(url));
