@@ -67,6 +67,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         const exitInfo = session.exitCode !== null ? ` (exit ${session.exitCode})` : '';
         console.error(`  [${name}] Agent ${agent.id} (${agent.role}) session ended${exitInfo}`);
         fd.sqlite.updateAgentStatus(agent.id, 'offline');
+        // Broadcast state change so UI updates immediately
+        const ws = wsServers.get(name);
+        if (ws) {
+          ws.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+        }
         break;
       }
     }
