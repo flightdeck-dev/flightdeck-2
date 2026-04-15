@@ -73,6 +73,7 @@ export class LeadManager {
   private heartbeatConfig: HeartbeatConfig;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private leadSessionId: string | null = null;
+  private leadAgentId: string | null = null;
   private lastHeartbeatAt: string | null = null;
   private tasksSinceLastHeartbeat = 0;
   private lastSteerAt: string | null = null;
@@ -129,6 +130,7 @@ export class LeadManager {
       ...(memoryContext ? { systemPrompt: memoryContext } : {}),
     });
     this.leadSessionId = meta.sessionId;
+    this.leadAgentId = meta.agentId;
     this.wireStreamHandler();
 
     // Register Lead agent in SQLite
@@ -195,10 +197,14 @@ export class LeadManager {
       }
     }
     if (!this.leadSessionId) return '';
+    // Mark Lead as busy during steer
+    if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'busy');
     const steer = this.buildSteer(event);
     const sourceMessageId = event.type === 'user_message' ? event.message.id : undefined;
     const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
     this.lastSteerAt = new Date().toISOString();
+    // Mark Lead as idle after response
+    if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'idle');
 
     // Log to SessionStore for session transcript search
     this.logSessionEvent('user', steer);
@@ -568,6 +574,7 @@ export class LeadManager {
         model,
       });
       this.leadSessionId = meta.sessionId;
+    this.leadAgentId = meta.agentId;
       this.wireStreamHandler();
 
       this.sqlite.insertAgent({

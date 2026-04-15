@@ -563,18 +563,17 @@ export default function Chat() {
                 </button>
               </div>
             )}
-            {isStreaming ? (
+            {isStreaming && (
               <button onClick={interruptLead}
-                className="px-5 py-2.5 rounded-xl bg-[var(--color-status-failed)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                className="px-3 py-2.5 rounded-xl bg-[var(--color-status-failed)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
                 title="Stop Lead">
                 <Square size={16} strokeWidth={1.5} fill="currentColor" />
               </button>
-            ) : (
-              <button onClick={handleSend} disabled={!connected || !input.trim()}
-                className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
-                <Send size={16} strokeWidth={1.5} />
-              </button>
             )}
+            <button onClick={handleSend} disabled={!connected || !input.trim()}
+              className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
+              <Send size={16} strokeWidth={1.5} />
+            </button>
           </div>
           </div>
         </div>
