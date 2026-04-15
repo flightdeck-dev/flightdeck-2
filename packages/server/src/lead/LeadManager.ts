@@ -95,7 +95,7 @@ export class LeadManager {
     this.heartbeatConfig = opts.heartbeat ?? { enabled: false, interval: 30 * 60 * 1000, conditions: [] };
     this.projectName = opts.projectName;
     this.agentCwd = opts.cwd ?? process.cwd();
-    this.sessionStore = new SessionStore(opts.projectName ?? 'default');
+    this.sessionStore = new SessionStore(opts.projectName ?? 'default', opts.sqlite.db);
     this.leadRuntime = opts.leadRuntime;
     this.plannerRuntime = opts.plannerRuntime;
   }

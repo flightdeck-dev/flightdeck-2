@@ -354,7 +354,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       if (!query) { json(400, { error: 'Missing query parameter' }); return; }
       const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
       const { SessionStore } = await import('../acp/SessionStore.js');
-      const store = new SessionStore(projectName);
+      const store = new SessionStore(projectName, fd.sqlite.db);
       const results = store.searchEvents(query, { limit });
       json(200, { count: results.length, results });
     } else if (subPath === '/models' && method === 'GET') {

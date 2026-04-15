@@ -8,6 +8,7 @@ import { parseReviewerResponse, buildReviewPrompt } from '../../src/verification
 import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import type { PlannerEvent } from '../../src/lead/LeadManager.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
+import { createDatabase } from '../../src/db/database.js';
 import { TaskDAG } from '../../src/dag/TaskDAG.js';
 import { GovernanceEngine } from '../../src/governance/GovernanceEngine.js';
 import { Orchestrator } from '../../src/orchestrator/Orchestrator.js';
@@ -76,6 +77,7 @@ class MockAcpAdapter extends (await import('../../src/agents/AgentAdapter.js')).
 function createMockStore() {
   const agents = new Map<AgentId, Agent>();
   return {
+    db: createDatabase(':memory:'),
     insertAgent(agent: Agent) { agents.set(agent.id, { ...agent }); },
     getAgent(id: AgentId): Agent | null { return agents.get(id) ?? null; },
     listAgents(): Agent[] { return [...agents.values()]; },

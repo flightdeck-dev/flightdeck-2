@@ -91,7 +91,7 @@ export class AcpAgentServer implements Agent {
   private setupProject(projectName: string): void {
     this.acpAdapter = new AcpAdapter(DEFAULT_RUNTIMES, this.currentRuntime);
     this.facade = new Flightdeck(projectName, this.acpAdapter);
-    this.sessionStore = new SessionStore(projectName);
+    this.sessionStore = new SessionStore(projectName, this.facade.sqlite.db);
     this.leadManager = new LeadManager({
       sqlite: this.facade.sqlite,
       project: this.facade.project,

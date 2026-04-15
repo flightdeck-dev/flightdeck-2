@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { eq, sql } from 'drizzle-orm';
 import { FD_HOME } from '../cli/constants.js';
+import { sessions } from '../db/schema.js';
+import type { FlightdeckDatabase } from '../db/database.js';
 
 export interface SessionEntry {
   id: string;
@@ -19,32 +22,70 @@ export interface SessionEvent {
 
 export class SessionStore {
   private baseDir: string;
+  private db: FlightdeckDatabase;
 
-  constructor(projectName: string) {
+  constructor(projectName: string, db: FlightdeckDatabase) {
     this.baseDir = path.join(FD_HOME, 'projects', projectName, 'sessions');
     fs.mkdirSync(this.baseDir, { recursive: true });
+    this.db = db;
+    this.ensureTable();
+    this.migrateFromJson();
   }
 
-  private indexPath(): string {
-    return path.join(this.baseDir, 'index.json');
+  /** Create the sessions table if it doesn't exist (runtime migration). */
+  private ensureTable(): void {
+    this.db.run(sql.raw(`CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      cwd TEXT NOT NULL,
+      project_name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_active_at TEXT NOT NULL
+    )`));
+    this.db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_name)`));
+  }
+
+  /** Migrate legacy index.json into SQLite if it exists. */
+  private migrateFromJson(): void {
+    const indexPath = path.join(this.baseDir, 'index.json');
+    if (!fs.existsSync(indexPath)) return;
+    try {
+      const entries: SessionEntry[] = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+      if (Array.isArray(entries) && entries.length > 0) {
+        for (const entry of entries) {
+          // Skip if already exists
+          const existing = this.db.select().from(sessions).where(eq(sessions.id, entry.id)).get();
+          if (!existing) {
+            this.db.insert(sessions).values({
+              id: entry.id,
+              cwd: entry.cwd,
+              projectName: entry.projectName,
+              createdAt: entry.createdAt,
+              lastActiveAt: entry.lastActiveAt,
+            }).run();
+          }
+        }
+      }
+      // Remove legacy file after successful migration
+      fs.unlinkSync(indexPath);
+      // Also remove tmp file if it exists
+      try { fs.unlinkSync(indexPath + '.tmp'); } catch { /* ignore */ }
+    } catch {
+      // Corrupted index.json — just ignore
+    }
   }
 
   private eventLogPath(sessionId: string): string {
     return path.join(this.baseDir, `${sessionId}.jsonl`);
   }
 
-  private readIndex(): SessionEntry[] {
-    try {
-      return JSON.parse(fs.readFileSync(this.indexPath(), 'utf-8'));
-    } catch {
-      return [];
-    }
-  }
-
-  private writeIndex(entries: SessionEntry[]): void {
-    const tmp = this.indexPath() + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(entries, null, 2));
-    fs.renameSync(tmp, this.indexPath());
+  private rowToEntry(row: typeof sessions.$inferSelect): SessionEntry {
+    return {
+      id: row.id,
+      cwd: row.cwd,
+      projectName: row.projectName,
+      createdAt: row.createdAt,
+      lastActiveAt: row.lastActiveAt,
+    };
   }
 
   createSession(projectName: string, cwd: string): SessionEntry {
@@ -55,25 +96,33 @@ export class SessionStore {
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
     };
-    const entries = this.readIndex();
-    entries.push(entry);
-    this.writeIndex(entries);
+    this.db.insert(sessions).values({
+      id: entry.id,
+      cwd: entry.cwd,
+      projectName: entry.projectName,
+      createdAt: entry.createdAt,
+      lastActiveAt: entry.lastActiveAt,
+    }).run();
     // Create empty JSONL
     fs.writeFileSync(this.eventLogPath(entry.id), '');
     return entry;
   }
 
   getSession(sessionId: string): SessionEntry | undefined {
-    return this.readIndex().find(e => e.id === sessionId);
+    const row = this.db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    return row ? this.rowToEntry(row) : undefined;
   }
 
   listSessions(projectName: string): SessionEntry[] {
-    return this.readIndex().filter(e => e.projectName === projectName);
+    return this.db.select().from(sessions)
+      .where(eq(sessions.projectName, projectName))
+      .all()
+      .map(r => this.rowToEntry(r));
   }
 
   /** List all sessions regardless of project. */
   listAll(): SessionEntry[] {
-    return this.readIndex();
+    return this.db.select().from(sessions).all().map(r => this.rowToEntry(r));
   }
 
   appendEvent(sessionId: string, event: SessionEvent): void {
@@ -91,12 +140,10 @@ export class SessionStore {
   }
 
   updateLastActive(sessionId: string): void {
-    const entries = this.readIndex();
-    const entry = entries.find(e => e.id === sessionId);
-    if (entry) {
-      entry.lastActiveAt = new Date().toISOString();
-      this.writeIndex(entries);
-    }
+    this.db.update(sessions)
+      .set({ lastActiveAt: new Date().toISOString() })
+      .where(eq(sessions.id, sessionId))
+      .run();
   }
 
   /**
@@ -107,7 +154,7 @@ export class SessionStore {
     const limit = opts.limit ?? 20;
     const lowerQuery = query.toLowerCase();
     const results: Array<{ sessionId: string; projectName: string; role: string; content: string; ts: number }> = [];
-    const entries = this.readIndex();
+    const entries = this.listAll();
 
     for (const entry of entries) {
       if (results.length >= limit) break;

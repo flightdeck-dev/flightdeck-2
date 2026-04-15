@@ -140,6 +140,18 @@ export const messageQueue = sqliteTable('message_queue', {
   index('idx_mq_target_status').on(table.targetAgentId, table.status),
 ]);
 
+// ── Sessions (ACP session index) ─────────────────────────────────────
+
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  cwd: text('cwd').notNull(),
+  projectName: text('project_name').notNull(),
+  createdAt: text('created_at').notNull(),
+  lastActiveAt: text('last_active_at').notNull(),
+}, (table) => [
+  index('idx_sessions_project').on(table.projectName),
+]);
+
 // ── Spec Hashes (change detection) ──────────────────────────────────
 
 export const specHashes = sqliteTable('spec_hashes', {

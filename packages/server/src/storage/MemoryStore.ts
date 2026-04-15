@@ -115,7 +115,7 @@ export class MemoryStore {
   private reindexFile(filename: string, content: string): void {
     if (!this.db) return;
     const relPath = filename; // already relative for direct writes
-    this.db.exec(`DELETE FROM memory_fts WHERE filename = '${relPath.replace(/'/g, "''")}'`);
+    this.db.prepare('DELETE FROM memory_fts WHERE filename = ?').run(relPath);
     const insert = this.db.prepare(
       'INSERT INTO memory_fts (filename, line_number, content) VALUES (?, ?, ?)',
     );

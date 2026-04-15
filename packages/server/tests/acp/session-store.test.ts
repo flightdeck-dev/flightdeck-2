@@ -3,15 +3,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { SessionStore, type SessionEntry } from '../../src/acp/SessionStore.js';
+import { createDatabase } from '../../src/db/database.js';
 
 const TEST_PROJECT = `test-session-store-${Date.now()}`;
 const BASE_DIR = path.join(os.homedir(), '.flightdeck', 'v2', 'projects', TEST_PROJECT, 'sessions');
 
 describe('SessionStore', () => {
   let store: SessionStore;
+  let db: ReturnType<typeof createDatabase>;
 
   beforeEach(() => {
-    store = new SessionStore(TEST_PROJECT);
+    db = createDatabase(':memory:');
+    store = new SessionStore(TEST_PROJECT, db);
   });
 
   afterEach(() => {

@@ -3,6 +3,7 @@ import { AgentManager, buildSystemPrompt } from '../../src/agents/AgentManager.j
 import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import type { AgentAdapter, SpawnOptions, SteerMessage, AgentMetadata } from '../../src/agents/AgentAdapter.js';
 import type { AgentId, AgentRuntime, Agent } from '@flightdeck-ai/shared';
+import { createDatabase } from '../../src/db/database.js';
 
 /**
  * E2E tests for Scenario 9: Claw as Supervisor flow.
@@ -79,6 +80,7 @@ class MockAcpAdapter extends (await import('../../src/agents/AgentAdapter.js')).
 function createMockStore() {
   const agents = new Map<AgentId, Agent>();
   return {
+    db: createDatabase(':memory:'),
     insertAgent(agent: Agent) { agents.set(agent.id, { ...agent }); },
     getAgent(id: AgentId): Agent | null { return agents.get(id) ?? null; },
     listAgents(includeRetired = false): Agent[] {
