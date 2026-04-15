@@ -539,17 +539,57 @@ export default function Chat() {
             />
             {speechSupported && (
               <div className="flex items-center">
-                <button onClick={() => {
-                  const langs = ['en-US', 'zh-CN', 'ja-JP', 'ko-KR', 'es-ES', 'fr-FR', 'de-DE'];
-                  const idx = langs.indexOf(speechLang);
-                  const next = langs[(idx + 1) % langs.length];
-                  setSpeechLang(next);
-                  try { localStorage.setItem('flightdeck:speech-lang', next); } catch {}
+                <select value={speechLang} onChange={e => {
+                  setSpeechLang(e.target.value);
+                  try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
                 }}
-                  className="px-2 py-2.5 text-[10px] font-mono text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
-                  title={`Speech language: ${speechLang} (click to change)`}>
-                  {speechLang.split('-')[0].toUpperCase()}
-                </button>
+                  className="py-2 pl-2 pr-1 text-[11px] font-mono bg-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] border-none focus:outline-none cursor-pointer appearance-none"
+                  title="Speech recognition language">
+                  <optgroup label="Common">
+                    <option value="en-US">English (US)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="zh-CN">中文 (简体)</option>
+                    <option value="zh-TW">中文 (繁體)</option>
+                    <option value="zh-HK">粵語 (香港)</option>
+                    <option value="ja-JP">日本語</option>
+                    <option value="ko-KR">한국어</option>
+                  </optgroup>
+                  <optgroup label="European">
+                    <option value="es-ES">Español</option>
+                    <option value="fr-FR">Français</option>
+                    <option value="de-DE">Deutsch</option>
+                    <option value="it-IT">Italiano</option>
+                    <option value="pt-BR">Português (BR)</option>
+                    <option value="pt-PT">Português (PT)</option>
+                    <option value="nl-NL">Nederlands</option>
+                    <option value="pl-PL">Polski</option>
+                    <option value="ru-RU">Русский</option>
+                    <option value="uk-UA">Українська</option>
+                    <option value="sv-SE">Svenska</option>
+                    <option value="da-DK">Dansk</option>
+                    <option value="nb-NO">Norsk</option>
+                    <option value="fi-FI">Suomi</option>
+                    <option value="el-GR">Ελληνικά</option>
+                    <option value="cs-CZ">Čeština</option>
+                    <option value="ro-RO">Română</option>
+                    <option value="hu-HU">Magyar</option>
+                    <option value="tr-TR">Türkçe</option>
+                  </optgroup>
+                  <optgroup label="Asian">
+                    <option value="hi-IN">हिन्दी</option>
+                    <option value="th-TH">ไทย</option>
+                    <option value="vi-VN">Tiếng Việt</option>
+                    <option value="id-ID">Bahasa Indonesia</option>
+                    <option value="ms-MY">Bahasa Melayu</option>
+                    <option value="fil-PH">Filipino</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="ar-SA">العربية</option>
+                    <option value="he-IL">עברית</option>
+                    <option value="af-ZA">Afrikaans</option>
+                    <option value="ca-ES">Català</option>
+                  </optgroup>
+                </select>
                 <button onClick={toggleListening}
                   className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
                   title={isListening ? 'Stop listening' : 'Voice input'}>
