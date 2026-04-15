@@ -104,7 +104,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const rawState = loadGatewayState();
     if (rawState?.lastReloadFailed) {
       console.error('Session reload skipped: previous reload failed. Clear ~/.flightdeck/gateway-state.json to retry.');
-    } else if (rawState && rawState.sessions.length > 0) {
+    } else if (rawState && Array.isArray(rawState.sessions) && rawState.sessions.length > 0) {
       // Filter sessions by allowed roles (workers are always kept for recovery/pause logic)
       const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
       const filtered = rawState.sessions.filter(s => allowedRoles.has(s.role) || !['lead', 'planner'].includes(s.role));
