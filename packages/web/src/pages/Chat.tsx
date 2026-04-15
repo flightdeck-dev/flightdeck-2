@@ -86,7 +86,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
   }
 
   return (
-    <div className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: style.bg, color: style.color }}>
         {style.icon}
@@ -120,7 +120,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, onReply }: { 
             ? 'bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap'
             : 'bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
-          {isUser ? msg.content : <Markdown content={msg.content} />}
+          {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
         </div>
       </div>
     </div>
@@ -475,7 +475,7 @@ export default function Chat() {
 
   return (
     <div className="flex" style={{ margin: '-2rem', height: 'calc(100% + 4rem)' }}>
-      <div className="flex flex-col flex-1 max-w-4xl mx-auto">
+      <div className="flex flex-col flex-1 max-w-4xl mx-auto min-w-0 overflow-hidden">
         {/* Status bar */}
         {!connected && (
           <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
