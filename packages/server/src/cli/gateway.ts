@@ -100,13 +100,13 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           }
           break;
         case 'tool_call':
-          toolName = (update as any).title ?? (update as any).name ?? '';
+          toolName = (update as any).title ?? '';
           if (!toolName) break; // Skip empty — wait for tool_call_update
           delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, input: (update as any).rawInput ? JSON.stringify((update as any).rawInput) : ((update as any).input ? JSON.stringify((update as any).input) : ''), status: (update as any).status ?? 'pending' });
           contentType = 'tool_call';
           break;
         case 'tool_call_update': {
-          toolName = (update as any).title ?? (update as any).name ?? '';
+          toolName = (update as any).title ?? '';
           let resultText = '';
           if ((update as any).content && Array.isArray((update as any).content)) {
             resultText = (update as any).content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('');
@@ -755,7 +755,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
           }
           break;
         case 'tool_call': {
-          const toolName = update.title ?? update.name ?? '';
+          const toolName = update.title ?? '';
           if (!toolName) break; // Skip empty tool calls — wait for tool_call_update with name
           const contentType = toolName.startsWith('flightdeck_') ? 'flightdeck_tool_call' : 'tool_call';
           const input = update.rawInput ? JSON.stringify(update.rawInput) : (update.input ? JSON.stringify(update.input) : '');
@@ -764,7 +764,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
           break;
         }
         case 'tool_call_update': {
-          const tcName = update.title ?? update.name ?? '';
+          const tcName = update.title ?? '';
           const ct = tcName.startsWith('flightdeck_') ? 'flightdeck_tool_result' : 'tool_result';
           // Extract text content from content array if present
           let resultText = '';
