@@ -382,6 +382,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 export default function Chat() {
   const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName } = useFlightdeck();
   const [input, setInput] = useState('');
+  const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -414,6 +415,7 @@ export default function Chat() {
     sendChat(text, replyTo?.id, activeThread ?? undefined);
     setInput('');
     setReplyTo(null);
+    setWaitingForLead(true);
     // Stop recording if active
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -437,6 +439,13 @@ export default function Chat() {
   const messageIds = useMemo(() => new Set(messages.map(m => m.id)), [messages]);
   const streamEntries = [...streamingMessages.entries()].filter(([id]) => !messageIds.has(id));
   const isStreaming = streamEntries.length > 0;
+
+  // Clear waiting state when streaming starts or new lead message arrives
+  useEffect(() => {
+    if (isStreaming || filteredMessages[filteredMessages.length - 1]?.authorType === 'lead') {
+      setWaitingForLead(false);
+    }
+  }, [isStreaming, filteredMessages]);
 
   // Speech recognition
   const [isListening, setIsListening] = useState(false);
@@ -511,6 +520,7 @@ export default function Chat() {
                 chunks={streamingChunks.get(id)} toolCallMap={toolCallMap} displayConfig={displayConfig} />
             ))}
 
+            {waitingForLead && !isStreaming && <TypingIndicator />}
             <div ref={bottomRef} />
             </div>
           </div>
