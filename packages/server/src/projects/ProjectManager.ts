@@ -24,7 +24,7 @@ export class ProjectManager {
     return readdirSync(PROJECTS_DIR)
       .filter(name => {
         const dir = join(PROJECTS_DIR, name);
-        return statSync(dir).isDirectory();
+        return statSync(dir).isDirectory() && existsSync(join(dir, 'config.json'));
       })
       .sort();
   }
