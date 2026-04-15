@@ -435,6 +435,9 @@ export default function Chat() {
 
   // Speech recognition
   const [isListening, setIsListening] = useState(false);
+  const [speechLang, setSpeechLang] = useState(() => {
+    try { return localStorage.getItem('flightdeck:speech-lang') ?? (navigator.language?.startsWith('zh') ? 'zh-CN' : 'en-US'); } catch { return 'en-US'; }
+  });
   const recognitionRef = useRef<any>(null);
   const speechSupported = useMemo(() => {
     return typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -451,7 +454,7 @@ export default function Chat() {
     const recognition = new SR();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = navigator.language?.startsWith('zh') ? 'zh-CN' : navigator.language || 'en-US';
+    recognition.lang = speechLang;
     recognition.onresult = (event: any) => {
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
@@ -535,11 +538,24 @@ export default function Chat() {
               className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] disabled:opacity-50 max-h-32 overflow-y-auto"
             />
             {speechSupported && (
-              <button onClick={toggleListening}
-                className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
-                title={isListening ? 'Stop listening' : 'Voice input'}>
-                {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
-              </button>
+              <div className="flex items-center">
+                <button onClick={() => {
+                  const langs = ['en-US', 'zh-CN', 'ja-JP', 'ko-KR', 'es-ES', 'fr-FR', 'de-DE'];
+                  const idx = langs.indexOf(speechLang);
+                  const next = langs[(idx + 1) % langs.length];
+                  setSpeechLang(next);
+                  try { localStorage.setItem('flightdeck:speech-lang', next); } catch {}
+                }}
+                  className="px-2 py-2.5 text-[10px] font-mono text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+                  title={`Speech language: ${speechLang} (click to change)`}>
+                  {speechLang.split('-')[0].toUpperCase()}
+                </button>
+                <button onClick={toggleListening}
+                  className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
+                  title={isListening ? 'Stop listening' : 'Voice input'}>
+                  {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
+                </button>
+              </div>
             )}
             <button onClick={handleSend} disabled={!connected || !input.trim()}
               className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
