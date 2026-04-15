@@ -12,10 +12,10 @@
   --color-text-secondary: #787774;
   --color-text-tertiary: #b4b4b0;
 
-  --color-status-ready: #2f80ed;
-  --color-status-running: #d97706;
-  --color-status-in-review: #9333ea;
-  --color-status-done: #16a34a;
+  --color-status-ready: #16a34a;
+  --color-status-running: #2f80ed;
+  --color-status-in-review: #d97706;
+  --color-status-done: #9333ea;
   --color-status-failed: #dc2626;
   --color-status-cancelled: #9ca3af;
 }
