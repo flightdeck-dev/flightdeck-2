@@ -1,5 +1,6 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
+import { messageId as makeMessageId } from '@flightdeck-ai/shared';
 import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents, type SavedSession } from './gatewayState.js';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
@@ -688,7 +689,6 @@ async function recoverWorkers(
 function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
-    const { messageId: makeMessageId } = await import('@flightdeck-ai/shared');
     const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
     leadManager.setStreamHandler((update: any) => {
       switch (update.sessionUpdate) {
