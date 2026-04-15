@@ -52,6 +52,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [description, setDescription] = useState('');
   const [role, setRole] = useState('developer');
   const [priority, setPriority] = useState(3);
+  const [needsReview, setNeedsReview] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -60,7 +61,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setSubmitting(true);
     setError('');
     try {
-      await api.createTask(projectName, { title: title.trim(), description, role, priority });
+      await api.createTask(projectName, { title: title.trim(), description, role, priority, needsReview });
       onCreated();
       onClose();
     } catch (e: unknown) {
@@ -113,6 +114,11 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
               </select>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="needsReview" checked={needsReview} onChange={e => setNeedsReview(e.target.checked)}
+              className="rounded border-[var(--color-border)]" />
+            <label htmlFor="needsReview" className="text-xs text-[var(--color-text-secondary)]">Requires review</label>
+          </div>
           {error && <p className="text-xs text-[var(--color-status-failed)]">{error}</p>}
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
@@ -154,6 +160,9 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
           <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-0.5">{task.id}</p>
         </div>
         <Badge state={task.state} />
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(task.needsReview ?? task.needs_review ?? true) !== false ? 'text-[var(--color-text-tertiary)] bg-[var(--color-surface-secondary)]' : 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30'}`}>
+          {(task.needsReview ?? task.needs_review ?? true) !== false ? '🔍 Review' : '⚡ Auto'}
+        </span>
         {agent && (
           <span className="text-xs font-mono text-[var(--color-text-secondary)] bg-[var(--color-surface-secondary)] px-2 py-0.5 rounded">
             {agent}

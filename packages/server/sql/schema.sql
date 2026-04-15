@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `source` text NOT NULL DEFAULT 'planned',
   `cost` real DEFAULT 0,
   `stale` integer NOT NULL DEFAULT 0,
+  `needs_review` integer NOT NULL DEFAULT 1,
   `compacted_at` text,
   `created_at` text NOT NULL,
   `updated_at` text NOT NULL

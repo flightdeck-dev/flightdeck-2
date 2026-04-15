@@ -44,6 +44,7 @@ export class TaskDAG {
     priority?: number;
     source?: Task['source'];
     parentTaskId?: TaskId;
+    needsReview?: boolean;
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -62,6 +63,7 @@ export class TaskDAG {
       acpSessionId: null,
       source: opts.source ?? 'planned',
       stale: false,
+      needsReview: opts.needsReview !== false,
       compactedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -94,13 +96,18 @@ export class TaskDAG {
     const task = this.store.getTask(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (task.state !== 'running') throw new Error(`Task ${taskId} is not running (state: ${task.state})`);
-    const result = transition(task.state, 'in_review', { taskId });
-    this.store.updateTaskState(taskId, 'in_review');
+    // Skip review if needsReview is false — go straight to done
+    const targetState = task.needsReview === false ? 'done' : 'in_review';
+    const result = transition(task.state, targetState, { taskId });
+    this.store.updateTaskState(taskId, targetState);
     if (claim) {
       this.store.updateTaskClaim(taskId, claim);
     }
     this.processEffects(result.effects);
-    return { ...task, state: 'in_review' };
+    if (targetState === 'done') {
+      this.propagateEpicState(taskId);
+    }
+    return { ...task, state: targetState };
   }
 
   completeTask(id: TaskId): Task {
@@ -186,6 +193,7 @@ export class TaskDAG {
     role?: AgentRole;
     dependsOn?: string[];
     priority?: number;
+    needsReview?: boolean;
   }>): Task[] {
     // First pass: create all tasks, mapping temp keys to real IDs
     const idMap = new Map<string, TaskId>();
@@ -197,6 +205,7 @@ export class TaskDAG {
         specId: t.specId as SpecId | undefined,
         role: t.role,
         priority: t.priority,
+        needsReview: t.needsReview,
       });
       idMap.set(t.title, task.id);
       results.push(task);
@@ -421,6 +430,7 @@ export class TaskDAG {
     role?: AgentRole;
     dependsOn?: string[];
     priority?: number;
+    needsReview?: boolean;
   }>): Task[] {
     const parent = this.store.getTask(parentId);
     if (!parent) throw new Error(`Parent task not found: ${parentId}`);
@@ -436,6 +446,7 @@ export class TaskDAG {
         specId: parent.specId as SpecId | undefined,
         role: st.role,
         priority: st.priority,
+        needsReview: st.needsReview,
         parentTaskId: parentId,
       });
       idMap.set(st.title, task.id);

@@ -34,6 +34,7 @@ export class SqliteStore {
     // Add new columns to existing tables (idempotent)
     this.addColumnIfMissing('messages', 'channel', 'text');
     this.addColumnIfMissing('messages', 'recipient', 'text');
+    this.addColumnIfMissing('tasks', 'needs_review', 'integer NOT NULL DEFAULT 1');
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
@@ -64,6 +65,7 @@ export class SqliteStore {
       acpSessionId: task.acpSessionId,
       source: task.source || 'planned',
       stale: task.stale,
+      needsReview: task.needsReview !== false,
       compactedAt: task.compactedAt ?? null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -178,6 +180,7 @@ export class SqliteStore {
       acpSessionId: (row.acpSessionId ?? null) as string | null,
       source: (row.source as Task['source']) || 'planned',
       stale: Boolean(row.stale),
+      needsReview: row.needsReview !== false,
       compactedAt: (row.compactedAt ?? null) as string | null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

@@ -22,11 +22,12 @@ describe('TaskDAG effect processing', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('running→done is no longer valid (must go through in_review)', () => {
+  it('running→done is valid (for needsReview=false or direct complete)', () => {
     const t = dag.addTask({ title: 'Test' });
     dag.claimTask(t.id, 'agent-1' as AgentId);
-    // Cannot jump from running to done directly
-    expect(() => dag.completeTask(t.id)).toThrow('Invalid state transition');
+    // running→done is now a valid transition (used when needsReview=false)
+    const done = dag.completeTask(t.id);
+    expect(done.state).toBe('done');
   });
 
   it('running→in_review→done is the valid path', () => {

@@ -73,6 +73,7 @@ export interface Task {
   source: TaskSource;
   stale: boolean;
   compactedAt: string | null;
+  needsReview?: boolean; // Default: true. If false, skip review and go straight to done.
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }
@@ -177,6 +178,7 @@ const VALID_TRANSITIONS = new Set<TransitionKey>([
   'ready->paused',
   'ready->cancelled',
   'running->in_review',
+  'running->done', // skip review when needsReview=false
   'running->failed',
   'running->paused',
   'running->blocked',

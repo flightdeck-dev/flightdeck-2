@@ -56,7 +56,7 @@ export const api = {
   getDisplayConfig: () => get<DisplayConfig>('/api/display'),
   updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
   applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),
-  createTask: (project: string, task: { title: string; description?: string; role?: string; priority?: number; depends_on?: string[] }) =>
+  createTask: (project: string, task: { title: string; description?: string; role?: string; priority?: number; depends_on?: string[]; needsReview?: boolean }) =>
     post<Task>(projectPath(project, '/tasks'), task),
   getThreads: (project: string) => get<import('./types.ts').Thread[]>(projectPath(project, '/threads')),
   getModels: () => get<Record<string, unknown>>('/api/models'),

@@ -233,6 +233,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
     dependsOn: z.array(z.string()).optional(),
     priority: z.number().optional(),
+    needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
     agentId: z.string(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_add');
@@ -247,6 +248,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         role: params.role as AgentRole | undefined,
         dependsOn: params.dependsOn as TaskId[] | undefined,
         priority: params.priority,
+        needsReview: params.needsReview,
       });
       return jsonResponse(task);
     } catch (err) {
@@ -440,6 +442,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
+      needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
     })),
     agentId: z.string(),
   }, async (params) => {
@@ -464,6 +467,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
+      needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
     })),
     agentId: z.string(),
   }, async (params) => {

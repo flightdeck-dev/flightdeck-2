@@ -86,7 +86,7 @@ export class Flightdeck {
 
   // ── Task operations ──
 
-  addTask(opts: { title: string; description?: string; specId?: SpecId; role?: AgentRole; dependsOn?: TaskId[]; priority?: number }): Task {
+  addTask(opts: { title: string; description?: string; specId?: SpecId; role?: AgentRole; dependsOn?: TaskId[]; priority?: number; needsReview?: boolean }): Task {
     return this.dag.addTask(opts);
   }
 

@@ -18,6 +18,8 @@ export interface Task {
   depends_on?: string;
   spec_id?: string;
   cost?: number;
+  needsReview?: boolean;
+  needs_review?: boolean;
   created_at?: string;
   updated_at?: string;
   createdAt?: string;

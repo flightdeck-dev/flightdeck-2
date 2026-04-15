@@ -234,7 +234,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
-        const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker' });
+        const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview });
         if (wsServer) {
           wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         }

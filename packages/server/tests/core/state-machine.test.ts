@@ -7,7 +7,7 @@ describe('State Machine', () => {
     expect(isValidTransition('pending', 'ready')).toBe(true);
     expect(isValidTransition('ready', 'running')).toBe(true);
     expect(isValidTransition('running', 'in_review')).toBe(true);
-    expect(isValidTransition('running', 'done')).toBe(false);
+    expect(isValidTransition('running', 'done')).toBe(true);
     expect(isValidTransition('in_review', 'done')).toBe(true);
     expect(isValidTransition('failed', 'ready')).toBe(true);
   });
