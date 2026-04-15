@@ -31,10 +31,10 @@ export class SessionStore {
     this.ensureTable();
   }
 
-  /** Create the sessions table if it doesn't exist (runtime migration). */
+  /** Ensure the sessions table exists (idempotent, matches schema.sql). */
   private ensureTable(): void {
     this.db.run(sql.raw(`CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
+      id TEXT PRIMARY KEY NOT NULL,
       cwd TEXT NOT NULL,
       project_name TEXT NOT NULL,
       created_at TEXT NOT NULL,
