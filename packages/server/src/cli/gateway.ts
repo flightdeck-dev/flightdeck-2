@@ -754,6 +754,8 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
             notifier.notify(leadResponseEvent(projectName, response.trim(), msg.content ?? ''));
           }
         }
+        // Broadcast state update so UI refreshes agent status (busy → idle)
+        wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
       } catch (err) { console.error(`[${projectName}] Failed to steer Lead:`, err); }
     })();
   });

@@ -166,10 +166,11 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
             if (prev.some(m => m.id === event.message.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
           });
-          streamingRef.current.delete(event.message.id);
-          setStreamingMessages(new Map(streamingRef.current));
-          streamingChunksRef.current.delete(event.message.id);
-          setStreamingChunks(new Map(streamingChunksRef.current));
+          // Clear all streaming state — stream ID (stream-xxx) differs from message ID (msg-xxx)
+          streamingRef.current.clear();
+          setStreamingMessages(new Map());
+          streamingChunksRef.current.clear();
+          setStreamingChunks(new Map());
           // Clear tool call states for completed message
           toolCallMapRef.current.clear();
           setToolCallMap(new Map());
