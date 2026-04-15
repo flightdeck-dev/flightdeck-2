@@ -680,7 +680,53 @@ async function recoverWorkers(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[] }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+  // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
+  if (leadManager.setStreamHandler && wsServer.streamChunk) {
+    const msgIdRef = { current: `stream-${Date.now()}` };
+    leadManager.setStreamHandler((update: any) => {
+      switch (update.sessionUpdate) {
+        case 'agent_message_chunk':
+          if (update.content?.type === 'text') {
+            wsServer.streamChunk(msgIdRef.current, update.content.text, false);
+          }
+          break;
+        case 'agent_thought_chunk':
+          if (update.content?.type === 'text') {
+            wsServer.streamChunk(msgIdRef.current, update.content.text, false, 'thinking');
+          }
+          break;
+        case 'tool_call': {
+          const toolName = update.name ?? '';
+          const contentType = toolName.startsWith('flightdeck_') ? 'flightdeck_tool_call' : 'tool_call';
+          const input = update.input ? JSON.stringify(update.input) : '';
+          const delta = JSON.stringify({ toolCallId: update.toolCallId, name: toolName, input, status: update.status ?? 'pending' });
+          wsServer.streamChunk(msgIdRef.current, delta, false, contentType, toolName);
+          break;
+        }
+        case 'tool_call_update': {
+          const tcName = update.name ?? '';
+          const ct = tcName.startsWith('flightdeck_') ? 'flightdeck_tool_result' : 'tool_result';
+          // Extract text content from content array if present
+          let resultText = '';
+          if (update.content && Array.isArray(update.content)) {
+            resultText = update.content
+              .filter((c: any) => c.type === 'text')
+              .map((c: any) => c.text)
+              .join('');
+          }
+          const delta = JSON.stringify({ toolCallId: update.toolCallId, name: tcName, result: resultText, status: update.status ?? 'completed' });
+          wsServer.streamChunk(msgIdRef.current, delta, false, ct, tcName);
+          break;
+        }
+      }
+    });
+    // Reset stream ID when a new user message comes in
+    wsServer.on('user:message', () => {
+      msgIdRef.current = `stream-${Date.now()}`;
+    });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wsServer.on('user:message', (msg: any) => {
     (async () => {

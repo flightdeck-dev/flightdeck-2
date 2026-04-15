@@ -2,7 +2,7 @@
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
-import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import type { AcpAdapter, AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
 import { SessionStore } from '../acp/SessionStore.js';
 
@@ -86,6 +86,7 @@ export class LeadManager {
   private transcriptSessionId: string | null = null;
   private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
   private suspendedLeadInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
+  private streamHandler: ((update: NonNullable<Parameters<NonNullable<AcpSession['onOutputChunk']>>>[0]) => void) | null = null;
 
   constructor(opts: LeadManagerOptions) {
     this.sqlite = opts.sqlite;
@@ -128,6 +129,7 @@ export class LeadManager {
       ...(memoryContext ? { systemPrompt: memoryContext } : {}),
     });
     this.leadSessionId = meta.sessionId;
+    this.wireStreamHandler();
 
     // Register Lead agent in SQLite
     this.sqlite.insertAgent({
@@ -203,6 +205,22 @@ export class LeadManager {
     if (response) this.logSessionEvent('agent', response);
 
     return response;
+  }
+
+  /** Set a handler to receive streaming updates (tool calls, thoughts, text chunks) from the lead session */
+  setStreamHandler(handler: (update: NonNullable<Parameters<NonNullable<AcpSession['onOutputChunk']>>>[0]) => void): void {
+    this.streamHandler = handler;
+    this.wireStreamHandler();
+  }
+
+  /** Wire the stream handler onto the current lead session's onOutputChunk */
+  private wireStreamHandler(): void {
+    if (!this.leadSessionId || !this.streamHandler) return;
+    const session = this.acpAdapter.getSession(this.leadSessionId);
+    if (session) {
+      const handler = this.streamHandler;
+      session.onOutputChunk = (update) => handler(update);
+    }
   }
 
   /** Get merged source message IDs from the last steer (for multi-parent replies) */
@@ -537,6 +555,7 @@ export class LeadManager {
         model,
       });
       this.leadSessionId = meta.sessionId;
+      this.wireStreamHandler();
 
       this.sqlite.insertAgent({
         id: meta.agentId,

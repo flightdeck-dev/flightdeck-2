@@ -192,9 +192,18 @@ export class AcpAdapter extends AgentAdapter {
             session.tokensOut = update.size;
             break;
           case 'tool_call':
+            // Store tool call and forward to listener
+            session.onOutputChunk?.(update);
+            break;
           case 'tool_call_update':
-          case 'plan':
+            // Forward tool call update to listener
+            session.onOutputChunk?.(update);
+            break;
           case 'agent_thought_chunk':
+            // Forward thought chunk to listener
+            session.onOutputChunk?.(update);
+            break;
+          case 'plan':
             break;
           default:
             break;
