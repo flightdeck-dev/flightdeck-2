@@ -66,4 +66,14 @@ export const api = {
     get<{ agentId: string; lines: string[]; totalLines: number }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/output?tail=${tail ?? 100}`)),
   sendAgentMessage: (project: string, agentId: string, message: string, urgent?: boolean) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/${urgent ? 'interrupt' : 'send'}`), { message }),
+  hibernateAgent: (project: string, agentId: string) =>
+    post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/hibernate`)),
+  wakeAgent: (project: string, agentId: string) =>
+    post<Agent>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/wake`)),
+  retireAgent: (project: string, agentId: string) =>
+    post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/retire`)),
+  terminateAgent: (project: string, agentId: string) =>
+    post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/terminate`)),
+  restartAgent: (project: string, agentId: string) =>
+    post<Agent>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/restart`)),
 };
