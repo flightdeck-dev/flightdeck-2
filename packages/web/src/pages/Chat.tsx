@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-import type { StreamChunk } from '../hooks/useFlightdeck.tsx';
+import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
 import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
@@ -94,12 +94,64 @@ function TypingIndicator() {
   );
 }
 
-function StreamingBubble({ content, chunks, displayConfig }: {
+function getToolIcon(name: string) {
+  const n = name.toLowerCase();
+  if (n.startsWith('flightdeck_')) return <SettingsIcon size={14} strokeWidth={1.5} className="inline mr-1" />;
+  if (/bash|shell|execute|terminal|command/.test(n)) return <Terminal size={14} strokeWidth={1.5} className="inline mr-1" />;
+  if (/read|write|edit|file|create/.test(n)) return <FileText size={14} strokeWidth={1.5} className="inline mr-1" />;
+  if (/search|grep|find|glob/.test(n)) return <Search size={14} strokeWidth={1.5} className="inline mr-1" />;
+  return <Wrench size={14} strokeWidth={1.5} className="inline mr-1" />;
+}
+
+function ToolCallCard({ tc, level }: { tc: ToolCallState; level: 'summary' | 'detail' | 'off' }) {
+  if (level === 'off') return null;
+  if (!tc.name) return null; // Hide empty tool calls
+
+  const icon = getToolIcon(tc.name);
+  const briefInput = tc.input ? tc.input.slice(0, 60).replace(/\n/g, ' ') : '';
+  const briefResult = tc.result ? tc.result.slice(0, 60).replace(/\n/g, ' ') : '';
+  const isPending = tc.status === 'pending' || tc.status === 'running';
+
+  if (level === 'summary') {
+    return (
+      <details className="inline-block max-w-full">
+        <summary className="text-xs px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--color-status-running)_15%,transparent)] text-[var(--color-status-running)] cursor-pointer select-none">
+          {icon}{tc.name}{briefInput ? `(${briefInput}${tc.input.length > 60 ? '...' : ''})` : ''}
+          {tc.result ? ` → ${briefResult}${tc.result.length > 60 ? '...' : ''}` : isPending ? ' ⏳' : ''}
+        </summary>
+        <div className="mt-1 px-3 py-2 text-xs font-mono bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap">
+          {tc.input && <><strong>Input:</strong>\n{tc.input}\n\n</>}
+          {tc.result && <><strong>Result:</strong>\n{tc.result}</>}
+          {isPending && !tc.result && <span className="text-[var(--color-text-tertiary)] italic">Running...</span>}
+        </div>
+      </details>
+    );
+  }
+
+  // detail mode
+  return (
+    <details className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+      <summary className="px-3 py-1.5 text-xs font-medium cursor-pointer select-none">
+        {icon}{tc.name}
+        {isPending && !tc.result && <span className="ml-2 text-[var(--color-text-tertiary)] animate-pulse">running...</span>}
+      </summary>
+      <div className="px-3 py-2 text-xs font-mono max-h-64 overflow-y-auto whitespace-pre-wrap">
+        {tc.input && <><span className="text-[var(--color-text-tertiary)]">Input:</span>\n{tc.input}\n\n</>}
+        {tc.result && <><span className="text-[var(--color-text-tertiary)]">→ Result:</span>\n{tc.result}</>}
+      </div>
+    </details>
+  );
+}
+
+function StreamingBubble({ content, chunks, toolCallMap, displayConfig }: {
   content: string;
   chunks?: StreamChunk[];
+  toolCallMap: Map<string, ToolCallState>;
   displayConfig: import('@flightdeck-ai/shared/display').DisplayConfig;
 }) {
   const sections = groupChunks(chunks ?? [{ content, contentType: 'text' }]);
+  // Collect toolCallIds already rendered so we don't duplicate
+  const renderedToolCallIds = new Set<string>();
 
   return (
     <div className="flex gap-3 py-2 px-3">
@@ -118,14 +170,27 @@ function StreamingBubble({ content, chunks, displayConfig }: {
             if (section.contentType === 'thinking') {
               return <ThinkingBlock key={i} content={section.content} />;
             }
-            if (section.contentType === 'tool_call' || section.contentType === 'flightdeck_tool_call') {
-              const level = section.contentType === 'flightdeck_tool_call'
+            if (section.contentType === 'tool_call' || section.contentType === 'flightdeck_tool_call' ||
+                section.contentType === 'tool_result' || section.contentType === 'flightdeck_tool_result') {
+              // Parse toolCallId and render merged card
+              try {
+                const parsed = JSON.parse(section.content);
+                if (parsed.toolCallId) {
+                  if (renderedToolCallIds.has(parsed.toolCallId)) return null;
+                  renderedToolCallIds.add(parsed.toolCallId);
+                  const tc = toolCallMap.get(parsed.toolCallId);
+                  if (!tc || !tc.name) return null; // Hide empty
+                  const isFlightdeck = tc.contentType === 'flightdeck_tool_call';
+                  const level = isFlightdeck ? displayConfig.flightdeckTools : displayConfig.toolCalls;
+                  return <ToolCallCard key={parsed.toolCallId} tc={tc} level={level} />;
+                }
+              } catch {}
+              // Fallback for non-JSON tool calls (legacy)
+              const level = (section.contentType === 'flightdeck_tool_call' || section.contentType === 'flightdeck_tool_result')
                 ? displayConfig.flightdeckTools : displayConfig.toolCalls;
-              return <ToolCallBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
-            }
-            if (section.contentType === 'tool_result' || section.contentType === 'flightdeck_tool_result') {
-              const level = section.contentType === 'flightdeck_tool_result'
-                ? displayConfig.flightdeckTools : displayConfig.toolCalls;
+              if (section.contentType === 'tool_call' || section.contentType === 'flightdeck_tool_call') {
+                return <ToolCallBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
+              }
               return <ToolResultBlock key={i} content={section.content} toolName={section.toolName} level={level} />;
             }
             return <div key={i} className="text-sm break-words"><Markdown content={section.content} /></div>;
@@ -266,7 +331,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 }
 
 export default function Chat() {
-  const { messages, streamingMessages, streamingChunks, displayConfig, sendChat, connected, projectName } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, connected, projectName } = useFlightdeck();
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(null);
@@ -360,7 +425,7 @@ export default function Chat() {
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}
-                chunks={streamingChunks.get(id)} displayConfig={displayConfig} />
+                chunks={streamingChunks.get(id)} toolCallMap={toolCallMap} displayConfig={displayConfig} />
             ))}
             {!isStreaming && filteredMessages.length > 0 && filteredMessages[filteredMessages.length - 1]?.authorType === 'user' && (
               <TypingIndicator />

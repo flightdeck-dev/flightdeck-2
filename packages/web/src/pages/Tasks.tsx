@@ -133,9 +133,10 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
 function TaskCard({ task, allTasks, isExpanded, onToggle }: {
   task: Task; allTasks: Task[]; isExpanded: boolean; onToggle: () => void;
 }) {
-  const { sendTaskComment } = useFlightdeck();
+  const { sendTaskComment, messages } = useFlightdeck();
   const [comment, setComment] = useState('');
   const agent = task.assignedAgent ?? task.assigned_agent;
+  const taskComments = messages.filter(m => m.taskId === task.id || m.task_id === task.id);
 
   const handleComment = () => {
     const text = comment.trim();
@@ -177,6 +178,20 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
               {task.cost != null && <span>Cost: ${task.cost.toFixed(2)}</span>}
             </div>
             <DependencyTree task={task} allTasks={allTasks} />
+            {taskComments.length > 0 && (
+              <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+                <p className="text-xs font-medium text-[var(--color-text-secondary)]">Comments ({taskComments.length})</p>
+                {taskComments.map(c => (
+                  <div key={c.id} className="text-sm bg-[var(--color-surface)] rounded-lg px-3 py-2 border border-[var(--color-border)]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-[var(--color-text-secondary)]">{c.authorType === 'lead' ? '👑 Lead' : c.authorId ?? c.authorType}</span>
+                      {c.createdAt && <span className="text-xs text-[var(--color-text-tertiary)]">{new Date(c.createdAt).toLocaleTimeString()}</span>}
+                    </div>
+                    <p className="text-[var(--color-text-primary)]">{c.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 mt-2">
               <input value={comment} onChange={e => setComment(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleComment(); }}

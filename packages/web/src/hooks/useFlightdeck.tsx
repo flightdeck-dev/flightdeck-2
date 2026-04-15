@@ -35,6 +35,15 @@ export interface StreamChunk {
   toolName?: string;
 }
 
+export interface ToolCallState {
+  toolCallId: string;
+  name: string;
+  input: string;
+  result: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  contentType: ContentType;
+}
+
 interface FlightdeckState {
   projects: ProjectSummary[];
   projectName: string | null;
@@ -45,6 +54,7 @@ interface FlightdeckState {
   messages: ChatMessage[];
   streamingMessages: Map<string, string>;
   streamingChunks: Map<string, StreamChunk[]>;
+  toolCallMap: Map<string, ToolCallState>;
   displayConfig: DisplayConfig;
   connected: boolean;
   loading: boolean;
@@ -69,8 +79,10 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   const [displayConfig, setDisplayConfigState] = useState<DisplayConfig>(loadDisplayConfig);
   const streamingRef = useRef(new Map<string, string>());
   const streamingChunksRef = useRef(new Map<string, StreamChunk[]>());
+  const toolCallMapRef = useRef(new Map<string, ToolCallState>());
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
   const [streamingChunks, setStreamingChunks] = useState(new Map<string, StreamChunk[]>());
+  const [toolCallMap, setToolCallMap] = useState(new Map<string, ToolCallState>());
   const streamingDirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
@@ -124,8 +136,10 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     setMessages([]);
     streamingRef.current.clear();
     streamingChunksRef.current.clear();
+    toolCallMapRef.current.clear();
     setStreamingMessages(new Map());
     setStreamingChunks(new Map());
+    setToolCallMap(new Map());
     fetchAll();
   }, [fetchAll]);
 
@@ -156,6 +170,9 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           setStreamingMessages(new Map(streamingRef.current));
           streamingChunksRef.current.delete(event.message.id);
           setStreamingChunks(new Map(streamingChunksRef.current));
+          // Clear tool call states for completed message
+          toolCallMapRef.current.clear();
+          setToolCallMap(new Map());
           break;
         case 'chat:stream': {
           const current = streamingRef.current.get(event.message_id) ?? '';
@@ -163,11 +180,41 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           const chunks = streamingChunksRef.current.get(event.message_id) ?? [];
           chunks.push({ content: event.delta, contentType: event.content_type, toolName: event.tool_name });
           streamingChunksRef.current.set(event.message_id, chunks);
+          // Merge tool call/result by toolCallId
+          const ct = event.content_type;
+          if (ct === 'tool_call' || ct === 'flightdeck_tool_call' || ct === 'tool_result' || ct === 'flightdeck_tool_result') {
+            try {
+              const parsed = JSON.parse(event.delta);
+              if (parsed.toolCallId) {
+                const existing = toolCallMapRef.current.get(parsed.toolCallId);
+                if (ct === 'tool_call' || ct === 'flightdeck_tool_call') {
+                  toolCallMapRef.current.set(parsed.toolCallId, {
+                    toolCallId: parsed.toolCallId,
+                    name: parsed.name || existing?.name || '',
+                    input: parsed.input || existing?.input || '',
+                    result: existing?.result || '',
+                    status: parsed.status || 'pending',
+                    contentType: ct === 'flightdeck_tool_call' ? 'flightdeck_tool_call' : 'tool_call',
+                  });
+                } else {
+                  toolCallMapRef.current.set(parsed.toolCallId, {
+                    toolCallId: parsed.toolCallId,
+                    name: parsed.name || existing?.name || '',
+                    input: existing?.input || '',
+                    result: parsed.result || existing?.result || '',
+                    status: parsed.status || 'completed',
+                    contentType: existing?.contentType || (ct === 'flightdeck_tool_result' ? 'flightdeck_tool_call' : 'tool_call'),
+                  });
+                }
+              }
+            } catch {}
+          }
           if (!streamingDirtyRef.current) {
             streamingDirtyRef.current = true;
             rafRef.current = requestAnimationFrame(() => {
               setStreamingMessages(new Map(streamingRef.current));
               setStreamingChunks(new Map(streamingChunksRef.current));
+              setToolCallMap(new Map(toolCallMapRef.current));
               streamingDirtyRef.current = false;
             });
           }
@@ -226,7 +273,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
 
   return (
     <Ctx.Provider value={{
-      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks,
+      projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap,
       displayConfig, connected, loading, sendChat, sendTaskComment,
       setDisplayConfig, applyDisplayPreset, refresh: fetchAll,
     }}>
