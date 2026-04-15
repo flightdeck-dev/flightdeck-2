@@ -217,6 +217,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const plannerRoleConfig = modelConfig.getRoleConfig('planner');
 
     // Create LeadManager
+    const projectConfig = fd.project.getConfig();
     const projectCwd = fd.status().config.cwd ?? process.cwd();
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
@@ -231,7 +232,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         enabled: true,
         interval: 30 * 60 * 1000,
         conditions: [],
-        idleTimeoutDays: fd.project.getConfig().heartbeatIdleTimeoutDays ?? 3,
+        idleTimeoutDays: projectConfig.heartbeatIdleTimeoutDays ?? 3,
       },
     });
     leadManagers.set(name, leadManager);
@@ -256,7 +257,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Wire orchestrator
     fd.orchestrator.stop();
     const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
-    const projectConfig = fd.project.getConfig();
     const orchestrator = new OrchestratorClass(
       fd.dag, fd.sqlite, fd.governance, acpAdapter, { ...projectConfig, cwd: fd.project.subpath('.') },
       undefined,
