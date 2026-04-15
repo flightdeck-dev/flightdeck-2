@@ -34,7 +34,7 @@ function projectPath(project: string, path: string): string {
 }
 
 export const api = {
-  getProjects: () => get<ProjectSummary[]>('/api/projects'),
+  getProjects: () => get<{ projects: ProjectSummary[] }>('/api/projects').then(r => r.projects),
 
   getStatus: (project: string) => get<ProjectStatus>(projectPath(project, '/status')),
   getTasks: (project: string) => get<Task[]>(projectPath(project, '/tasks')),
