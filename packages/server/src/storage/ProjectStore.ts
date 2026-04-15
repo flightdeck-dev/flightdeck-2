@@ -40,6 +40,11 @@ export class ProjectStore {
     return this.projectDir;
   }
 
+  /** Alias for path — the project working directory. */
+  get cwd(): string {
+    return this.projectDir;
+  }
+
   init(projectName: string): void {
     mkdirSync(this.projectDir, { recursive: true });
     for (const sub of SUBDIRS) {

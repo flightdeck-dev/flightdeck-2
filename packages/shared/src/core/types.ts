@@ -197,6 +197,7 @@ export type SideEffect =
   | { type: 'spawn_reviewer'; taskId: TaskId }
   | { type: 'resolve_dependents'; taskId: TaskId }
   | { type: 'block_dependents'; taskId: TaskId }
+  | { type: 'unblock_dependents'; taskId: TaskId }
   | { type: 'clear_assignment'; taskId: TaskId }
   | { type: 'set_timestamp'; taskId: TaskId }
   | { type: 'escalate'; taskId: TaskId; reason: string }

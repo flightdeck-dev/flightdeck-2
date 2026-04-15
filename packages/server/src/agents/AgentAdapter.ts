@@ -53,4 +53,9 @@ export abstract class AgentAdapter {
   async resumeSession(_opts: { previousSessionId: string; cwd: string; role: string; model?: string; projectName?: string }): Promise<AgentMetadata> {
     throw new Error('resumeSession not supported by this adapter');
   }
+
+  /** Get session details. Not all adapters support this. */
+  getSession(_sessionId: string): { output: string } | undefined {
+    return undefined;
+  }
 }

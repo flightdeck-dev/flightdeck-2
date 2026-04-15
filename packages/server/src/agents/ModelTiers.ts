@@ -39,7 +39,7 @@ export class ModelRegistry {
    */
   registerModels(
     runtimeName: string,
-    models: Array<{ modelId: string; name: string; description?: string }>,
+    models: Array<{ modelId: string; name: string; description?: string | null }>,
   ): void {
     const infos = models.map(m => ({
       modelId: m.modelId,

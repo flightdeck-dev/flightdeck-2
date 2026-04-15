@@ -813,7 +813,7 @@ export class AcpAdapter extends AgentAdapter {
     session.lastActivityAt = new Date();
 
     // Drain any messages queued while this prompt was running (loop instead of recursion)
-    while (session.promptQueue.length > 0 && session.status !== 'ended' && session.acpSessionId) {
+    while (session.promptQueue.length > 0 && (session.status as AcpSessionStatus) !== 'ended' && session.acpSessionId) {
       const items = session.promptQueue.splice(0);
       const priorityItems = items.filter(i => i.priority);
       const normalItems = items.filter(i => !i.priority);

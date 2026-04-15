@@ -80,8 +80,8 @@ export class IsolationManager {
         const strategy = this.mergeStrategy;
 
         // 'accumulate' defers merge — don't merge on individual task completion
-        if (!opts?.skipMerge && strategy !== 'accumulate') {
-          const mergeStrat = strategy === 'accumulate' ? 'auto' : strategy;
+        if (!opts?.skipMerge && (strategy as string) !== 'accumulate') {
+          const mergeStrat = (strategy as string) === 'accumulate' ? 'auto' : strategy;
           if (mergeStrat === 'auto' || mergeStrat === 'squash' || mergeStrat === 'pr') {
             try {
               mergeResult = this.worktreeManager.merge(taskId, mergeStrat);

@@ -127,6 +127,9 @@ export interface ProjectConfig {
   onCompletion: OnCompletionAction;
   costThresholdPerDay?: number;
   maxConcurrentAgents?: number;
+  notifications?: {
+    webhooks?: Array<{ url: string; events: string[] }>;
+  };
   /** The working directory where .flightdeck.json lives (project root). */
   cwd?: string;
 }

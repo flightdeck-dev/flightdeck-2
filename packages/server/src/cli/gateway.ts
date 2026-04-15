@@ -205,7 +205,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         messageStore: fd.chatMessages ?? undefined,
         wsServer: wsServer ?? undefined,
         governanceConfig: { costThresholdPerDay: projectConfig.costThresholdPerDay },
-        notifications: projectConfig.notifications,
+        notifications: projectConfig.notifications as import('../integrations/WebhookNotifier.js').NotificationsConfig | undefined,
       },
     );
     orchestrator.start();

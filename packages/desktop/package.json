@@ -1,14 +1,15 @@
 {
   "name": "@flightdeck-ai/desktop",
   "version": "0.1.0",
-  "description": "Flightdeck 2.0 Desktop App — Electron shell with daemon lifecycle management",
+  "description": "Flightdeck 2.0 Desktop App \u2014 Electron shell with daemon lifecycle management",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc && electron dist/main.js",
-    "build": "tsc && electron-builder",
+    "build": "tsc",
     "start": "electron dist/main.js",
-    "compile": "tsc"
+    "compile": "tsc",
+    "package": "tsc && electron-builder"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -17,5 +18,10 @@
   },
   "dependencies": {
     "get-port": "^7.1.0"
+  },
+  "homepage": "https://github.com/justinchuby/flightdeck",
+  "author": {
+    "name": "Justin Chu",
+    "email": "justinchuby@users.noreply.github.com"
   }
 }

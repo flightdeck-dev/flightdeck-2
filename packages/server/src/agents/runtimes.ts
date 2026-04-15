@@ -23,7 +23,7 @@ export interface RuntimeDefinition {
   /** Adapter type for Flightdeck */
   adapter: 'acp' | 'pty';
   /** Implementation notes and gotchas */
-  notes: string;
+  notes: string | string[];
 }
 
 /**
