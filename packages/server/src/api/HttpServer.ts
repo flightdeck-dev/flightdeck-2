@@ -115,7 +115,22 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
     // ── Project list / create ──
     if (url.pathname === '/api/projects' && method === 'GET') {
-      json(200, { projects: projectManager.list().map(name => ({ name })) });
+      const summaries = projectManager.list().map(name => {
+        try {
+          const fd = projectManager.get(name);
+          const stats = fd.getTaskStats();
+          return {
+            name,
+            governance: fd.config.governance ?? 'autonomous',
+            agentCount: fd.listAgents().length,
+            taskStats: stats,
+            totalCost: fd.getTotalCost(),
+          };
+        } catch {
+          return { name };
+        }
+      });
+      json(200, { projects: summaries });
       return;
     }
     if (url.pathname === '/api/projects' && method === 'POST') {

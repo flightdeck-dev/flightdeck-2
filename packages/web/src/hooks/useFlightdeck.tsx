@@ -99,7 +99,12 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
       setAgents(a);
       setDecisions(d);
       setMessages(m);
-    } catch { /* server not running — use empty state */ }
+      if (import.meta.env.DEV && t.length === 0) {
+        console.debug('[Flightdeck] fetchAll: tasks empty for project', projectName);
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[Flightdeck] fetchAll error:', err);
+    }
     setLoading(false);
   }, [projectName]);
 
