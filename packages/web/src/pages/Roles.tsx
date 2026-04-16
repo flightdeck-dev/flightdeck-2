@@ -56,6 +56,7 @@ function RoleCard({ role, onClick, isSelected }: { role: RoleInfo; onClick: () =
 
 function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: string; onUpdate: () => void }) {
   const [availableModels, setAvailableModels] = useState<Record<string, unknown>>({});
+  const [allRuntimes, setAllRuntimes] = useState<Array<{ id: string; name: string }>>([]);
   const [prompt, setPrompt] = useState(role.instructions);
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,6 +64,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
   useEffect(() => {
     api.getAvailableModels(project).then(setAvailableModels).catch(() => {});
+    api.getRuntimes(project).then(setAllRuntimes).catch(() => {});
   }, [project]);
 
   useEffect(() => {
@@ -105,6 +107,13 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     if (!seen.has(key)) {
       seen.add(key);
       (modelsByRuntime[em.runtime] ??= []).push({ modelId: em.model, configured: true });
+    }
+  }
+
+  // Ensure all known runtimes appear as tabs even without discovered models
+  for (const rt of allRuntimes) {
+    if (!modelsByRuntime[rt.id]) {
+      modelsByRuntime[rt.id] = [];
     }
   }
 
@@ -209,6 +218,9 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
             {/* Model list */}
             <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
+              {currentModels.length === 0 && (
+                <p className="text-xs text-[var(--color-text-tertiary)]">No models discovered yet. Spawn an agent with this runtime to discover its models.</p>
+              )}
               {currentModels.map(({ modelId, displayName, tier, configured }) => (
                 <div key={modelId} className="flex items-center gap-3 py-1">
                   <input
