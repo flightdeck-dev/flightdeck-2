@@ -98,8 +98,8 @@ export function Layout() {
     <div className="h-screen flex flex-col">
       <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="flex items-center gap-2">
-          <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
-            Flightdeck <span className="text-[var(--color-text-tertiary)] opacity-60">v2.0.0-alpha</span>
+          <span className="text-[var(--color-text-primary)] text-sm font-mono font-semibold">
+            Flightdeck <span className="text-[var(--color-text-tertiary)] opacity-60 font-normal">v2.0.0-alpha</span>
           </span>
           <span className="text-[var(--color-border)]">·</span>
           <span className="text-[var(--color-text-tertiary)] text-sm font-mono">

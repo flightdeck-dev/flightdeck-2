@@ -165,11 +165,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         >
           {collapsed ? <PanelLeft size={16} strokeWidth={1.5} /> : <PanelLeftClose size={16} strokeWidth={1.5} />}
         </button>
-        {!collapsed && (
-          <span className="font-semibold text-sm text-[var(--color-text-primary)] truncate">
-            Flightdeck
-          </span>
-        )}
+
       </div>
 
       {/* Projects */}
