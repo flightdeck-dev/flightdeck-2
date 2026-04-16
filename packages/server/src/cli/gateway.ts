@@ -55,7 +55,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Clean up orphaned agent processes from a previous unclean shutdown
   await cleanupOrphanedAgents();
 
-  const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'copilot');
+  const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'codex');
   const ptyAdapter = new PtyAdapterClass(undefined, 'claude');
   const multiAdapter = new MultiAdapterClass(acpAdapter, ptyAdapter);
   const projectManager = new ProjectManager(multiAdapter);
