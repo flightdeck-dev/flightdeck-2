@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
+import { Zap, Loader2 } from 'lucide-react';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
   minimal: 'Final answers only — clean and focused',
@@ -49,15 +50,71 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   return <div className={`p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4 ${className}`}>{children}</div>;
 }
 
+function RuntimeCard({ rt, projectName }: { rt: { id: string; name: string; command: string; supportsAcp: boolean; adapter: string }; projectName: string }) {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; installed: boolean; version?: string; message: string } | null>(null);
+
+  const test = useCallback(async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      const r = await api.testRuntime(projectName, rt.id);
+      setResult(r);
+    } catch (e) {
+      setResult({ success: false, installed: false, message: e instanceof Error ? e.message : 'Test failed' });
+    } finally {
+      setTesting(false);
+    }
+  }, [rt.id, projectName]);
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
+          {result && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+              result.success
+                ? 'bg-green-500/10 text-green-400'
+                : 'bg-red-500/10 text-red-400'
+            }`}>
+              {result.success ? (result.version ?? 'installed') : 'not found'}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={test}
+          disabled={testing}
+          className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition-colors disabled:opacity-50"
+          title="Test connection"
+        >
+          {testing ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+          Test
+        </button>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${
+          rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'
+        }`}>
+          {rt.supportsAcp ? 'ACP' : 'PTY'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Global settings — display, runtimes (no project context needed) */
 function GlobalSettings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
   const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
+  const [runtimeProject, setRuntimeProject] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(data => {
       const projects = data.projects ?? [];
       if (projects.length > 0) {
+        setRuntimeProject(projects[0].name);
         api.getRuntimes(projects[0].name).then(setRuntimes).catch(() => {});
       }
     }).catch(() => {});
@@ -124,17 +181,7 @@ function GlobalSettings() {
           <SectionHeader>Runtimes</SectionHeader>
           <Card>
             {runtimes.map(rt => (
-              <div key={rt.id} className="flex items-center justify-between py-2 border-b border-[var(--color-border)] last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'}`}>
-                    {rt.supportsAcp ? 'ACP' : 'PTY'}
-                  </span>
-                </div>
-              </div>
+              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} />
             ))}
           </Card>
         </section>
