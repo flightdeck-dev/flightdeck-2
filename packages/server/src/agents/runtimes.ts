@@ -24,6 +24,16 @@ export interface RuntimeDefinition {
   adapter: 'acp' | 'pty';
   /** Implementation notes and gotchas */
   notes: string | string[];
+  /** Icon emoji */
+  icon?: string;
+  /** Documentation URL */
+  docsUrl?: string;
+  /** Setup/install links */
+  setupLinks?: Array<{ label: string; url: string }>;
+  /** Login/auth instructions */
+  loginInstructions?: string;
+  /** Install command hint */
+  installHint?: string;
 }
 
 /**
@@ -41,6 +51,14 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: true,
     adapter: 'acp',
+    icon: '🤖',
+    docsUrl: 'https://github.com/openai/codex',
+    setupLinks: [
+      { label: 'ACP adapter', url: 'https://github.com/zed-industries/codex-acp' },
+      { label: 'CLI quickstart', url: 'https://developers.openai.com/codex/quickstart/?setup=cli' },
+    ],
+    installHint: 'npm install -g @openai/codex',
+    loginInstructions: 'Run codex auth in your terminal',
     notes: 'Codex ACP bridge. Reads AGENTS.md for system prompt. Config from ~/.codex/config.toml.',
   },
 
@@ -52,6 +70,11 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: false,
     adapter: 'acp',
+    icon: '🐙',
+    docsUrl: 'https://docs.github.com/en/copilot/github-copilot-in-the-cli',
+    setupLinks: [{ label: 'Documentation', url: 'https://github.com/features/copilot/cli' }],
+    installHint: 'npm install -g @anthropic-ai/claude-code',
+    loginInstructions: 'Authenticate using the GitHub Copilot CLI',
     notes: 'GitHub Copilot coding agent. --allow-all auto-approves permissions.',
   },
 
@@ -63,6 +86,14 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: false,
     adapter: 'acp',
+    icon: '🟠',
+    docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
+    setupLinks: [
+      { label: 'ACP adapter', url: 'https://github.com/zed-industries/claude-agent-acp' },
+      { label: 'Claude Code CLI', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' },
+    ],
+    installHint: 'npm install -g @anthropic-ai/claude-code-acp',
+    loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
     notes:
       'Claude Code ACP bridge. Binary is "claude-agent-acp" (npm: @anthropic-ai/claude-code-acp). ' +
       'System prompt injected via _meta.systemPrompt in session/new, NOT via AGENTS.md.',
@@ -76,6 +107,11 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: false,
     adapter: 'acp',
+    icon: '💎',
+    docsUrl: 'https://github.com/google-gemini/gemini-cli',
+    setupLinks: [{ label: 'Installation guide', url: 'https://geminicli.com/docs/get-started/installation/' }],
+    installHint: 'npm install -g @anthropic-ai/claude-code',
+    loginInstructions: 'Run gemini auth in your terminal or set GEMINI_API_KEY',
     notes: 'Google Gemini CLI. Reference ACP implementation.',
   },
 
@@ -87,6 +123,11 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: false,
     adapter: 'acp',
+    icon: '🔓',
+    docsUrl: 'https://opencode.ai/docs/',
+    setupLinks: [{ label: 'Documentation', url: 'https://opencode.ai/docs/' }],
+    installHint: 'go install github.com/nicholasgriffintn/opencode@latest',
+    loginInstructions: 'Authentication is managed by OpenCode',
     notes:
       'OpenCode CLI with ACP subcommand. Starts an ACP server over stdin/stdout (nd-JSON). ' +
       'See https://opencode.ai/docs/acp/',

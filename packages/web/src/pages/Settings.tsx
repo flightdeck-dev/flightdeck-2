@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
-import { Zap, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
   minimal: 'Final answers only — clean and focused',
@@ -50,28 +50,25 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   return <div className={`p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4 ${className}`}>{children}</div>;
 }
 
-function RuntimeCard({ rt, projectName, enabled, onToggle }: { rt: { id: string; name: string; command: string; supportsAcp: boolean; adapter: string }; projectName: string; enabled: boolean; onToggle: (id: string, enabled: boolean) => void }) {
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; installed: boolean; version?: string; message: string } | null>(null);
+interface RuntimeInfo {
+  id: string; name: string; command: string; supportsAcp: boolean; adapter: string;
+  icon?: string; docsUrl?: string; setupLinks?: Array<{ label: string; url: string }>;
+  loginInstructions?: string; installHint?: string; supportsSessionLoad?: boolean;
+}
 
-  const test = useCallback(async () => {
-    setTesting(true);
-    setResult(null);
-    try {
-      const r = await api.testRuntime(projectName, rt.id);
-      setResult(r);
-    } catch (e) {
-      setResult({ success: false, installed: false, message: e instanceof Error ? e.message : 'Test failed' });
-    } finally {
-      setTesting(false);
-    }
-  }, [rt.id, projectName]);
+function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }: {
+  rt: RuntimeInfo; projectName: string; enabled: boolean;
+  onToggle: (id: string, enabled: boolean) => void;
+  testResult: { success: boolean; installed: boolean; version?: string; message: string } | null;
+  testing: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={`flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0 ${!enabled ? 'opacity-50' : ''}`}>
-      <div className="flex items-center gap-3 flex-1 min-w-0">
+    <div className={`border-b border-[var(--color-border)] last:border-0 ${!enabled ? 'opacity-50' : ''}`}>
+      <div className="flex items-center gap-3 py-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <button
-          onClick={() => onToggle(rt.id, !enabled)}
+          onClick={e => { e.stopPropagation(); onToggle(rt.id, !enabled); }}
           className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
             enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
           }`}
@@ -81,38 +78,66 @@ function RuntimeCard({ rt, projectName, enabled, onToggle }: { rt: { id: string;
             enabled ? 'left-4' : 'left-0.5'
           }`} />
         </button>
-        <div className="min-w-0">
+        <span className="text-lg shrink-0">{rt.icon ?? '🔌'}</span>
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
-          {result && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-              result.success
-                ? 'bg-green-500/10 text-green-400'
-                : 'bg-red-500/10 text-red-400'
-            }`}>
-              {result.success ? (result.version ?? 'installed') : 'not found'}
-            </span>
-          )}
+            {testing && <Loader2 size={12} className="animate-spin text-[var(--color-text-tertiary)]" />}
+            {!testing && testResult && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+              }`}>
+                {testResult.success ? (testResult.version ?? '✓ installed') : '✗ not found'}
+              </span>
+            )}
           </div>
-          <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">
+            <span className="font-mono">{rt.command}</span>
+            {rt.supportsSessionLoad && <span className="ml-2 opacity-60">· Resume</span>}
+          </p>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={test}
-          disabled={testing}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition-colors disabled:opacity-50"
-          title="Test connection"
-        >
-          {testing ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
-          Test
-        </button>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${
+        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
           rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'
         }`}>
           {rt.supportsAcp ? 'ACP' : 'PTY'}
         </span>
       </div>
+
+      {expanded && (
+        <div className="pl-[4.5rem] pb-3 space-y-2 text-xs">
+          {!testResult?.success && rt.installHint && (
+            <div className="bg-[var(--color-surface-secondary)] rounded-md p-2">
+              <p className="text-[var(--color-text-tertiary)] mb-1">Install:</p>
+              <code className="text-[var(--color-text-secondary)] font-mono text-[11px]">{rt.installHint}</code>
+            </div>
+          )}
+          {!testResult?.success && rt.loginInstructions && (
+            <p className="text-[var(--color-text-tertiary)]">{rt.loginInstructions}</p>
+          )}
+          {rt.setupLinks && rt.setupLinks.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {rt.setupLinks.map(link => (
+                <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer"
+                  className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-1">
+                  {link.label} ↗
+                </a>
+              ))}
+              {rt.docsUrl && !rt.setupLinks.some(l => l.url === rt.docsUrl) && (
+                <a href={rt.docsUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-1">
+                  Docs ↗
+                </a>
+              )}
+            </div>
+          )}
+          {!rt.setupLinks?.length && rt.docsUrl && (
+            <a href={rt.docsUrl} target="_blank" rel="noopener noreferrer"
+              className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-1">
+              Documentation ↗
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -120,9 +145,11 @@ function RuntimeCard({ rt, projectName, enabled, onToggle }: { rt: { id: string;
 /** Global settings — display, runtimes (no project context needed) */
 function GlobalSettings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
-  const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[] | null>(null);
   const [runtimeProject, setRuntimeProject] = useState<string>('');
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
+  const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(data => {
@@ -130,8 +157,23 @@ function GlobalSettings() {
       if (projects.length > 0) {
         const pName = projects[0].name;
         setRuntimeProject(pName);
-        api.getRuntimes(pName).then(setRuntimes).catch(() => {});
-        // Load disabled runtimes from project config
+        api.getRuntimes(pName).then((rts: RuntimeInfo[]) => {
+          setRuntimes(rts);
+          // Auto-test all runtimes asynchronously
+          for (const rt of rts) {
+            setTestingSet(prev => new Set(prev).add(rt.id));
+            api.testRuntime(pName, rt.id)
+              .then(result => {
+                setTestResults(prev => ({ ...prev, [rt.id]: result }));
+              })
+              .catch(() => {
+                setTestResults(prev => ({ ...prev, [rt.id]: { success: false, installed: false, message: 'Test failed' } }));
+              })
+              .finally(() => {
+                setTestingSet(prev => { const next = new Set(prev); next.delete(rt.id); return next; });
+              });
+          }
+        }).catch(() => {});
         fetch(`/api/projects/${pName}/status`).then(r => r.json()).then(status => {
           setDisabledRuntimes(status?.config?.disabledRuntimes ?? []);
         }).catch(() => {});
@@ -210,10 +252,15 @@ function GlobalSettings() {
       {/* Runtimes */}
       {runtimes && runtimes.length > 0 && (
         <section className="space-y-3">
-          <SectionHeader>Runtimes</SectionHeader>
+          <div className="flex items-center justify-between">
+            <SectionHeader>Runtimes</SectionHeader>
+            <span className="text-[10px] text-[var(--color-text-tertiary)]">
+              {Object.values(testResults).filter(r => r.success).length}/{runtimes.length} installed
+            </span>
+          </div>
           <Card>
             {runtimes.map(rt => (
-              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} enabled={!disabledRuntimes.includes(rt.id)} onToggle={toggleRuntime} />
+              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} enabled={!disabledRuntimes.includes(rt.id)} onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
             ))}
           </Card>
         </section>

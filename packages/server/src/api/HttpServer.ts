@@ -427,6 +427,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({
         id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
         systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
+        icon: r.icon, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
+        loginInstructions: r.loginInstructions, installHint: r.installHint,
       }));
       json(200, runtimes);
     } else if (subPath.match(/^\/runtimes\/([^/]+)\/test$/) && method === 'POST') {
