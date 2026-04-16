@@ -136,5 +136,5 @@ export const api = {
     }>(projectPath(project, `/search?q=${encodeURIComponent(q)}&limit=${limit}`)),
 
   // Runtimes
-  getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }>>(projectPath(project, '/runtimes')),
+  getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string; supportsModelDiscovery?: boolean }>>(projectPath(project, '/runtimes')),
 };

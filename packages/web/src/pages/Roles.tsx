@@ -56,7 +56,7 @@ function RoleCard({ role, onClick, isSelected }: { role: RoleInfo; onClick: () =
 
 function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: string; onUpdate: () => void }) {
   const [availableModels, setAvailableModels] = useState<Record<string, unknown>>({});
-  const [allRuntimes, setAllRuntimes] = useState<Array<{ id: string; name: string }>>([]);
+  const [allRuntimes, setAllRuntimes] = useState<Array<{ id: string; name: string; supportsAcp?: boolean; supportsModelDiscovery?: boolean }>>([]);
   const [prompt, setPrompt] = useState(role.instructions);
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -205,6 +205,11 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
               {runtimes.map(rt => {
                 const count = modelsByRuntime[rt]?.length ?? 0;
                 const isActive = rt === currentRuntime;
+                const rtInfo = allRuntimes.find(r => r.id === rt);
+                const noDiscovery = rtInfo?.supportsModelDiscovery === false;
+                const notAcp = rtInfo?.supportsAcp === false;
+                // Status: has models = normal, no models + no discovery support = "default only", no models + discoverable = "discovering..."
+                const statusHint = count > 0 ? '' : noDiscovery || notAcp ? ' ·' : ' ⟳';
                 return (
                   <button
                     key={rt}
@@ -214,9 +219,14 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                         ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
                         : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
                     }`}
+                    title={count > 0 ? `${count} models` : noDiscovery || notAcp ? 'Uses default model' : 'Discovering models...'}
                   >
                     {rt}
-                    <span className="ml-1 opacity-60">({count})</span>
+                    {count > 0 ? (
+                      <span className="ml-1 opacity-60">({count})</span>
+                    ) : (
+                      <span className="ml-1 opacity-40">{statusHint}</span>
+                    )}
                   </button>
                 );
               })}
@@ -224,9 +234,18 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
             {/* Model list */}
             <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
-              {currentModels.length === 0 && (
-                <p className="text-xs text-[var(--color-text-tertiary)]">No models discovered yet. Models are auto-discovered on daemon startup.</p>
-              )}
+              {currentModels.length === 0 && (() => {
+                const rtInfo = allRuntimes.find(r => r.id === currentRuntime);
+                const noDiscovery = rtInfo?.supportsModelDiscovery === false;
+                const notAcp = rtInfo?.supportsAcp === false;
+                return (
+                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                    {noDiscovery || notAcp
+                      ? 'This runtime uses a default model. Model selection is not available.'
+                      : 'No models discovered yet. Models are auto-discovered on daemon startup. If this runtime is not installed, no models will appear.'}
+                  </p>
+                );
+              })()}
               {currentModels.map(({ modelId, displayName, tier, configured }) => (
                 <div key={modelId} className="flex items-center gap-3 py-1">
                   <input
