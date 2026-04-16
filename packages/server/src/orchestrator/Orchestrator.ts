@@ -119,6 +119,9 @@ export class Orchestrator {
   private handleEffect(effect: SideEffect): void {
     switch (effect.type) {
       case 'spawn_reviewer': {
+        // Only spawn reviewer if verification is enabled
+        const verificationCfg = this.governance.governanceConfig.verification;
+        if (!verificationCfg?.enabled) break; // auto-approve will handle it in processCompletions
         if (!this.adapter) break;
         const task = this.dag.getTask(effect.taskId);
         if (!task) break;
