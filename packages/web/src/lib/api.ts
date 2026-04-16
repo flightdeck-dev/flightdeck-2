@@ -53,6 +53,11 @@ export const api = {
     if (!res.ok) return 'No report available.';
     return res.text();
   },
+  getSpecs: async (project: string) => {
+    const res = await fetch(`${BASE}${projectPath(project, '/specs')}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
   getDisplayConfig: () => get<DisplayConfig>('/api/display'),
   updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
   applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),
@@ -121,6 +126,14 @@ export const api = {
   getRolePreference: (project: string) => get<{ content: string }>(projectPath(project, '/role-preference')),
   updateRolePreference: (project: string, content: string) =>
     put<{ success: boolean }>(projectPath(project, '/role-preference'), { content }),
+
+  // Search
+  search: (project: string, q: string, limit = 20) =>
+    get<{
+      tasks: Array<{ id: string; title: string; state: string; type: 'task' }>;
+      agents: Array<{ id: string; name: string; role: string; status: string; type: 'agent' }>;
+      messages: Array<{ id: string; content: string; authorType: string; authorId: string; type: 'message' }>;
+    }>(projectPath(project, `/search?q=${encodeURIComponent(q)}&limit=${limit}`)),
 
   // Runtimes
   getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }>>(projectPath(project, '/runtimes')),

@@ -405,6 +405,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         res.writeHead(200, { 'Content-Type': 'text/markdown' });
         res.end(report.generate({}));
       } catch { json(200, { report: 'No report available yet.' }); }
+    } else if (subPath === '/specs' && method === 'GET') {
+      json(200, fd.listSpecs());
+    } else if (subPath.match(/^\/specs\/[^/]+$/) && method === 'GET') {
+      const specFilename = decodeURIComponent(subPath.split('/')[2]);
+      const spec = fd.specs.read(specFilename);
+      if (spec) json(200, spec);
+      else json(404, { error: 'Spec not found' });
     } else if (subPath === '/threads' && method === 'GET') {
       json(200, fd.messages?.listThreads() ?? []);
     } else if (subPath === '/search/sessions' && method === 'GET') {
@@ -415,6 +422,34 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const store = new SessionStore(projectName, fd.sqlite.db);
       const results = store.searchEvents(query, { limit });
       json(200, { count: results.length, results });
+    } else if (subPath === '/search' && method === 'GET') {
+      const q = url.searchParams.get('q');
+      if (!q) { json(400, { error: 'Missing q parameter' }); return; }
+      const limit = parseInt(url.searchParams.get('limit') ?? '20', 10) || 20;
+      const pattern = `%${q}%`;
+
+      // Search tasks
+      const allTasks = fd.sqlite.listTasks();
+      const matchedTasks = allTasks.filter(t =>
+        t.title.toLowerCase().includes(q.toLowerCase()) ||
+        (t.description ?? '').toLowerCase().includes(q.toLowerCase())
+      ).slice(0, limit);
+
+      // Search agents
+      const allAgents = fd.sqlite.listAgents(true);
+      const matchedAgents = allAgents.filter(a =>
+        a.name.toLowerCase().includes(q.toLowerCase()) ||
+        (a.role ?? '').toLowerCase().includes(q.toLowerCase())
+      ).slice(0, limit);
+
+      // Search messages (uses FTS5)
+      const matchedMessages = fd.messages?.searchMessages(q, { limit }) ?? [];
+
+      json(200, {
+        tasks: matchedTasks.map(t => ({ id: t.id, title: t.title, state: t.state, type: 'task' as const })),
+        agents: matchedAgents.map(a => ({ id: a.id, name: a.name, role: a.role, status: a.status, type: 'agent' as const })),
+        messages: matchedMessages.map(m => ({ id: m.id, content: m.content.slice(0, 200), authorType: m.authorType, authorId: m.authorId, type: 'message' as const })),
+      });
     } else if (subPath === '/models' && method === 'GET') {
       const mc = await getModelConfig(fd, projectName);
       json(200, { roles: mc.getRoleConfigs(), presets: presetNames });
