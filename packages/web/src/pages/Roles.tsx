@@ -272,7 +272,7 @@ export default function Roles() {
 
   return (
     <div className="max-w-5xl space-y-8">
-      <h1 className="text-xl font-semibold">🎭 Roles</h1>
+      <h1 className="text-xl font-semibold">Roles</h1>
 
       <div className="flex gap-6">
         {/* Role list */}

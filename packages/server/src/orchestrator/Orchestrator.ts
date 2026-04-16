@@ -793,7 +793,7 @@ export class Orchestrator {
       if (agent.status === 'busy') {
         const hasLiveSession = agent.acpSessionId && this.sessionManager?.getSession(agent.acpSessionId);
         if (!hasLiveSession) {
-          this.store.updateAgentStatus(agent.id, 'idle');
+          this.store.updateAgentStatus(agent.id, 'offline');
           recovered++;
         }
       }

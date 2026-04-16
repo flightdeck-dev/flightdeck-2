@@ -91,7 +91,7 @@ export default function Cron() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Clock size={20} strokeWidth={1.5} className="text-[var(--color-text-secondary)]" />
-          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Cron Jobs</h1>
+          <h1 className="text-xl font-semibold">Cron Jobs</h1>
           <span className="text-xs text-[var(--color-text-tertiary)]">{jobs.length} jobs</span>
         </div>
         <button
