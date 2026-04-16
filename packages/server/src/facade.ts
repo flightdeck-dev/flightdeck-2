@@ -13,6 +13,7 @@ import { Orchestrator } from './orchestrator/Orchestrator.js';
 import { AcpAdapter } from './agents/AcpAdapter.js';
 import type { AgentAdapter } from './agents/AgentAdapter.js';
 import { WorkflowStore, type WorkflowConfig } from './storage/WorkflowStore.js';
+import { SkillManager } from './skills/SkillManager.js';
 import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
 import { LearningsStore } from './storage/LearningsStore.js';
@@ -78,7 +79,7 @@ export class Flightdeck {
     this.timers = new TimerManager((_agentId, _message) => {
       // Default callback — messages can be wired to agent queues later
     });
-    this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName);
+    this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName, new SkillManager(this.project.subpath('.')));
     this.messages = new MessageStore(this.sqlite.db);
     this.agentManager.setMessageStore(this.messages);
 

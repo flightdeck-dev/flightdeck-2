@@ -788,8 +788,12 @@ export class Orchestrator {
       // If the agent has no active session, it's orphaned
       const hasLiveSession = task.acpSessionId && this.sessionManager?.getSession(task.acpSessionId);
       if (!hasLiveSession) {
-        this.dag.failTask(task.id);
-        this.dag.retryTask(task.id); // back to ready
+        try {
+          this.dag.failTask(task.id);
+          this.dag.retryTask(task.id); // back to ready
+        } catch {
+          // Task may already have been reset by another code path
+        }
         if (task.assignedAgent) {
           const agentRecord = this.store.getAgent(task.assignedAgent);
           const newStatus = agentRecord?.acpSessionId ? 'hibernated' : 'offline';
