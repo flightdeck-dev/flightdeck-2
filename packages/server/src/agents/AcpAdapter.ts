@@ -567,15 +567,13 @@ export class AcpAdapter extends AgentAdapter {
 
       // Set model if specified and different from default
       if (session.model && result.models?.currentModelId !== session.model) {
-        let modelSet = false;
-
-        // Prefer configOptions for model setting
+        // Use configOptions for model setting
         const modelConfigOption = result.configOptions?.find(
           (opt: { id: string }) => opt.id === 'model'
         );
         if (modelConfigOption) {
           const options = (modelConfigOption as { options?: Array<{ value: string }> }).options;
-          // Config option model values may be base names (e.g. 'gpt-5.4') vs full ids
+          // Config option values may be base names (e.g. 'gpt-5.4') vs full ids
           const modelBase = session.model.split('/')[0];
           if (options?.some(o => o.value === session.model || o.value === modelBase)) {
             try {
@@ -584,24 +582,12 @@ export class AcpAdapter extends AgentAdapter {
                 configId: 'model',
                 value: options.find(o => o.value === session.model)?.value ?? modelBase,
               } as any);
-              modelSet = true;
             } catch {
-              // Fall through to legacy
+              // Best effort — agent may not support model switching
             }
           }
         }
 
-        // Fallback to legacy unstable_setSessionModel
-        if (!modelSet) {
-          try {
-            await session.connection.unstable_setSessionModel({
-              sessionId: session.acpSessionId!,
-              modelId: session.model,
-            });
-          } catch {
-            // Best effort — agent may not support model switching
-          }
-        }
       }
 
       // Set session mode based on role:
@@ -609,16 +595,13 @@ export class AcpAdapter extends AgentAdapter {
       const READ_ONLY_ROLES = new Set(['lead', 'planner']);
       const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
       const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
-      let modeSet = false;
-
-      // Prefer configOptions (newer ACP spec) — works with Codex and other agents
+      // Use configOptions (ACP spec) to set mode
       const modeConfigOption = result.configOptions?.find(
         (opt: { id: string }) => opt.id === 'mode'
       );
       if (modeConfigOption && 'currentValue' in modeConfigOption) {
         const currentValue = (modeConfigOption as { currentValue?: string }).currentValue;
         if (currentValue !== targetMode) {
-          // Check if target is in available options
           const options = (modeConfigOption as { options?: Array<{ value: string }> }).options;
           if (options?.some(o => o.value === targetMode)) {
             try {
@@ -627,33 +610,14 @@ export class AcpAdapter extends AgentAdapter {
                 configId: 'mode',
                 value: targetMode,
               } as any);
-              modeSet = true;
             } catch {
-              // Fall through to legacy setSessionMode
+              // Best effort — agent may not support config options
             }
           }
-        } else {
-          modeSet = true; // Already correct
         }
       }
 
-      // Fallback to legacy setSessionMode if configOptions didn't work
-      if (!modeSet && result.modes?.availableModes?.length) {
-        const currentMode = result.modes.currentModeId;
-        if (currentMode !== targetMode) {
-          const available = result.modes.availableModes.map(m => m.id);
-          if (available.includes(targetMode)) {
-            try {
-              await session.connection.setSessionMode({
-                sessionId: session.acpSessionId!,
-                modeId: targetMode,
-              });
-            } catch {
-              // Best effort — agent may not support mode switching
-            }
-          }
-        }
-      }
+
 
       // Queue the initial prompt instead of sending it synchronously.
       // This lets initializeSession() return quickly after newSession(),
