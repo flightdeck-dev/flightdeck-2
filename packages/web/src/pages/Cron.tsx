@@ -87,18 +87,14 @@ export default function Cron() {
   if (!projectName) return <div className="p-8 text-[var(--color-text-secondary)]">Select a project</div>;
 
   return (
-    <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Clock size={20} strokeWidth={1.5} className="text-[var(--color-text-secondary)]" />
-          <h1 className="text-xl font-semibold">Cron Jobs</h1>
-          <span className="text-xs text-[var(--color-text-tertiary)]">{jobs.length} jobs</span>
-        </div>
+    <div className="max-w-5xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Cron Jobs ({jobs.length})</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-[var(--color-accent)] text-white font-medium hover:opacity-90 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 transition-colors"
         >
-          <Plus size={14} strokeWidth={1.5} />
+          <Plus size={16} strokeWidth={1.5} />
           New Job
         </button>
       </div>
