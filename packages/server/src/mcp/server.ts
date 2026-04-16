@@ -995,14 +995,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   async function handleSearch(params: { query: string; source?: string; authorType?: string; limit?: number; offset?: number }) {
     const source = params.source ?? 'all';
-    const limit = Math.min(params.limit ?? 10, 50); // cap at 50 per source
+    const limit = Math.min(params.limit ?? 10, 50); // cap at 50
     const offset = params.offset ?? 0;
+    // Per-source fetch limit: fetch more internally so pagination works across sources,
+    // but cap total collected to avoid blowing up memory
+    const fetchLimit = Math.min(limit + offset, 50);
     const results: Array<{ source: string; [key: string]: unknown }> = [];
 
     // Memory search
     if (source === 'all' || source === 'memory') {
       try {
-        const memResults = fd.searchMemory(params.query, limit);
+        const memResults = fd.searchMemory(params.query, fetchLimit);
         for (const r of memResults) {
           results.push({ source: 'memory', ...r });
         }
@@ -1015,7 +1018,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         if (fd.messages) {
           const chatResults = fd.messages.searchMessages(params.query, {
             authorType: params.authorType as 'user' | 'lead' | 'agent' | 'system' | undefined,
-            limit,
+            limit: fetchLimit,
           });
           for (const m of chatResults) {
             results.push({
@@ -1037,7 +1040,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if (source === 'all' || source === 'session') {
       if (relay) {
         try {
-          const sessionData = await relay.searchSessions(params.query, limit);
+          const sessionData = await relay.searchSessions(params.query, fetchLimit);
           for (const r of sessionData.results) {
             const rec = r as Record<string, unknown>;
             // Normalize ts (epoch ms) to ISO timestamp for consistency
@@ -1052,7 +1055,16 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
     // Apply offset pagination across combined results
     const paged = results.slice(offset, offset + limit);
-    return jsonResponse({ count: paged.length, total: results.length, offset, limit, hasMore: offset + limit < results.length, results: paged });
+    // Enforce total character budget (default 8K) to avoid flooding agent context
+    const MAX_TOTAL_CHARS = 8_000;
+    let totalChars = 0;
+    const budgeted = paged.filter(r => {
+      const content = (r.content as string) ?? (r.snippet as string) ?? '';
+      totalChars += content.length;
+      return totalChars <= MAX_TOTAL_CHARS;
+    });
+    const truncated = budgeted.length < paged.length;
+    return jsonResponse({ count: budgeted.length, total: results.length, offset, limit, hasMore: offset + limit < results.length, truncatedByBudget: truncated, results: budgeted });
   }
 
   server.tool('flightdeck_search', 'Search across all project data sources: chat messages, project memory files, and session transcripts. Results are tagged with their source.', {
