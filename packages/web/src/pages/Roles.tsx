@@ -59,6 +59,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   const [prompt, setPrompt] = useState(role.instructions);
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeRuntime, setActiveRuntime] = useState<string | null>(null);
 
   useEffect(() => {
     api.getAvailableModels(project).then(setAvailableModels).catch(() => {});
@@ -69,15 +70,22 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     setPromptDirty(false);
   }, [role.id, role.instructions]);
 
-  // Build flat list of all runtime:model combos (discovered + configured)
-  const discoveredModels: { runtime: string; model: string }[] = [];
+  // Build models grouped by runtime
+  const modelsByRuntime: Record<string, { model: string; discovered: boolean }[]> = {};
+  const seen = new Set<string>();
+
   for (const [runtime, groups] of Object.entries(availableModels)) {
     if (typeof groups === 'object' && groups !== null) {
       for (const models of Object.values(groups as Record<string, unknown>)) {
         if (Array.isArray(models)) {
           for (const m of models) {
             if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
-              discoveredModels.push({ runtime, model: (m as { id?: string; modelId?: string }).modelId ?? (m as { id: string }).id });
+              const modelId = (m as { id?: string; modelId?: string }).modelId ?? (m as { id: string }).id;
+              const key = `${runtime}:${modelId}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                (modelsByRuntime[runtime] ??= []).push({ model: modelId, discovered: true });
+              }
             }
           }
         }
@@ -85,16 +93,17 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     }
   }
 
-  // Merge: discovered models + any configured models not yet discovered
-  const seen = new Set(discoveredModels.map(m => `${m.runtime}:${m.model}`));
-  const allModels = [...discoveredModels];
   for (const em of role.enabledModels) {
     const key = `${em.runtime}:${em.model}`;
     if (!seen.has(key)) {
-      allModels.push({ runtime: em.runtime, model: em.model });
       seen.add(key);
+      (modelsByRuntime[em.runtime] ??= []).push({ model: em.model, discovered: false });
     }
   }
+
+  const runtimes = Object.keys(modelsByRuntime).sort();
+  const currentRuntime = activeRuntime && runtimes.includes(activeRuntime) ? activeRuntime : runtimes[0] ?? null;
+  const currentModels = currentRuntime ? modelsByRuntime[currentRuntime] ?? [] : [];
 
   const isEnabled = (runtime: string, model: string) =>
     role.enabledModels.some(m => m.runtime === runtime && m.model === model && m.enabled);
@@ -140,6 +149,8 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     setSaving(false);
   };
 
+  const enabledCount = role.enabledModels.filter(m => m.enabled).length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -156,35 +167,71 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
       {/* Model Pool */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Model Pool</h3>
-        <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-2 max-h-80 overflow-y-auto">
-          {allModels.length === 0 && (
-            <p className="text-xs text-[var(--color-text-tertiary)]">No models configured. Start the daemon to discover available models.</p>
-          )}
-          {allModels.length > 0 && discoveredModels.length === 0 && (
-            <p className="text-xs text-[var(--color-text-tertiary)] mb-2">Showing configured models. Start the daemon to discover more.</p>
-          )}
-          {allModels.map(({ runtime, model }) => (
-            <div key={`${runtime}:${model}`} className="flex items-center gap-3 py-1">
-              <input
-                type="checkbox"
-                checked={isEnabled(runtime, model)}
-                onChange={() => toggleModel(runtime, model)}
-                className="w-4 h-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
-              />
-              <span className="flex-1 text-sm text-[var(--color-text-primary)] font-mono">
-                {runtime}:{model}
-              </span>
-              <button
-                onClick={() => setDefault(runtime, model)}
-                className={`text-sm ${isDefault(runtime, model) ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)] hover:text-yellow-500'} transition-colors`}
-                title={isDefault(runtime, model) ? 'Default model' : 'Set as default'}
-              >
-                {isDefault(runtime, model) ? '★' : '☆'}
-              </button>
-            </div>
-          ))}
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Model Pool</h3>
+          <span className="text-xs text-[var(--color-text-tertiary)]">{enabledCount} enabled</span>
         </div>
+
+        {runtimes.length === 0 ? (
+          <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <p className="text-xs text-[var(--color-text-tertiary)]">No models available. Start the daemon to discover models.</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+            {/* Runtime tabs */}
+            <div className="flex border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+              {runtimes.map(rt => {
+                const count = modelsByRuntime[rt]?.length ?? 0;
+                const isActive = rt === currentRuntime;
+                return (
+                  <button
+                    key={rt}
+                    onClick={() => setActiveRuntime(rt)}
+                    className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                      isActive
+                        ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
+                        : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {rt}
+                    <span className="ml-1 opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Model list */}
+            <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
+              {currentModels.map(({ model, discovered }) => (
+                <div key={model} className="flex items-center gap-3 py-1">
+                  <input
+                    type="checkbox"
+                    checked={isEnabled(currentRuntime!, model)}
+                    onChange={() => toggleModel(currentRuntime!, model)}
+                    className="w-4 h-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+                  />
+                  <span className={`flex-1 text-sm font-mono truncate ${
+                    discovered ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'
+                  }`}>
+                    {model}
+                  </span>
+                  {!discovered && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">configured</span>
+                  )}
+                  <button
+                    onClick={() => setDefault(currentRuntime!, model)}
+                    className={`text-sm ${
+                      isDefault(currentRuntime!, model) ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)] hover:text-yellow-500'
+                    } transition-colors`}
+                    title={isDefault(currentRuntime!, model) ? 'Default model' : 'Set as default'}
+                  >
+                    {isDefault(currentRuntime!, model) ? '\u2605' : '\u2606'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* System Prompt */}
@@ -216,6 +263,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     </div>
   );
 }
+
 
 export default function Roles() {
   const { projectName } = useFlightdeck();
