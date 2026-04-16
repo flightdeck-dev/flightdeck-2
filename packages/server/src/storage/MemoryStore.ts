@@ -10,6 +10,7 @@ export interface MemorySearchResult {
   filename: string;
   line: number;
   snippet: string;
+  lastModified?: string;
 }
 
 export class MemoryStore {
@@ -177,15 +178,17 @@ export class MemoryStore {
       const lineNum = parseInt(row.line_number, 10);
       const filepath = join(this.memoryDir, row.filename);
       let snippet = row.content;
+      let lastModified: string | undefined;
       try {
         const lines = readFileSync(filepath, 'utf-8').split('\n');
         const start = Math.max(0, lineNum - 2); // -1 for 0-index, -1 for context
         const end = Math.min(lines.length, lineNum + 1); // +1 for context
         snippet = lines.slice(start, end).join('\n');
+        lastModified = statSync(filepath).mtime.toISOString();
       } catch {
         // file may have been deleted; use indexed content
       }
-      return { filename: row.filename, line: lineNum, snippet };
+      return { filename: row.filename, line: lineNum, snippet, lastModified };
     });
   }
 
@@ -264,6 +267,8 @@ export class MemoryStore {
       const content = readFileSync(filepath, 'utf-8');
       const lines = content.split('\n');
       const relPath = relative(this.memoryDir, filepath);
+      let lastModified: string | undefined;
+      try { lastModified = statSync(filepath).mtime.toISOString(); } catch { /* ignore */ }
 
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].toLowerCase().includes(lowerQuery)) {
@@ -273,6 +278,7 @@ export class MemoryStore {
             filename: relPath,
             line: i + 1,
             snippet: lines.slice(start, end).join('\n'),
+            lastModified,
           });
         }
       }

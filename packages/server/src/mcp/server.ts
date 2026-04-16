@@ -1038,7 +1038,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
         try {
           const sessionData = await relay.searchSessions(params.query, limit);
           for (const r of sessionData.results) {
-            results.push({ source: 'session', ...(r as Record<string, unknown>) });
+            const rec = r as Record<string, unknown>;
+            // Normalize ts (epoch ms) to ISO timestamp for consistency
+            if (typeof rec.ts === 'number') {
+              rec.timestamp = new Date(rec.ts).toISOString();
+            }
+            results.push({ source: 'session', ...rec });
           }
         } catch { /* gateway may not be available */ }
       }
