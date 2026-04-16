@@ -119,9 +119,6 @@ export class Orchestrator {
   private handleEffect(effect: SideEffect): void {
     switch (effect.type) {
       case 'spawn_reviewer': {
-        // Only spawn reviewer if verification is enabled
-        const verificationCfg = this.governance.governanceConfig.verification;
-        if (!verificationCfg?.enabled) break; // auto-approve will handle it in processCompletions
         if (!this.adapter) break;
         const task = this.dag.getTask(effect.taskId);
         if (!task) break;
@@ -255,10 +252,8 @@ export class Orchestrator {
     const promoted = this.promoteReadyTasks();
     if (promoted > 0) stateChanged = true;
 
-    // 2. Process completions — tasks in in_review that passed → done
-    const completions = this.processCompletions();
-    result.completionsProcessed = completions;
-    if (completions > 0) stateChanged = true;
+    // 2. (Removed: auto-approve was here. Reviews are now always handled by
+    //    ReviewFlow via spawn_reviewer effect. If reviewer fails, Lead is notified.)
 
     // 3. Detect stalls — check ACP session state for running agents
     const stalls = await this.detectStalls();
@@ -370,45 +365,8 @@ export class Orchestrator {
    * When a WorkflowEngine is configured, completed tasks are advanced
    * through their pipeline (e.g., running post-review steps).
    */
-  private processCompletions(): number {
-    const verificationEnabled = this.governance.governanceConfig.verification.enabled;
-    if (verificationEnabled) {
-      // When verification is enabled:
-      // 1. Worker submits → state machine emits spawn_reviewer effect
-      // 2. handleEffect calls processReview (ReviewFlow)
-      // 3. ReviewFlow spawns reviewer, waits for verdict, transitions task
-      // 4. This method is a no-op because reviews are handled by effects
-      return 0;
-    }
-
-    // Auto-approve: verification disabled, complete all in_review tasks
-    const allTasks = this.dag.listTasks();
-    let completed = 0;
-
-    for (const task of allTasks) {
-      if (task.state !== 'in_review') continue;
-      try {
-        this.dag.completeTask(task.id);
-        completed++;
-
-        // Fire webhook
-        this.webhookNotifier?.notify(
-          taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
-        );
-
-        // If workflow engine is present, advance the pipeline
-        // (e.g., trigger post-review steps like deploy, notify, etc.)
-        if (this.workflowEngine) {
-          const action = this.workflowEngine.advanceTask(task.id);
-          this.handleWorkflowAction(task.id, action);
-        }
-      } catch {
-        // Task may have already transitioned
-      }
-    }
-
-    return completed;
-  }
+  // processCompletions removed: reviews are always handled by ReviewFlow
+  // via spawn_reviewer effect. No auto-approve in tick.
 
   /**
    * Handle a workflow step action for a task.

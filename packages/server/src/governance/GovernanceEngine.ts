@@ -19,8 +19,9 @@ export interface ReportingConfig {
 }
 
 export interface VerificationConfig {
-  enabled: boolean;
+  /** Whether to spawn a fresh reviewer on retry (vs reusing the same one). */
   freshReviewerOnRetry: boolean;
+  /** Additional automated checks to run alongside reviewer. */
   additionalChecks: string[];
 }
 
@@ -192,7 +193,6 @@ export class GovernanceEngine {
           reporting: { cadence: 'daily' },
           onCompletion: 'explore',
           verification: {
-            enabled: true,
             freshReviewerOnRetry: true,
             additionalChecks: [],
           },
@@ -215,7 +215,6 @@ export class GovernanceEngine {
           reporting: { cadence: 'per_milestone' },
           onCompletion: 'ask',
           verification: {
-            enabled: true,
             freshReviewerOnRetry: true,
             additionalChecks: [],
           },
@@ -240,7 +239,6 @@ export class GovernanceEngine {
           reporting: { cadence: 'per_task' },
           onCompletion: 'stop',
           verification: {
-            enabled: true,
             freshReviewerOnRetry: true,
             additionalChecks: [],
           },
@@ -259,7 +257,6 @@ export class GovernanceEngine {
           reporting: { cadence: 'daily' },
           onCompletion: 'ask',
           verification: {
-            enabled: true,
             freshReviewerOnRetry: true,
             additionalChecks: [],
           },

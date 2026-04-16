@@ -167,27 +167,21 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     expect(action4.type).toBe('pipeline_complete');
   });
 
-  it('orchestrator tick processes completions with workflow engine', async () => {
-    // Disable verification so orchestrator auto-processes
-    fd.governance.setGovernanceConfig({
-      ...fd.governance.governanceConfig,
-      verification: { enabled: false, freshReviewerOnRetry: false, additionalChecks: [] },
-    });
-
+  it('task submit goes to in_review (reviewer handles approval)', async () => {
     const task = fd.addTask({ title: 'Tick test', role: 'worker' });
     fd.registerAgent({ id: aid('w1'), role: 'worker', status: 'idle', name: 'Worker 1', model: 'test', createdAt: new Date().toISOString() } as any);
     fd.claimTask(task.id, aid('w1'));
     fd.submitTask(task.id, 'Done');
 
-    // Task should be in_review
+    // Task should be in_review (reviewer will handle approval, not tick)
     const beforeTick = fd.dag.getTask(task.id);
     expect(beforeTick?.state).toBe('in_review');
 
-    // Tick should process completions via workflow
+    // Tick should NOT auto-approve
     await fd.orchestrator.tick();
 
     const afterTick = fd.dag.getTask(task.id);
-    expect(afterTick?.state).toBe('done');
+    expect(afterTick?.state).toBe('in_review');
   });
 
   it('multiple hooks: reject takes priority over warn', () => {

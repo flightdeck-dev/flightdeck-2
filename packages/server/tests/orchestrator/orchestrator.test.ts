@@ -232,7 +232,6 @@ describe('Orchestrator', () => {
     const result = await orch.tick();
     expect(result.readyTasksAssigned).toBe(0);
     expect(result.stallsDetected).toBe(0);
-    expect(result.completionsProcessed).toBe(0);
     expect(result.errorsHandled).toBe(0);
   });
 
@@ -266,17 +265,9 @@ describe('Orchestrator', () => {
     expect(orch.isRunning()).toBe(false);
   });
 
-  describe('processCompletions (via tick)', () => {
-    it('auto-completes in_review tasks when verification disabled', async () => {
-      // Override governance to disable verification
-      const gov = new GovernanceEngine(config);
-      gov.setGovernanceConfig({
-        ...gov.governanceConfig,
-        verification: { enabled: false, freshReviewerOnRetry: false, additionalChecks: [] },
-      });
-      const noVerOrch = new Orchestrator(dag, store, gov, adapter, config);
-
-      const task = dag.addTask({ title: 'Review me', role: 'worker' });
+  describe('review flow (via tick)', () => {
+    it('tasks with needsReview=false go straight to done on submit', async () => {
+      const task = dag.addTask({ title: 'Quick fix', role: 'worker', needsReview: false });
       store.insertAgent({
         id: 'agent-w1' as AgentId,
         role: 'worker', runtime: 'acp', acpSessionId: null,
@@ -285,17 +276,12 @@ describe('Orchestrator', () => {
       dag.claimTask(task.id, 'agent-w1' as AgentId);
       dag.submitTask(task.id);
 
-      const result = await noVerOrch.tick();
-      expect(result.completionsProcessed).toBeGreaterThan(0);
-
       const updated = dag.getTask(task.id);
       expect(updated?.state).toBe('done');
-      noVerOrch.stop();
     });
 
-    it('does not auto-complete when verification is enabled', async () => {
-      // Autonomous has verification enabled by default
-      const task = dag.addTask({ title: 'Review me', role: 'worker' });
+    it('tasks with needsReview=true go to in_review on submit', async () => {
+      const task = dag.addTask({ title: 'Feature work', role: 'worker' });
       store.insertAgent({
         id: 'agent-w2' as AgentId,
         role: 'worker', runtime: 'acp', acpSessionId: null,
@@ -304,9 +290,23 @@ describe('Orchestrator', () => {
       dag.claimTask(task.id, 'agent-w2' as AgentId);
       dag.submitTask(task.id);
 
-      await orch.tick();
       const updated = dag.getTask(task.id);
       expect(updated?.state).toBe('in_review');
+    });
+
+    it('tick does not auto-approve in_review tasks (reviewer handles it)', async () => {
+      const task = dag.addTask({ title: 'Review me', role: 'worker' });
+      store.insertAgent({
+        id: 'agent-w3' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+      dag.claimTask(task.id, 'agent-w3' as AgentId);
+      dag.submitTask(task.id);
+
+      await orch.tick();
+      const updated = dag.getTask(task.id);
+      expect(updated?.state).toBe('in_review'); // NOT auto-approved
     });
   });
 });
