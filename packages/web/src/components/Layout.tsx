@@ -82,6 +82,18 @@ export function Layout() {
   const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
   const { status, connected, projectName } = useFlightdeck();
 
+  // Gateway health check (independent of project WebSocket)
+  const [gatewayOnline, setGatewayOnline] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      fetch('/health').then(r => { if (!cancelled) setGatewayOnline(r.ok); }).catch(() => { if (!cancelled) setGatewayOnline(false); });
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   // Cmd+K shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -117,6 +129,10 @@ export function Layout() {
           {projectName && (
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
                   title={connected ? 'Connected' : 'Disconnected'} />
+          )}
+          {!projectName && (
+            <span className={`w-2 h-2 rounded-full ${gatewayOnline ? 'bg-green-500' : 'bg-red-500'}`}
+                  title={gatewayOnline ? 'Gateway online' : 'Gateway offline'} />
           )}
         </div>
         <div className="flex items-center gap-2">
