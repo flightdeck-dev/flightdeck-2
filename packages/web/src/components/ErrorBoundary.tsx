@@ -24,6 +24,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   handleReset = () => this.setState({ hasError: false, error: null });
 
+  issueUrl(error: Error | null): string {
+    const title = encodeURIComponent(`[Bug] ${error?.message || 'Unknown error'}`);
+    const body = encodeURIComponent(`## Error\n\`\`\`\n${error?.stack || error?.message || 'No details'}\n\`\`\`\n\n## Steps to Reproduce\n1. \n\n## Expected Behavior\n\n## Environment\n- URL: ${typeof window !== 'undefined' ? window.location.href : 'N/A'}\n- UA: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A'}`);
+    return `https://github.com/flightdeck-dev/flightdeck-2/issues/new?title=${title}&body=${body}`;
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
@@ -42,21 +48,41 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', marginBottom: 24 }}>
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
-            <button
-              onClick={this.handleReset}
-              style={{
-                padding: '8px 20px',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                color: 'var(--color-text-primary)',
-                background: 'var(--color-surface-secondary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                cursor: 'pointer',
-              }}
-            >
-              Try Again
-            </button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button
+                onClick={this.handleReset}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: 'var(--color-text-primary)',
+                  background: 'var(--color-surface-secondary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                Try Again
+              </button>
+              <a
+                href={this.issueUrl(this.state.error)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: 'var(--color-text-secondary)',
+                  background: 'transparent',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                }}
+              >
+                Report Issue
+              </a>
+            </div>
           </div>
         </div>
       );
@@ -79,6 +105,12 @@ export class SectionErrorBoundary extends Component<ErrorBoundaryProps, ErrorBou
 
   handleReset = () => this.setState({ hasError: false, error: null });
 
+  issueUrl(error: Error | null): string {
+    const title = encodeURIComponent(`[Bug] ${error?.message || 'Unknown error'}`);
+    const body = encodeURIComponent(`## Error\n\`\`\`\n${error?.stack || error?.message || 'No details'}\n\`\`\`\n\n## Steps to Reproduce\n1. \n\n## Environment\n- URL: ${typeof window !== 'undefined' ? window.location.href : 'N/A'}`);
+    return `https://github.com/flightdeck-dev/flightdeck-2/issues/new?title=${title}&body=${body}`;
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
@@ -93,20 +125,39 @@ export class SectionErrorBoundary extends Component<ErrorBoundaryProps, ErrorBou
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', marginBottom: 12 }}>
             This section failed to load: {this.state.error?.message || 'Unknown error'}
           </p>
-          <button
-            onClick={this.handleReset}
-            style={{
-              padding: '6px 16px',
-              fontSize: '0.8125rem',
-              color: 'var(--color-text-primary)',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              cursor: 'pointer',
-            }}
-          >
-            Try Again
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button
+              onClick={this.handleReset}
+              style={{
+                padding: '6px 16px',
+                fontSize: '0.8125rem',
+                color: 'var(--color-text-primary)',
+                background: 'var(--color-surface-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              Try Again
+            </button>
+            <a
+              href={this.issueUrl(this.state.error)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '6px 16px',
+                fontSize: '0.8125rem',
+                color: 'var(--color-text-secondary)',
+                background: 'transparent',
+                border: '1px solid var(--color-border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                textDecoration: 'none',
+              }}
+            >
+              Report Issue
+            </a>
+          </div>
         </div>
       );
     }
