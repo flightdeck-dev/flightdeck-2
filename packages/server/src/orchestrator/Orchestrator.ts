@@ -781,7 +781,9 @@ export class Orchestrator {
         this.dag.failTask(task.id);
         this.dag.retryTask(task.id); // back to ready
         if (task.assignedAgent) {
-          this.store.updateAgentStatus(task.assignedAgent, 'offline');
+          const agentRecord = this.store.getAgent(task.assignedAgent);
+          const newStatus = agentRecord?.acpSessionId ? 'hibernated' : 'offline';
+          this.store.updateAgentStatus(task.assignedAgent, newStatus);
         }
         recovered++;
       }
@@ -793,7 +795,9 @@ export class Orchestrator {
       if (agent.status === 'busy') {
         const hasLiveSession = agent.acpSessionId && this.sessionManager?.getSession(agent.acpSessionId);
         if (!hasLiveSession) {
-          this.store.updateAgentStatus(agent.id, 'offline');
+          // If agent has a saved session ID, hibernate (can resume later); otherwise offline
+          const newStatus = agent.acpSessionId ? 'hibernated' : 'offline';
+          this.store.updateAgentStatus(agent.id, newStatus);
           recovered++;
         }
       }
