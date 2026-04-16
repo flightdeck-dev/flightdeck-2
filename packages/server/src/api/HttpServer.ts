@@ -290,7 +290,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           model: body.model,
           runtime: resolvedRuntime,
           task: body.task,
-          cwd: body.cwd ?? fd.project.subpath('.'),
+          cwd: body.cwd ?? fd.status().config.cwd ?? fd.project.subpath('.'),
           projectName,
         });
         json(201, newAgent);
