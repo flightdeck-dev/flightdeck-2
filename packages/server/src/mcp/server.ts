@@ -77,12 +77,21 @@ function formatAgentMessage(type: 'dm' | 'user' | 'system' | 'urgent', opts: {
   return `[${ts}] [${tag} from ${sender}] ${opts.content}`;
 }
 
-function resolveAgent(fd: Flightdeck, agentId: string, _toolName: string) {
-  const agent = fd.sqlite.getAgent(agentId as AgentId);
+function resolveAgent(fd: Flightdeck, agentId: string | undefined, _toolName: string) {
+  const resolved = agentId || _ENV_AGENT_ID;
+  if (!resolved) {
+    return { error: errorResponse(`Error: No agent ID provided and FLIGHTDECK_AGENT_ID env var not set.`) };
+  }
+  const agent = fd.sqlite.getAgent(resolved as AgentId);
   if (!agent) {
-    return { error: errorResponse(`Error: Agent '${agentId}' not found. Register the agent first or check the ID. Use flightdeck_status() to see registered agents.`) };
+    return { error: errorResponse(`Error: Agent '${resolved}' not found. Register the agent first or check the ID. Use flightdeck_status() to see registered agents.`) };
   }
   return { agent };
+}
+
+/** Resolve caller agent ID: explicit param > env var */
+function resolveCallerId(agentId?: string): string | undefined {
+  return agentId || _ENV_AGENT_ID;
 }
 
 function permError(agentId: string, role: string, toolName: string, permission: string) {
@@ -234,7 +243,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     dependsOn: z.array(z.string()).optional(),
     priority: z.number().optional(),
     needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_add');
     if (error) return error;
@@ -258,14 +267,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_claim', 'Claim a ready task', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_claim');
     if (error) return error;
     const permErr = checkPerm(agent!, 'task_claim', 'flightdeck_task_claim');
     if (permErr) return permErr;
     try {
-      const task = fd.claimTask(params.taskId as TaskId, params.agentId as AgentId);
+      const task = fd.claimTask(params.taskId as TaskId, resolveCallerId(params.agentId) as AgentId);
       return jsonResponse(task);
     } catch (err) {
       const msg = (err as Error).message;
@@ -282,7 +291,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_submit', 'Submit completed work with claim', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
     claim: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_submit');
@@ -307,7 +316,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_fail', 'Report task failure', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
     reason: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_fail');
@@ -324,7 +333,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_cancel', 'Cancel a task', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_cancel');
     if (error) return error;
@@ -340,7 +349,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_pause', 'Pause a task', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_pause');
     if (error) return error;
@@ -356,7 +365,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_resume', 'Resume a paused task (paused → running)', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_resume');
     if (error) return error;
@@ -372,7 +381,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_retry', 'Retry a failed task', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_retry');
     if (error) return error;
@@ -388,7 +397,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_skip', 'Skip a task (unblocks dependents)', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_skip');
     if (error) return error;
@@ -404,7 +413,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_complete', 'Complete a task (in_review → done)', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_complete');
     if (error) return error;
@@ -420,7 +429,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_reopen', 'Reopen a completed task (done → ready)', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_reopen');
     if (error) return error;
@@ -444,7 +453,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
     })),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_declare_tasks');
     if (error) return error;
@@ -469,7 +478,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
     })),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_declare_subtasks');
     if (error) return error;
@@ -487,7 +496,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_task_compact', 'Compact a completed task to save context (FR-015)', {
     taskId: z.string(),
     summary: z.string().optional(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_compact');
     if (error) return error;
@@ -525,7 +534,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Model discovery tool ──
 
   server.tool('flightdeck_model_list', 'List available models and runtimes across all providers. Use this to decide which runtime:model to assign when spawning agents.', {
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_model_list');
     if (error) return error;
@@ -571,7 +580,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     runtime: z.string().optional().describe('Runtime name (e.g. copilot, opencode, cursor, codex-acp). Uses project config default if not set.'),
     task: z.string().optional(),
     cwd: z.string().optional(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_spawn');
     if (error) return error;
@@ -639,7 +648,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_agent_terminate', 'Terminate an agent', {
     targetAgentId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_terminate');
     if (error) return error;
@@ -676,17 +685,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   });
 
   server.tool('flightdeck_agent_output', 'Get the accumulated output of a running agent', {
-    agentId: z.string().describe('The agent ID to get output from'),
+    targetAgentId: z.string().describe('The agent ID to get output from'),
     tail: z.number().optional().describe('Number of lines from the end to return (default 50)'),
   }, async (params) => {
     const tail = params.tail ?? 50;
     try {
       if (agentManager) {
-        const result = agentManager.getAgentOutput(params.agentId as import('@flightdeck-ai/shared').AgentId, tail);
+        const result = agentManager.getAgentOutput(params.targetAgentId as import('@flightdeck-ai/shared').AgentId, tail);
         return jsonResponse(result);
       }
       if (relay) {
-        const result = await relay.getAgentOutput(params.agentId, tail);
+        const result = await relay.getAgentOutput(params.targetAgentId, tail);
         return jsonResponse(result);
       }
       return errorResponse('No AgentManager or relay available');
@@ -697,7 +706,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_agent_hibernate', 'Hibernate a worker — saves session, kills process, pauses assigned task', {
     targetAgentId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_hibernate');
     if (error) return error;
@@ -737,7 +746,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_agent_wake', 'Wake a hibernated worker — resumes session, resumes task', {
     targetAgentId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_wake');
     if (error) return error;
@@ -777,7 +786,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_agent_retire', 'Permanently dismiss a worker — invisible to lead after this', {
     targetAgentId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_retire');
     if (error) return error;
@@ -818,7 +827,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_agent_restart', 'Restart an agent', {
     targetAgentId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_restart');
     if (error) return error;
@@ -849,7 +858,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_agent_interrupt', 'Send urgent message to an agent', {
     targetAgentId: z.string(),
     message: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_agent_interrupt');
     if (error) return error;
@@ -865,8 +874,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       return jsonResponse({ status: 'interrupted', targetAgentId: params.targetAgentId });
     }
     const msg: Message = {
-      id: messageId(params.agentId, params.targetAgentId, Date.now().toString()),
-      from: params.agentId as AgentId,
+      id: messageId(resolveCallerId(params.agentId)!, params.targetAgentId, Date.now().toString()),
+      from: resolveCallerId(params.agentId) as AgentId,
       to: params.targetAgentId as AgentId,
       channel: null,
       content: `[URGENT] ${params.message}`,
@@ -879,11 +888,15 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Communication tools (consolidated) ──
 
   // --- New consolidated: flightdeck_send ---
-  async function handleSend(params: { from: string; to?: string; channel?: string; taskId?: string; parentId?: string; content: string; agentId: string }) {
-    const { error } = resolveAgent(fd, params.agentId, 'flightdeck_send');
+  async function handleSend(params: { from?: string; to?: string; channel?: string; taskId?: string; parentId?: string; content: string; agentId?: string }) {
+    const callerId = resolveCallerId(params.agentId);
+    const from = params.from || callerId;
+    if (!from) return errorResponse('Error: No sender identity. Provide "from" or set FLIGHTDECK_AGENT_ID env var.');
+    const { error } = resolveAgent(fd, callerId, 'flightdeck_send');
     if (error) return error;
-    if (params.agentId !== params.from) {
-      return errorResponse(`Error: Agent '${params.agentId}' cannot send messages as '${params.from}'. The agentId and from fields must match.`);
+    // Prevent impersonation: if "from" is explicitly set, it must match the caller
+    if (params.from && callerId && params.from !== callerId) {
+      return errorResponse(`Error: Agent '${callerId}' cannot send messages as '${params.from}'. The from and agentId fields must match.`);
     }
     if (!params.to && !params.channel && !params.taskId) {
       return errorResponse('Error: Either "to" (for DM), "channel" (for group), or "taskId" (for task comment) must be set.');
@@ -892,13 +905,13 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     // Task comment path
     if (params.taskId) {
       if (!fd.messages) return errorResponse('MessageStore not available');
-      const senderAgent = fd.sqlite.getAgent(params.from as AgentId);
+      const senderAgent = fd.sqlite.getAgent(from as AgentId);
       const msg = fd.messages.createMessage({
         threadId: null,
         parentId: params.parentId ?? null,
         taskId: params.taskId,
         authorType: (senderAgent?.role === 'lead' ? 'lead' : 'agent') as 'lead' | 'agent',
-        authorId: params.from,
+        authorId: from,
         content: params.content,
         metadata: null,
       });
@@ -913,8 +926,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if (params.to) {
       // DM path
       const msg: Message = {
-        id: messageId(params.from, params.to, Date.now().toString()),
-        from: params.from as AgentId,
+        id: messageId(from, params.to, Date.now().toString()),
+        from: from as AgentId,
         to: params.to as AgentId,
         channel: null,
         content: params.content,
@@ -923,9 +936,9 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       };
       fd.sendMessage(msg);
       const notifier = fd.orchestrator.getWebhookNotifier();
-      if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, params.from, params.to, params.content));
-      const senderAgent = fd.sqlite.getAgent(params.from as AgentId);
-      const dmText = formatAgentMessage('dm', { from: params.from, fromRole: senderAgent?.role, content: params.content });
+      if (notifier) notifier.notify(agentMessageEvent(fd.status().config.name, from, params.to, params.content));
+      const senderAgent = fd.sqlite.getAgent(from as AgentId);
+      const dmText = formatAgentMessage('dm', { from: from, fromRole: senderAgent?.role, content: params.content });
       if (agentManager) {
         try {
           await agentManager.sendToAgent(params.to as AgentId, dmText);
@@ -947,8 +960,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       // Channel path
       const ch = params.channel!;
       const msg: Message = {
-        id: messageId(params.from, ch, Date.now().toString()),
-        from: params.from as AgentId,
+        id: messageId(from, ch, Date.now().toString()),
+        from: from as AgentId,
         to: null,
         channel: ch,
         content: params.content,
@@ -957,32 +970,33 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       };
       fd.sendMessage(msg, ch);
       const chNotifier = fd.orchestrator.getWebhookNotifier();
-      if (chNotifier) chNotifier.notify(agentMessageEvent(fd.status().config.name, params.from, '', params.content, ch));
+      if (chNotifier) chNotifier.notify(agentMessageEvent(fd.status().config.name, from, '', params.content, ch));
       return jsonResponse({ status: 'sent', channel: ch });
     }
   }
 
   server.tool('flightdeck_send', 'Send a message. If "to" is set, sends a DM. If "channel" is set, posts to a group channel. If "taskId" is set, posts a task comment.', {
-    from: z.string(),
+    from: z.string().optional().describe('Your agent ID (auto-filled from env if omitted)'),
     to: z.string().optional().describe('Agent ID for DM'),
     channel: z.string().optional().describe('Channel name for group message'),
     taskId: z.string().optional().describe('Task ID to post a comment on'),
     parentId: z.string().optional().describe('Message ID to reply to (quote)'),
     content: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => handleSend(params));
 
   // --- New consolidated: flightdeck_read ---
-  async function handleRead(params: { channel?: string; since?: string; agentId: string }) {
+  async function handleRead(params: { channel?: string; since?: string; agentId?: string }) {
     if (params.channel) {
       const messages = fd.readMessages(params.channel, params.since);
       return jsonResponse(messages);
     } else {
       // DM inbox
-      const { error } = resolveAgent(fd, params.agentId, 'flightdeck_read');
+      const callerId = resolveCallerId(params.agentId);
+      const { error } = resolveAgent(fd, callerId, 'flightdeck_read');
       if (error) return error;
-      const unread = fd.getUnreadDMs(params.agentId as AgentId);
-      fd.markDMsRead(params.agentId as AgentId);
+      const unread = fd.getUnreadDMs(callerId as AgentId);
+      fd.markDMsRead(callerId as AgentId);
       if (unread.length === 0) {
         return jsonResponse({ status: 'empty', messages: [] });
       }
@@ -1001,7 +1015,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_read', 'Read messages. If "channel" is set, reads group channel. Otherwise reads your DM inbox.', {
     channel: z.string().optional().describe('Channel name to read. Omit for DM inbox.'),
     since: z.string().optional().describe('ISO timestamp to filter messages since'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => handleRead(params));
 
     // ── Search tools (consolidated) ──
@@ -1065,7 +1079,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     source: z.enum(['all', 'chat', 'memory', 'session']).optional().describe('Data source to search. Default: all'),
     authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter chat results by author type'),
     limit: z.number().optional().describe('Max results per source (default 10)'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => handleSearch(params));
 
   // ── Chat message tools (WebSocket-backed) ──
@@ -1118,14 +1132,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_memory_log', 'Append an entry to today\'s daily log (append-only)', {
     entry: z.string().describe('Log entry text'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_memory_log');
     if (error) return error;
     const permErr = checkPerm(agent!, 'memory_write', 'flightdeck_memory_log');
     if (permErr) return permErr;
     try {
-      fd.memory.appendDailyLog(`[${agent!.role}/${params.agentId}] ${params.entry}`);
+      fd.memory.appendDailyLog(`[${agent!.role}/${resolveCallerId(params.agentId)}] ${params.entry}`);
       return jsonResponse({ status: 'logged', filename: fd.memory.getDailyLogFilename() });
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
@@ -1135,7 +1149,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_memory_write', 'Write to project memory', {
     filename: z.string(),
     content: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_memory_write');
     if (error) return error;
@@ -1155,12 +1169,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     category: z.enum(['pattern', 'gotcha', 'decision', 'performance', 'security']),
     content: z.string(),
     tags: z.array(z.string()).optional(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_learning_add');
     if (error) return error;
     const learning = fd.learnings.append({
-      agentId: params.agentId,
+      agentId: resolveCallerId(params.agentId),
       category: params.category as LearningCategory,
       content: params.content,
       tags: params.tags ?? [],
@@ -1177,13 +1191,13 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Cost tools ──
 
   server.tool('flightdeck_cost_report', 'Get cost report', {
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_cost_report');
     if (error) return error;
     // Lead only check via permission
     if (!roleRegistry.hasPermission(agent!.role, 'agent_spawn')) {
-      return permError(params.agentId, agent!.role, 'flightdeck_cost_report', 'lead-level access');
+      return permError(resolveCallerId(params.agentId)!, agent!.role, 'flightdeck_cost_report', 'lead-level access');
     }
     return jsonResponse({
       totalCost: fd.sqlite.getTotalCost(),
@@ -1199,30 +1213,30 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     delayMs: z.number(),
     message: z.string(),
     repeat: z.boolean().optional(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_set');
     if (error) return error;
-    const timer = fd.timers.setTimer(params.agentId, params.label, params.delayMs, params.message, params.repeat);
+    const timer = fd.timers.setTimer(resolveCallerId(params.agentId), params.label, params.delayMs, params.message, params.repeat);
     return jsonResponse(timer);
   });
 
   server.tool('flightdeck_timer_cancel', 'Cancel a timer', {
     label: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_cancel');
     if (error) return error;
-    const cancelled = fd.timers.cancelTimer(params.agentId, params.label);
+    const cancelled = fd.timers.cancelTimer(resolveCallerId(params.agentId), params.label);
     return jsonResponse({ cancelled });
   });
 
   server.tool('flightdeck_timer_list', 'List timers', {
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_timer_list');
     if (error) return error;
-    return jsonResponse(fd.timers.listTimers(params.agentId));
+    return jsonResponse(fd.timers.listTimers(resolveCallerId(params.agentId)));
   });
 
   // ── Cron tools ──
@@ -1324,7 +1338,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_spec_create', 'Create a new spec document', {
     title: z.string().describe('Spec title'),
     content: z.string().describe('Spec content (markdown)'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_spec_create');
     if (error) return error;
@@ -1345,7 +1359,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_task_clear_stale', 'Clear stale flag on a task after re-planning', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_task_clear_stale');
     if (error) return error;
@@ -1358,13 +1372,13 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_escalate', 'Escalate to lead/planner', {
     taskId: z.string(),
     reason: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_escalate');
     if (error) return error;
     const msg: Message = {
-      id: messageId(params.agentId, 'escalation', Date.now().toString()),
-      from: params.agentId as AgentId,
+      id: messageId(resolveCallerId(params.agentId)!, 'escalation', Date.now().toString()),
+      from: resolveCallerId(params.agentId) as AgentId,
       to: null,
       channel: 'escalations',
       content: `ESCALATION for task ${params.taskId}: ${params.reason}`,
@@ -1377,7 +1391,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   server.tool('flightdeck_discuss', 'Create a group discussion', {
     topic: z.string(),
     invitees: z.array(z.string()).optional(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_discuss');
     if (error) return error;
@@ -1389,7 +1403,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const now = new Date().toISOString();
     const initMsg: Message = {
       id: messageId('system', channel, now),
-      from: params.agentId as AgentId,
+      from: resolveCallerId(params.agentId) as AgentId,
       to: null,
       channel,
       content: `Discussion created: "${params.topic}"\nInvitees: ${(params.invitees ?? []).join(', ') || 'open'}\nCreated: ${now}`,
@@ -1407,7 +1421,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_decision_log', 'Record a decision', {
     taskId: z.string(),
-    agentId: z.string(),
+    agentId: z.string().optional(),
     type: z.enum(['architecture', 'implementation', 'dependency', 'api_design', 'tradeoff']),
     title: z.string(),
     reasoning: z.string(),
@@ -1417,11 +1431,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   }, async (params) => {
     const { error } = resolveAgent(fd, params.agentId, 'flightdeck_decision_log');
     if (error) return error;
+    const resolvedId = resolveCallerId(params.agentId)!;
     const id = makeDecisionId(params.taskId, params.title, Date.now().toString());
     const decision = {
       id: id as DecisionId,
       taskId: params.taskId as TaskId,
-      agentId: params.agentId as AgentId,
+      agentId: resolvedId as AgentId,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK type mismatch with internal types
       type: params.type as any,
       title: params.title,
@@ -1485,13 +1500,13 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_skill_install', 'Install a skill from a source directory', {
     source: z.string().describe('Path to skill directory containing SKILL.md'),
-    agentId: z.string(),
+    agentId: z.string().optional(),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_skill_install');
     if (error) return error;
     // Only lead can install skills
     if (agent!.role !== 'lead') {
-      return permError(params.agentId, agent!.role, 'flightdeck_skill_install', 'skill_install');
+      return permError(resolveCallerId(params.agentId)!, agent!.role, 'flightdeck_skill_install', 'skill_install');
     }
     const result = skillManager.installSkill(params.source);
     if (!result) return errorResponse('Failed to install skill. Check that the source directory exists and contains a SKILL.md.');
@@ -1511,12 +1526,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     agent_id: z.string().describe('Agent ID to change model for'),
     model: z.string().describe('Tier name (high/medium/fast) or specific model ID'),
     reason: z.string().optional().describe('Why the model is being changed (logged)'),
-    agentId: z.string().describe('Your agent ID (caller)'),
+    agentId: z.string().optional().describe('Your agent ID (caller, auto-filled from env)'),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_model_set');
     if (error) return error;
     if (agent!.role !== 'lead') {
-      return permError(params.agentId, agent!.role, 'flightdeck_model_set', 'agent_spawn');
+      return permError(resolveCallerId(params.agentId)!, agent!.role, 'flightdeck_model_set', 'agent_spawn');
     }
     if (!acpAdapter) {
       return errorResponse('Model changes require an ACP adapter. Start flightdeck with `flightdeck start`.');
@@ -1565,12 +1580,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_suggestion_approve', 'Approve a scout suggestion (creates follow-up tasks)', {
     id: z.string().describe('Suggestion ID to approve'),
-    agentId: z.string().describe('Your agent ID (caller)'),
+    agentId: z.string().optional().describe('Your agent ID (caller, auto-filled from env)'),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_suggestion_approve');
     if (error) return error;
     if (agent!.role !== 'lead') {
-      return permError(params.agentId, agent!.role, 'flightdeck_suggestion_approve', 'task_add');
+      return permError(resolveCallerId(params.agentId)!, agent!.role, 'flightdeck_suggestion_approve', 'task_add');
     }
     const suggestion = fd.suggestions.updateStatus(params.id, 'approved');
     if (!suggestion) return errorResponse(`Suggestion '${params.id}' not found.`);
@@ -1579,12 +1594,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_suggestion_reject', 'Reject a scout suggestion', {
     id: z.string().describe('Suggestion ID to reject'),
-    agentId: z.string().describe('Your agent ID (caller)'),
+    agentId: z.string().optional().describe('Your agent ID (caller, auto-filled from env)'),
   }, async (params) => {
     const { agent, error } = resolveAgent(fd, params.agentId, 'flightdeck_suggestion_reject');
     if (error) return error;
     if (agent!.role !== 'lead') {
-      return permError(params.agentId, agent!.role, 'flightdeck_suggestion_reject', 'task_add');
+      return permError(resolveCallerId(params.agentId)!, agent!.role, 'flightdeck_suggestion_reject', 'task_add');
     }
     const suggestion = fd.suggestions.updateStatus(params.id, 'rejected');
     if (!suggestion) return errorResponse(`Suggestion '${params.id}' not found.`);
