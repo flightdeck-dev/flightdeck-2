@@ -773,6 +773,7 @@ export class Orchestrator {
    */
   private recoverOrphanedTasks(): void {
     const runningTasks = this.dag.listTasks().filter(t => t.state === 'running');
+    let recovered = 0;
     for (const task of runningTasks) {
       // If the agent has no active session, it's orphaned
       const hasLiveSession = task.acpSessionId && this.sessionManager?.getSession(task.acpSessionId);
@@ -782,16 +783,24 @@ export class Orchestrator {
         if (task.assignedAgent) {
           this.store.updateAgentStatus(task.assignedAgent, 'offline');
         }
+        recovered++;
       }
     }
-    if (runningTasks.length > 0) {
-      const recovered = runningTasks.filter(t => {
-        const has = t.acpSessionId && this.sessionManager?.getSession(t.acpSessionId);
-        return !has;
-      }).length;
-      if (recovered > 0) {
-        console.log(`[orchestrator] Recovered ${recovered} orphaned running task(s) on startup`);
+
+    // Also reset any agents stuck in 'busy' with no live session
+    const allAgents = this.store.listAgents();
+    for (const agent of allAgents) {
+      if (agent.status === 'busy') {
+        const hasLiveSession = agent.acpSessionId && this.sessionManager?.getSession(agent.acpSessionId);
+        if (!hasLiveSession) {
+          this.store.updateAgentStatus(agent.id, 'idle');
+          recovered++;
+        }
       }
+    }
+
+    if (recovered > 0) {
+      console.log(`[orchestrator] Recovered ${recovered} orphaned task(s)/agent(s) on startup`);
     }
   }
 

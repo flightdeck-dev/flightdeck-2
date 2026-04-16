@@ -103,6 +103,16 @@ function AgentDetailPanel({
   const autoScrollRef = useRef(true);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Historical output (loaded from API when no live data)
+  const [historicalOutput, setHistoricalOutput] = useState('');
+  useEffect(() => {
+    if (!liveOutput && !liveChunks.length && projectName) {
+      api.getAgentOutput(projectName, agent.id).then((data: any) => {
+        if (data?.lines?.length) setHistoricalOutput(data.lines.join('\n'));
+      }).catch(() => {});
+    }
+  }, [agent.id, projectName, liveOutput, liveChunks.length]);
+
   // Model dropdown state
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
@@ -197,6 +207,7 @@ function AgentDetailPanel({
   };
 
   // Build chat timeline: interleave agent output chunks with sent messages by timestamp
+  const effectiveOutput = liveOutput || historicalOutput;
   const hasChunks = liveChunks.length > 0;
 
   return (
@@ -282,9 +293,9 @@ function AgentDetailPanel({
                     <div className="space-y-1">
                       <AgentStreamContent chunks={liveChunks} displayConfig={displayConfig} toolCallMap={toolCallMap} />
                     </div>
-                  ) : liveOutput ? (
+                  ) : effectiveOutput ? (
                     <div className="text-sm break-words">
-                      <Markdown content={liveOutput} />
+                      <Markdown content={effectiveOutput} />
                     </div>
                   ) : (
                     <div className="text-center py-8 text-[var(--color-text-tertiary)] text-sm">
@@ -302,7 +313,7 @@ function AgentDetailPanel({
                   ))}
 
                   {/* Streaming indicator */}
-                  {(agent.status === 'busy' || agent.status === 'working') && liveOutput && (
+                  {(agent.status === 'busy' || agent.status === 'working') && effectiveOutput && (
                     <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
                       <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-status-running)] animate-pulse" />
                       Agent is working…
