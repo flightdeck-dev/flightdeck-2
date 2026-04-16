@@ -45,12 +45,14 @@ export default function Settings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset, status } = useFlightdeck();
   const [models, setModels] = useState<Record<string, unknown> | null>(null);
   const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
-  const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(status?.config?.heartbeatIdleTimeoutDays ?? 3);
+  const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>((status?.config?.heartbeatIdleTimeoutDays ?? 3) > 0);
+  const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(status?.config?.heartbeatIdleTimeoutDays || 3);
   const [idleSaving, setIdleSaving] = useState(false);
 
   useEffect(() => {
     if (status?.config?.heartbeatIdleTimeoutDays !== undefined) {
-      setIdleTimeoutDays(status.config.heartbeatIdleTimeoutDays);
+      setIdleTimeoutEnabled(status.config.heartbeatIdleTimeoutDays > 0);
+      setIdleTimeoutDays(status.config.heartbeatIdleTimeoutDays || 3);
     }
   }, [status?.config?.heartbeatIdleTimeoutDays]);
 
@@ -103,8 +105,22 @@ export default function Settings() {
         <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm">Idle timeout (days)</p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">Stop heartbeat if no user interaction for this many days</p>
+              <p className="text-sm">Idle timeout</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">Stop heartbeat if no user interaction for a while</p>
+            </div>
+            <Toggle value={idleTimeoutEnabled} onChange={async v => {
+              setIdleTimeoutEnabled(v);
+              if (!v && status?.config?.name) {
+                setIdleSaving(true);
+                try { await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: 0 }); } catch {}
+                setIdleSaving(false);
+              }
+            }} />
+          </div>
+          {idleTimeoutEnabled && (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">Timeout (days)</p>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -121,7 +137,7 @@ export default function Settings() {
                   if (!status?.config?.name) return;
                   setIdleSaving(true);
                   try {
-                    await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: idleTimeoutDays });
+                    await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: idleTimeoutEnabled ? idleTimeoutDays : 0 });
                   } catch { /* ignore */ }
                   setIdleSaving(false);
                 }}
@@ -131,6 +147,7 @@ export default function Settings() {
               </button>
             </div>
           </div>
+          )}
         </div>
       </section>
 
