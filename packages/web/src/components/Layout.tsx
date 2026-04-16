@@ -101,17 +101,23 @@ export function Layout() {
           <span className="text-[var(--color-text-primary)] text-sm font-mono font-semibold">
             Flightdeck <span className="text-[var(--color-text-tertiary)] opacity-60 font-normal">v2.0.0-alpha</span>
           </span>
-          <span className="text-[var(--color-border)]">·</span>
-          <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
-            {projectName ?? status?.config?.name ?? ''}
-          </span>
+          {projectName && (
+            <>
+              <span className="text-[var(--color-border)]">·</span>
+              <span className="text-[var(--color-text-tertiary)] text-sm font-mono">
+                {projectName ?? status?.config?.name ?? ''}
+              </span>
+            </>
+          )}
           {status && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
               {status.config.governance}
             </span>
           )}
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
-                title={connected ? 'Connected' : 'Disconnected'} />
+          {projectName && (
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
+                  title={connected ? 'Connected' : 'Disconnected'} />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowPalette(true)}

@@ -67,11 +67,26 @@ function RootRedirectInner() {
 }
 
 
+function GlobalSettingsPage() {
+  return (
+    <FlightdeckProvider projectName={null}>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Settings />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </FlightdeckProvider>
+  );
+}
+
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route index element={<RootRedirect />} />
+        <Route path="settings/*" element={<GlobalSettingsPage />} />
         <Route path=":projectName/*" element={<ProjectScope />} />
       </Routes>
     </BrowserRouter>
