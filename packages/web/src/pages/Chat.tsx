@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
@@ -66,7 +66,7 @@ function scrollToMessage(id: string) {
   setTimeout(() => el.classList.remove('animate-highlight'), 1500);
 }
 
-const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void }) {
+const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply, highlighted }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void; highlighted?: boolean }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
   const parentMsg = msg.parentId && messages ? messages.find(m => m.id === msg.parentId) : null;
@@ -85,7 +85,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
   const replies = replyCountMap?.get(msg.id);
 
   return (
-    <div id={`msg-${msg.id}`} className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div id={`msg-${msg.id}`} className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''} ${highlighted ? 'ring-2 ring-[var(--color-primary)] bg-[var(--color-primary)]/5' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
            style={{ backgroundColor: style.bg, color: style.color }}>
         {style.icon}
@@ -398,8 +398,29 @@ export default function Chat() {
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [showThreads, setShowThreads] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchIdx, setSearchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Cmd+F to open chat search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && showSearch) {
+        setShowSearch(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showSearch]);
 
   // Fetch threads
   useEffect(() => {
@@ -413,6 +434,22 @@ export default function Chat() {
       : messages.filter(m => !m.threadId && !m.taskId),
     [messages, activeThread]
   );
+
+  // Search matches
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return filteredMessages
+      .filter(m => m.content?.toLowerCase().includes(q))
+      .map(m => m.id);
+  }, [filteredMessages, searchQuery]);
+
+  // Scroll to current search match
+  useEffect(() => {
+    if (searchMatches.length > 0 && searchMatches[searchIdx]) {
+      scrollToMessage(searchMatches[searchIdx]);
+    }
+  }, [searchIdx, searchMatches]);
 
   const replyCountMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -523,6 +560,34 @@ export default function Chat() {
           </div>
         )}
 
+        {/* Search bar */}
+        {showSearch && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+            <Search size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSearchIdx(0); }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && searchMatches.length > 0) {
+                  setSearchIdx(prev => (e.shiftKey ? (prev - 1 + searchMatches.length) % searchMatches.length : (prev + 1) % searchMatches.length));
+                }
+                if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(''); }
+              }}
+              placeholder="Search in conversation..."
+              className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none"
+            />
+            {searchQuery && (
+              <span className="text-xs text-[var(--color-text-tertiary)] shrink-0">
+                {searchMatches.length > 0 ? `${searchIdx + 1}/${searchMatches.length}` : 'No results'}
+              </span>
+            )}
+            <button onClick={() => { setShowSearch(false); setSearchQuery(''); }} className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Messages */}
         <MessageAreaErrorBoundary>
           <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -537,7 +602,7 @@ export default function Chat() {
               </div>
             )}
             {filteredMessages.map(msg => (
-              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} />
+              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(msg.id)} />
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}
