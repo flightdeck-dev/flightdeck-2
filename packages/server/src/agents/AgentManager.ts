@@ -298,6 +298,7 @@ export class AgentManager {
     const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-code';
     try {
       const meta = await this.adapter.spawn({
+        agentId: newId,
         role: opts.role,
         cwd: effectiveCwd,
         model: resolvedModel,
@@ -470,6 +471,7 @@ export class AgentManager {
     });
 
     const meta = await this.adapter.spawn({
+      agentId,
       role: agent.role,
       cwd: process.cwd(),
       model: undefined,

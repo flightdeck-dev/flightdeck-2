@@ -2,6 +2,8 @@ import type { AgentId, AgentRole, AgentRuntime } from '@flightdeck-ai/shared';
 import type { McpServer } from '@agentclientprotocol/sdk';
 
 export interface SpawnOptions {
+  /** Agent ID from AgentManager (used to align process env with DB). */
+  agentId?: string;
   role: AgentRole;
   cwd: string;
   model?: string;

@@ -389,7 +389,7 @@ export class AcpAdapter extends AgentAdapter {
     const prompt = opts.systemPrompt ?? `You are a ${opts.role} agent. Complete your assigned tasks.`;
     const args = interpolateArgs(runtime.args, { prompt, cwd: opts.cwd });
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
-    const aid = agentId(opts.role, Date.now().toString());
+    const aid = (opts.agentId ?? agentId(opts.role, Date.now().toString())) as AgentId;
 
     // Inject role + agent ID into agent process env.
     // The MCP subprocess inherits parent env, so the MCP server
@@ -639,6 +639,7 @@ export class AcpAdapter extends AgentAdapter {
     previousSessionId: string;
     cwd: string;
     role: string;
+    agentId?: string;
     model?: string;
     projectName?: string;
     mcpServers?: McpServer[];
@@ -651,7 +652,7 @@ export class AcpAdapter extends AgentAdapter {
     }
 
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
-    const aid = agentId(opts.role, Date.now().toString());
+    const aid = (opts.agentId ?? agentId(opts.role, Date.now().toString())) as AgentId;
 
     const child = cpSpawn(runtime.command, runtime.args, {
       cwd: opts.cwd,
@@ -1079,15 +1080,20 @@ export async function discoverRuntimeModels(
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: process.env,
-    detached: false,
+    detached: true,  // Create new process group for clean cleanup
   });
 
   let stderr = '';
   child.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
 
   const cleanup = () => {
-    try { child.kill('SIGTERM'); } catch { /* */ }
-    setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* */ } }, 2000);
+    try {
+      // Kill the entire process group (child + any MCP subprocesses it spawned)
+      if (child.pid) process.kill(-child.pid, 'SIGTERM');
+    } catch { /* */ }
+    setTimeout(() => {
+      try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* */ }
+    }, 2000);
   };
 
   const timer = setTimeout(() => {
