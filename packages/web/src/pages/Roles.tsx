@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
-import { Plus, X, Zap, Loader2 } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 interface EnabledModel {
   runtime: string;
@@ -60,8 +60,6 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeRuntime, setActiveRuntime] = useState<string | null>(null);
-  const [testingRuntime, setTestingRuntime] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ runtime: string; success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     api.getAvailableModels(project).then(setAvailableModels).catch(() => {});
@@ -72,8 +70,8 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     setPromptDirty(false);
   }, [role.id, role.instructions]);
 
-  // Build models grouped by runtime
-  const modelsByRuntime: Record<string, { model: string; discovered: boolean }[]> = {};
+  // Build models grouped by runtime — show ALL discovered models
+  const modelsByRuntime: Record<string, { modelId: string; displayName?: string; tier?: string; configured: boolean }[]> = {};
   const seen = new Set<string>();
 
   for (const [runtime, groups] of Object.entries(availableModels)) {
@@ -82,11 +80,18 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         if (Array.isArray(models)) {
           for (const m of models) {
             if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
-              const modelId = (m as { id?: string; modelId?: string }).modelId ?? (m as { id: string }).id;
+              const mo = m as { id?: string; modelId?: string; displayName?: string; tier?: string };
+              const modelId = mo.modelId ?? mo.id!;
               const key = `${runtime}:${modelId}`;
               if (!seen.has(key)) {
                 seen.add(key);
-                (modelsByRuntime[runtime] ??= []).push({ model: modelId, discovered: true });
+                const isConfigured = role.enabledModels.some(em => em.runtime === runtime && em.model === modelId);
+                (modelsByRuntime[runtime] ??= []).push({
+                  modelId,
+                  displayName: mo.displayName,
+                  tier: mo.tier,
+                  configured: isConfigured,
+                });
               }
             }
           }
@@ -99,7 +104,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     const key = `${em.runtime}:${em.model}`;
     if (!seen.has(key)) {
       seen.add(key);
-      (modelsByRuntime[em.runtime] ??= []).push({ model: em.model, discovered: false });
+      (modelsByRuntime[em.runtime] ??= []).push({ modelId: em.model, configured: true });
     }
   }
 
@@ -107,19 +112,19 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   const currentRuntime = activeRuntime && runtimes.includes(activeRuntime) ? activeRuntime : runtimes[0] ?? null;
   const currentModels = currentRuntime ? modelsByRuntime[currentRuntime] ?? [] : [];
 
-  const isEnabled = (runtime: string, model: string) =>
-    role.enabledModels.some(m => m.runtime === runtime && m.model === model && m.enabled);
+  const isEnabled = (runtime: string, modelId: string) =>
+    role.enabledModels.some(m => m.runtime === runtime && m.model === modelId && m.enabled);
 
-  const isDefault = (runtime: string, model: string) =>
-    role.enabledModels.some(m => m.runtime === runtime && m.model === model && m.isDefault);
+  const isDefault = (runtime: string, modelId: string) =>
+    role.enabledModels.some(m => m.runtime === runtime && m.model === modelId && m.isDefault);
 
-  const toggleModel = async (runtime: string, model: string) => {
+  const toggleModel = async (runtime: string, modelId: string) => {
     const current = [...role.enabledModels];
-    const idx = current.findIndex(m => m.runtime === runtime && m.model === model);
+    const idx = current.findIndex(m => m.runtime === runtime && m.model === modelId);
     if (idx >= 0) {
       current[idx] = { ...current[idx], enabled: !current[idx].enabled };
     } else {
-      current.push({ runtime, model, enabled: true });
+      current.push({ runtime, model: modelId, enabled: true });
     }
     try {
       await api.updateRoleModels(project, role.id, current);
@@ -127,11 +132,11 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     } catch (e) { console.error('Failed to update models:', e); }
   };
 
-  const setDefault = async (runtime: string, model: string) => {
-    const current = role.enabledModels.map(m => ({ ...m, isDefault: m.runtime === runtime && m.model === model }));
-    const idx = current.findIndex(m => m.runtime === runtime && m.model === model);
+  const setDefault = async (runtime: string, modelId: string) => {
+    const current = role.enabledModels.map(m => ({ ...m, isDefault: m.runtime === runtime && m.model === modelId }));
+    const idx = current.findIndex(m => m.runtime === runtime && m.model === modelId);
     if (idx < 0) {
-      current.push({ runtime, model, enabled: true, isDefault: true });
+      current.push({ runtime, model: modelId, enabled: true, isDefault: true });
     } else {
       current[idx].enabled = true;
     }
@@ -149,19 +154,6 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
       onUpdate();
     } catch (e) { console.error('Failed to save prompt:', e); }
     setSaving(false);
-  };
-
-  const testRuntime = async (runtimeId: string) => {
-    setTestingRuntime(runtimeId);
-    setTestResult(null);
-    try {
-      const result = await api.testRuntime(project, runtimeId);
-      setTestResult({ runtime: runtimeId, success: result.success, message: result.message });
-    } catch (e) {
-      setTestResult({ runtime: runtimeId, success: false, message: e instanceof Error ? e.message : 'Test failed' });
-    } finally {
-      setTestingRuntime(null);
-    }
   };
 
   const enabledCount = role.enabledModels.filter(m => m.enabled).length;
@@ -194,78 +186,59 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         ) : (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
             {/* Runtime tabs */}
-            <div className="flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
-              <div className="flex flex-1">
-                {runtimes.map(rt => {
-                  const count = modelsByRuntime[rt]?.length ?? 0;
-                  const isActive = rt === currentRuntime;
-                  return (
-                    <button
-                      key={rt}
-                      onClick={() => setActiveRuntime(rt)}
-                      className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-                        isActive
-                          ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
-                          : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-                      }`}
-                    >
-                      {rt}
-                      <span className="ml-1 opacity-60">({count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {currentRuntime && (
-                <button
-                  onClick={() => testRuntime(currentRuntime)}
-                  disabled={testingRuntime !== null}
-                  className="flex items-center gap-1 px-2 py-1 mr-2 text-[10px] rounded-md bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition-colors disabled:opacity-50"
-                  title="Test connection"
-                >
-                  {testingRuntime === currentRuntime ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
-                  Test
-                </button>
-              )}
+            <div className="flex border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+              {runtimes.map(rt => {
+                const count = modelsByRuntime[rt]?.length ?? 0;
+                const isActive = rt === currentRuntime;
+                return (
+                  <button
+                    key={rt}
+                    onClick={() => setActiveRuntime(rt)}
+                    className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                      isActive
+                        ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
+                        : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {rt}
+                    <span className="ml-1 opacity-60">({count})</span>
+                  </button>
+                );
+              })}
             </div>
-
-            {/* Test result */}
-            {testResult && testResult.runtime === currentRuntime && (
-              <div className={`px-4 py-2 text-xs flex items-center justify-between ${
-                testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-              }`}>
-                <span>{testResult.success ? '✅' : '❌'} {testResult.message}</span>
-                <button onClick={() => setTestResult(null)} className="opacity-60 hover:opacity-100">
-                  <X size={12} />
-                </button>
-              </div>
-            )}
 
             {/* Model list */}
             <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
-              {currentModels.map(({ model, discovered }) => (
-                <div key={model} className="flex items-center gap-3 py-1">
+              {currentModels.map(({ modelId, displayName, tier, configured }) => (
+                <div key={modelId} className="flex items-center gap-3 py-1">
                   <input
                     type="checkbox"
-                    checked={isEnabled(currentRuntime!, model)}
-                    onChange={() => toggleModel(currentRuntime!, model)}
+                    checked={isEnabled(currentRuntime!, modelId)}
+                    onChange={() => toggleModel(currentRuntime!, modelId)}
                     className="w-4 h-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
                   />
-                  <span className={`flex-1 text-sm font-mono truncate ${
-                    discovered ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'
-                  }`}>
-                    {model}
-                  </span>
-                  {!discovered && (
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-mono text-[var(--color-text-primary)] truncate block">
+                      {displayName ?? modelId}
+                    </span>
+                    {displayName && (
+                      <span className="text-[10px] text-[var(--color-text-tertiary)] font-mono">{modelId}</span>
+                    )}
+                  </div>
+                  {tier && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">{tier}</span>
+                  )}
+                  {configured && !tier && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">configured</span>
                   )}
                   <button
-                    onClick={() => setDefault(currentRuntime!, model)}
+                    onClick={() => setDefault(currentRuntime!, modelId)}
                     className={`text-sm ${
-                      isDefault(currentRuntime!, model) ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)] hover:text-yellow-500'
+                      isDefault(currentRuntime!, modelId) ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)] hover:text-yellow-500'
                     } transition-colors`}
-                    title={isDefault(currentRuntime!, model) ? 'Default model' : 'Set as default'}
+                    title={isDefault(currentRuntime!, modelId) ? 'Default model' : 'Set as default'}
                   >
-                    {isDefault(currentRuntime!, model) ? '\u2605' : '\u2606'}
+                    {isDefault(currentRuntime!, modelId) ? '★' : '☆'}
                   </button>
                 </div>
               ))}
@@ -303,7 +276,6 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     </div>
   );
 }
-
 
 export default function Roles() {
   const { projectName } = useFlightdeck();
@@ -545,3 +517,4 @@ function CreateRoleModal({ project, onClose, onCreated }: { project: string; onC
     </div>
   );
 }
+
