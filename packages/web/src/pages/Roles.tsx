@@ -117,7 +117,13 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     }
   }
 
-  const runtimes = Object.keys(modelsByRuntime).sort();
+  const runtimePriority: Record<string, number> = { copilot: 0, codex: 1, 'claude-code': 2, claude: 3, gemini: 4 };
+  const runtimes = Object.keys(modelsByRuntime).sort((a, b) => {
+    const pa = runtimePriority[a] ?? 999;
+    const pb = runtimePriority[b] ?? 999;
+    if (pa !== pb) return pa - pb;
+    return a.localeCompare(b);
+  });
   const currentRuntime = activeRuntime && runtimes.includes(activeRuntime) ? activeRuntime : runtimes[0] ?? null;
   const currentModels = currentRuntime ? modelsByRuntime[currentRuntime] ?? [] : [];
 
@@ -190,12 +196,12 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
         {runtimes.length === 0 ? (
           <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-            <p className="text-xs text-[var(--color-text-tertiary)]">No models available. Start the daemon to discover models.</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">No models discovered yet. Models are auto-discovered on daemon startup.</p>
           </div>
         ) : (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
             {/* Runtime tabs */}
-            <div className="flex border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+            <div className="flex flex-wrap border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
               {runtimes.map(rt => {
                 const count = modelsByRuntime[rt]?.length ?? 0;
                 const isActive = rt === currentRuntime;
@@ -219,7 +225,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
             {/* Model list */}
             <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
               {currentModels.length === 0 && (
-                <p className="text-xs text-[var(--color-text-tertiary)]">No models discovered yet. Spawn an agent with this runtime to discover its models.</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">No models discovered yet. Models are auto-discovered on daemon startup.</p>
               )}
               {currentModels.map(({ modelId, displayName, tier, configured }) => (
                 <div key={modelId} className="flex items-center gap-3 py-1">

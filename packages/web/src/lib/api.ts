@@ -89,8 +89,8 @@ export const api = {
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/terminate`)),
   restartAgent: (project: string, agentId: string) =>
     post<Agent>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/restart`)),
-  createProject: (name: string, cwd: string, governance?: string) =>
-    post<{ message: string }>('/api/projects', { name, cwd, ...(governance ? { governance } : {}) }),
+  createProject: (name: string, cwd: string, governance?: string, leadRuntime?: string, leadModel?: string) =>
+    post<{ message: string }>('/api/projects', { name, cwd, ...(governance ? { governance } : {}), ...(leadRuntime ? { leadRuntime } : {}), ...(leadModel ? { leadModel } : {}) }),
   deleteProject: async (name: string): Promise<{ message: string }> => {
     const res = await fetch(`${BASE}/api/projects/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(`DELETE /api/projects/${name}: ${res.status}`);

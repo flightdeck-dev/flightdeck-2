@@ -236,7 +236,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState('');
-  const [governance, setGovernance] = useState('collaborative');
+  const [governance, setGovernance] = useState('autonomous');
+  const [leadRuntime, setLeadRuntime] = useState('');
+  const [leadModel, setLeadModel] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -245,7 +247,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
     if (!name.trim() || !cwd.trim()) return;
     setLoading(true);
     try {
-      await api.createProject(name.trim(), cwd.trim(), governance);
+      await api.createProject(name.trim(), cwd.trim(), governance, leadRuntime || undefined, leadModel || undefined);
       onCreated();
       onClose();
       navigate(`/${encodeURIComponent(name.trim())}`);
@@ -284,6 +286,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
               className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
               placeholder="/home/user/projects/my-project"
             />
+            <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Absolute path to your project</p>
           </div>
           <div>
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Governance mode</label>
@@ -296,6 +299,30 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
               <option value="collaborative">Collaborative</option>
               <option value="supervised">Supervised</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Lead runtime</label>
+            <select
+              value={leadRuntime}
+              onChange={e => setLeadRuntime(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+            >
+              <option value="">Default</option>
+              <option value="copilot">copilot</option>
+              <option value="codex">codex</option>
+              <option value="claude-code">claude-code</option>
+              <option value="gemini">gemini</option>
+              <option value="opencode">opencode</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Lead model <span className="text-[var(--color-text-tertiary)]">(optional)</span></label>
+            <input
+              value={leadModel}
+              onChange={e => setLeadModel(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+              placeholder="e.g. claude-sonnet-4-20250514"
+            />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">

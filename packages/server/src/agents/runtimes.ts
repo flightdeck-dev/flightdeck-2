@@ -36,6 +36,8 @@ export interface RuntimeDefinition {
   installHint?: string;
   /** Whether this runtime should be disabled by default in new projects */
   disabledByDefault?: boolean;
+  /** Whether model discovery (probe via session/new) works cleanly. Defaults to true for ACP runtimes. */
+  supportsModelDiscovery?: boolean;
 }
 
 /**
@@ -99,6 +101,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     notes:
       'Claude Code ACP bridge. Binary is "claude-agent-acp" (npm: @anthropic-ai/claude-code-acp). ' +
       'System prompt injected via _meta.systemPrompt in session/new, NOT via AGENTS.md.',
+    supportsModelDiscovery: false,
   },
 
   gemini: {

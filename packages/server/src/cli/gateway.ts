@@ -295,8 +295,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           },
         },
       }, null, 2);
-      writeFileSync(resolvePath(process.cwd(), '.mcp.json'), mcpJson);
-      console.error(`  Wrote .mcp.json (MCP server: ${mcpBinPath})`);
+      const mcpCwd = projectCwd;
+      writeFileSync(resolvePath(mcpCwd, '.mcp.json'), mcpJson);
+      console.error(`  Wrote .mcp.json (MCP server: ${mcpBinPath}) → ${mcpCwd}`);
     } catch (err) {
       console.error(`  Warning: failed to write .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -390,7 +391,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       import('../agents/runtimes.js').then(({ RUNTIME_REGISTRY }) => {
         import('node:child_process').then(({ execFileSync }) => {
           const runtimeIds = Object.entries(RUNTIME_REGISTRY)
-            .filter(([, r]) => r.supportsAcp)
+            .filter(([, r]) => r.supportsAcp && r.supportsModelDiscovery !== false)
             .map(([id]) => id);
           const installed = runtimeIds.filter(id => {
             try { execFileSync('which', [RUNTIME_REGISTRY[id].command], { stdio: 'pipe', timeout: 3000 }); return true; } catch { return false; }
