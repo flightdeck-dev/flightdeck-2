@@ -577,6 +577,28 @@ export class AcpAdapter extends AgentAdapter {
         }
       }
 
+      // Set session mode based on role:
+      // Workers get full-access (can run commands), lead/planner/reviewer stay read-only
+      const READ_ONLY_ROLES = new Set(['lead', 'planner', 'reviewer', 'scout']);
+      if (result.modes?.availableModes?.length) {
+        const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
+        const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
+        const currentMode = result.modes.currentModeId;
+        if (currentMode !== targetMode) {
+          const available = result.modes.availableModes.map(m => m.id);
+          if (available.includes(targetMode)) {
+            try {
+              await session.connection.setSessionMode({
+                sessionId: session.acpSessionId!,
+                modeId: targetMode,
+              });
+            } catch {
+              // Best effort — agent may not support mode switching
+            }
+          }
+        }
+      }
+
       // Queue the initial prompt instead of sending it synchronously.
       // This lets initializeSession() return quickly after newSession(),
       // so steer() calls don't have to wait for the first prompt to finish.
