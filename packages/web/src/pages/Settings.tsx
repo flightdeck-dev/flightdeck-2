@@ -259,8 +259,8 @@ export default function Settings() {
       {/* Project settings only when in project scope */}
       {projectName && <ProjectSettings />}
 
-      {/* Global settings always shown */}
-      <GlobalSettings />
+      {/* Global settings only when NOT in project scope */}
+      {!projectName && <GlobalSettings />}
     </div>
   );
 }
