@@ -21,6 +21,7 @@ const PROJECT_NAV: SubNavItem[] = [
   { path: '/decisions', label: 'Decisions', icon: Scale },
   { path: '/cron', label: 'Cron', icon: Clock },
   { path: '/roles', label: 'Roles', icon: Crown },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: ProjectSummary; isActive: boolean; collapsed: boolean; onDeleted: () => void }) {
@@ -201,7 +202,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       {/* Bottom: Settings */}
       <div className="border-t border-[var(--color-border)] py-2">
         <NavLink
-          to={projectName ? `/${projectName}/settings` : '/settings'}
+          to="/settings"
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors ${
               isActive
