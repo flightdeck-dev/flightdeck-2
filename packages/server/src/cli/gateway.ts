@@ -82,6 +82,25 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
+  // When an agent's prompt turn ends, check for unsubmitted tasks and nudge
+  acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
+    for (const name of projectManager.list()) {
+      const fd = projectManager.get(name);
+      if (!fd) continue;
+      const tasks = fd.dag.listTasks().filter(
+        t => t.state === 'running' && t.assignedAgent === agentId
+      );
+      if (tasks.length > 0) {
+        // Agent finished its turn but has running tasks — nudge to submit
+        const taskList = tasks.map(t => `"${t.title}" (${t.id})`).join(', ');
+        acpAdapter.steer(sessionId, {
+          content: `[SYSTEM] Your turn ended but you have unsubmitted tasks: ${taskList}. Please call flightdeck_task_submit for each completed task now.`,
+        }).catch(() => { /* best effort */ });
+        break;
+      }
+    }
+  };
+
   // Broadcast all agent streaming output to WebSocket clients
   acpAdapter.onAnySessionOutput = (agentId, update) => {
     // Broadcast to all project WS servers

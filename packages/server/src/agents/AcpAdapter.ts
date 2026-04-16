@@ -125,6 +125,9 @@ export class AcpAdapter extends AgentAdapter {
   /** Callback fired when a session ends (process exit, crash, etc.) */
   onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
 
+  /** Callback fired when any session's prompt turn completes (agent goes idle). */
+  onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
+
   /** Callback fired when any session produces output (for global streaming). */
   onAnySessionOutput: ((agentId: string, update: NonNullable<AcpSession['onOutputChunk']> extends (u: infer U) => void ? U : never) => void) | null = null;
 
@@ -911,6 +914,11 @@ export class AcpAdapter extends AgentAdapter {
         session.isPrompting = false;
       }
       session.lastActivityAt = new Date();
+    }
+
+    // Turn complete, queue drained — notify listeners
+    if (this.onSessionTurnEnd && (session.status as string) !== 'ended') {
+      try { this.onSessionTurnEnd(session.id, session.agentId); } catch { /* non-fatal */ }
     }
 
     return session.output.slice(outputBefore);
