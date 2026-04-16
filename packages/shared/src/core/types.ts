@@ -163,8 +163,10 @@ export interface ProjectConfig {
   };
   /** The working directory where .flightdeck.json lives (project root). */
   cwd?: string;
-  /** Stop heartbeat if no user interaction for this many days. Default: 3. */
+  /** Stop heartbeat if no user interaction for this many days. Default: 3. 0 = disabled. */
   heartbeatIdleTimeoutDays?: number;
+  /** Enable/disable Lead heartbeat polling. Default: true. */
+  heartbeatEnabled?: boolean;
 }
 
 export interface FlightdeckJson {

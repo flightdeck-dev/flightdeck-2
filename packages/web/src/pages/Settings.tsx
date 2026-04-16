@@ -41,24 +41,20 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   );
 }
 
-export default function Settings() {
-  const { displayConfig, setDisplayConfig, applyDisplayPreset, status } = useFlightdeck();
-  const [models, setModels] = useState<Record<string, unknown> | null>(null);
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">{children}</h2>;
+}
+
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4 ${className}`}>{children}</div>;
+}
+
+/** Global settings — display, runtimes (no project context needed) */
+function GlobalSettings() {
+  const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
   const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
-  const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>((status?.config?.heartbeatIdleTimeoutDays ?? 3) > 0);
-  const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(status?.config?.heartbeatIdleTimeoutDays || 3);
-  const [idleSaving, setIdleSaving] = useState(false);
 
   useEffect(() => {
-    if (status?.config?.heartbeatIdleTimeoutDays !== undefined) {
-      setIdleTimeoutEnabled(status.config.heartbeatIdleTimeoutDays > 0);
-      setIdleTimeoutDays(status.config.heartbeatIdleTimeoutDays || 3);
-    }
-  }, [status?.config?.heartbeatIdleTimeoutDays]);
-
-  useEffect(() => {
-    api.getModels().then(setModels).catch(() => {});
-    // Load runtimes - try with first project or standalone
     fetch('/api/projects').then(r => r.json()).then(data => {
       const projects = data.projects ?? [];
       if (projects.length > 0) {
@@ -75,85 +71,10 @@ export default function Settings() {
   }) ?? 'custom';
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-xl font-semibold">Settings</h1>
-
-      {/* Project Info */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Project</h2>
-        <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Name</span>
-            <span className="text-sm font-mono text-[var(--color-text-secondary)]">{status?.config?.name ?? '—'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Governance</span>
-            <span className="text-sm px-2.5 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
-              {status?.config?.governance ?? '—'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Total Cost</span>
-            <span className="text-sm font-mono">${(status?.totalCost ?? 0).toFixed(2)}</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Heartbeat */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Heartbeat</h2>
-        <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm">Idle timeout</p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">Stop heartbeat if no user interaction for a while</p>
-            </div>
-            <Toggle value={idleTimeoutEnabled} onChange={async v => {
-              setIdleTimeoutEnabled(v);
-              if (!v && status?.config?.name) {
-                setIdleSaving(true);
-                try { await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: 0 }); } catch {}
-                setIdleSaving(false);
-              }
-            }} />
-          </div>
-          {idleTimeoutEnabled && (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm">Timeout (days)</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={idleTimeoutDays}
-                onChange={e => setIdleTimeoutDays(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
-                className="w-16 px-2 py-1 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-right"
-              />
-              <button
-                disabled={idleSaving}
-                onClick={async () => {
-                  if (!status?.config?.name) return;
-                  setIdleSaving(true);
-                  try {
-                    await api.updateProjectConfig(status.config.name, { heartbeatIdleTimeoutDays: idleTimeoutEnabled ? idleTimeoutDays : 0 });
-                  } catch { /* ignore */ }
-                  setIdleSaving(false);
-                }}
-                className="px-3 py-1 text-xs rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {idleSaving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-          )}
-        </div>
-      </section>
-
+    <>
       {/* Display Presets */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Display Presets</h2>
+        <SectionHeader>Display Presets</SectionHeader>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {DISPLAY_PRESET_NAMES.map(p => (
             <button key={p} onClick={() => applyDisplayPreset(p as DisplayPreset)}
@@ -171,8 +92,8 @@ export default function Settings() {
 
       {/* Display Overrides */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Display Overrides</h2>
-        <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4">
+        <SectionHeader>Display Overrides</SectionHeader>
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm">Thinking</p>
@@ -194,26 +115,14 @@ export default function Settings() {
             </div>
             <VisibilitySelector value={displayConfig.flightdeckTools} onChange={v => setDisplayConfig({ flightdeckTools: v })} />
           </div>
-        </div>
+        </Card>
       </section>
-
-      {/* Model Config */}
-      {models && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Models</h2>
-          <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-            <pre className="text-xs font-mono text-[var(--color-text-secondary)] whitespace-pre-wrap max-h-64 overflow-y-auto">
-              {JSON.stringify(models, null, 2)}
-            </pre>
-          </div>
-        </section>
-      )}
 
       {/* Runtimes */}
       {runtimes && runtimes.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Runtimes</h2>
-          <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
+          <SectionHeader>Runtimes</SectionHeader>
+          <Card>
             {runtimes.map(rt => (
               <div key={rt.id} className="flex items-center justify-between py-2 border-b border-[var(--color-border)] last:border-0">
                 <div>
@@ -224,13 +133,134 @@ export default function Settings() {
                   <span className={`text-xs px-2 py-0.5 rounded-full ${rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'}`}>
                     {rt.supportsAcp ? 'ACP' : 'PTY'}
                   </span>
-                  <span className="text-xs text-[var(--color-text-tertiary)]">{rt.adapter}</span>
                 </div>
               </div>
             ))}
-          </div>
+          </Card>
         </section>
       )}
+    </>
+  );
+}
+
+/** Project-scoped settings — project info, heartbeat, governance */
+function ProjectSettings() {
+  const { status, projectName } = useFlightdeck();
+  const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(true);
+  const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
+  const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!status?.config) return;
+    const cfg = status.config as any;
+    setHeartbeatEnabled(cfg.heartbeatEnabled !== false);
+    setIdleTimeoutEnabled((cfg.heartbeatIdleTimeoutDays ?? 3) > 0);
+    setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
+  }, [status?.config]);
+
+  const saveConfig = async (update: Record<string, unknown>) => {
+    if (!projectName) return;
+    setSaving(true);
+    try { await api.updateProjectConfig(projectName, update); } catch {}
+    setSaving(false);
+  };
+
+  if (!status) return null;
+
+  return (
+    <>
+      {/* Project Info */}
+      <section className="space-y-3">
+        <SectionHeader>Project</SectionHeader>
+        <Card className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Name</span>
+            <span className="text-sm font-mono text-[var(--color-text-secondary)]">{status.config?.name ?? '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Governance</span>
+            <span className="text-sm px-2.5 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+              {status.config?.governance ?? '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Total Cost</span>
+            <span className="text-sm font-mono">${(status.totalCost ?? 0).toFixed(2)}</span>
+          </div>
+        </Card>
+      </section>
+
+      {/* Heartbeat */}
+      <section className="space-y-3">
+        <SectionHeader>Heartbeat</SectionHeader>
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">Enable heartbeat</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">Periodic Lead polling for status checks</p>
+            </div>
+            <Toggle value={heartbeatEnabled} onChange={async v => {
+              setHeartbeatEnabled(v);
+              await saveConfig({ heartbeatEnabled: v });
+            }} />
+          </div>
+          {heartbeatEnabled && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm">Idle timeout</p>
+                  <p className="text-xs text-[var(--color-text-tertiary)]">Auto-stop heartbeat after inactivity</p>
+                </div>
+                <Toggle value={idleTimeoutEnabled} onChange={async v => {
+                  setIdleTimeoutEnabled(v);
+                  if (!v) await saveConfig({ heartbeatIdleTimeoutDays: 0 });
+                }} />
+              </div>
+              {idleTimeoutEnabled && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm">Timeout (days)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={idleTimeoutDays}
+                      onChange={e => setIdleTimeoutDays(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+                      className="w-16 px-2 py-1 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-right"
+                    />
+                    <button
+                      disabled={saving}
+                      onClick={() => saveConfig({ heartbeatIdleTimeoutDays: idleTimeoutDays })}
+                      className="px-3 py-1 text-xs rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      </section>
+    </>
+  );
+}
+
+export default function Settings() {
+  const { projectName } = useFlightdeck();
+
+  return (
+    <div className="max-w-3xl space-y-8">
+      <h1 className="text-xl font-semibold">Settings</h1>
+
+      {/* Project settings only when in project scope */}
+      {projectName && <ProjectSettings />}
+
+      {/* Global settings always shown */}
+      <GlobalSettings />
     </div>
   );
 }

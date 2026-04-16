@@ -229,7 +229,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       leadRuntime: leadRoleConfig.runtime,
       plannerRuntime: plannerRoleConfig.runtime,
       heartbeat: {
-        enabled: true,
+        enabled: projectConfig.heartbeatEnabled !== false,
         interval: 30 * 60 * 1000,
         conditions: [],
         idleTimeoutDays: projectConfig.heartbeatIdleTimeoutDays ?? 3,
