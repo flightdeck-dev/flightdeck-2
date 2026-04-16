@@ -1,7 +1,7 @@
 import { readdirSync, existsSync, statSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Flightdeck } from '../facade.js';
-import type { AcpAdapter } from '../agents/AcpAdapter.js';
+import type { AgentAdapter } from '../agents/AgentAdapter.js';
 import { FD_HOME } from '../cli/constants.js';
 
 const PROJECTS_DIR = join(FD_HOME, 'projects');
@@ -12,10 +12,10 @@ const PROJECTS_DIR = join(FD_HOME, 'projects');
  */
 export class ProjectManager {
   private instances = new Map<string, Flightdeck>();
-  private acpAdapter: AcpAdapter | null;
+  private adapter: AgentAdapter | null;
 
-  constructor(acpAdapter?: AcpAdapter | null) {
-    this.acpAdapter = acpAdapter ?? null;
+  constructor(adapter?: AgentAdapter | null) {
+    this.adapter = adapter ?? null;
   }
 
   /** List all discovered project names from ~/.flightdeck/projects/ */
@@ -34,7 +34,7 @@ export class ProjectManager {
     if (this.instances.has(name)) return this.instances.get(name)!;
     const dir = join(PROJECTS_DIR, name);
     if (!existsSync(dir)) return null;
-    const fd = new Flightdeck(name, this.acpAdapter);
+    const fd = new Flightdeck(name, this.adapter);
     this.instances.set(name, fd);
     return fd;
   }
@@ -43,7 +43,7 @@ export class ProjectManager {
   create(name: string): Flightdeck {
     if (this.instances.has(name)) return this.instances.get(name)!;
     // Flightdeck constructor auto-inits if project doesn't exist
-    const fd = new Flightdeck(name, this.acpAdapter);
+    const fd = new Flightdeck(name, this.adapter);
     this.instances.set(name, fd);
     return fd;
   }

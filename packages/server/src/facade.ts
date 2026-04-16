@@ -11,6 +11,7 @@ import { TaskDAG } from './dag/TaskDAG.js';
 import { GovernanceEngine } from './governance/GovernanceEngine.js';
 import { Orchestrator } from './orchestrator/Orchestrator.js';
 import { AcpAdapter } from './agents/AcpAdapter.js';
+import type { AgentAdapter } from './agents/AgentAdapter.js';
 import { WorkflowStore, type WorkflowConfig } from './storage/WorkflowStore.js';
 import { WorkflowEngine, type StepAction } from './workflow/WorkflowEngine.js';
 import { RoleRegistry } from './roles/RoleRegistry.js';
@@ -46,7 +47,7 @@ export class Flightdeck {
   readonly suggestions: SuggestionStore;
   readonly cron: CronStore;
 
-  constructor(projectName: string, acpAdapter?: AcpAdapter | null) {
+  constructor(projectName: string, adapter?: AgentAdapter | null) {
     this.project = new ProjectStore(projectName);
     if (!this.project.exists()) {
       this.project.init(projectName);
@@ -63,7 +64,7 @@ export class Flightdeck {
     const config = this.project.getConfig();
     this.governance = new GovernanceEngine(config);
     // Use a shared AcpAdapter instance; standalone MCP creates a lightweight one
-    const sharedAdapter = acpAdapter ?? new AcpAdapter(undefined, 'copilot');
+    const sharedAdapter = adapter ?? new AcpAdapter(undefined, 'copilot');
     this.workflowStore = new WorkflowStore(this.project.subpath('.'));
     this.workflow = new WorkflowEngine(this.workflowStore.load());
     this.orchestrator = new Orchestrator(this.dag, this.sqlite, this.governance, sharedAdapter, config, undefined, {
