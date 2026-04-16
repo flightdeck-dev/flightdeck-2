@@ -197,7 +197,38 @@ export class SkillManager {
     const skillNames = this.getSkillsForRole(role);
     const skills = this.resolveSkills(skillNames);
 
-    let md = `# AGENTS.md (auto-generated for ${role})\n\nYou are a Flightdeck ${role} agent.\n`;
+    let md = `# AGENTS.md — ${role.charAt(0).toUpperCase() + role.slice(1)} Agent\n\n`;
+
+    // Role-specific workflow for agents that read AGENTS.md (e.g. codex)
+    if (role === 'worker') {
+      md += `## Your Role\nYou are a **Worker Agent**. You pick up tasks, implement them, and submit results.\n\n`;
+      md += `## Workflow\n`;
+      md += `1. Call \`flightdeck_task_list\` to see available tasks\n`;
+      md += `2. Call \`flightdeck_task_claim\` to claim a task\n`;
+      md += `3. Read the task details and implement the work\n`;
+      md += `4. Validate your work (compile, test)\n`;
+      md += `5. **Call \`flightdeck_task_submit\` with a summary** — this is REQUIRED\n`;
+      md += `6. Check \`flightdeck_task_list\` for more tasks and repeat\n\n`;
+      md += `## ⚠️ IMPORTANT\n`;
+      md += `- You MUST call \`flightdeck_task_submit\` after completing each task\n`;
+      md += `- Never finish your turn without submitting — the system will remind you if you forget\n`;
+      md += `- If blocked, call \`flightdeck_escalate\`\n\n`;
+    } else if (role === 'lead') {
+      md += `## Your Role\nYou are the **Lead Agent**. You orchestrate workers, review submissions, and manage the project.\n\n`;
+    } else if (role === 'reviewer') {
+      md += `## Your Role\nYou are a **Reviewer Agent**. You review worker submissions for quality and correctness.\n\n`;
+    } else {
+      md += `You are a Flightdeck ${role} agent.\n\n`;
+    }
+
+    md += `## MCP Tools Available\n`;
+    md += `Use \`flightdeck_*\` tools to interact with Flightdeck:\n`;
+    md += `- \`flightdeck_task_list\` — See available tasks\n`;
+    md += `- \`flightdeck_task_claim\` — Claim a task to work on\n`;
+    md += `- \`flightdeck_task_submit\` — Submit your completed work\n`;
+    md += `- \`flightdeck_escalate\` — Escalate if you're stuck\n`;
+    md += `- \`flightdeck_msg_send\` — Message other agents\n`;
+    md += `- \`flightdeck_memory_search\` — Search project memory\n\n`;
 
     if (skills.length > 0) {
       md += `\n## Available Skills\nWhen a skill matches your current task, read its SKILL.md for detailed instructions.\n\n`;
