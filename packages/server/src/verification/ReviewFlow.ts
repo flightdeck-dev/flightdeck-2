@@ -137,6 +137,7 @@ export async function processReview(
     diff?: string;
     artifacts?: string[];
     cwd?: string;
+    projectName?: string;
     /** For testing: function to retrieve agent output */
     getOutput?: (sessionId: string) => string;
   },
@@ -169,13 +170,26 @@ export async function processReview(
 
   let meta: AgentMetadata;
   try {
+    // Register reviewer in DB so MCP tools can resolve it
+    const reviewerAgentId = `reviewer-${Date.now().toString(36)}` as import('@flightdeck-ai/shared').AgentId;
+    sqlite.insertAgent({
+      id: reviewerAgentId,
+      role: 'reviewer',
+      runtime: 'acp',
+      acpSessionId: null,
+      status: 'busy',
+      currentSpecId: null,
+      costAccumulated: 0,
+      lastHeartbeat: null,
+    });
+
     meta = await adapter.spawn({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type mismatch with internal API
+      agentId: reviewerAgentId,
       role: 'reviewer' as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
       cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
       model: options?.reviewerModel,
       systemPrompt: prompt,
+      projectName: options?.projectName,
     });
   } catch (err: unknown) {
     // Spawn failure — don't block the pipeline, return pending

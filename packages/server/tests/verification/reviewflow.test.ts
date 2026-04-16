@@ -18,6 +18,7 @@ function mockStore(task: any = null): SqliteStore {
     updateTaskState: vi.fn().mockImplementation((_id: any, state: any) => { taskState = state; }),
     getTaskComments: vi.fn().mockReturnValue([]),
     addTaskComment: vi.fn(),
+    insertAgent: vi.fn(),
     // Helper to simulate reviewer calling review_submit tool
     _simulateReviewSubmit(verdict: 'approve' | 'request_changes', comment: string) {
       if (verdict === 'approve') taskState = 'done';

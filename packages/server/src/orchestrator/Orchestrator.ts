@@ -128,6 +128,7 @@ export class Orchestrator {
         // - Transitioning task state (done/failed/running)
         processReview(effect.taskId, this.store, this.adapter, {
           cwd: this.config.cwd ?? process.cwd(),
+          projectName: this.config.name,
         }).then(result => {
           if (result.passed) {
             this.webhookNotifier?.notify(
