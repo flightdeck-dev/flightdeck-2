@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { Sidebar } from './Sidebar.tsx';
+import { SectionErrorBoundary } from './ErrorBoundary.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
@@ -158,7 +159,9 @@ export function Layout() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
         <main className="flex-1 overflow-y-auto p-8">
-          <Outlet />
+          <SectionErrorBoundary>
+            <Outlet />
+          </SectionErrorBoundary>
         </main>
       </div>
     </div>

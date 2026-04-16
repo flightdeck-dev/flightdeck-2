@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Layout } from './components/Layout.tsx';
 import { FlightdeckProvider, useFlightdeck } from './hooks/useFlightdeck.tsx';
 
@@ -83,6 +84,7 @@ function GlobalSettingsPage() {
 
 export function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Routes>
         <Route index element={<RootRedirect />} />
@@ -90,5 +92,6 @@ export function App() {
         <Route path=":projectName/*" element={<ProjectScope />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
