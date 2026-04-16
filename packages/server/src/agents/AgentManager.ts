@@ -8,7 +8,8 @@ import { type WorktreeManager } from './WorktreeManager.js';
 import { DirectoryManager } from './DirectoryManager.js';
 import type { MessageStore } from '../comms/MessageStore.js';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface SpawnAgentOptions {
   role: AgentRole;
@@ -270,7 +271,8 @@ export class AgentManager {
       try {
         const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
         writeFileSync(`${effectiveCwd}/AGENTS.md`, agentsMd);
-        const mcpJson = this.skillManager.generateMcpJson(opts.role);
+        const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
+        const mcpJson = this.skillManager.generateMcpJson(opts.role, mcpBinPath, opts.projectName);
         writeFileSync(`${effectiveCwd}/.mcp.json`, mcpJson);
       } catch { /* best effort — skills are optional */ }
     }

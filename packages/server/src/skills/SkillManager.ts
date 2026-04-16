@@ -264,9 +264,16 @@ export class SkillManager {
   /**
    * Generate .mcp.json content for a given role.
    */
-  generateMcpJson(role: AgentRole): string {
+  generateMcpJson(role: AgentRole, flightdeckMcpBin?: string, projectName?: string): string {
     const servers = this.getMcpForRole(role);
     const mcpServers: Record<string, { command: string; args?: string[] }> = {};
+
+    // Always include flightdeck MCP server
+    if (flightdeckMcpBin) {
+      const args = [flightdeckMcpBin];
+      if (projectName) args.push('--project', projectName);
+      mcpServers['flightdeck'] = { command: 'node', args };
+    }
 
     for (const [name, config] of Object.entries(servers)) {
       // Parse command into command + args if needed
