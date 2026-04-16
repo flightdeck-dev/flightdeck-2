@@ -567,22 +567,78 @@ export class AcpAdapter extends AgentAdapter {
 
       // Set model if specified and different from default
       if (session.model && result.models?.currentModelId !== session.model) {
-        try {
-          await session.connection.unstable_setSessionModel({
-            sessionId: session.acpSessionId!,
-            modelId: session.model,
-          });
-        } catch {
-          // Best effort — agent may not support model switching
+        let modelSet = false;
+
+        // Prefer configOptions for model setting
+        const modelConfigOption = result.configOptions?.find(
+          (opt: { id: string }) => opt.id === 'model'
+        );
+        if (modelConfigOption) {
+          const options = (modelConfigOption as { options?: Array<{ value: string }> }).options;
+          // Config option model values may be base names (e.g. 'gpt-5.4') vs full ids
+          const modelBase = session.model.split('/')[0];
+          if (options?.some(o => o.value === session.model || o.value === modelBase)) {
+            try {
+              await session.connection.setSessionConfigOption({
+                sessionId: session.acpSessionId!,
+                configId: 'model',
+                value: options.find(o => o.value === session.model)?.value ?? modelBase,
+              } as any);
+              modelSet = true;
+            } catch {
+              // Fall through to legacy
+            }
+          }
+        }
+
+        // Fallback to legacy unstable_setSessionModel
+        if (!modelSet) {
+          try {
+            await session.connection.unstable_setSessionModel({
+              sessionId: session.acpSessionId!,
+              modelId: session.model,
+            });
+          } catch {
+            // Best effort — agent may not support model switching
+          }
         }
       }
 
       // Set session mode based on role:
       // Lead/planner stay read-only (orchestration only), workers/reviewers/scouts get full-access
       const READ_ONLY_ROLES = new Set(['lead', 'planner']);
-      if (result.modes?.availableModes?.length) {
-        const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
-        const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
+      const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
+      const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
+      let modeSet = false;
+
+      // Prefer configOptions (newer ACP spec) — works with Codex and other agents
+      const modeConfigOption = result.configOptions?.find(
+        (opt: { id: string }) => opt.id === 'mode'
+      );
+      if (modeConfigOption && 'currentValue' in modeConfigOption) {
+        const currentValue = (modeConfigOption as { currentValue?: string }).currentValue;
+        if (currentValue !== targetMode) {
+          // Check if target is in available options
+          const options = (modeConfigOption as { options?: Array<{ value: string }> }).options;
+          if (options?.some(o => o.value === targetMode)) {
+            try {
+              await session.connection.setSessionConfigOption({
+                sessionId: session.acpSessionId!,
+                configId: 'mode',
+                value: targetMode,
+              } as any);
+              modeSet = true;
+            } catch {
+              // Fall through to legacy setSessionMode
+            }
+          }
+        } else {
+          modeSet = true; // Already correct
+        }
+      }
+
+      // Fallback to legacy setSessionMode if configOptions didn't work
+      if (!modeSet && result.modes?.availableModes?.length) {
         const currentMode = result.modes.currentModeId;
         if (currentMode !== targetMode) {
           const available = result.modes.availableModes.map(m => m.id);
