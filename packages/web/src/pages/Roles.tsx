@@ -76,8 +76,8 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
       for (const models of Object.values(groups as Record<string, unknown>)) {
         if (Array.isArray(models)) {
           for (const m of models) {
-            if (typeof m === 'object' && m !== null && 'id' in m) {
-              discoveredModels.push({ runtime, model: (m as { id: string }).id });
+            if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
+              discoveredModels.push({ runtime, model: (m as { id?: string; modelId?: string }).modelId ?? (m as { id: string }).id });
             }
           }
         }
