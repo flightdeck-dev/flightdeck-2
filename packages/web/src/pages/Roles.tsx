@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
+import { Plus, X } from 'lucide-react';
 
 interface EnabledModel {
   runtime: string;
@@ -188,28 +189,19 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 
       {/* System Prompt */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">System Prompt</h3>
-          {role.source === 'built-in' && (
-            <button
-              onClick={async () => {
-                try {
-                  await api.updateRolePrompt(project, role.id, role.instructions);
-                  onUpdate();
-                } catch (e) { console.error(e); }
-              }}
-              className="text-xs px-2 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-            >
-              Copy to Project
-            </button>
-          )}
-        </div>
+        <h3 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">System Prompt</h3>
         <textarea
           value={prompt}
-          onChange={e => { setPrompt(e.target.value); setPromptDirty(true); }}
-          className="w-full h-48 p-3 text-sm font-mono rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] resize-y focus:outline-none focus:border-[var(--color-primary)]"
+          onChange={role.source !== 'built-in' ? e => { setPrompt(e.target.value); setPromptDirty(true); } : undefined}
+          readOnly={role.source === 'built-in'}
+          className={`w-full h-48 p-3 text-sm font-mono rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] resize-y focus:outline-none ${
+            role.source === 'built-in' ? 'opacity-60 cursor-default' : 'focus:border-[var(--color-primary)]'
+          }`}
         />
-        {promptDirty && (
+        {role.source === 'built-in' && (
+          <p className="text-xs text-[var(--color-text-tertiary)]">Built-in prompts are read-only. Create a custom role to use your own prompt.</p>
+        )}
+        {promptDirty && role.source !== 'built-in' && (
           <div className="flex justify-end">
             <button
               onClick={savePrompt}
@@ -284,9 +276,20 @@ export default function Roles() {
     return <div className="p-8 text-[var(--color-text-secondary)]">Select a project to manage roles.</div>;
   }
 
+  const [showCreate, setShowCreate] = useState(false);
+
   return (
     <div className="max-w-5xl space-y-8">
-      <h1 className="text-xl font-semibold">Roles</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Roles</h1>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 transition-colors"
+        >
+          <Plus size={16} strokeWidth={1.5} />
+          Custom Role
+        </button>
+      </div>
 
       <div className="flex gap-6">
         {/* Role list */}
@@ -345,6 +348,112 @@ export default function Roles() {
           </div>
         )}
       </section>
+
+      {showCreate && <CreateRoleModal project={projectName} onClose={() => setShowCreate(false)} onCreated={() => { loadRoles(); setShowCreate(false); }} />}
+    </div>
+  );
+}
+
+function CreateRoleModal({ project, onClose, onCreated }: { project: string; onClose: () => void; onCreated: () => void }) {
+  const [id, setId] = useState('');
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('🤖');
+  const [description, setDescription] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id.trim() || !name.trim()) return;
+    setLoading(true);
+    try {
+      await api.createRole(project, {
+        id: id.trim(),
+        name: name.trim(),
+        icon: icon.trim() || '🤖',
+        description: description.trim(),
+        instructions: instructions.trim(),
+      });
+      onCreated();
+    } catch (err) {
+      alert(`Failed to create: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl w-[520px] p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Create Custom Role</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]">
+            <X size={14} strokeWidth={1.5} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-[var(--color-text-secondary)] mb-1">ID</label>
+              <input
+                autoFocus
+                value={id}
+                onChange={e => setId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] font-mono"
+                placeholder="my-custom-role"
+              />
+            </div>
+            <div className="w-16">
+              <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Icon</label>
+              <input
+                value={icon}
+                onChange={e => setIcon(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] text-center"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Name</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+              placeholder="My Custom Role"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Description</label>
+            <input
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+              placeholder="What this role does..."
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">System Prompt</label>
+            <textarea
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              rows={6}
+              className="w-full px-3 py-1.5 text-sm font-mono rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] resize-none"
+              placeholder="You are a..."
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !id.trim() || !name.trim()}
+              className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Creating...' : 'Create Role'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
