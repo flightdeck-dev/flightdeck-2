@@ -23,6 +23,8 @@ export interface GovernanceConfig {
   maxRetries?: number;
   /** Hours after completion before a task gets compacted. Default: 24 */
   compactionTtlHours?: number;
+  /** Minutes a task can be 'running' before sending a submit reminder. Default: 10 */
+  stallTimeoutMinutes?: number;
 }
 
 export interface TickResult {
@@ -455,7 +457,15 @@ export class Orchestrator {
         if (!meta) continue;
 
         if (meta.status === 'running') {
-          // Active session — do not disturb
+          // Active session — check if running too long without progress
+          const runningMinutes = (Date.now() - new Date(task.updatedAt).getTime()) / 60_000;
+          if (runningMinutes > (this.governanceConfig.stallTimeoutMinutes ?? 10)) {
+            // Running too long — send a reminder to submit
+            await this.adapter.steer(task.acpSessionId, {
+              content: `[${new Date().toISOString().slice(0, 19)}Z] [SYSTEM] Task "${task.title}" (${task.id}) has been running for ${Math.round(runningMinutes)} minutes. If you've completed the work, please call flightdeck_task_submit now. If blocked, call flightdeck_escalate.`,
+            });
+            detected++;
+          }
           continue;
         }
 
