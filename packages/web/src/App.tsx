@@ -10,6 +10,7 @@ const Agents = lazy(() => import('./pages/Agents.tsx'));
 const Specs = lazy(() => import('./pages/Specs.tsx'));
 const Decisions = lazy(() => import('./pages/Decisions.tsx'));
 const Cron = lazy(() => import('./pages/Cron.tsx'));
+const Roles = lazy(() => import('./pages/Roles.tsx'));
 const Settings = lazy(() => import('./pages/Settings.tsx'));
 
 function PageFallback() {
@@ -31,6 +32,7 @@ function ProjectScope() {
             <Route path="specs" element={<Specs />} />
             <Route path="decisions" element={<Decisions />} />
             <Route path="cron" element={<Cron />} />
+            <Route path="roles" element={<Roles />} />
           </Route>
         </Routes>
       </Suspense>

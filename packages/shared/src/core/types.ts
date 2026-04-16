@@ -127,9 +127,17 @@ export interface Message {
   parentId?: string | null;
 }
 
+export interface EnabledModel {
+  runtime: string;
+  model: string;
+  enabled: boolean;
+  isDefault?: boolean;  // Lead uses this when no specific model requested
+}
+
 export interface RoleModelConfig {
-  runtime?: string;
-  model?: string;   // tier name or specific model ID
+  runtime?: string;     // keep for backward compat (legacy single-model)
+  model?: string;       // tier name or specific model ID
+  enabledModels?: EnabledModel[];  // model pool for role
 }
 
 export interface AgentsConfig {

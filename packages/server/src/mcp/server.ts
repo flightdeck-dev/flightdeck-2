@@ -502,11 +502,21 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Role tools ──
 
-  server.tool('flightdeck_role_list', 'List all available roles (built-in + custom from .github/agents/ and .claude/agents/)', {}, async () => {
+  server.tool('flightdeck_role_list', 'List all available roles (built-in + custom from .github/agents/ and .claude/agents/) with their enabled models', {}, async () => {
     // Discover repo-level custom roles on demand (cwd is the project repo root in MCP subprocess)
     roleRegistry.discoverRepoRoles(process.cwd());
+    // Get model configs for enabledModels
+    let roleConfigs: Record<string, { enabledModels?: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }> }> = {};
+    try {
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const mc = new ModelConfig(fd.project.subpath('.'));
+      for (const rc of mc.getRoleConfigs()) {
+        roleConfigs[rc.role] = { enabledModels: rc.enabledModels };
+      }
+    } catch { /* best effort */ }
     const roles = roleRegistry.list().map(r => ({
       id: r.id, name: r.name, description: r.description, icon: r.icon, permissions: r.permissions,
+      enabledModels: roleConfigs[r.id]?.enabledModels ?? [],
     }));
     return jsonResponse(roles);
   });

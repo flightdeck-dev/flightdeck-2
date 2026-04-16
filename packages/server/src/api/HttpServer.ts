@@ -422,6 +422,106 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const result: Record<string, unknown> = {};
       for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModelsGrouped(rt);
       json(200, result);
+    } else if (subPath === '/runtimes' && method === 'GET') {
+      const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
+      const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({
+        id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
+        systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
+      }));
+      json(200, runtimes);
+    } else if (subPath === '/role-preference' && method === 'GET') {
+      const { readFileSync: rfs, existsSync: efs } = await import('node:fs');
+      const { join: pjoin } = await import('node:path');
+      const prefPath = pjoin(fd.project.subpath('.'), 'role-preference.md');
+      if (efs(prefPath)) {
+        json(200, { content: rfs(prefPath, 'utf-8') });
+      } else {
+        json(200, { content: '' });
+      }
+    } else if (subPath === '/role-preference' && method === 'PUT') {
+      try {
+        const body = await readBody();
+        if (typeof body.content !== 'string') { json(400, { error: 'Missing content field' }); return; }
+        const { writeTextAtomicSync: wtas } = await import('../infra/json-files.js');
+        const { join: pjoin } = await import('node:path');
+        const prefPath = pjoin(fd.project.subpath('.'), 'role-preference.md');
+        wtas(prefPath, body.content);
+        json(200, { success: true });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } else if (subPath === '/roles' && method === 'GET') {
+      const mc = await getModelConfig(fd, projectName);
+      const roleConfigs = mc.getRoleConfigs();
+      const { RoleRegistry } = await import('../roles/RoleRegistry.js');
+      const registry = new RoleRegistry(projectName);
+      // Discover repo roles if cwd available
+      const cwd = fd.project.getConfig().cwd;
+      if (cwd) registry.discoverRepoRoles(cwd);
+      const roles = registry.list().map(r => {
+        const rc = roleConfigs.find(c => c.role === r.id);
+        return {
+          id: r.id, name: r.name, description: r.description, icon: r.icon, color: r.color,
+          source: 'built-in' as string, // TODO: distinguish global/project/repo
+          enabledModels: rc?.enabledModels ?? [],
+          permissions: r.permissions,
+          instructions: r.instructions,
+        };
+      });
+      json(200, roles);
+    } else if (subPath.match(/^\/roles\/[^/]+\/models$/) && method === 'PUT') {
+      const roleId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (!Array.isArray(body.models)) { json(400, { error: 'Expected { models: [...] }' }); return; }
+        const mc = await getModelConfig(fd, projectName);
+        mc.setRoleEnabledModels(roleId, body.models);
+        modelCfgCache.delete(projectName);
+        json(200, { success: true, enabledModels: mc.getRoleEnabledModels(roleId) });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } else if (subPath.match(/^\/roles\/[^/]+\/prompt$/) && method === 'PUT') {
+      const roleId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (typeof body.content !== 'string') { json(400, { error: 'Missing content field' }); return; }
+        // Only allow editing project-level roles
+        const { writeTextAtomicSync: wtas } = await import('../infra/json-files.js');
+        const { join: pjoin } = await import('node:path');
+        const { mkdirSync, existsSync: efs } = await import('node:fs');
+        const { FD_HOME: fdHome } = await import('../cli/constants.js');
+        const rolesDir = pjoin(fdHome, 'projects', projectName, 'roles');
+        mkdirSync(rolesDir, { recursive: true });
+        // Write the role .md with frontmatter preserved + new body
+        const { RoleRegistry } = await import('../roles/RoleRegistry.js');
+        const registry = new RoleRegistry(projectName);
+        const existing = registry.get(roleId);
+        const frontmatter = `---\nid: ${roleId}\nname: ${existing?.name ?? roleId}\ndescription: ${existing?.description ?? ''}\nicon: ${existing?.icon ?? '🔧'}\ncolor: "${existing?.color ?? '#888888'}"\npermissions:\n${Object.entries(existing?.permissions ?? {}).map(([k, v]) => `  ${k}: ${v}`).join('\n')}\n---\n`;
+        wtas(pjoin(rolesDir, `${roleId}.md`), frontmatter + body.content);
+        json(200, { success: true });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } else if (subPath === '/roles' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.id || !body.name) { json(400, { error: 'Missing required fields: id, name' }); return; }
+        const { writeTextAtomicSync: wtas } = await import('../infra/json-files.js');
+        const { join: pjoin } = await import('node:path');
+        const { mkdirSync } = await import('node:fs');
+        const { FD_HOME: fdHome } = await import('../cli/constants.js');
+        const rolesDir = pjoin(fdHome, 'projects', projectName, 'roles');
+        mkdirSync(rolesDir, { recursive: true });
+        const frontmatter = `---\nid: ${body.id}\nname: ${body.name}\ndescription: ${body.description ?? ''}\nicon: ${body.icon ?? '🔧'}\ncolor: "${body.color ?? '#888888'}"\npermissions:\n  task_claim: true\n  task_submit: true\n  escalate: true\n---\n`;
+        wtas(pjoin(rolesDir, `${body.id}.md`), frontmatter + (body.instructions ?? `You are a ${body.name} agent. Complete your assigned tasks.`));
+        json(201, { success: true, id: body.id });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } else if (subPath.match(/^\/roles\/[^/]+$/) && method === 'DELETE') {
+      const roleId = subPath.split('/')[2];
+      try {
+        const { join: pjoin } = await import('node:path');
+        const { existsSync: efs, unlinkSync } = await import('node:fs');
+        const { FD_HOME: fdHome } = await import('../cli/constants.js');
+        const rolePath = pjoin(fdHome, 'projects', projectName, 'roles', `${roleId}.md`);
+        if (!efs(rolePath)) { json(404, { error: `Role '${roleId}' not found at project level` }); return; }
+        unlinkSync(rolePath);
+        json(200, { success: true });
+      } catch (e: unknown) { json(500, { error: e instanceof Error ? e.message : 'Failed to delete role' }); }
     } else if (subPath.startsWith('/models/preset/') && method === 'POST') {
       const preset = subPath.split('/').pop()!;
       const mc = await getModelConfig(fd, projectName);

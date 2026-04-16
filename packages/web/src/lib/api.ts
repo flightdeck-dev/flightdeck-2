@@ -103,4 +103,24 @@ export const api = {
     return res.json();
   },
   runCron: (project: string, id: string) => post<{ status: string }>(projectPath(project, `/cron/${encodeURIComponent(id)}/run`)),
+
+  // Roles
+  getRoles: (project: string) => get<Array<{ id: string; name: string; description: string; icon: string; color: string; source: string; enabledModels: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }>; permissions: Record<string, boolean>; instructions: string }>>(projectPath(project, '/roles')),
+  updateRoleModels: (project: string, roleId: string, models: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }>) =>
+    put<{ success: boolean }>(projectPath(project, `/roles/${encodeURIComponent(roleId)}/models`), { models }),
+  updateRolePrompt: (project: string, roleId: string, content: string) =>
+    put<{ success: boolean }>(projectPath(project, `/roles/${encodeURIComponent(roleId)}/prompt`), { content }),
+  createRole: (project: string, role: { id: string; name: string; description?: string; icon?: string; color?: string; instructions?: string }) =>
+    post<{ success: boolean; id: string }>(projectPath(project, '/roles'), role),
+  deleteRole: async (project: string, roleId: string): Promise<{ success: boolean }> => {
+    const res = await fetch(`${BASE}${projectPath(project, `/roles/${encodeURIComponent(roleId)}`)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`DELETE role: ${res.status}`);
+    return res.json();
+  },
+  getRolePreference: (project: string) => get<{ content: string }>(projectPath(project, '/role-preference')),
+  updateRolePreference: (project: string, content: string) =>
+    put<{ success: boolean }>(projectPath(project, '/role-preference'), { content }),
+
+  // Runtimes
+  getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }>>(projectPath(project, '/runtimes')),
 };

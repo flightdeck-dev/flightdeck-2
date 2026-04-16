@@ -86,6 +86,8 @@ export function buildSystemPrompt(opts: {
   permissions: Record<string, boolean>;
   cwd?: string;
   memoryDir?: string;
+  roleConfigs?: Array<{ role: string; runtime: string; model: string; enabledModels?: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }> }>;
+  rolePreference?: string;
 }): string {
   const permittedTools = Object.entries(opts.permissions)
     .filter(([, v]) => v)
@@ -130,6 +132,22 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
       }
       prompt += `\nUse fs/read_text_file to read them if you need project-specific guidance.\n`;
     }
+  }
+
+  // Inject available roles & models for Lead
+  if (opts.roleConfigs && opts.roleConfigs.length > 0) {
+    prompt += `\n## Available Roles & Models\n`;
+    for (const rc of opts.roleConfigs) {
+      const models = rc.enabledModels?.filter(m => m.enabled) ?? [];
+      const defaultModel = models.find(m => m.isDefault) ?? models[0];
+      const modelList = models.map(m => `${m.runtime}:${m.model}${m.isDefault ? ' (default)' : ''}`).join(', ');
+      prompt += `- **${rc.role}**: ${modelList || `${rc.runtime}:${rc.model}`}\n`;
+    }
+  }
+
+  // Inject role selection preference
+  if (opts.rolePreference) {
+    prompt += `\n## Selection Preference\n${opts.rolePreference}\n`;
   }
 
   return prompt;
@@ -257,6 +275,23 @@ export class AgentManager {
       } catch { /* best effort — skills are optional */ }
     }
 
+    // 5b. Resolve model from enabledModels pool if not explicitly specified
+    let resolvedModel = opts.model;
+    let resolvedRuntime = opts.runtime;
+    if (!resolvedModel) {
+      try {
+        const { ModelConfig } = await import('./ModelConfig.js');
+        const mc = new ModelConfig(opts.cwd);
+        const enabledModels = mc.getRoleEnabledModels(opts.role);
+        const activeModels = enabledModels.filter(m => m.enabled);
+        const defaultModel = activeModels.find(m => m.isDefault) ?? activeModels[0];
+        if (defaultModel) {
+          resolvedModel = defaultModel.model;
+          if (!resolvedRuntime) resolvedRuntime = defaultModel.runtime;
+        }
+      } catch { /* fallback to adapter defaults */ }
+    }
+
     // 6. Spawn via adapter
     // For Claude Code runtime, inject role instructions via _meta.systemPrompt (append mode)
     // This provides stronger guidance than AGENTS.md alone
@@ -265,8 +300,8 @@ export class AgentManager {
       const meta = await this.adapter.spawn({
         role: opts.role,
         cwd: effectiveCwd,
-        model: opts.model,
-        runtime: opts.runtime,
+        model: resolvedModel,
+        runtime: resolvedRuntime,
         projectName: opts.projectName ?? this.projectName,
         systemPrompt,
         ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),

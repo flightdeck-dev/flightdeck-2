@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { writeTextAtomicSync } from '../infra/json-files.js';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { AgentsConfig } from '@flightdeck-ai/shared';
+import type { AgentsConfig, EnabledModel } from '@flightdeck-ai/shared';
 import { AGENT_ROLES } from '@flightdeck-ai/shared';
 
 export interface ResolvedRoleConfig {
@@ -11,6 +11,7 @@ export interface ResolvedRoleConfig {
   model: string;       // raw value from config (tier or model ID)
   resolvedModel?: string; // after tier resolution
   tier?: string;
+  enabledModels?: EnabledModel[];
 }
 
 const BALANCED_HIGH_ROLES = new Set(['worker', 'reviewer', 'qa-tester']);
@@ -72,10 +73,12 @@ export class ModelConfig {
 
     return [...allRoles].map(role => {
       const rc = agents.roles?.[role] ?? {};
+      const enabledModels = this.getRoleEnabledModels(role);
       return {
         role,
         runtime: rc.runtime ?? defaultRuntime,
         model: rc.model ?? defaultModel,
+        enabledModels,
       };
     });
   }
@@ -86,16 +89,85 @@ export class ModelConfig {
   getRoleConfig(role: string): ResolvedRoleConfig {
     const agents = this.getAgentsConfig();
     const rc = agents.roles?.[role] ?? {};
+    const enabledModels = this.getRoleEnabledModels(role);
     return {
       role,
       runtime: rc.runtime ?? agents.default_runtime ?? 'copilot',
       model: rc.model ?? agents.default_model ?? 'high',
+      enabledModels,
     };
+  }
+
+  /**
+   * Get enabled models for a role. If enabledModels is not set,
+   * falls back to a single-item array from legacy runtime+model fields.
+   */
+  getRoleEnabledModels(role: string): EnabledModel[] {
+    const agents = this.getAgentsConfig();
+    const rc = agents.roles?.[role];
+    if (rc?.enabledModels && rc.enabledModels.length > 0) {
+      return rc.enabledModels;
+    }
+    // Backward compat: synthesize from legacy fields
+    const runtime = rc?.runtime ?? agents.default_runtime ?? 'copilot';
+    const model = rc?.model ?? agents.default_model ?? 'high';
+    return [{ runtime, model, enabled: true, isDefault: true }];
+  }
+
+  /**
+   * Set the full enabledModels array for a role.
+   */
+  setRoleEnabledModels(role: string, models: EnabledModel[]): void {
+    const agents = this.getAgentsConfig();
+    if (!agents.roles) agents.roles = {};
+    const existing = agents.roles[role] ?? {};
+    existing.enabledModels = models;
+    // Keep legacy fields in sync with the default model
+    const defaultModel = models.find(m => m.isDefault && m.enabled) ?? models.find(m => m.enabled);
+    if (defaultModel) {
+      existing.runtime = defaultModel.runtime;
+      existing.model = defaultModel.model;
+    }
+    agents.roles[role] = existing;
+    this.setAgentsConfig(agents);
+  }
+
+  /**
+   * Toggle a specific model's enabled state for a role.
+   */
+  toggleModel(role: string, runtime: string, model: string, enabled: boolean): void {
+    const models = this.getRoleEnabledModels(role);
+    const idx = models.findIndex(m => m.runtime === runtime && m.model === model);
+    if (idx >= 0) {
+      models[idx].enabled = enabled;
+    } else {
+      models.push({ runtime, model, enabled });
+    }
+    this.setRoleEnabledModels(role, models);
+  }
+
+  /**
+   * Set a model as the default for a role.
+   */
+  setDefaultModel(role: string, runtime: string, model: string): void {
+    const models = this.getRoleEnabledModels(role);
+    for (const m of models) {
+      m.isDefault = (m.runtime === runtime && m.model === model);
+    }
+    // Ensure the model exists and is enabled
+    const idx = models.findIndex(m => m.runtime === runtime && m.model === model);
+    if (idx < 0) {
+      models.push({ runtime, model, enabled: true, isDefault: true });
+    } else {
+      models[idx].enabled = true;
+    }
+    this.setRoleEnabledModels(role, models);
   }
 
   /**
    * Set runtime:model for a role. Format: "runtime:model" or just "model".
    * Works for any role name (built-in or custom).
+   * Also updates enabledModels if present.
    */
   setRole(role: string, spec: string): void {
     const agents = this.getAgentsConfig();
@@ -115,6 +187,17 @@ export class ModelConfig {
     const existing = agents.roles[role] ?? {};
     if (runtime) existing.runtime = runtime;
     existing.model = model;
+    // Also update enabledModels: set as default
+    if (runtime && existing.enabledModels) {
+      for (const m of existing.enabledModels) m.isDefault = false;
+      const idx = existing.enabledModels.findIndex(m => m.runtime === runtime && m.model === model);
+      if (idx >= 0) {
+        existing.enabledModels[idx].enabled = true;
+        existing.enabledModels[idx].isDefault = true;
+      } else {
+        existing.enabledModels.push({ runtime, model, enabled: true, isDefault: true });
+      }
+    }
     agents.roles[role] = existing;
     this.setAgentsConfig(agents);
   }

@@ -8,6 +8,25 @@ import { FD_HOME } from '../cli/constants.js';
 const FLIGHTDECK_HOME = FD_HOME;
 const SUBDIRS = ['specs', 'decisions', 'memory', 'agents', 'messages', 'reports'];
 
+const ROLE_PREFERENCE_TEMPLATE = `# Role & Model Selection Preference
+
+## Role Assignment
+- Use **worker** for implementation tasks
+- Use **reviewer** for code review after worker submits
+- Use **qa-tester** only for user-facing features
+- Skip **tech-writer** unless explicitly requested
+
+## Model Selection
+- Complex architecture/refactoring → high-performance model
+- Routine bug fixes, small changes → budget model
+- Code review → mid-tier is fine
+- If a task fails once, retry with a higher-tier model
+
+## Runtime Preference
+- Prefer the default runtime for general work
+- Use alternative runtimes when the default is unavailable
+`;
+
 const HEARTBEAT_TEMPLATE = `# Heartbeat Instructions
 
 ## Periodic Checks
@@ -66,6 +85,12 @@ export class ProjectStore {
     const heartbeatPath = join(this.projectDir, 'HEARTBEAT.md');
     if (!existsSync(heartbeatPath)) {
       writeFileSync(heartbeatPath, HEARTBEAT_TEMPLATE);
+    }
+
+    // Write default role-preference.md
+    const rolePrefPath = join(this.projectDir, 'role-preference.md');
+    if (!existsSync(rolePrefPath)) {
+      writeFileSync(rolePrefPath, ROLE_PREFERENCE_TEMPLATE);
     }
 
     // Create new memory subdirectories

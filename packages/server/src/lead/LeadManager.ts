@@ -124,12 +124,38 @@ export class LeadManager {
       memoryContext = buildMemoryContext(memoryDir);
     } catch { /* project may not support subpath in tests */ }
 
+    // Build role configs and preference context for Lead
+    let roleContext = '';
+    try {
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const mc = new ModelConfig(this.project.subpath('.'));
+      const roleConfigs = mc.getRoleConfigs();
+      if (roleConfigs.length > 0) {
+        roleContext += '\n## Available Roles & Models\n';
+        for (const rc of roleConfigs) {
+          const models = rc.enabledModels?.filter(m => m.enabled) ?? [];
+          const modelList = models.map(m => `${m.runtime}:${m.model}${m.isDefault ? ' (default)' : ''}`).join(', ');
+          roleContext += `- **${rc.role}**: ${modelList || `${rc.runtime}:${rc.model}`}\n`;
+        }
+      }
+      // Read role-preference.md
+      const { readFileSync, existsSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const prefPath = join(this.project.subpath('.'), 'role-preference.md');
+      if (existsSync(prefPath)) {
+        const pref = readFileSync(prefPath, 'utf-8');
+        roleContext += `\n## Selection Preference\n${pref}\n`;
+      }
+    } catch { /* best effort */ }
+
+    const systemPrompt = [memoryContext, roleContext].filter(Boolean).join('\n') || undefined;
+
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.leadRuntime,
-      ...(memoryContext ? { systemPrompt: memoryContext } : {}),
+      ...(systemPrompt ? { systemPrompt } : {}),
     });
     this.leadSessionId = meta.sessionId;
     this.leadAgentId = meta.agentId;

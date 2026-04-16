@@ -44,6 +44,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 export default function Settings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset, status } = useFlightdeck();
   const [models, setModels] = useState<Record<string, unknown> | null>(null);
+  const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(status?.config?.heartbeatIdleTimeoutDays ?? 3);
   const [idleSaving, setIdleSaving] = useState(false);
 
@@ -55,6 +56,13 @@ export default function Settings() {
 
   useEffect(() => {
     api.getModels().then(setModels).catch(() => {});
+    // Load runtimes - try with first project or standalone
+    fetch('/api/projects').then(r => r.json()).then(data => {
+      const projects = data.projects ?? [];
+      if (projects.length > 0) {
+        api.getRuntimes(projects[0].name).then(setRuntimes).catch(() => {});
+      }
+    }).catch(() => {});
   }, []);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
@@ -180,6 +188,29 @@ export default function Settings() {
             <pre className="text-xs font-mono text-[var(--color-text-secondary)] whitespace-pre-wrap max-h-64 overflow-y-auto">
               {JSON.stringify(models, null, 2)}
             </pre>
+          </div>
+        </section>
+      )}
+
+      {/* Runtimes */}
+      {runtimes && runtimes.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Runtimes</h2>
+          <div className="p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-3">
+            {runtimes.map(rt => (
+              <div key={rt.id} className="flex items-center justify-between py-2 border-b border-[var(--color-border)] last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'}`}>
+                    {rt.supportsAcp ? 'ACP' : 'PTY'}
+                  </span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">{rt.adapter}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
