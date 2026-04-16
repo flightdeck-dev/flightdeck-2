@@ -121,10 +121,11 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const summaries = projectManager.list().map(name => {
         try {
           const fd = projectManager.get(name);
+          if (!fd) return { name };
           const stats = fd.getTaskStats();
           return {
             name,
-            governance: fd.config.governance ?? 'autonomous',
+            governance: fd.governance.governanceConfig.profile ?? 'autonomous',
             agentCount: fd.listAgents().length,
             taskStats: stats,
             totalCost: fd.sqlite.getTotalCost(),
@@ -438,7 +439,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       // Search agents
       const allAgents = fd.sqlite.listAgents(true);
       const matchedAgents = allAgents.filter(a =>
-        a.name.toLowerCase().includes(q.toLowerCase()) ||
+        a.id.toLowerCase().includes(q.toLowerCase()) ||
         (a.role ?? '').toLowerCase().includes(q.toLowerCase())
       ).slice(0, limit);
 
@@ -447,7 +448,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
       json(200, {
         tasks: matchedTasks.map(t => ({ id: t.id, title: t.title, state: t.state, type: 'task' as const })),
-        agents: matchedAgents.map(a => ({ id: a.id, name: a.name, role: a.role, status: a.status, type: 'agent' as const })),
+        agents: matchedAgents.map(a => ({ id: a.id, name: a.id, role: a.role, status: a.status, type: 'agent' as const })),
         messages: matchedMessages.map(m => ({ id: m.id, content: m.content.slice(0, 200), authorType: m.authorType, authorId: m.authorId, type: 'message' as const })),
       });
     } else if (subPath === '/models' && method === 'GET') {

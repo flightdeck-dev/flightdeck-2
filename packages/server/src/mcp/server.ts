@@ -93,8 +93,8 @@ function resolveAgent(fd: Flightdeck, _toolName: string) {
 }
 
 /** Resolve caller agent ID from env var (injected by AcpAdapter at spawn) */
-function resolveCallerId(): string | undefined {
-  return getEnvAgentId();
+function resolveCallerId(): string {
+  return getEnvAgentId() ?? 'unknown';
 }
 
 function permError(agentId: string, role: string, toolName: string, permission: string) {
