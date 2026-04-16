@@ -200,7 +200,7 @@ export class MemoryStore {
     if (this.db) {
       return this.searchFts(query, limit);
     }
-    return this.searchGrep(query);
+    return this.searchGrep(query, limit);
   }
 
   /** Get today's daily log filename */
@@ -258,12 +258,13 @@ export class MemoryStore {
   }
 
   /** Original grep-based search (fallback). */
-  private searchGrep(query: string): MemorySearchResult[] {
+  private searchGrep(query: string, limit = 50): MemorySearchResult[] {
     const results: MemorySearchResult[] = [];
     const files = this.listAllMd();
     const lowerQuery = query.toLowerCase();
 
     for (const filepath of files) {
+      if (results.length >= limit) break;
       const content = readFileSync(filepath, 'utf-8');
       const lines = content.split('\n');
       const relPath = relative(this.memoryDir, filepath);
@@ -271,6 +272,7 @@ export class MemoryStore {
       try { lastModified = statSync(filepath).mtime.toISOString(); } catch { /* ignore */ }
 
       for (let i = 0; i < lines.length; i++) {
+        if (results.length >= limit) break;
         if (lines[i].toLowerCase().includes(lowerQuery)) {
           const start = Math.max(0, i - 1);
           const end = Math.min(lines.length, i + 2);

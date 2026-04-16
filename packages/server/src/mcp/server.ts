@@ -993,9 +993,10 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
     // ── Search tools (consolidated) ──
 
-  async function handleSearch(params: { query: string; source?: string; authorType?: string; limit?: number }) {
+  async function handleSearch(params: { query: string; source?: string; authorType?: string; limit?: number; offset?: number }) {
     const source = params.source ?? 'all';
-    const limit = params.limit ?? 10;
+    const limit = Math.min(params.limit ?? 10, 50); // cap at 50 per source
+    const offset = params.offset ?? 0;
     const results: Array<{ source: string; [key: string]: unknown }> = [];
 
     // Memory search
@@ -1049,14 +1050,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       }
     }
 
-    return jsonResponse({ count: results.length, results });
+    // Apply offset pagination across combined results
+    const paged = results.slice(offset, offset + limit);
+    return jsonResponse({ count: paged.length, total: results.length, offset, limit, hasMore: offset + limit < results.length, results: paged });
   }
 
   server.tool('flightdeck_search', 'Search across all project data sources: chat messages, project memory files, and session transcripts. Results are tagged with their source.', {
     query: z.string().describe('Search query (keywords or phrases)'),
     source: z.enum(['all', 'chat', 'memory', 'session']).optional().describe('Data source to search. Default: all'),
     authorType: z.enum(['user', 'lead', 'agent', 'system']).optional().describe('Filter chat results by author type'),
-    limit: z.number().optional().describe('Max results per source (default 10)'),
+    limit: z.number().optional().describe('Max results to return (default 10, max 50)'),
+    offset: z.number().optional().describe('Skip N results for pagination (default 0)'),
   }, async (params) => handleSearch(params));
 
   // ── Chat message tools (WebSocket-backed) ──
