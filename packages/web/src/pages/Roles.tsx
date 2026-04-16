@@ -68,19 +68,30 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     setPromptDirty(false);
   }, [role.id, role.instructions]);
 
-  // Build flat list of all runtime:model combos
-  const allModels: { runtime: string; model: string }[] = [];
+  // Build flat list of all runtime:model combos (discovered + configured)
+  const discoveredModels: { runtime: string; model: string }[] = [];
   for (const [runtime, groups] of Object.entries(availableModels)) {
     if (typeof groups === 'object' && groups !== null) {
       for (const models of Object.values(groups as Record<string, unknown>)) {
         if (Array.isArray(models)) {
           for (const m of models) {
             if (typeof m === 'object' && m !== null && 'id' in m) {
-              allModels.push({ runtime, model: (m as { id: string }).id });
+              discoveredModels.push({ runtime, model: (m as { id: string }).id });
             }
           }
         }
       }
+    }
+  }
+
+  // Merge: discovered models + any configured models not yet discovered
+  const seen = new Set(discoveredModels.map(m => `${m.runtime}:${m.model}`));
+  const allModels = [...discoveredModels];
+  for (const em of role.enabledModels) {
+    const key = `${em.runtime}:${em.model}`;
+    if (!seen.has(key)) {
+      allModels.push({ runtime: em.runtime, model: em.model });
+      seen.add(key);
     }
   }
 
@@ -147,7 +158,10 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         <h3 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Model Pool</h3>
         <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-2 max-h-80 overflow-y-auto">
           {allModels.length === 0 && (
-            <p className="text-xs text-[var(--color-text-tertiary)]">No models available. Start the daemon to discover models.</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">No models configured. Start the daemon to discover available models.</p>
+          )}
+          {allModels.length > 0 && discoveredModels.length === 0 && (
+            <p className="text-xs text-[var(--color-text-tertiary)] mb-2">Showing configured models. Start the daemon to discover more.</p>
           )}
           {allModels.map(({ runtime, model }) => (
             <div key={`${runtime}:${model}`} className="flex items-center gap-3 py-1">
