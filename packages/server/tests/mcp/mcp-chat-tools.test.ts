@@ -80,7 +80,7 @@ describe('MCP chat & memory tools', () => {
   it('flightdeck_search returns memory results with line numbers', async () => {
     fd.writeMemory('test-doc.md', '# Test Document\n\nThis has some searchable content.\nAnother line here.\n');
 
-    const result = await callTool(server, 'flightdeck_search', { query: 'searchable', source: 'memory', agentId: 'lead-1' });
+    const result = await callTool(server, 'flightdeck_search', { query: 'searchable', source: 'memory' });
     const parsed = JSON.parse(getText(result));
     expect(parsed.results.length).toBeGreaterThan(0);
     const memResult = parsed.results.find((r: any) => r.source === 'memory');
@@ -97,7 +97,7 @@ describe('MCP chat & memory tools', () => {
     writeFileSync(join(retroDir, 'auth-spec.md'), '# Auth Retrospective\n\nPKCE was the right choice.\n');
     fd.memory.reindex();
 
-    const result = await callTool(server, 'flightdeck_search', { query: 'PKCE', source: 'memory', agentId: 'lead-1' });
+    const result = await callTool(server, 'flightdeck_search', { query: 'PKCE', source: 'memory' });
     const parsed = JSON.parse(getText(result));
     expect(parsed.results.length).toBeGreaterThan(0);
     const memResult = parsed.results.find((r: any) => r.source === 'memory');

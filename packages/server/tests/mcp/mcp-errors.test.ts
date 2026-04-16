@@ -13,9 +13,15 @@ async function callTool(server: any, name: string, params: Record<string, unknow
   return tool.handler(params);
 }
 
+/** Set the env var that MCP server uses to identify the caller */
+function setCallerAgent(agentId: string) {
+  process.env.FLIGHTDECK_AGENT_ID = agentId;
+}
+
 describe('MCP Server Error Messages', () => {
   let fd: Flightdeck;
   const projectName = `test-mcp-errors-${Date.now()}`;
+  const savedEnv = process.env.FLIGHTDECK_AGENT_ID;
 
   beforeEach(() => {
     fd = new Flightdeck(projectName);
@@ -30,14 +36,18 @@ describe('MCP Server Error Messages', () => {
 
   afterEach(() => {
     fd.close();
+    // Restore env
+    if (savedEnv) process.env.FLIGHTDECK_AGENT_ID = savedEnv;
+    else delete process.env.FLIGHTDECK_AGENT_ID;
     const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
 
   it('task_add rejects worker role with helpful message', async () => {
+    setCallerAgent('agent-worker-1');
     const server = createMcpServer(projectName);
     const result = await callTool(server, 'flightdeck_task_add', {
-      title: 'test', agentId: 'agent-worker-1',
+      title: 'test',
     });
     const text = result.content[0].text;
     expect(text).toContain('agent-worker-1');
@@ -47,10 +57,11 @@ describe('MCP Server Error Messages', () => {
   });
 
   it('task_claim rejects non-worker with helpful message', async () => {
+    setCallerAgent('agent-lead-1');
     const server = createMcpServer(projectName);
     const task = fd.addTask({ title: 'claimable' });
     const result = await callTool(server, 'flightdeck_task_claim', {
-      taskId: task.id, agentId: 'agent-lead-1',
+      taskId: task.id,
     });
     const text = result.content[0].text;
     expect(text).toContain('agent-lead-1');
@@ -59,9 +70,10 @@ describe('MCP Server Error Messages', () => {
   });
 
   it('task_claim on non-existent task gives helpful message', async () => {
+    setCallerAgent('agent-worker-1');
     const server = createMcpServer(projectName);
     const result = await callTool(server, 'flightdeck_task_claim', {
-      taskId: 'nonexistent-task', agentId: 'agent-worker-1',
+      taskId: 'nonexistent-task',
     });
     const text = result.content[0].text;
     expect(text).toContain('nonexistent-task');
@@ -70,10 +82,11 @@ describe('MCP Server Error Messages', () => {
   });
 
   it('task_submit on wrong state gives helpful message', async () => {
+    setCallerAgent('agent-worker-1');
     const server = createMcpServer(projectName);
     const task = fd.addTask({ title: 'not running' });
     const result = await callTool(server, 'flightdeck_task_submit', {
-      taskId: task.id, agentId: 'agent-worker-1',
+      taskId: task.id,
     });
     const text = result.content[0].text;
     expect(text).toContain('ready');
@@ -82,9 +95,10 @@ describe('MCP Server Error Messages', () => {
   });
 
   it('unknown agentId gives helpful message', async () => {
+    setCallerAgent('ghost-agent');
     const server = createMcpServer(projectName);
     const result = await callTool(server, 'flightdeck_task_add', {
-      title: 'test', agentId: 'ghost-agent',
+      title: 'test',
     });
     const text = result.content[0].text;
     expect(text).toContain('ghost-agent');
@@ -93,9 +107,10 @@ describe('MCP Server Error Messages', () => {
   });
 
   it('discuss rejects worker with helpful message', async () => {
+    setCallerAgent('agent-worker-1');
     const server = createMcpServer(projectName);
     const result = await callTool(server, 'flightdeck_discuss', {
-      topic: 'test topic', agentId: 'agent-worker-1',
+      topic: 'test topic',
     });
     const text = result.content[0].text;
     expect(text).toContain('worker');
@@ -103,14 +118,25 @@ describe('MCP Server Error Messages', () => {
     expect(text).toContain('flightdeck_escalate');
   });
 
-  it('send rejects impersonation', async () => {
+  it('send rejects when no FLIGHTDECK_AGENT_ID set', async () => {
+    delete process.env.FLIGHTDECK_AGENT_ID;
     const server = createMcpServer(projectName);
     const result = await callTool(server, 'flightdeck_send', {
-      from: 'agent-lead-1', to: 'agent-worker-1', content: 'hi', agentId: 'agent-worker-1',
+      to: 'agent-worker-1', content: 'hi',
     });
     const text = result.content[0].text;
-    expect(text).toContain('agent-worker-1');
-    expect(text).toContain('agent-lead-1');
-    expect(text).toContain('must match');
+    expect(text).toContain('FLIGHTDECK_AGENT_ID');
+  });
+
+  it('send ignores from field and uses env identity', async () => {
+    setCallerAgent('agent-worker-1');
+    const server = createMcpServer(projectName);
+    // Even if 'from' is passed, it's ignored — sender is always from env
+    const result = await callTool(server, 'flightdeck_send', {
+      from: 'agent-lead-1', to: 'agent-lead-1', content: 'hi',
+    });
+    const text = result.content[0].text;
+    // Should succeed as agent-worker-1 (env identity), not reject
+    expect(text).toContain('sent');
   });
 });

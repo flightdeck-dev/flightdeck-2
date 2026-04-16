@@ -16,10 +16,16 @@ function getText(result: any): string {
   return result.content[0].text;
 }
 
+/** Set the env var that MCP server uses to identify the caller */
+function setCallerAgent(agentId: string) {
+  process.env.FLIGHTDECK_AGENT_ID = agentId;
+}
+
 describe('MCP new tools', () => {
   let fd: Flightdeck;
   let server: any;
   const projectName = `test-mcp-new-${Date.now()}`;
+  const savedEnv = process.env.FLIGHTDECK_AGENT_ID;
 
   beforeEach(() => {
     fd = new Flightdeck(projectName);
@@ -36,6 +42,8 @@ describe('MCP new tools', () => {
 
   afterEach(() => {
     fd.close();
+    if (savedEnv) process.env.FLIGHTDECK_AGENT_ID = savedEnv;
+    else delete process.env.FLIGHTDECK_AGENT_ID;
     const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
@@ -56,66 +64,73 @@ describe('MCP new tools', () => {
   });
 
   it('task_cancel works for lead', async () => {
+    setCallerAgent('lead-1');
     const task = fd.addTask({ title: 'cancel via mcp' });
-    const result = await callTool(server, 'flightdeck_task_cancel', { taskId: task.id, agentId: 'lead-1' });
+    const result = await callTool(server, 'flightdeck_task_cancel', { taskId: task.id });
     const data = JSON.parse(getText(result));
     expect(data.state).toBe('cancelled');
   });
 
   it('task_cancel works for worker', async () => {
+    setCallerAgent('worker-1');
     const task = fd.addTask({ title: 'worker cancel' });
-    const result = await callTool(server, 'flightdeck_task_cancel', { taskId: task.id, agentId: 'worker-1' });
+    const result = await callTool(server, 'flightdeck_task_cancel', { taskId: task.id });
     const data = JSON.parse(getText(result));
     expect(data.state).toBe('cancelled');
   });
 
   it('task_pause rejects worker', async () => {
+    setCallerAgent('worker-1');
     const task = fd.addTask({ title: 'pause me' });
-    const result = await callTool(server, 'flightdeck_task_pause', { taskId: task.id, agentId: 'worker-1' });
+    const result = await callTool(server, 'flightdeck_task_pause', { taskId: task.id });
     expect(getText(result)).toContain('Error');
   });
 
   it('task_skip works for planner', async () => {
+    setCallerAgent('planner-1');
     const task = fd.addTask({ title: 'skip me' });
-    const result = await callTool(server, 'flightdeck_task_skip', { taskId: task.id, agentId: 'planner-1' });
+    const result = await callTool(server, 'flightdeck_task_skip', { taskId: task.id });
     const data = JSON.parse(getText(result));
     expect(data.state).toBe('skipped');
   });
 
   it('task_complete works for reviewer', async () => {
+    setCallerAgent('reviewer-1');
     const task = fd.addTask({ title: 'complete me' });
     fd.claimTask(task.id, 'worker-1' as AgentId);
     fd.submitTask(task.id);
-    const result = await callTool(server, 'flightdeck_task_complete', { taskId: task.id, agentId: 'reviewer-1' });
+    const result = await callTool(server, 'flightdeck_task_complete', { taskId: task.id });
     const data = JSON.parse(getText(result));
     expect(data.state).toBe('done');
   });
 
   it('task_reopen works for lead', async () => {
+    setCallerAgent('lead-1');
     const task = fd.addTask({ title: 'reopen me' });
     fd.claimTask(task.id, 'worker-1' as AgentId);
     fd.submitTask(task.id);
     fd.completeTask(task.id);
-    const result = await callTool(server, 'flightdeck_task_reopen', { taskId: task.id, agentId: 'lead-1' });
+    const result = await callTool(server, 'flightdeck_task_reopen', { taskId: task.id });
     const data = JSON.parse(getText(result));
     expect(data.state).toBe('ready');
   });
 
   it('declare_tasks creates batch', async () => {
+    setCallerAgent('planner-1');
     const result = await callTool(server, 'flightdeck_declare_tasks', {
       tasks: [
         { title: 'batch-1' },
         { title: 'batch-2', dependsOn: ['batch-1'] },
       ],
-      agentId: 'planner-1',
     });
     const tasks = JSON.parse(getText(result));
     expect(tasks).toHaveLength(2);
   });
 
   it('agent_spawn creates agent and enforces budget', async () => {
+    setCallerAgent('lead-1');
     const result = await callTool(server, 'flightdeck_agent_spawn', {
-      role: 'worker', agentId: 'lead-1',
+      role: 'worker',
     });
     const agent = JSON.parse(getText(result));
     expect(agent.role).toBe('worker');
@@ -123,15 +138,17 @@ describe('MCP new tools', () => {
   });
 
   it('agent_spawn rejected for non-lead', async () => {
+    setCallerAgent('worker-1');
     const result = await callTool(server, 'flightdeck_agent_spawn', {
-      role: 'worker', agentId: 'worker-1',
+      role: 'worker',
     });
     expect(getText(result)).toContain('Error');
   });
 
   it('agent_terminate works', async () => {
+    setCallerAgent('lead-1');
     const result = await callTool(server, 'flightdeck_agent_terminate', {
-      targetAgentId: 'worker-1', agentId: 'lead-1',
+      targetAgentId: 'worker-1',
     });
     const data = JSON.parse(getText(result));
     expect(data.status).toBe('terminated');
@@ -144,8 +161,9 @@ describe('MCP new tools', () => {
   });
 
   it('learning_add and learning_search', async () => {
+    setCallerAgent('worker-1');
     await callTool(server, 'flightdeck_learning_add', {
-      category: 'pattern', content: 'Always use branded types', tags: ['typescript'], agentId: 'worker-1',
+      category: 'pattern', content: 'Always use branded types', tags: ['typescript'],
     });
     const result = await callTool(server, 'flightdeck_learning_search', { query: 'branded' });
     const learnings = JSON.parse(getText(result));
@@ -154,7 +172,8 @@ describe('MCP new tools', () => {
   });
 
   it('cost_report works for lead', async () => {
-    const result = await callTool(server, 'flightdeck_cost_report', { agentId: 'lead-1' });
+    setCallerAgent('lead-1');
+    const result = await callTool(server, 'flightdeck_cost_report', {});
     const data = JSON.parse(getText(result));
     expect(data).toHaveProperty('totalCost');
     expect(data).toHaveProperty('byAgent');
@@ -162,26 +181,29 @@ describe('MCP new tools', () => {
   });
 
   it('cost_report rejected for worker', async () => {
-    const result = await callTool(server, 'flightdeck_cost_report', { agentId: 'worker-1' });
+    setCallerAgent('worker-1');
+    const result = await callTool(server, 'flightdeck_cost_report', {});
     expect(getText(result)).toContain('Error');
   });
 
   it('timer_set and timer_list', async () => {
+    setCallerAgent('worker-1');
     await callTool(server, 'flightdeck_timer_set', {
-      label: 'test-timer', delayMs: 60000, message: 'check status', agentId: 'worker-1',
+      label: 'test-timer', delayMs: 60000, message: 'check status',
     });
-    const result = await callTool(server, 'flightdeck_timer_list', { agentId: 'worker-1' });
+    const result = await callTool(server, 'flightdeck_timer_list', {});
     const timers = JSON.parse(getText(result));
     expect(timers).toHaveLength(1);
     expect(timers[0].label).toBe('test-timer');
   });
 
   it('timer_cancel works', async () => {
+    setCallerAgent('worker-1');
     await callTool(server, 'flightdeck_timer_set', {
-      label: 'cancel-me', delayMs: 60000, message: 'nope', agentId: 'worker-1',
+      label: 'cancel-me', delayMs: 60000, message: 'nope',
     });
     const result = await callTool(server, 'flightdeck_timer_cancel', {
-      label: 'cancel-me', agentId: 'worker-1',
+      label: 'cancel-me',
     });
     const data = JSON.parse(getText(result));
     expect(data.cancelled).toBe(true);
