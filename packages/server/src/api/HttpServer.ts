@@ -627,6 +627,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           if (isNaN(days) || days < 0 || days > 30) { json(400, { error: 'heartbeatIdleTimeoutDays must be 0-30' }); return; }
           cfg.heartbeatIdleTimeoutDays = days;
         }
+        if (body.disabledRuntimes !== undefined) {
+          if (!Array.isArray(body.disabledRuntimes) || !body.disabledRuntimes.every((r: unknown) => typeof r === 'string')) {
+            json(400, { error: 'disabledRuntimes must be string[]' }); return;
+          }
+          (cfg as any).disabledRuntimes = body.disabledRuntimes;
+        }
         fd.project.setConfig(cfg);
         json(200, { config: cfg });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }

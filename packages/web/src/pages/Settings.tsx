@@ -50,7 +50,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   return <div className={`p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] space-y-4 ${className}`}>{children}</div>;
 }
 
-function RuntimeCard({ rt, projectName }: { rt: { id: string; name: string; command: string; supportsAcp: boolean; adapter: string }; projectName: string }) {
+function RuntimeCard({ rt, projectName, enabled, onToggle }: { rt: { id: string; name: string; command: string; supportsAcp: boolean; adapter: string }; projectName: string; enabled: boolean; onToggle: (id: string, enabled: boolean) => void }) {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; installed: boolean; version?: string; message: string } | null>(null);
 
@@ -68,10 +68,22 @@ function RuntimeCard({ rt, projectName }: { rt: { id: string; name: string; comm
   }, [rt.id, projectName]);
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
+    <div className={`flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0 ${!enabled ? 'opacity-50' : ''}`}>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <button
+          onClick={() => onToggle(rt.id, !enabled)}
+          className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+            enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
+          }`}
+          title={enabled ? `Disable ${rt.name}` : `Enable ${rt.name}`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+            enabled ? 'left-4' : 'left-0.5'
+          }`} />
+        </button>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
           {result && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
               result.success
@@ -81,8 +93,9 @@ function RuntimeCard({ rt, projectName }: { rt: { id: string; name: string; comm
               {result.success ? (result.version ?? 'installed') : 'not found'}
             </span>
           )}
+          </div>
+          <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
         </div>
-        <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{rt.command}</p>
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -109,16 +122,35 @@ function GlobalSettings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
   const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string }> | null>(null);
   const [runtimeProject, setRuntimeProject] = useState<string>('');
+  const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(data => {
       const projects = data.projects ?? [];
       if (projects.length > 0) {
-        setRuntimeProject(projects[0].name);
-        api.getRuntimes(projects[0].name).then(setRuntimes).catch(() => {});
+        const pName = projects[0].name;
+        setRuntimeProject(pName);
+        api.getRuntimes(pName).then(setRuntimes).catch(() => {});
+        // Load disabled runtimes from project config
+        fetch(`/api/projects/${pName}/status`).then(r => r.json()).then(status => {
+          setDisabledRuntimes(status?.config?.disabledRuntimes ?? []);
+        }).catch(() => {});
       }
     }).catch(() => {});
   }, []);
+
+  const toggleRuntime = useCallback(async (id: string, enabled: boolean) => {
+    const newDisabled = enabled
+      ? disabledRuntimes.filter(r => r !== id)
+      : [...disabledRuntimes, id];
+    setDisabledRuntimes(newDisabled);
+    try {
+      await api.updateProjectConfig(runtimeProject, { disabledRuntimes: newDisabled });
+    } catch {
+      // Revert on failure
+      setDisabledRuntimes(disabledRuntimes);
+    }
+  }, [disabledRuntimes, runtimeProject]);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
     const preset = DISPLAY_PRESETS[p];
@@ -181,7 +213,7 @@ function GlobalSettings() {
           <SectionHeader>Runtimes</SectionHeader>
           <Card>
             {runtimes.map(rt => (
-              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} />
+              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} enabled={!disabledRuntimes.includes(rt.id)} onToggle={toggleRuntime} />
             ))}
           </Card>
         </section>
