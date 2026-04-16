@@ -578,8 +578,8 @@ export class AcpAdapter extends AgentAdapter {
       }
 
       // Set session mode based on role:
-      // Workers get full-access (can run commands), lead/planner/reviewer stay read-only
-      const READ_ONLY_ROLES = new Set(['lead', 'planner', 'reviewer', 'scout']);
+      // Lead/planner stay read-only (orchestration only), workers/reviewers/scouts get full-access
+      const READ_ONLY_ROLES = new Set(['lead', 'planner']);
       if (result.modes?.availableModes?.length) {
         const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
         const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
