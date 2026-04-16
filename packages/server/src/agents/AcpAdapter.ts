@@ -527,8 +527,7 @@ export class AcpAdapter extends AgentAdapter {
         }
       }
 
-      // Claude Code session creation can be slow — use a longer timeout
-      const newSessionPromise = session.connection.newSession({
+      const result = await session.connection.newSession({
         cwd: session.cwd,
         mcpServers: mcpServers ?? [
           {
@@ -545,16 +544,6 @@ export class AcpAdapter extends AgentAdapter {
         ],
         ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
       });
-
-      let result: Awaited<ReturnType<typeof session.connection.newSession>>;
-      if (isClaudeCode) {
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Claude Code session creation timed out after 5min')), 300_000)
-        );
-        result = await Promise.race([newSessionPromise, timeout]);
-      } else {
-        result = await newSessionPromise;
-      }
 
       session.acpSessionId = result.sessionId;
       session.status = 'active';
