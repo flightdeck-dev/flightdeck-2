@@ -464,6 +464,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
         icon: r.icon, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
         loginInstructions: r.loginInstructions, installHint: r.installHint,
+        disabledByDefault: r.disabledByDefault ?? false,
       }));
       json(200, runtimes);
     } else if (subPath.match(/^\/runtimes\/([^/]+)\/test$/) && method === 'POST') {

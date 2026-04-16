@@ -148,6 +148,7 @@ function GlobalSettings() {
   const [runtimes, setRuntimes] = useState<RuntimeInfo[] | null>(null);
   const [runtimeProject, setRuntimeProject] = useState<string>('');
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
+  const [disabledLoaded, setDisabledLoaded] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
   const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
 
@@ -175,7 +176,11 @@ function GlobalSettings() {
           }
         }).catch(() => {});
         fetch(`/api/projects/${pName}/status`).then(r => r.json()).then(status => {
-          setDisabledRuntimes(status?.config?.disabledRuntimes ?? []);
+          const configuredDisabled = status?.config?.disabledRuntimes;
+          if (configuredDisabled !== undefined) {
+            setDisabledRuntimes(configuredDisabled);
+          }
+          setDisabledLoaded(true);
         }).catch(() => {});
       }
     }).catch(() => {});
@@ -260,7 +265,9 @@ function GlobalSettings() {
           </div>
           <Card>
             {runtimes.map(rt => (
-              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject} enabled={!disabledRuntimes.includes(rt.id)} onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
+              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject}
+                enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : !(rt as any).disabledByDefault}
+                onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
             ))}
           </Card>
         </section>

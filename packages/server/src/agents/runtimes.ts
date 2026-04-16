@@ -34,6 +34,8 @@ export interface RuntimeDefinition {
   loginInstructions?: string;
   /** Install command hint */
   installHint?: string;
+  /** Whether this runtime should be disabled by default in new projects */
+  disabledByDefault?: boolean;
 }
 
 /**
@@ -79,7 +81,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
   },
 
   'claude-code': {
-    name: 'Claude Code (Anthropic)',
+    name: 'Claude Agent (ACP)',
     command: 'claude-agent-acp',
     args: [],
     systemPromptMethod: 'meta-system-prompt',
@@ -188,6 +190,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     setupLinks: [{ label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' }],
     installHint: 'npm install -g @anthropic-ai/claude-code',
     loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
+    disabledByDefault: true,
     notes: [
       'Claude Code in stream-json PTY mode. Cheaper than ACP mode (claude-agent-acp).',
       'Uses --print with stream-json I/O for structured bidirectional communication.',
