@@ -81,13 +81,14 @@ export class SessionManager {
     runtimeName: string,
     cwd: string,
     prompt: string,
+    extraVars?: Record<string, string>,
   ): AgentSession {
     const runtime = this.runtimes[runtimeName];
     if (!runtime) {
       throw new Error(`Unknown runtime "${runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
     }
 
-    const args = interpolateArgs(runtime.args, { prompt, cwd });
+    const args = interpolateArgs(runtime.args, { prompt, cwd, ...extraVars });
     const id = `session-${randomUUID().slice(0, 8)}`;
 
     const child = cpSpawn(runtime.command, args, {

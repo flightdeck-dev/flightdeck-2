@@ -176,16 +176,24 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
   },
 
   claude: {
-    name: 'Claude Code (PTY mode)',
+    name: 'Claude Code (PTY)',
     command: 'claude',
-    args: ['--message', '{prompt}'],
+    args: ['--print', '--output-format', 'stream-json', '--input-format', 'stream-json', '--permission-mode', 'auto', '--mcp-config', '{mcpConfig}', '--system-prompt', '{prompt}'],
     systemPromptMethod: 'both',
     supportsAcp: false,
     supportsSessionLoad: false,
     adapter: 'pty',
-    notes:
-      'Legacy PTY-based Claude Code integration. Prefer "claude-code" (ACP) when available. ' +
-      'Uses the native "claude" binary in interactive mode.',
+    icon: '🟠',
+    docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
+    setupLinks: [{ label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' }],
+    installHint: 'npm install -g @anthropic-ai/claude-code',
+    loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
+    notes: [
+      'Claude Code in stream-json PTY mode. Cheaper than ACP mode (claude-agent-acp).',
+      'Uses --print with stream-json I/O for structured bidirectional communication.',
+      '--permission-mode auto skips permission prompts for workers.',
+      '--mcp-config injects Flightdeck MCP server without touching user config.',
+    ],
   },
 
   // --- Non-ACP providers (documented for future adapter work) ---

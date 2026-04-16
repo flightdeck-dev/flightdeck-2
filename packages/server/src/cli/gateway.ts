@@ -33,6 +33,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { port, corsOrigin, noRecover, continueWorkers = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
+  const { PtyAdapter: PtyAdapterClass } = await import('../agents/PtyAdapter.js');
+  const { MultiAdapter: MultiAdapterClass } = await import('../agents/MultiAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
   const { WebSocketServer: WsServer } = await import('../api/WebSocketServer.js');
 
@@ -54,7 +56,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   await cleanupOrphanedAgents();
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'copilot');
-  const projectManager = new ProjectManager(acpAdapter);
+  const ptyAdapter = new PtyAdapterClass(undefined, 'claude');
+  const multiAdapter = new MultiAdapterClass(acpAdapter, ptyAdapter);
+  const projectManager = new ProjectManager(multiAdapter);
 
   // Handle agent process crashes: update SQLite status so we know
   acpAdapter.onSessionEnd = (sessionId, session) => {

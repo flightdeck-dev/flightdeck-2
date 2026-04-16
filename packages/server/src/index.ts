@@ -28,3 +28,4 @@ export { createMcpServer } from './mcp/server.js';
 export { RoleRegistry } from './roles/RoleRegistry.js';
 export { LearningsStore } from './storage/LearningsStore.js';
 export { TimerManager } from './orchestrator/TimerManager.js';
+export { MultiAdapter } from './agents/MultiAdapter.js';
