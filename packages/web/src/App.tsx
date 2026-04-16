@@ -33,6 +33,7 @@ function ProjectScope() {
             <Route path="decisions" element={<Decisions />} />
             <Route path="cron" element={<Cron />} />
             <Route path="roles" element={<Roles />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </Suspense>
@@ -65,26 +66,12 @@ function RootRedirectInner() {
   );
 }
 
-function SettingsPage() {
-  return (
-    <FlightdeckProvider projectName={null}>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Settings />} />
-          </Route>
-        </Routes>
-      </Suspense>
-    </FlightdeckProvider>
-  );
-}
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route index element={<RootRedirect />} />
-        <Route path="settings/*" element={<SettingsPage />} />
         <Route path=":projectName/*" element={<ProjectScope />} />
       </Routes>
     </BrowserRouter>

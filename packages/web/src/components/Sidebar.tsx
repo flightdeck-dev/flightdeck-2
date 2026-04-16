@@ -201,7 +201,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       {/* Bottom: Settings */}
       <div className="border-t border-[var(--color-border)] py-2">
         <NavLink
-          to="/settings"
+          to={projectName ? `/${projectName}/settings` : '/settings'}
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-1.5 mx-1 rounded-md text-sm transition-colors ${
               isActive
