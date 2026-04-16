@@ -160,6 +160,7 @@ export class TaskDAG {
   resumeTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);
+    if (task.state !== 'paused') throw new Error(`Task ${id} is not paused (state: ${task.state}). Only paused tasks can be resumed.`);
     const result = transition(task.state, 'running', { taskId: id });
     this.store.updateTaskState(id, 'running');
     this.processEffects(result.effects);
