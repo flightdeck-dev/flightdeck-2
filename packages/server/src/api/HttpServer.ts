@@ -429,6 +429,29 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
       }));
       json(200, runtimes);
+    } else if (subPath.match(/^\/runtimes\/([^/]+)\/test$/) && method === 'POST') {
+      const runtimeId = subPath.match(/^\/runtimes\/([^/]+)\/test$/)![1];
+      const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
+      const rt = RUNTIME_REGISTRY[runtimeId];
+      if (!rt) { json(404, { error: `Unknown runtime: ${runtimeId}` }); return; }
+      try {
+        const { execFileSync } = await import('node:child_process');
+        // Check if binary exists
+        try {
+          execFileSync('which', [rt.command], { stdio: 'pipe', timeout: 5000 });
+        } catch {
+          json(200, { success: false, installed: false, message: `Binary "${rt.command}" not found on PATH` });
+          return;
+        }
+        // Try getting version
+        let version: string | undefined;
+        try {
+          version = execFileSync(rt.command, ['--version'], { stdio: 'pipe', timeout: 10000 }).toString().trim().split('\n')[0];
+        } catch { /* version check optional */ }
+        json(200, { success: true, installed: true, version, message: `${rt.name} is installed${version ? ` (${version})` : ''}` });
+      } catch (e: unknown) {
+        json(500, { error: e instanceof Error ? e.message : 'Test failed' });
+      }
     } else if (subPath === '/role-preference' && method === 'GET') {
       const { readFileSync: rfs, existsSync: efs } = await import('node:fs');
       const { join: pjoin } = await import('node:path');

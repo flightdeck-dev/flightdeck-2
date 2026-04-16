@@ -71,6 +71,7 @@ export const api = {
   setAgentModel: (project: string, agentId: string, model: string) =>
     put<{ success: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/model`), { model }),
   getAvailableModels: (project: string) => get<Record<string, unknown>>(projectPath(project, '/models/available')),
+  testRuntime: (project: string, runtimeId: string) => post<{ success: boolean; installed: boolean; version?: string; message: string }>(projectPath(project, `/runtimes/${runtimeId}/test`), {}),
   hibernateAgent: (project: string, agentId: string) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/hibernate`)),
   wakeAgent: (project: string, agentId: string) =>

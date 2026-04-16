@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Zap, Loader2 } from 'lucide-react';
 
 interface EnabledModel {
   runtime: string;
@@ -60,6 +60,8 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeRuntime, setActiveRuntime] = useState<string | null>(null);
+  const [testingRuntime, setTestingRuntime] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ runtime: string; success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     api.getAvailableModels(project).then(setAvailableModels).catch(() => {});
@@ -149,6 +151,19 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     setSaving(false);
   };
 
+  const testRuntime = async (runtimeId: string) => {
+    setTestingRuntime(runtimeId);
+    setTestResult(null);
+    try {
+      const result = await api.testRuntime(project, runtimeId);
+      setTestResult({ runtime: runtimeId, success: result.success, message: result.message });
+    } catch (e) {
+      setTestResult({ runtime: runtimeId, success: false, message: e instanceof Error ? e.message : 'Test failed' });
+    } finally {
+      setTestingRuntime(null);
+    }
+  };
+
   const enabledCount = role.enabledModels.filter(m => m.enabled).length;
 
   return (
@@ -179,26 +194,51 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         ) : (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
             {/* Runtime tabs */}
-            <div className="flex border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
-              {runtimes.map(rt => {
-                const count = modelsByRuntime[rt]?.length ?? 0;
-                const isActive = rt === currentRuntime;
-                return (
-                  <button
-                    key={rt}
-                    onClick={() => setActiveRuntime(rt)}
-                    className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-                      isActive
-                        ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
-                        : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
-                    }`}
-                  >
-                    {rt}
-                    <span className="ml-1 opacity-60">({count})</span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
+              <div className="flex flex-1">
+                {runtimes.map(rt => {
+                  const count = modelsByRuntime[rt]?.length ?? 0;
+                  const isActive = rt === currentRuntime;
+                  return (
+                    <button
+                      key={rt}
+                      onClick={() => setActiveRuntime(rt)}
+                      className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                        isActive
+                          ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-surface)]'
+                          : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                      }`}
+                    >
+                      {rt}
+                      <span className="ml-1 opacity-60">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {currentRuntime && (
+                <button
+                  onClick={() => testRuntime(currentRuntime)}
+                  disabled={testingRuntime !== null}
+                  className="flex items-center gap-1 px-2 py-1 mr-2 text-[10px] rounded-md bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition-colors disabled:opacity-50"
+                  title="Test connection"
+                >
+                  {testingRuntime === currentRuntime ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+                  Test
+                </button>
+              )}
             </div>
+
+            {/* Test result */}
+            {testResult && testResult.runtime === currentRuntime && (
+              <div className={`px-4 py-2 text-xs flex items-center justify-between ${
+                testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+              }`}>
+                <span>{testResult.success ? '✅' : '❌'} {testResult.message}</span>
+                <button onClick={() => setTestResult(null)} className="opacity-60 hover:opacity-100">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
 
             {/* Model list */}
             <div className="p-4 space-y-1.5 max-h-72 overflow-y-auto">
