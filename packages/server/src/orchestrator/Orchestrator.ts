@@ -762,7 +762,37 @@ export class Orchestrator {
 
   start(intervalMs: number = 5 * 60 * 1000): void {
     if (this.intervalHandle) return;
+    // Recover orphaned running tasks from previous daemon session
+    this.recoverOrphanedTasks();
     this.intervalHandle = setInterval(() => { void this.tick(); }, intervalMs);
+  }
+
+  /**
+   * On startup, reset any tasks stuck in 'running' state from a previous daemon session.
+   * These tasks have no live ACP session, so they should be failed and retried.
+   */
+  private recoverOrphanedTasks(): void {
+    const runningTasks = this.dag.listTasks().filter(t => t.state === 'running');
+    for (const task of runningTasks) {
+      // If the agent has no active session, it's orphaned
+      const hasLiveSession = task.acpSessionId && this.sessionManager?.getSession(task.acpSessionId);
+      if (!hasLiveSession) {
+        this.dag.failTask(task.id);
+        this.dag.retryTask(task.id); // back to ready
+        if (task.assignedAgent) {
+          this.store.updateAgentStatus(task.assignedAgent, 'offline');
+        }
+      }
+    }
+    if (runningTasks.length > 0) {
+      const recovered = runningTasks.filter(t => {
+        const has = t.acpSessionId && this.sessionManager?.getSession(t.acpSessionId);
+        return !has;
+      }).length;
+      if (recovered > 0) {
+        console.log(`[orchestrator] Recovered ${recovered} orphaned running task(s) on startup`);
+      }
+    }
   }
 
   stop(): void {
