@@ -591,9 +591,17 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         const cfg = fd.project.getConfig();
+        if (body.governance !== undefined) {
+          const { GOVERNANCE_PROFILES } = await import('@flightdeck-ai/shared');
+          if (!GOVERNANCE_PROFILES.includes(body.governance)) { json(400, { error: `Invalid governance. Options: ${GOVERNANCE_PROFILES.join(', ')}` }); return; }
+          cfg.governance = body.governance;
+        }
+        if (body.heartbeatEnabled !== undefined) {
+          (cfg as any).heartbeatEnabled = !!body.heartbeatEnabled;
+        }
         if (body.heartbeatIdleTimeoutDays !== undefined) {
           const days = Number(body.heartbeatIdleTimeoutDays);
-          if (isNaN(days) || days < 1 || days > 30) { json(400, { error: 'heartbeatIdleTimeoutDays must be 1-30' }); return; }
+          if (isNaN(days) || days < 0 || days > 30) { json(400, { error: 'heartbeatIdleTimeoutDays must be 0-30' }); return; }
           cfg.heartbeatIdleTimeoutDays = days;
         }
         fd.project.setConfig(cfg);

@@ -180,9 +180,16 @@ function ProjectSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Governance</span>
-            <span className="text-sm px-2.5 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
-              {status.config?.governance ?? '—'}
-            </span>
+            <select
+              value={status.config?.governance ?? 'autonomous'}
+              onChange={e => saveConfig({ governance: e.target.value })}
+              className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer"
+            >
+              <option value="autonomous">autonomous</option>
+              <option value="collaborative">collaborative</option>
+              <option value="supervised">supervised</option>
+              <option value="custom">custom</option>
+            </select>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Total Cost</span>
