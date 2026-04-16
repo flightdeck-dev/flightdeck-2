@@ -294,11 +294,7 @@ describe('Orchestrator', () => {
     });
 
     it('does not auto-complete when verification is enabled', async () => {
-      // Temporarily switch governance to collaborative (verification enabled)
-      const origConfig = (orch as any).governance.governanceConfig;
-      const savedVerification = origConfig.verification.enabled;
-      origConfig.verification.enabled = true;
-
+      // Autonomous has verification enabled by default
       const task = dag.addTask({ title: 'Review me', role: 'worker' });
       store.insertAgent({
         id: 'agent-w2' as AgentId,
@@ -311,9 +307,6 @@ describe('Orchestrator', () => {
       await orch.tick();
       const updated = dag.getTask(task.id);
       expect(updated?.state).toBe('in_review');
-
-      // Restore
-      origConfig.verification.enabled = savedVerification;
     });
   });
 });

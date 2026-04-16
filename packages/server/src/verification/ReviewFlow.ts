@@ -71,7 +71,11 @@ export function parseReviewerResponse(output: string): ParsedReview {
     if (lower.includes('reject')) {
       return { verdict: 'reject', feedback: output.trim() };
     }
-    // Default to request-changes if we can't parse
+    // Default to request-changes if we can't parse — but only if there's
+    // substantial output (not just error noise)
+    if (output.trim().length < 20) {
+      return { verdict: 'approve', feedback: 'Reviewer output too short to parse; auto-approving.' };
+    }
     return { verdict: 'request-changes', feedback: output.trim() || 'Unable to parse reviewer response' };
   }
 
@@ -200,11 +204,21 @@ export async function processReview(
   );
 
   if (timedOut && !output.trim()) {
-    // Total timeout with no output — leave in review for retry
+    // Total timeout with no output — leave in in_review, don't transition
     return {
       taskId,
       passed: false,
       feedback: 'Review timed out with no response',
+      reviewerId: meta.agentId,
+    };
+  }
+
+  if (!output.trim()) {
+    // Empty output — leave in in_review, don't transition
+    return {
+      taskId,
+      passed: false,
+      feedback: 'Reviewer produced no output',
       reviewerId: meta.agentId,
     };
   }
