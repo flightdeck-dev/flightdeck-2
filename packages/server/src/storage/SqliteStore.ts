@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes, taskEvents } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents, taskComments } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -120,6 +120,21 @@ export class SqliteStore {
 
   getTaskEvents(taskId: TaskId): Array<{ id: number; taskId: string; fromState: string | null; toState: string; agentId: string | null; reason: string | null; timestamp: string }> {
     return this._db.select().from(taskEvents).where(eq(taskEvents.taskId, taskId)).orderBy(taskEvents.timestamp).all();
+  }
+
+  addTaskComment(taskId: TaskId, content: string, agentId?: string | null, type: 'comment' | 'review' = 'comment', verdict?: string | null): number {
+    const result = this._db.insert(taskComments).values({
+      taskId,
+      agentId: agentId ?? null,
+      type,
+      verdict: verdict ?? null,
+      content,
+    }).run();
+    return Number(result.lastInsertRowid);
+  }
+
+  getTaskComments(taskId: TaskId): Array<{ id: number; taskId: string; agentId: string | null; type: string; verdict: string | null; content: string; timestamp: string }> {
+    return this._db.select().from(taskComments).where(eq(taskComments.taskId, taskId)).orderBy(taskComments.timestamp).all();
   }
 
   deleteTask(id: TaskId): void {

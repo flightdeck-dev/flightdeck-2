@@ -12,9 +12,17 @@ import type { SqliteStore } from '../../src/storage/SqliteStore.js';
 // --- Helpers ---
 
 function mockStore(task: any = null): SqliteStore {
+  let taskState = task?.state ?? null;
   return {
-    getTask: vi.fn().mockReturnValue(task),
-    updateTaskState: vi.fn(),
+    getTask: vi.fn().mockImplementation(() => task ? { ...task, state: taskState } : null),
+    updateTaskState: vi.fn().mockImplementation((_id: any, state: any) => { taskState = state; }),
+    getTaskComments: vi.fn().mockReturnValue([]),
+    addTaskComment: vi.fn(),
+    // Helper to simulate reviewer calling review_submit tool
+    _simulateReviewSubmit(verdict: 'approve' | 'request_changes', comment: string) {
+      if (verdict === 'approve') taskState = 'done';
+      else taskState = 'running';
+    },
   } as unknown as SqliteStore;
 }
 
@@ -150,43 +158,42 @@ describe('processReview', () => {
     expect(store.updateTaskState).toHaveBeenCalledWith('task-1', 'done');
   });
 
-  it('spawns reviewer and approves on APPROVE verdict', async () => {
+  it('spawns reviewer and detects approve via tool', async () => {
     const store = mockStore({ id: 'task-1', state: 'in_review', claim: 'Fixed bug' });
-    const adapter = mockAdapter({ output: 'VERDICT: APPROVE\nLGTM', status: 'ended' });
+    const adapter = mockAdapter({ status: 'ended' });
+    // Simulate: reviewer calls review_submit(approve) → task state changes to done
+    setTimeout(() => (store as any)._simulateReviewSubmit('approve', 'LGTM'), 500);
     const result = await processReview('task-1' as TaskId, store, adapter, {
-      timeoutMs: 1000,
+      timeoutMs: 3000,
       cwd: '/tmp',
-      getOutput: () => 'VERDICT: APPROVE\nLGTM',
     });
     expect(result.passed).toBe(true);
     expect(result.reviewerId).toBe('reviewer-001');
-    expect(store.updateTaskState).toHaveBeenCalledWith('task-1', 'done');
     expect(adapter.spawn).toHaveBeenCalled();
   });
 
-  it('returns task to running on REQUEST-CHANGES verdict', async () => {
+  it('detects request_changes via tool', async () => {
     const store = mockStore({ id: 'task-1', state: 'in_review' });
     const adapter = mockAdapter({ status: 'ended' });
+    // Simulate: reviewer calls review_submit(request_changes)
+    setTimeout(() => (store as any)._simulateReviewSubmit('request_changes', 'Need tests'), 500);
     const result = await processReview('task-1' as TaskId, store, adapter, {
-      timeoutMs: 1000,
+      timeoutMs: 3000,
       cwd: '/tmp',
-      getOutput: () => 'VERDICT: REQUEST-CHANGES\nNeed tests',
     });
     expect(result.passed).toBe(false);
-    expect(result.feedback).toContain('Need tests');
-    expect(store.updateTaskState).toHaveBeenCalledWith('task-1', 'running');
   });
 
-  it('marks task failed on REJECT verdict', async () => {
+  it('handles reviewer exit without submitting review', async () => {
     const store = mockStore({ id: 'task-1', state: 'in_review' });
     const adapter = mockAdapter({ status: 'ended' });
+    // Reviewer session ends but task stays in_review (no review_submit called)
     const result = await processReview('task-1' as TaskId, store, adapter, {
       timeoutMs: 1000,
       cwd: '/tmp',
-      getOutput: () => 'VERDICT: REJECT\nWrong approach entirely',
     });
     expect(result.passed).toBe(false);
-    expect(store.updateTaskState).toHaveBeenCalledWith('task-1', 'failed');
+    expect(result.feedback).toContain('ended without submitting');
   });
 
   it('handles spawn failure gracefully', async () => {
@@ -200,32 +207,18 @@ describe('processReview', () => {
     expect(result.feedback).toContain('Failed to spawn reviewer');
   });
 
-  it('handles timeout with no output', async () => {
+  it('handles timeout when reviewer never submits', async () => {
     const store = mockStore({ id: 'task-1', state: 'in_review' });
-    // Adapter that stays 'running' forever
+    // Adapter stays 'running' — reviewer never calls review_submit
     const adapter = mockAdapter({ status: 'running' });
     const result = await processReview('task-1' as TaskId, store, adapter, {
-      timeoutMs: 100, // very short timeout
+      timeoutMs: 200,
       cwd: '/tmp',
-      getOutput: () => '',
     });
     expect(result.passed).toBe(false);
     expect(result.feedback).toContain('timed out');
-    expect(adapter.kill).toHaveBeenCalled();
   });
 
-  it('uses partial output on timeout', async () => {
-    const store = mockStore({ id: 'task-1', state: 'in_review' });
-    const adapter = mockAdapter({ status: 'running' });
-    const result = await processReview('task-1' as TaskId, store, adapter, {
-      timeoutMs: 100,
-      cwd: '/tmp',
-      getOutput: () => 'VERDICT: APPROVE\nPartial but enough',
-    });
-    // Even on timeout, if we have output with a verdict, we use it
-    expect(result.passed).toBe(true);
-    expect(store.updateTaskState).toHaveBeenCalledWith('task-1', 'done');
-  });
 });
 
 // --- rejectReview ---

@@ -187,3 +187,19 @@ export const taskEvents = sqliteTable('task_events', {
   index('idx_task_events_ts').on(table.timestamp),
 ]);
 
+// ── Task Comments (PR-style review thread) ────────────────────────
+
+export const taskComments = sqliteTable('task_comments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  taskId: text('task_id').notNull(),
+  agentId: text('agent_id'),
+  /** 'comment' | 'review' — review comments have a verdict */
+  type: text('type').notNull().default('comment'),
+  /** For review comments: 'approve' | 'request_changes' */
+  verdict: text('verdict'),
+  content: text('content').notNull(),
+  timestamp: text('timestamp').notNull().default(utcNow),
+}, (table) => [
+  index('idx_task_comments_task').on(table.taskId),
+]);
+

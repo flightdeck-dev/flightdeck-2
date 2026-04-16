@@ -217,18 +217,35 @@ export class SkillManager {
       md += `## Your Role\nYou are the **Lead Agent**. You orchestrate workers, review submissions, and manage the project.\n\n`;
     } else if (role === 'reviewer') {
       md += `## Your Role\nYou are a **Reviewer Agent**. You review worker submissions for quality and correctness.\n\n`;
+      md += `## Workflow\n`;
+      md += `1. You will receive a review assignment with the task details and worker's claim\n`;
+      md += `2. Read the artifacts (files, diffs, code) to verify the work\n`;
+      md += `3. **Call \`flightdeck_review_submit\`** with your verdict and feedback\n\n`;
+      md += `## ⚠️ IMPORTANT\n`;
+      md += `- You MUST call \`flightdeck_review_submit\` to submit your review\n`;
+      md += `- verdict: \"approve\" (work is good, task done) or \"request_changes\" (worker must fix)\n`;
+      md += `- Always include a comment explaining your reasoning\n\n`;
     } else {
       md += `You are a Flightdeck ${role} agent.\n\n`;
     }
 
     md += `## MCP Tools Available\n`;
     md += `Use \`flightdeck_*\` tools to interact with Flightdeck:\n`;
-    md += `- \`flightdeck_task_list\` — See available tasks\n`;
-    md += `- \`flightdeck_task_claim\` — Claim a task to work on\n`;
-    md += `- \`flightdeck_task_submit\` — Submit your completed work\n`;
-    md += `- \`flightdeck_escalate\` — Escalate if you're stuck\n`;
-    md += `- \`flightdeck_msg_send\` — Message other agents\n`;
-    md += `- \`flightdeck_memory_search\` — Search project memory\n\n`;
+    if (role === 'reviewer') {
+      md += `- \`flightdeck_review_submit\` — Submit your review verdict (approve/request_changes)\n`;
+      md += `- \`flightdeck_task_comment\` — Add a comment to a task\n`;
+      md += `- \`flightdeck_task_list\` — See tasks\n`;
+      md += `- \`flightdeck_escalate\` — Escalate if blocked\n`;
+    } else {
+      md += `- \`flightdeck_task_list\` — See available tasks\n`;
+      md += `- \`flightdeck_task_claim\` — Claim a task to work on\n`;
+      md += `- \`flightdeck_task_submit\` — Submit your completed work\n`;
+      md += `- \`flightdeck_task_comment\` — Add a comment to a task\n`;
+      md += `- \`flightdeck_escalate\` — Escalate if you're stuck\n`;
+      md += `- \`flightdeck_msg_send\` — Message other agents\n`;
+      md += `- \`flightdeck_memory_search\` — Search project memory\n`;
+    }
+    md += `\n`;
 
     if (skills.length > 0) {
       md += `\n## Available Skills\nWhen a skill matches your current task, read its SKILL.md for detailed instructions.\n\n`;

@@ -186,75 +186,48 @@ export async function processReview(
     };
   }
 
-  // Wait for the reviewer to complete
-  const getOutput = options?.getOutput
-    ? () => options.getOutput!(meta.sessionId)
-    : () => {
-        // For AcpAdapter, access session output directly
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing untyped task/adapter properties
-        const session = (adapter as any).getSession?.(meta.sessionId);
-        return session?.output ?? '';
-      };
-
-  const { output, timedOut } = await waitForReviewer(
-    adapter,
-    meta.sessionId,
-    getOutput,
-    timeoutMs,
-  );
-
-  if (timedOut && !output.trim()) {
-    // Total timeout with no output — leave in in_review, don't transition
-    return {
-      taskId,
-      passed: false,
-      feedback: 'Review timed out with no response',
-      reviewerId: meta.agentId,
-    };
-  }
-
-  if (!output.trim()) {
-    // Empty output — leave in in_review, don't transition
-    return {
-      taskId,
-      passed: false,
-      feedback: 'Reviewer produced no output',
-      reviewerId: meta.agentId,
-    };
-  }
-
-  const parsed = parseReviewerResponse(output);
-
-  switch (parsed.verdict) {
-    case 'approve':
-      sqlite.updateTaskState(taskId, 'done');
+  // Wait for the reviewer to submit via flightdeck_review_submit tool.
+  // The tool directly transitions the task state (done or running).
+  // We poll task state instead of parsing reviewer output.
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    const current = sqlite.getTask(taskId);
+    if (!current || current.state !== 'in_review') {
+      // Task state changed — reviewer submitted via tool
+      const passed = current?.state === 'done';
+      // Get the latest review comment
+      const comments = sqlite.getTaskComments(taskId);
+      const reviewComment = comments.filter(c => c.type === 'review').pop();
       return {
         taskId,
-        passed: true,
-        feedback: parsed.feedback || undefined,
+        passed,
+        feedback: reviewComment?.content ?? (passed ? 'Approved' : 'Changes requested'),
         reviewerId: meta.agentId,
       };
-
-    case 'reject':
-      sqlite.updateTaskState(taskId, 'failed');
-      return {
-        taskId,
-        passed: false,
-        feedback: parsed.feedback || 'Rejected by reviewer',
-        reviewerId: meta.agentId,
-      };
-
-    case 'request-changes':
-    default:
-      // Return to running so worker can address feedback
-      sqlite.updateTaskState(taskId, 'running');
-      return {
-        taskId,
-        passed: false,
-        feedback: parsed.feedback || 'Changes requested by reviewer',
-        reviewerId: meta.agentId,
-      };
+    }
+    // Check if reviewer session ended without submitting
+    try {
+      const sessionMeta = await adapter.getMetadata(meta.sessionId);
+      if (sessionMeta?.status === 'ended') {
+        // Reviewer exited without calling review_submit — leave in_review
+        return {
+          taskId,
+          passed: false,
+          feedback: 'Reviewer session ended without submitting a review. Use flightdeck_review_submit.',
+          reviewerId: meta.agentId,
+        };
+      }
+    } catch { /* session may be cleaned up */ }
   }
+
+  // Timeout — leave in in_review for Lead to handle
+  return {
+    taskId,
+    passed: false,
+    feedback: 'Review timed out. Reviewer did not call flightdeck_review_submit in time.',
+    reviewerId: meta.agentId,
+  };
 }
 
 /**

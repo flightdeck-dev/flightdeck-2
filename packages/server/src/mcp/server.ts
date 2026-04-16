@@ -119,6 +119,8 @@ function permError(agentId: string, role: string, toolName: string, permission: 
     task_retry: 'lead',
     task_skip: 'lead/planner',
     task_complete: 'lead/reviewer',
+    review_submit: 'reviewer',
+    task_comment: 'lead/planner/worker/reviewer/product-thinker/qa-tester/tech-writer',
     task_reopen: 'lead',
     task_compact: 'lead',
     declare_tasks: 'lead/planner',
@@ -415,6 +417,54 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     try {
       const task = fd.completeTask(params.taskId as TaskId);
       return jsonResponse(task);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_review_submit', 'Submit a code review verdict for a task in review', {
+    taskId: z.string().describe('The task ID being reviewed'),
+    verdict: z.enum(['approve', 'request_changes']).describe('approve = task passes review; request_changes = worker must address feedback'),
+    comment: z.string().describe('Review feedback explaining the verdict'),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, 'flightdeck_review_submit');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'review_submit', 'flightdeck_review_submit');
+    if (permErr) return permErr;
+    try {
+      const task = fd.sqlite.getTask(params.taskId as TaskId);
+      if (!task) return errorResponse(`Task ${params.taskId} not found`);
+      if (task.state !== 'in_review') return errorResponse(`Task ${params.taskId} is not in_review (current: ${task.state})`);
+
+      // Record the review comment
+      fd.sqlite.addTaskComment(params.taskId as TaskId, params.comment, agent!.id, 'review', params.verdict);
+
+      if (params.verdict === 'approve') {
+        fd.dag.completeTask(params.taskId as TaskId);
+        return jsonResponse({ taskId: params.taskId, verdict: 'approve', newState: 'done' });
+      } else {
+        // request_changes: send back to worker
+        fd.sqlite.updateTaskState(params.taskId as TaskId, 'running' as any);
+        return jsonResponse({ taskId: params.taskId, verdict: 'request_changes', newState: 'running', feedback: params.comment });
+      }
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_task_comment', 'Add a comment to a task (like a PR comment)', {
+    taskId: z.string().describe('The task ID to comment on'),
+    comment: z.string().describe('The comment text'),
+  }, async (params) => {
+    const { agent, error } = resolveAgent(fd, 'flightdeck_task_comment');
+    if (error) return error;
+    const permErr = checkPerm(agent!, 'task_comment', 'flightdeck_task_comment');
+    if (permErr) return permErr;
+    try {
+      const task = fd.sqlite.getTask(params.taskId as TaskId);
+      if (!task) return errorResponse(`Task ${params.taskId} not found`);
+      const id = fd.sqlite.addTaskComment(params.taskId as TaskId, params.comment, agent!.id);
+      return jsonResponse({ id, taskId: params.taskId, message: 'Comment added' });
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

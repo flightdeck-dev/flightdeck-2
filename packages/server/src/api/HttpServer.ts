@@ -251,6 +251,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/')[2];
       const events = fd.sqlite.getTaskEvents(taskId as import('@flightdeck-ai/shared').TaskId);
       json(200, events);
+    } else if (subPath.match(/^\/tasks\/[^/]+\/comments$/) && method === 'GET') {
+      const taskId = subPath.split('/')[2];
+      const comments = fd.sqlite.getTaskComments(taskId as import('@flightdeck-ai/shared').TaskId);
+      json(200, comments);
     } else if (subPath.match(/^\/tasks\/[^/]+\/comments$/) && method === 'POST') {
       // POST /api/projects/:name/tasks/:id/comments — broadcast a pre-created task comment
       try {
