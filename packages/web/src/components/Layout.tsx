@@ -1,70 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { Sidebar } from './Sidebar.tsx';
 import { SectionErrorBoundary } from './ErrorBoundary.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
+import { SearchDialog } from './SearchDialog.tsx';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-
-function CommandPalette({ onClose }: { onClose: () => void }) {
-  const [query, setQuery] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
-  const { projectName } = useParams();
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const prefix = projectName ? `/${encodeURIComponent(projectName)}` : '';
-  const COMMANDS = [
-    ...(projectName ? [
-      { label: 'Go to Dashboard', path: `${prefix}`, keys: ['g', 'd'] },
-      { label: 'Go to Chat', path: `${prefix}/chat`, keys: ['g', 'c'] },
-      { label: 'Go to Tasks', path: `${prefix}/tasks`, keys: ['g', 't'] },
-      { label: 'Go to Agents', path: `${prefix}/agents`, keys: ['g', 'a'] },
-      { label: 'Go to Decisions', path: `${prefix}/decisions`, keys: ['g', 'e'] },
-    ] : []),
-    { label: 'Go to Settings', path: '/settings', keys: ['g', '⚙'] },
-  ];
-
-  const filtered = COMMANDS.filter(c =>
-    c.label.toLowerCase().includes(query.toLowerCase())
-  );
-
-  const handleSelect = (path: string) => {
-    navigate(path);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-lg bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden"
-           onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 border-b border-[var(--color-border)]">
-          <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Escape') onClose();
-              if (e.key === 'Enter' && filtered.length > 0) handleSelect(filtered[0].path);
-            }}
-            placeholder="Type a command..."
-            className="w-full bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none" />
-        </div>
-        <div className="max-h-64 overflow-y-auto py-1">
-          {filtered.map(c => (
-            <button key={c.path} onClick={() => handleSelect(c.path)}
-              className="w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex items-center justify-between">
-              <span>{c.label}</span>
-              <kbd className="text-xs text-[var(--color-text-tertiary)] font-mono">{c.keys.join(' ')}</kbd>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="px-4 py-6 text-sm text-[var(--color-text-tertiary)] text-center">No commands found</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function Layout() {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
@@ -154,7 +96,7 @@ export function Layout() {
       </header>
 
       {showDisplaySettings && <DisplaySettings onClose={closeDisplaySettings} />}
-      {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
+      {showPalette && <SearchDialog onClose={() => setShowPalette(false)} />}
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
