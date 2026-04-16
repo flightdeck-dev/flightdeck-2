@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 
 import {
   ClientSideConnection,
@@ -1047,5 +1048,92 @@ export class AcpAdapter extends AgentAdapter {
       }
     }
     this.sessions.clear();
+  }
+
+  /**
+   * Discover available models for a runtime by spawning a short-lived process.
+   * Does initialize + session/new (no MCP servers, dummy cwd) to read availableModels,
+   * then kills the process. Results are registered in modelRegistry.
+   */
+  async discoverModels(runtimeName: string, timeoutMs = 30_000): Promise<{ modelId: string; name: string }[]> {
+    return discoverRuntimeModels(runtimeName, this.runtimes, timeoutMs);
+  }
+}
+
+/**
+ * Standalone model discovery: spawn a short-lived ACP process for the given runtime,
+ * run initialize + session/new to read availableModels, register in modelRegistry, then kill.
+ */
+export async function discoverRuntimeModels(
+  runtimeName: string,
+  runtimes?: Record<string, RuntimeConfig>,
+  timeoutMs = 30_000,
+): Promise<{ modelId: string; name: string }[]> {
+  const allRuntimes = runtimes ?? DEFAULT_RUNTIMES;
+  const runtime = allRuntimes[runtimeName];
+  if (!runtime) throw new Error(`Unknown runtime: ${runtimeName}`);
+
+  const cwd = tmpdir();
+  const args = interpolateArgs(runtime.args, { prompt: '', cwd });
+  const child = cpSpawn(runtime.command, args, {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
+    detached: false,
+  });
+
+  let stderr = '';
+  child.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+  const cleanup = () => {
+    try { child.kill('SIGTERM'); } catch { /* */ }
+    setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* */ } }, 2000);
+  };
+
+  const timer = setTimeout(() => {
+    cleanup();
+  }, timeoutMs);
+
+  try {
+    const input = Writable.toWeb(child.stdin!) as WritableStream<Uint8Array>;
+    const output = Readable.toWeb(child.stdout!) as ReadableStream<Uint8Array>;
+    const stream = ndJsonStream(input, output);
+
+    const noopClient = {
+      async requestPermission(params: RequestPermissionRequest) {
+        return { outcome: { outcome: 'selected' as const, optionId: params.options[0]?.optionId ?? '' } };
+      },
+      async readTextFile() { return { contents: '' }; },
+      async writeTextFile() { return {}; },
+      async createTerminal() { return { terminalId: '' }; },
+      async terminalOutput() { return {}; },
+      async releaseTerminal() { return {}; },
+      async sessionUpdate() { return {}; },
+      async waitForTerminalExit() { return { exitCode: 0, signal: null }; },
+    } as unknown as Client;
+
+    const connection = new ClientSideConnection((_agent: Agent) => noopClient, stream);
+
+    await connection.initialize({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: 'flightdeck-discovery', version: '0.1.0' },
+      clientCapabilities: {},
+    });
+
+    const result = await connection.newSession({ cwd, mcpServers: [] });
+
+    const models = result.models?.availableModels ?? [];
+    if (models.length > 0) {
+      modelRegistry.registerModels(runtimeName, models);
+    }
+
+    clearTimeout(timer);
+    cleanup();
+    return models.map(m => ({ modelId: m.modelId, name: m.name }));
+  } catch (err) {
+    clearTimeout(timer);
+    cleanup();
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Model discovery failed for ${runtimeName}: ${msg}${stderr ? `\nstderr: ${stderr.slice(0, 500)}` : ''}`);
   }
 }

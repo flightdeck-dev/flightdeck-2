@@ -384,6 +384,32 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     console.error(`Projects: ${projectNames.join(', ')}`);
     console.error(`WebSocket: connect to /ws/:projectName`);
     if (authMode === 'token') console.error(`Auth: token required`);
+
+    // Auto-discover models for installed runtimes (background, best-effort)
+    import('../agents/AcpAdapter.js').then(({ discoverRuntimeModels }) => {
+      import('../agents/runtimes.js').then(({ RUNTIME_REGISTRY }) => {
+        import('node:child_process').then(({ execFileSync }) => {
+          const runtimeIds = Object.entries(RUNTIME_REGISTRY)
+            .filter(([, r]) => r.supportsAcp)
+            .map(([id]) => id);
+          const installed = runtimeIds.filter(id => {
+            try { execFileSync('which', [RUNTIME_REGISTRY[id].command], { stdio: 'pipe', timeout: 3000 }); return true; } catch { return false; }
+          });
+          if (installed.length === 0) return;
+          console.error(`Discovering models for: ${installed.join(', ')}...`);
+          (async () => {
+            for (const id of installed) {
+              try {
+                const models = await discoverRuntimeModels(id);
+                console.error(`  ${id}: ${models.length} models discovered`);
+              } catch (e) {
+                console.error(`  ${id}: discovery failed — ${e instanceof Error ? e.message.split('\n')[0] : e}`);
+              }
+            }
+          })();
+        });
+      });
+    });
   });
 
   // Helper: collect active sessions for state persistence

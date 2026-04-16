@@ -109,7 +109,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const fd = projectManager.get(name);
         if (!fd) continue;
         for (const a of fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle')) {
-          agents.push({ project: name, agentId: a.id, role: a.role, acpSessionId: null });
+          agents.push({ project: name, agentId: a.id, role: a.role, acpSessionId: a.acpSessionId });
         }
       }
       json(200, agents);
@@ -490,6 +490,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, { success: true, installed: true, version, message: `${rt.name} is installed${version ? ` (${version})` : ''}` });
       } catch (e: unknown) {
         json(500, { error: e instanceof Error ? e.message : 'Test failed' });
+      }
+    } else if (subPath.match(/^\/runtimes\/([^/]+)\/discover$/) && method === 'POST') {
+      const runtimeId = subPath.match(/^\/runtimes\/([^/]+)\/discover$/)![1];
+      try {
+        const { discoverRuntimeModels } = await import('../agents/AcpAdapter.js');
+        const models = await discoverRuntimeModels(runtimeId);
+        json(200, { runtime: runtimeId, models });
+      } catch (e: unknown) {
+        json(500, { error: e instanceof Error ? e.message : String(e) });
       }
     } else if (subPath === '/role-preference' && method === 'GET') {
       const { readFileSync: rfs, existsSync: efs } = await import('node:fs');
