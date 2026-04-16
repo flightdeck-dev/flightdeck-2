@@ -171,7 +171,7 @@ skills:
 `);
       const sm = new SkillManager(dir);
       const md = sm.generateAgentsMd('worker');
-      expect(md).toContain('Flightdeck worker agent');
+      expect(md).toContain('Worker Agent');
       expect(md).toContain('**flightdeck-basics**');
       expect(md).toContain('How to use Flightdeck MCP tools');
       expect(md).toContain('**deploy-aws**');

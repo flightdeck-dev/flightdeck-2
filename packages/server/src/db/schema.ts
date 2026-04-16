@@ -172,3 +172,18 @@ export const specHashes = sqliteTable('spec_hashes', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// ── Task Events (state change audit log) ────────────────────────────
+
+export const taskEvents = sqliteTable('task_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  taskId: text('task_id').notNull(),
+  fromState: text('from_state'),
+  toState: text('to_state').notNull(),
+  agentId: text('agent_id'),
+  reason: text('reason'),
+  timestamp: text('timestamp').notNull().default(utcNow),
+}, (table) => [
+  index('idx_task_events_task').on(table.taskId),
+  index('idx_task_events_ts').on(table.timestamp),
+]);
+

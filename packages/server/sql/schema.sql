@@ -155,3 +155,17 @@ CREATE TABLE IF NOT EXISTS `sessions` (
 );
 
 CREATE INDEX IF NOT EXISTS `idx_sessions_project` ON `sessions` (`project_name`);
+
+-- Task Events (state change audit log)
+CREATE TABLE IF NOT EXISTS `task_events` (
+  `id` integer PRIMARY KEY AUTOINCREMENT,
+  `task_id` text NOT NULL,
+  `from_state` text,
+  `to_state` text NOT NULL,
+  `agent_id` text,
+  `reason` text,
+  `timestamp` text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS `idx_task_events_task` ON `task_events` (`task_id`);
+CREATE INDEX IF NOT EXISTS `idx_task_events_ts` ON `task_events` (`timestamp`);

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -86,6 +86,11 @@ export class SqliteStore {
 
   updateTaskState(id: TaskId, state: TaskState, agentId?: AgentId | null): void {
     const now = new Date().toISOString();
+    // Log state transition
+    const oldTask = this.getTask(id);
+    if (oldTask) {
+      this.logTaskEvent(id, oldTask.state, state, agentId ?? oldTask.assignedAgent);
+    }
     if (agentId !== undefined) {
       this._db.update(tasks)
         .set({ state, assignedAgent: agentId, updatedAt: now })
@@ -97,6 +102,24 @@ export class SqliteStore {
         .where(eq(tasks.id, id))
         .run();
     }
+  }
+
+  logTaskEvent(taskId: TaskId, fromState: string | null, toState: string, agentId?: string | null, reason?: string): void {
+    try {
+      this._db.insert(taskEvents).values({
+        taskId,
+        fromState,
+        toState,
+        agentId: agentId ?? null,
+        reason: reason ?? null,
+      }).run();
+    } catch {
+      // Best effort — don't break task flow if logging fails
+    }
+  }
+
+  getTaskEvents(taskId: TaskId): Array<{ id: number; taskId: string; fromState: string | null; toState: string; agentId: string | null; reason: string | null; timestamp: string }> {
+    return this._db.select().from(taskEvents).where(eq(taskEvents.taskId, taskId)).orderBy(taskEvents.timestamp).all();
   }
 
   deleteTask(id: TaskId): void {
