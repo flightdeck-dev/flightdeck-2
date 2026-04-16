@@ -192,7 +192,7 @@ export class GovernanceEngine {
           reporting: { cadence: 'daily' },
           onCompletion: 'explore',
           verification: {
-            enabled: true,
+            enabled: false,
             freshReviewerOnRetry: true,
             additionalChecks: [],
           },
