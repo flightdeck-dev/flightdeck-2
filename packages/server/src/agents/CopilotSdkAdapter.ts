@@ -99,6 +99,15 @@ export class CopilotSdkAdapter {
       return res.json();
     };
 
+    const httpPut = async (path: string, body?: Record<string, unknown>) => {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method: 'PUT',
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+
     const tools: Tool<any>[] = [];
 
     // Task tools
@@ -244,6 +253,159 @@ export class CopilotSdkAdapter {
       handler: async () => {
         return JSON.stringify(await httpGet('/status'));
       },
+      skipPermission: true,
+    });
+
+    // --- Additional tools based on role ---
+
+    // Task management (worker + lead)
+    tools.push({
+      name: 'flightdeck_task_get',
+      description: 'Get details of a specific task.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+      handler: async (args: { taskId: string }) => JSON.stringify(await httpGet(`/tasks/${encodeURIComponent(args.taskId)}`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_task_fail',
+      description: 'Report a task as failed.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, reason: { type: 'string' } }, required: ['taskId'] },
+      handler: async (args: { taskId: string; reason?: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/fail`, { reason: args.reason })),
+      skipPermission: true,
+    });
+
+    // Memory (worker + lead)
+    tools.push({
+      name: 'flightdeck_memory_read',
+      description: 'Read a project memory file.',
+      parameters: { type: 'object', properties: { filename: { type: 'string', description: 'File path relative to memory/' } }, required: ['filename'] },
+      handler: async (args: { filename: string }) => JSON.stringify(await httpGet(`/memory/${encodeURIComponent(args.filename)}`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_memory_write',
+      description: 'Write to a project memory file.',
+      parameters: { type: 'object', properties: { filename: { type: 'string' }, content: { type: 'string' } }, required: ['filename', 'content'] },
+      handler: async (args: { filename: string; content: string }) => JSON.stringify(await httpPut(`/memory/${encodeURIComponent(args.filename)}`, { content: args.content })),
+      skipPermission: true,
+    });
+
+    // Learnings
+    tools.push({
+      name: 'flightdeck_learning_add',
+      description: 'Record a reusable learning or pattern.',
+      parameters: { type: 'object', properties: { content: { type: 'string', description: 'The learning to record' }, tags: { type: 'string', description: 'Comma-separated tags' } }, required: ['content'] },
+      handler: async (args: { content: string; tags?: string }) => JSON.stringify(await httpPost('/learnings', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_learning_search',
+      description: 'Search recorded learnings.',
+      parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+      handler: async (args: { query: string }) => JSON.stringify(await httpGet('/learnings/search', { query: args.query })),
+      skipPermission: true,
+    });
+
+    // Lead-only tools
+    if (role === 'lead' || role === 'planner') {
+      tools.push({
+        name: 'flightdeck_task_add',
+        description: 'Create a new task.',
+        parameters: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, role: { type: 'string' }, priority: { type: 'number' }, needsReview: { type: 'boolean' } }, required: ['title'] },
+        handler: async (args: any) => JSON.stringify(await httpPost('/tasks', args)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_declare_tasks',
+        description: 'Declare multiple tasks at once with dependencies.',
+        parameters: { type: 'object', properties: { tasks: { type: 'array', items: { type: 'object' } } }, required: ['tasks'] },
+        handler: async (args: { tasks: any[] }) => JSON.stringify(await httpPost('/tasks/declare', args)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_agent_spawn',
+        description: 'Spawn a new agent.',
+        parameters: { type: 'object', properties: { role: { type: 'string' }, model: { type: 'string' }, runtime: { type: 'string' } }, required: ['role'] },
+        handler: async (args: any) => JSON.stringify(await httpPost('/agents/spawn', args)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_agent_list',
+        description: 'List all agents.',
+        parameters: { type: 'object', properties: {} },
+        handler: async () => JSON.stringify(await httpGet('/agents')),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_agent_terminate',
+        description: 'Terminate an agent.',
+        parameters: { type: 'object', properties: { agentId: { type: 'string' } }, required: ['agentId'] },
+        handler: async (args: { agentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.agentId)}/terminate`)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_complete',
+        description: 'Complete a task (in_review → done).',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/complete`)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_pause',
+        description: 'Pause a running task.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/pause`)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_resume',
+        description: 'Resume a paused task.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/resume`)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_cost_report',
+        description: 'Get cost report for the project.',
+        parameters: { type: 'object', properties: {} },
+        handler: async () => JSON.stringify(await httpGet('/cost')),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_decision_log',
+        description: 'Log a decision.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' }, type: { type: 'string' }, title: { type: 'string' }, rationale: { type: 'string' } }, required: ['title', 'rationale'] },
+        handler: async (args: any) => JSON.stringify(await httpPost('/decisions', args)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_spec_create',
+        description: 'Create a spec from requirements.',
+        parameters: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } }, required: ['title', 'content'] },
+        handler: async (args: { title: string; content: string }) => JSON.stringify(await httpPost('/specs', args)),
+        skipPermission: true,
+      });
+    }
+
+    // Messaging (all roles)
+    tools.push({
+      name: 'flightdeck_read',
+      description: 'Read messages from inbox or a channel.',
+      parameters: { type: 'object', properties: { channel: { type: 'string' }, limit: { type: 'number' } } },
+      handler: async (args: { channel?: string; limit?: number }) => JSON.stringify(await httpGet('/messages', { channel: args.channel ?? '', limit: String(args.limit ?? 20) })),
       skipPermission: true,
     });
 
