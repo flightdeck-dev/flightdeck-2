@@ -3,8 +3,8 @@
   "scripts": {
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "cli": "pnpm --filter @flightdeck-ai/server cli",
-    "mcp": "pnpm --filter @flightdeck-ai/server mcp"
+    "cli": "pnpm --filter @flightdeck-ai/flightdeck cli",
+    "mcp": "pnpm --filter @flightdeck-ai/flightdeck mcp"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.58.1",
