@@ -66,7 +66,7 @@ function scrollToMessage(id: string) {
   setTimeout(() => el.classList.remove('animate-highlight'), 1500);
 }
 
-const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply, highlighted }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void; highlighted?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply, highlighted, agents }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void; highlighted?: boolean; agents?: Array<{ id: string; role: string; runtime?: string; runtimeName?: string; model?: string; status?: string }> }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
   const parentMsg = msg.parentId && messages ? messages.find(m => m.id === msg.parentId) : null;
@@ -86,8 +86,19 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
 
   return (
     <div id={`msg-${msg.id}`} className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''} ${highlighted ? 'ring-2 ring-[var(--color-primary)] bg-[var(--color-primary)]/5' : ''}`}>
-      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
-           style={{ backgroundColor: style.bg, color: style.color }}>
+      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 cursor-default"
+           style={{ backgroundColor: style.bg, color: style.color }}
+           title={(() => {
+             if (msg.authorType === 'user') return 'You';
+             if (msg.authorType === 'system') return 'System';
+             const agent = agents?.find(a => a.id === msg.authorId);
+             const lines = [msg.authorType === 'lead' ? 'Lead Agent' : `${msg.authorId?.replace(/-[a-z0-9]+$/, '').replace(/^\w/, (c: string) => c.toUpperCase())} Agent`];
+             if (msg.authorId) lines.push(`ID: ${msg.authorId}`);
+             if (agent?.runtimeName) lines.push(`Runtime: ${agent.runtimeName}`);
+             if (agent?.model) lines.push(`Model: ${agent.model}`);
+             if (agent?.status) lines.push(`Status: ${agent.status}`);
+             return lines.join('\n');
+           })()}>
         {style.icon}
       </div>
       <div className={`relative flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
@@ -398,7 +409,7 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 }
 
 export default function Chat() {
-  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName, agents } = useFlightdeck();
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -609,7 +620,7 @@ export default function Chat() {
               </div>
             )}
             {filteredMessages.map(msg => (
-              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(msg.id)} />
+              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(msg.id)} agents={agents} />
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}
