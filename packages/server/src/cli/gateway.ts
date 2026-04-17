@@ -488,39 +488,29 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const collectSessions = (): SavedSession[] => {
     const sessions: SavedSession[] = [];
     for (const [projectName, lm] of leadManagers.entries()) {
-      const leadSid = lm.getLeadSessionId();
-      const plannerSid = lm.getPlannerSessionId();
-
-      if (leadSid) {
-        const acpSid = acpAdapter.getAcpSessionId(leadSid);
-        const s = acpAdapter.getSession(leadSid);
-        if (acpSid && s && s.status !== 'ended') {
-          sessions.push({
-            project: projectName,
-            agentId: s.agentId,
-            role: 'lead',
-            acpSessionId: acpSid,
-            localSessionId: leadSid,
-            cwd: s.cwd,
-            model: s.model,
-          });
-        }
+      // Use LeadManager's session info (works with both ACP and SDK adapters)
+      const leadInfo = lm.getLeadSessionInfo();
+      if (leadInfo) {
+        sessions.push({
+          project: projectName,
+          agentId: leadInfo.agentId,
+          role: 'lead',
+          acpSessionId: leadInfo.acpSessionId,
+          localSessionId: leadInfo.sessionId,
+          cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
+        });
       }
 
-      if (plannerSid) {
-        const acpSid = acpAdapter.getAcpSessionId(plannerSid);
-        const s = acpAdapter.getSession(plannerSid);
-        if (acpSid && s && s.status !== 'ended') {
-          sessions.push({
-            project: projectName,
-            agentId: s.agentId,
-            role: 'planner',
-            acpSessionId: acpSid,
-            localSessionId: plannerSid,
-            cwd: s.cwd,
-            model: s.model,
-          });
-        }
+      const plannerInfo = lm.getPlannerSessionInfo();
+      if (plannerInfo) {
+        sessions.push({
+          project: projectName,
+          agentId: plannerInfo.agentId,
+          role: 'planner',
+          acpSessionId: plannerInfo.acpSessionId,
+          localSessionId: plannerInfo.sessionId,
+          cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
+        });
       }
 
       // Save worker sessions

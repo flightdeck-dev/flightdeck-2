@@ -86,6 +86,7 @@ export class LeadManager {
   private plannerRuntime: string | undefined;
 
   private plannerSessionId: string | null = null;
+  private plannerAgentId: string | null = null;
   private sessionStore: SessionStore;
   private transcriptSessionId: string | null = null;
   private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
@@ -469,6 +470,7 @@ export class LeadManager {
       runtime: this.plannerRuntime,
     });
     this.plannerSessionId = meta.sessionId;
+    this.plannerAgentId = meta.agentId;
 
     // Register Planner agent in SQLite
     this.sqlite.insertAgent({
@@ -586,6 +588,27 @@ export class LeadManager {
     return this.leadSessionId;
   }
 
+  /** Get Lead session info for gateway state persistence. */
+  getLeadSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string } | null {
+    if (!this.leadSessionId || !this.leadAgentId) return null;
+    // For SDK adapter, the session ID IS the ACP session ID (we control it: fd-{agentId})
+    return {
+      agentId: this.leadAgentId,
+      sessionId: this.leadSessionId,
+      acpSessionId: this.leadSessionId, // same for SDK
+    };
+  }
+
+  /** Get Planner session info for gateway state persistence. */
+  getPlannerSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string } | null {
+    if (!this.plannerSessionId || !this.plannerAgentId) return null;
+    return {
+      agentId: this.plannerAgentId,
+      sessionId: this.plannerSessionId,
+      acpSessionId: this.plannerSessionId,
+    };
+  }
+
   /** Cancel the current Lead response (interrupt) */
   async cancelLead(): Promise<void> {
     if (!this.leadSessionId) return;
@@ -647,6 +670,7 @@ export class LeadManager {
         model,
       });
       this.plannerSessionId = meta.sessionId;
+    this.plannerAgentId = meta.agentId;
 
       this.sqlite.insertAgent({
         id: meta.agentId,
