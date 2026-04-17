@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
-import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, X, Clock, Crown } from 'lucide-react';
+import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -41,7 +41,7 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
   }, [menuOpen]);
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete project "${project.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete project "${project.name}"? This permanently removes all data and cannot be undone.`)) return;
     try {
       await api.deleteProject(project.name);
       setMenuOpen(false);
@@ -49,6 +49,17 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
       onDeleted();
     } catch (e) {
       alert(`Failed to delete: ${e}`);
+    }
+  };
+
+  const handleArchive = async () => {
+    try {
+      await fetch(`/api/projects/${encodeURIComponent(project.name)}/archive`, { method: 'POST' });
+      setMenuOpen(false);
+      if (isActive) navigate('/');
+      onDeleted();
+    } catch (e) {
+      alert(`Failed to archive: ${e}`);
     }
   };
 
@@ -96,6 +107,13 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[120px]">
+                <button
+                  onClick={handleArchive}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
+                >
+                  <Archive size={12} strokeWidth={1.5} />
+                  Archive
+                </button>
                 <button
                   onClick={handleDelete}
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-[var(--color-surface-hover)] transition-colors"
@@ -146,6 +164,12 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { projects, agents, refresh } = useFlightdeck();
+  const [archivedProjects, setArchivedProjects] = useState<string[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/projects/archived').then(r => r.json()).then(d => setArchivedProjects(d.projects ?? [])).catch(() => {});
+  }, [projects]); // re-fetch when projects change
   const { projectName } = useParams();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -195,6 +219,36 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         {projects.length === 0 && !collapsed && (
           <div className="px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
             No projects
+          </div>
+        )}
+
+        {/* Archived projects */}
+        {!collapsed && archivedProjects.length > 0 && (
+          <div className="mt-2">
+            <button onClick={() => setShowArchived(!showArchived)}
+              className="flex items-center gap-2 px-3 py-1 text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] w-full">
+              <Archive size={10} strokeWidth={1.5} />
+              {archivedProjects.length} archived
+              <span className="ml-auto">{showArchived ? '▴' : '▾'}</span>
+            </button>
+            {showArchived && archivedProjects.map(name => (
+              <div key={name} className="flex items-center gap-2 px-3 py-1 text-xs text-[var(--color-text-tertiary)]">
+                <span className="flex-1 truncate opacity-60">{name}</span>
+                <button onClick={async () => {
+                  await fetch(`/api/projects/${encodeURIComponent(name)}/unarchive`, { method: 'POST' });
+                  refresh();
+                }} className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" title="Unarchive">
+                  Restore
+                </button>
+                <button onClick={async () => {
+                  if (!window.confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+                  await fetch(`/api/projects/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                  refresh();
+                }} className="text-[10px] text-red-400 hover:text-red-300" title="Delete permanently">
+                  Delete
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
