@@ -438,6 +438,46 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
+    // Task context (aggregated)
+    tools.push({
+      name: 'flightdeck_task_context',
+      description: 'Get full working context for a task (deps, messages, decisions, learnings, spec).',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, include: { type: 'array', items: { type: 'string' } } }, required: ['taskId'] },
+      handler: async (args: { taskId: string; include?: string[] }) => {
+        const task = await httpGet(`/tasks/${encodeURIComponent(args.taskId)}`) as any;
+        const result: Record<string, unknown> = { task };
+        const inc = new Set(args.include ?? ['deps', 'messages', 'history']);
+        const promises: Promise<void>[] = [];
+        if (inc.has('deps') && task?.dependsOn?.length) {
+          promises.push(Promise.all(task.dependsOn.map((id: string) => httpGet(`/tasks/${encodeURIComponent(id)}`))).then(deps => { result.deps = deps; }).catch(() => {}));
+        }
+        if (inc.has('messages')) {
+          promises.push(httpGet('/messages', { task_id: args.taskId, limit: '20' }).then(msgs => { result.messages = msgs; }).catch(() => {}));
+        }
+        if (inc.has('history')) {
+          promises.push(httpGet(`/tasks/${encodeURIComponent(args.taskId)}/comments`).then(c => { result.history = c; }).catch(() => {}));
+        }
+        await Promise.all(promises);
+        return JSON.stringify(result);
+      },
+      skipPermission: true,
+    });
+
+    // Task handoff
+    tools.push({
+      name: 'flightdeck_task_handoff',
+      description: 'Transfer a task to another agent or back to the ready pool with context.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, targetRole: { type: 'string' }, context: { type: 'string' } }, required: ['taskId', 'context'] },
+      handler: async (args: { taskId: string; targetRole?: string; context: string }) => {
+        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/comments`, { comment: `[HANDOFF] ${args.context}` });
+        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/description`, { description: args.context });
+        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/state`, { state: 'ready' });
+        if (args.targetRole) await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/role`, { role: args.targetRole });
+        return JSON.stringify({ success: true, taskId: args.taskId });
+      },
+      skipPermission: true,
+    });
+
     // Role listing
     tools.push({
       name: 'flightdeck_role_list',

@@ -419,6 +419,13 @@ export class SqliteStore extends EventEmitter {
       .run();
   }
 
+  updateTaskRole(taskId: TaskId, role: string): void {
+    this._db.update(tasks)
+      .set({ role, updatedAt: new Date().toISOString() })
+      .where(eq(tasks.id, taskId))
+      .run();
+  }
+
   recordTaskCost(taskId: TaskId, amount: number): void {
     this._db.update(tasks)
       .set({ cost: sql`COALESCE(${tasks.cost}, 0) + ${amount}` })

@@ -2,7 +2,8 @@
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
-import type { AcpAdapter, AcpSession } from '../agents/AcpAdapter.js';
+import type { AgentAdapter } from '../agents/AgentAdapter.js';
+import type { AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
 import { SessionStore } from '../acp/SessionStore.js';
 
@@ -55,7 +56,7 @@ export interface LeadManagerOptions {
   sqlite: SqliteStore;
   project: ProjectStore;
   messageStore?: MessageStore;
-  acpAdapter: AcpAdapter;
+  acpAdapter: any;
   heartbeat?: HeartbeatConfig;
   projectName?: string;
   /** Working directory for spawned agents. Defaults to process.cwd(). */
@@ -70,7 +71,7 @@ export class LeadManager {
   private sqlite: SqliteStore;
   private project: ProjectStore;
   private messageStore: MessageStore | null;
-  private acpAdapter: AcpAdapter;
+  private acpAdapter: any;
   private heartbeatConfig: HeartbeatConfig;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private leadSessionId: string | null = null;
@@ -256,7 +257,7 @@ export class LeadManager {
     const session = this.acpAdapter.getSession(this.leadSessionId);
     if (session) {
       const handler = this.streamHandler;
-      session.onOutputChunk = (update) => handler(update);
+      session.onOutputChunk = (update: any) => handler(update);
     }
   }
 

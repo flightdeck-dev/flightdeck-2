@@ -10,7 +10,7 @@
 export const ROLE_TOOLS: Record<string, string[]> = {
   lead: [
     'flightdeck_status', 'flightdeck_report', 'flightdeck_cost_report',
-    'flightdeck_task_list', 'flightdeck_task_add',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_add',
     'flightdeck_task_cancel', 'flightdeck_task_reopen', 'flightdeck_task_skip',
     'flightdeck_task_fail',
     'flightdeck_plan_review',
@@ -30,7 +30,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   planner: [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_get', 'flightdeck_task_add',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_add',
     'flightdeck_task_pause', 'flightdeck_task_resume', 'flightdeck_task_skip',
     'flightdeck_task_fail', 'flightdeck_task_retry', 'flightdeck_task_complete',
     'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
@@ -48,7 +48,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   worker: [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_cancel', 'flightdeck_task_resume',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',
@@ -60,7 +60,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   reviewer: [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_get', 'flightdeck_task_complete', 'flightdeck_task_fail',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_complete', 'flightdeck_task_fail',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search',
     'flightdeck_decision_log', 'flightdeck_decision_list',
@@ -71,7 +71,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   'product-thinker': [
     'flightdeck_status',
     'flightdeck_spec_list',
-    'flightdeck_task_list', 'flightdeck_task_add',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_add',
     'flightdeck_send', 'flightdeck_read', 'flightdeck_discuss',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_decision_log', 'flightdeck_decision_list',
@@ -80,7 +80,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   'qa-tester': [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_resume',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',
@@ -90,7 +90,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   'tech-writer': [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
     'flightdeck_task_fail',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',
@@ -100,7 +100,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   scout: [
     'flightdeck_status',
-    'flightdeck_task_list',
+    'flightdeck_task_list', 'flightdeck_task_context',
     'flightdeck_spec_list',
     'flightdeck_search',
     'flightdeck_decision_list',
