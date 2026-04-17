@@ -85,6 +85,26 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
       'Requires Copilot subscription with SDK access.',
   },
 
+  'claude-agent': {
+    name: 'Claude Agent (ACP)',
+    command: 'claude-agent-acp',
+    args: [],
+    systemPromptMethod: 'meta-system-prompt',
+    supportsAcp: true,
+    supportsSessionLoad: false,
+    adapter: 'acp',
+    icon: '🟠',
+    docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
+    setupLinks: [
+      { label: 'ACP adapter', url: 'https://github.com/anthropics/claude-code-sdk-python' },
+      { label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' },
+    ],
+    installHint: 'npm install -g @anthropic-ai/claude-code-acp',
+    loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
+    supportsModelDiscovery: false,
+    notes: 'Third-party ACP wrapper for Claude Code. Uses Anthropic API billing (more expensive).',
+  },
+
   'claude-code': {
     name: 'Claude Code',
     command: 'claude',
@@ -93,12 +113,13 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: false,
     supportsSessionLoad: false,
     adapter: 'pty',
-    icon: '🟠',
+    icon: '🟣',
     docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
     setupLinks: [{ label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' }],
     installHint: 'npm install -g @anthropic-ai/claude-code',
     loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
     supportsModelDiscovery: false,
+    disabledByDefault: true,
     notes: [
       'Claude Code CLI via --print mode with session persistence (--resume).',
       'Uses Claude Code subscription (not API billing). Cheapest Claude option.',
