@@ -438,12 +438,14 @@ export class AgentManager {
   async setAgentModel(agentId: AgentId, model: string): Promise<void> {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    // Persist model to DB
+    this.store.updateAgentModel(agentId, model);
+    // Also update live session if available
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
-    if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
-    if (typeof (this.adapter as any).setModel === 'function') {
-      await (this.adapter as any).setModel(sessionId, model);
-    } else {
-      throw new Error('Adapter does not support setModel');
+    if (sessionId && typeof (this.adapter as any).setModel === 'function') {
+      try {
+        await (this.adapter as any).setModel(sessionId, model);
+      } catch { /* live session may not support it — that's OK, persisted for next spawn */ }
     }
   }
 

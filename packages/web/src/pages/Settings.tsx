@@ -88,7 +88,7 @@ function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }
         <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
           rt.supportsAcp ? 'bg-green-500/10 text-green-500' : 'bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]'
         }`}>
-          {rt.supportsAcp ? 'ACP' : 'PTY'}
+          {rt.adapter === 'copilot-sdk' ? 'SDK' : rt.supportsAcp ? 'ACP' : 'PTY'}
         </span>
         <button
           onClick={e => { e.stopPropagation(); onToggle(rt.id, !enabled); }}
