@@ -1,12 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EventEmitter } from 'node:events';
 import { eq, sql, count } from 'drizzle-orm';
 import { tasks, agents, costEntries, specHashes, taskEvents, taskComments } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
-export class SqliteStore {
+export interface TaskStateChangeEvent {
+  taskId: TaskId;
+  fromState: TaskState | null;
+  toState: TaskState;
+  agentId?: AgentId | null;
+}
+
+export class SqliteStore extends EventEmitter {
   private _db: FlightdeckDatabase;
 
   get db(): FlightdeckDatabase {
@@ -14,6 +22,7 @@ export class SqliteStore {
   }
 
   constructor(dbPath: string) {
+    super();
     this._db = createDatabase(dbPath);
     // Enable WAL mode for better concurrent read performance
     this._db.run(sql.raw('PRAGMA journal_mode=WAL'));
@@ -88,8 +97,9 @@ export class SqliteStore {
     const now = new Date().toISOString();
     // Log state transition
     const oldTask = this.getTask(id);
+    const fromState = oldTask?.state ?? null;
     if (oldTask) {
-      this.logTaskEvent(id, oldTask.state, state, agentId ?? oldTask.assignedAgent);
+      this.logTaskEvent(id, fromState, state, agentId ?? oldTask.assignedAgent);
     }
     if (agentId !== undefined) {
       this._db.update(tasks)
@@ -102,6 +112,13 @@ export class SqliteStore {
         .where(eq(tasks.id, id))
         .run();
     }
+    // Emit event for orchestrator reactivity
+    this.emit('task-state-changed', {
+      taskId: id,
+      fromState,
+      toState: state,
+      agentId: agentId ?? oldTask?.assignedAgent,
+    } satisfies TaskStateChangeEvent);
   }
 
   logTaskEvent(taskId: TaskId, fromState: string | null, toState: string, agentId?: string | null, reason?: string): void {

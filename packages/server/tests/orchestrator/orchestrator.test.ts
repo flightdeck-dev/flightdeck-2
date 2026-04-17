@@ -309,4 +309,102 @@ describe('Orchestrator', () => {
       expect(updated?.state).toBe('in_review'); // NOT auto-approved
     });
   });
+
+  describe('event-driven reactivity', () => {
+    it('promotes blocked tasks when dependency completes (via event)', async () => {
+      // Create two tasks: B depends on A
+      const taskA = dag.addTask({ title: 'Task A', role: 'worker' });
+      const taskB = dag.addTask({ title: 'Task B', role: 'worker', dependsOn: [taskA.id] });
+      // Task with unresolved deps starts as 'pending'
+      expect(taskB.state).toBe('pending');
+
+      // Start orchestrator (subscribes to events)
+      orch.start();
+
+      // Add idle worker
+      store.insertAgent({
+        id: 'agent-w1' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+
+      // Complete task A — claim, submit, then mark done
+      dag.claimTask(taskA.id, 'agent-w1' as AgentId);
+      dag.submitTask(taskA.id);
+      // Manually mark done (simulating reviewer approval)
+      store.updateTaskState(taskA.id, 'done');
+
+      // Wait for debounce (500ms) + a small buffer
+      await new Promise(r => setTimeout(r, 700));
+
+      const updatedB = dag.getTask(taskB.id);
+      // Task B should be promoted from pending to ready, and possibly auto-assigned to idle worker
+      expect(['ready', 'running']).toContain(updatedB?.state);
+    });
+
+    it('debounces multiple state changes into one tick', async () => {
+      orch.start();
+
+      const taskA = dag.addTask({ title: 'A', role: 'worker' });
+      const taskB = dag.addTask({ title: 'B', role: 'worker' });
+      const taskC = dag.addTask({ title: 'C', role: 'worker', dependsOn: [taskA.id, taskB.id] });
+
+      store.insertAgent({
+        id: 'w1' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+      store.insertAgent({
+        id: 'w2' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+
+      // Complete A and B rapidly (within debounce window)
+      dag.claimTask(taskA.id, 'w1' as AgentId);
+      dag.submitTask(taskA.id);
+      store.updateTaskState(taskA.id, 'done');
+
+      dag.claimTask(taskB.id, 'w2' as AgentId);
+      dag.submitTask(taskB.id);
+      store.updateTaskState(taskB.id, 'done');
+
+      // Wait for debounce
+      await new Promise(r => setTimeout(r, 700));
+
+      const updatedC = dag.getTask(taskC.id);
+      // Task C should be ready (or running/claimed if auto-assigned to an idle worker)
+      expect(['ready', 'running']).toContain(updatedC?.state);
+    });
+
+    it('does not react when paused', async () => {
+      const taskA = dag.addTask({ title: 'A', role: 'worker' });
+      const taskB = dag.addTask({ title: 'B', role: 'worker', dependsOn: [taskA.id] });
+
+      store.insertAgent({
+        id: 'w1' as AgentId,
+        role: 'worker', runtime: 'acp', acpSessionId: null,
+        status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      });
+
+      orch.start();
+      orch.pause();
+
+      dag.claimTask(taskA.id, 'w1' as AgentId);
+      dag.submitTask(taskA.id);
+      store.updateTaskState(taskA.id, 'done');
+
+      await new Promise(r => setTimeout(r, 700));
+
+      const updatedB = dag.getTask(taskB.id);
+      expect(updatedB?.state).toBe('pending'); // still pending because paused
+    });
+
+    it('cleans up listener on stop', () => {
+      orch.start();
+      expect(store.listenerCount('task-state-changed')).toBe(1);
+      orch.stop();
+      expect(store.listenerCount('task-state-changed')).toBe(0);
+    });
+  });
 });

@@ -181,20 +181,47 @@ export async function processReview(
   let meta: AgentMetadata;
   try {
     if (options?.agentManager) {
-      // Use AgentManager — handles DB registration, role config, AGENTS.md, .mcp.json
-      const agent = await options.agentManager.spawnAgent({
-        role: 'reviewer',
-        cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
-        model: options?.reviewerModel,
-        runtime: options?.reviewerRuntime,
-        projectName: options?.projectName,
-        taskContext: prompt,
-      });
-      meta = {
-        agentId: agent.id as string as import('@flightdeck-ai/shared').AgentId,
-        sessionId: agent.acpSessionId ?? '',
-        status: 'running',
-      };
+      // Check for idle reviewer to reuse before spawning a new one
+      const allAgents = sqlite.listAgents();
+      const idleReviewer = allAgents.find(a => a.role === 'reviewer' && a.status === 'idle' && a.acpSessionId);
+
+      if (idleReviewer && adapter) {
+        // Reuse idle reviewer — steer it with the new review prompt
+        sqlite.updateAgentStatus(idleReviewer.id, 'busy');
+        try {
+          await adapter.steer(idleReviewer.acpSessionId!, { content: prompt });
+        } catch {
+          // Steer failed — reviewer session may be dead. Fall through to spawn.
+          sqlite.updateAgentStatus(idleReviewer.id, 'offline');
+        }
+        if (idleReviewer.status !== 'offline') {
+          meta = {
+            agentId: idleReviewer.id as string as import('@flightdeck-ai/shared').AgentId,
+            sessionId: idleReviewer.acpSessionId!,
+            status: 'running',
+          };
+        } else {
+          // Fall through to spawn below
+          meta = undefined!;
+        }
+      }
+
+      if (!meta || !meta.sessionId) {
+        // No idle reviewer available — spawn a new one via AgentManager
+        const agent = await options.agentManager.spawnAgent({
+          role: 'reviewer',
+          cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
+          model: options?.reviewerModel,
+          runtime: options?.reviewerRuntime,
+          projectName: options?.projectName,
+          taskContext: prompt,
+        });
+        meta = {
+          agentId: agent.id as string as import('@flightdeck-ai/shared').AgentId,
+          sessionId: agent.acpSessionId ?? '',
+          status: 'running',
+        };
+      }
     } else {
       // Fallback: direct adapter.spawn (for tests or when no AgentManager)
       const reviewerAgentId = `reviewer-${Date.now().toString(36)}` as import('@flightdeck-ai/shared').AgentId;

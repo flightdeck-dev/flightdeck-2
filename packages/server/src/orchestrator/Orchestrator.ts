@@ -73,6 +73,12 @@ export class Orchestrator {
   private specChangeDetector: SpecChangeDetector | null;
   private recentSpecChanges: SpecChange[] = [];
   private webhookNotifier: WebhookNotifier;
+  /** Debounce timer for event-driven reactivity */
+  private reactDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** How long to debounce state change events before running a reactive tick (ms) */
+  private static readonly REACT_DEBOUNCE_MS = 500;
+  /** Bound handler for cleanup */
+  private boundReactHandler: (() => void) | null = null;
 
   constructor(
     private dag: TaskDAG,
@@ -780,6 +786,10 @@ export class Orchestrator {
     // Recover orphaned running tasks from previous daemon session
     this.recoverOrphanedTasks();
     this.intervalHandle = setInterval(() => { void this.tick(); }, intervalMs);
+
+    // Subscribe to task state changes for event-driven reactivity
+    this.boundReactHandler = () => this.scheduleReactiveTick();
+    this.store.on('task-state-changed', this.boundReactHandler);
   }
 
   /**
@@ -832,10 +842,54 @@ export class Orchestrator {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
     }
+    if (this.reactDebounceTimer) {
+      clearTimeout(this.reactDebounceTimer);
+      this.reactDebounceTimer = null;
+    }
+    if (this.boundReactHandler) {
+      this.store.removeListener('task-state-changed', this.boundReactHandler);
+      this.boundReactHandler = null;
+    }
   }
 
   isRunning(): boolean {
     return this.intervalHandle !== null;
+  }
+
+  /**
+   * Schedule a lightweight reactive tick after a debounce window.
+   * Multiple state changes within REACT_DEBOUNCE_MS coalesce into one tick.
+   * Only runs promote + auto-assign + spawn reviewers (not stall detection, compaction, etc.)
+   */
+  private scheduleReactiveTick(): void {
+    if (this._paused) return;
+    if (this.reactDebounceTimer) return; // already scheduled
+    this.reactDebounceTimer = setTimeout(() => {
+      this.reactDebounceTimer = null;
+      void this.reactiveTick();
+    }, Orchestrator.REACT_DEBOUNCE_MS);
+  }
+
+  /**
+   * Lightweight tick triggered by state change events.
+   * Only promotes blocked/pending → ready and assigns ready tasks to idle agents.
+   */
+  private async reactiveTick(): Promise<void> {
+    if (this._paused) return;
+    let stateChanged = false;
+
+    const promoted = this.promoteReadyTasks();
+    if (promoted > 0) stateChanged = true;
+
+    await this.spawnMissingReviewers();
+
+    const assigned = this.autoAssignReadyTasks();
+    if (assigned > 0) stateChanged = true;
+
+    if (stateChanged) {
+      this.broadcastStateChange();
+      this.writeStatusFiles();
+    }
   }
 
   /* ── Reactive Planner notifications ─────────────────────────── */
