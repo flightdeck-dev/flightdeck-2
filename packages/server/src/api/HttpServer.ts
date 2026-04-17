@@ -181,7 +181,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     const projectName = decodeURIComponent(m[1]);
     const subPath = m[2] || '/';
 
-    // DELETE project
+    // DELETE project (permanent)
     if (subPath === '/' && method === 'DELETE') {
       // Clean up LeadManager and state for this project
       const lm = leadManagers?.get(projectName);
@@ -204,6 +204,31 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, { message: `Project "${projectName}" deleted` });
       }
       else json(404, { error: `Project "${projectName}" not found` });
+      return;
+    }
+
+    // Archive project (hide but keep data)
+    if (subPath === '/archive' && method === 'POST') {
+      if (projectManager.archive(projectName)) {
+        const lm = leadManagers?.get(projectName);
+        if (lm) { try { lm.stop(); } catch {} leadManagers?.delete(projectName); }
+        json(200, { message: `Project "${projectName}" archived` });
+      } else json(404, { error: `Project "${projectName}" not found` });
+      return;
+    }
+
+    // Unarchive project
+    if (subPath === '/unarchive' && method === 'POST') {
+      if (projectManager.unarchive(projectName)) json(200, { message: `Project "${projectName}" unarchived` });
+      else json(404, { error: `Project "${projectName}" not found or not archived` });
+      return;
+    }
+
+    // List archived projects
+    if (url.pathname === '/api/projects/archived' && method === 'GET') {
+      const all = projectManager.listAll();
+      const archived = all.filter(n => projectManager.isArchived(n));
+      json(200, { projects: archived });
       return;
     }
 

@@ -1,4 +1,4 @@
-import { readdirSync, existsSync, statSync, rmSync } from 'node:fs';
+import { readdirSync, existsSync, statSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Flightdeck } from '../facade.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
@@ -24,7 +24,7 @@ export class ProjectManager {
     return readdirSync(PROJECTS_DIR)
       .filter(name => {
         const dir = join(PROJECTS_DIR, name);
-        return statSync(dir).isDirectory() && existsSync(join(dir, 'config.json'));
+        return statSync(dir).isDirectory() && existsSync(join(dir, 'config.json')) && !existsSync(join(dir, '.archived'));
       })
       .sort();
   }
@@ -59,6 +59,42 @@ export class ProjectManager {
     }
     rmSync(dir, { recursive: true, force: true });
     return true;
+  }
+
+  /** Archive a project (hide from sidebar/CLI but keep all data) */
+  archive(name: string): boolean {
+    const dir = join(PROJECTS_DIR, name);
+    if (!existsSync(dir)) return false;
+    // Write archived marker
+    writeFileSync(join(dir, '.archived'), new Date().toISOString());
+    // Close instance so it doesn't appear in active list
+    const fd = this.instances.get(name);
+    if (fd) {
+      fd.close();
+      this.instances.delete(name);
+    }
+    return true;
+  }
+
+  /** Unarchive a project */
+  unarchive(name: string): boolean {
+    const archivedPath = join(PROJECTS_DIR, name, '.archived');
+    if (!existsSync(archivedPath)) return false;
+    rmSync(archivedPath, { force: true });
+    return true;
+  }
+
+  /** List all projects including archived ones */
+  listAll(): string[] {
+    if (!existsSync(PROJECTS_DIR)) return [];
+    return readdirSync(PROJECTS_DIR, { withFileTypes: true })
+      .filter(d => d.isDirectory() && existsSync(join(PROJECTS_DIR, d.name, 'config.json')))
+      .map(d => d.name);
+  }
+
+  /** Check if a project is archived */
+  isArchived(name: string): boolean {
+    return existsSync(join(PROJECTS_DIR, name, '.archived'));
   }
 
   /** Get the first project name (used as default for backward-compatible flat routes) */
