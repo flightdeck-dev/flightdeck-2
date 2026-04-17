@@ -89,8 +89,16 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
         if (agent) {
           fd.sqlite.updateAgentContextWindow(agentId as any, info.currentTokens, info.tokenLimit);
-          if (info.tokenLimit > 0 && info.currentTokens / info.tokenLimit > 0.8) {
-            console.error(`  [${name}] \u26a0\ufe0f Agent ${agentId} context window at ${Math.round(info.currentTokens / info.tokenLimit * 100)}% (${info.currentTokens}/${info.tokenLimit} tokens)`);
+          if (info.tokenLimit > 0 && info.currentTokens / info.tokenLimit > 0.8 && agent.role === 'lead') {
+            const pct = Math.round(info.currentTokens / info.tokenLimit * 100);
+            console.error(`  [${name}] ⚠️ Lead context window at ${pct}% (${info.currentTokens}/${info.tokenLimit} tokens)`);
+            const lm = leadManagers.get(name);
+            if (lm) {
+              void lm.steerLead({
+                type: 'worker_recovery' as any,
+                message: `⚠️ Your context window is at ${pct}%. Write a diary/summary to memory now. Use flightdeck_memory_write.`,
+              }).catch(() => {});
+            }
           }
           break;
         }

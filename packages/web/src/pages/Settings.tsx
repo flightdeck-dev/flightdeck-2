@@ -149,6 +149,7 @@ function GlobalSettings() {
   const [runtimeProject, setRuntimeProject] = useState<string>('');
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
   const [runtimeOrder, setRuntimeOrder] = useState<string[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
   const [disabledLoaded, setDisabledLoaded] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
   const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
@@ -233,6 +234,24 @@ function GlobalSettings() {
     });
   }, [runtimes, runtimeOrder]);
 
+  const handleDrop = useCallback(async (targetId: string) => {
+    if (!dragId || dragId === targetId || !runtimes) return;
+    const sorted = getSortedRuntimes();
+    const order = sorted.map(rt => rt.id);
+    const fromIdx = order.indexOf(dragId);
+    const toIdx = order.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, dragId);
+    setRuntimeOrder(order);
+    setDragId(null);
+    try {
+      await api.updateProjectConfig(runtimeProject, { runtimeOrder: order });
+    } catch {
+      setRuntimeOrder(runtimeOrder);
+    }
+  }, [dragId, runtimes, runtimeOrder, runtimeProject, getSortedRuntimes]);
+
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
     const preset = DISPLAY_PRESETS[p];
     return preset.thinking === displayConfig.thinking
@@ -298,14 +317,15 @@ function GlobalSettings() {
             </span>
           </div>
           <Card>
-            {getSortedRuntimes().map((rt, idx, arr) => (
-              <div key={rt.id} className="flex items-center">
-                <div className="flex flex-col mr-1">
-                  <button disabled={idx === 0} onClick={() => moveRuntime(rt.id, 'up')}
-                    className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] disabled:opacity-20 px-0.5">▲</button>
-                  <button disabled={idx === arr.length - 1} onClick={() => moveRuntime(rt.id, 'down')}
-                    className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] disabled:opacity-20 px-0.5">▼</button>
-                </div>
+            {getSortedRuntimes().map((rt) => (
+              <div key={rt.id}
+                draggable
+                onDragStart={() => setDragId(rt.id)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => handleDrop(rt.id)}
+                className={`flex items-center transition-opacity ${dragId === rt.id ? 'opacity-40' : ''}`}
+              >
+                <span className="cursor-grab active:cursor-grabbing text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] px-1 select-none" title="Drag to reorder">≡</span>
                 <div className="flex-1">
                   <RuntimeCard rt={rt} projectName={runtimeProject}
                     enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : !(rt as any).disabledByDefault}
