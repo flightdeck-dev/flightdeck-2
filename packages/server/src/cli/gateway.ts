@@ -308,7 +308,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       sqlite: fd.sqlite,
       project: fd.project,
       messageStore: fd.messages ?? undefined,
-      acpAdapter,
+      acpAdapter: multiAdapter,
       projectName: name,
       cwd: projectCwd,
       leadRuntime: leadRoleConfig.runtime,
