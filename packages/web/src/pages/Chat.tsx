@@ -634,30 +634,30 @@ export default function Chat() {
             />
             {speechSupported && (
               <div className="flex items-center">
+                <button onClick={toggleListening}
+                  className={`px-3 py-2.5 rounded-l-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-r-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
+                  title={isListening ? 'Stop listening' : 'Voice input'}>
+                  {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
+                </button>
                 <div className="relative">
                   <select value={speechLang} onChange={e => {
                     setSpeechLang(e.target.value);
                     try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
                   }}
-                    className="appearance-none bg-transparent text-[11px] font-mono text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] cursor-pointer focus:outline-none pl-1.5 pr-4 py-2.5"
+                    className={`appearance-none cursor-pointer focus:outline-none px-1.5 py-2.5 rounded-r-xl text-[11px] pr-4 ${isListening ? 'bg-red-500 text-white/80' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-l-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`}
                     title="Speech language">
                     {[
-                      ['af-ZA','AF'],['ar-SA','AR'],['ca-ES','CA'],['cs-CZ','CS'],['da-DK','DA'],
-                      ['de-DE','DE'],['el-GR','EL'],['en-GB','EN-GB'],['en-US','EN-US'],['es-ES','ES'],
-                      ['fi-FI','FI'],['fil-PH','FIL'],['fr-FR','FR'],['he-IL','HE'],['hi-IN','HI'],
-                      ['hu-HU','HU'],['id-ID','ID'],['it-IT','IT'],['ja-JP','JA'],['ko-KR','KO'],
-                      ['ms-MY','MS'],['nb-NO','NB'],['nl-NL','NL'],['pl-PL','PL'],['pt-BR','PT-BR'],
-                      ['pt-PT','PT-PT'],['ro-RO','RO'],['ru-RU','RU'],['sv-SE','SV'],['th-TH','TH'],
-                      ['tr-TR','TR'],['uk-UA','UK'],['vi-VN','VI'],['zh-CN','ZH-CN'],['zh-HK','ZH-HK'],['zh-TW','ZH-TW'],
+                      ['af-ZA','Afrikaans'],['ar-SA','Arabic'],['ca-ES','Catalan'],['cs-CZ','Czech'],['da-DK','Danish'],
+                      ['de-DE','German'],['el-GR','Greek'],['en-GB','English (UK)'],['en-US','English (US)'],['es-ES','Spanish'],
+                      ['fi-FI','Finnish'],['fil-PH','Filipino'],['fr-FR','French'],['he-IL','Hebrew'],['hi-IN','Hindi'],
+                      ['hu-HU','Hungarian'],['id-ID','Indonesian'],['it-IT','Italian'],['ja-JP','Japanese'],['ko-KR','Korean'],
+                      ['ms-MY','Malay'],['nb-NO','Norwegian'],['nl-NL','Dutch'],['pl-PL','Polish'],['pt-BR','Portuguese (BR)'],
+                      ['pt-PT','Portuguese (PT)'],['ro-RO','Romanian'],['ru-RU','Russian'],['sv-SE','Swedish'],['th-TH','Thai'],
+                      ['tr-TR','Turkish'],['uk-UA','Ukrainian'],['vi-VN','Vietnamese'],['zh-CN','Chinese (Simplified)'],['zh-HK','Cantonese'],['zh-TW','Chinese (Traditional)'],
                     ].map(([val, label]) => <option key={val} value={val}>{label}</option>)}
                   </select>
-                  <span className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[8px] text-[var(--color-text-tertiary)] pointer-events-none">▾</span>
+                  <span className={`absolute right-0.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none ${isListening ? 'text-white/60' : 'text-[var(--color-text-tertiary)]'}`}>▾</span>
                 </div>
-                <button onClick={toggleListening}
-                  className={`px-3 py-2.5 rounded-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
-                  title={isListening ? 'Stop listening' : 'Voice input'}>
-                  {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
-                </button>
               </div>
             )}
             {isStreaming && (
