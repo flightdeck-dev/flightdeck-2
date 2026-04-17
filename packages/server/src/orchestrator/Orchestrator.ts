@@ -342,7 +342,7 @@ export class Orchestrator {
     let promoted = 0;
 
     for (const task of allTasks) {
-      if (task.state !== 'pending') continue;
+      if (task.state !== 'pending' && task.state !== 'blocked') continue;
 
       // Check if all dependencies are done (or skipped/cancelled)
       const depsResolved = task.dependsOn.every(depId => {
