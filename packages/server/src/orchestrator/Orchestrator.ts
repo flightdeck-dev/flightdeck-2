@@ -254,8 +254,11 @@ export class Orchestrator {
     const promoted = this.promoteReadyTasks();
     if (promoted > 0) stateChanged = true;
 
-    // 2. (Removed: auto-approve was here. Reviews are now always handled by
-    //    ReviewFlow via spawn_reviewer effect. If reviewer fails, Lead is notified.)
+    // 2. Spawn reviewers for in_review tasks that don't have one yet.
+    //    The spawn_reviewer effect fires from TaskDAG.processEffects, but
+    //    MCP server runs a separate Flightdeck instance (no effectHandler).
+    //    So we catch in_review tasks here as a reliable fallback.
+    await this.spawnMissingReviewers();
 
     // 3. Detect stalls — check ACP session state for running agents
     const stalls = await this.detectStalls();
@@ -368,6 +371,45 @@ export class Orchestrator {
    * through their pipeline (e.g., running post-review steps).
    */
   // processCompletions removed: reviews are always handled by ReviewFlow
+
+  /**
+   * Spawn reviewers for in_review tasks that don't have an active review.
+   * The spawn_reviewer effect fires inside TaskDAG, but the MCP server runs
+   * a separate Flightdeck instance without the effectHandler. So we poll
+   * for in_review tasks here as a reliable catch-all.
+   */
+  private reviewInProgress = new Set<string>();
+  private async spawnMissingReviewers(): Promise<void> {
+    if (!this.adapter) return;
+    const inReviewTasks = this.dag.listTasks().filter(t => t.state === 'in_review');
+    for (const task of inReviewTasks) {
+      if (this.reviewInProgress.has(task.id)) continue; // Already has a reviewer
+      this.reviewInProgress.add(task.id);
+      processReview(task.id, this.store, this.adapter, {
+        cwd: this.config.cwd ?? process.cwd(),
+        projectName: this.config.name,
+        agentManager: this.agentManager ?? undefined,
+      }).then(result => {
+        this.reviewInProgress.delete(task.id);
+        if (result.passed) {
+          this.webhookNotifier?.notify(
+            taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
+          );
+          this.notifyPlannerIfNeeded(task.id, 'completed');
+        } else {
+          this.leadManager?.steerLead({
+            type: 'task_failure',
+            taskId: task.id as string,
+            error: `Review failed: ${result.feedback}`,
+          });
+        }
+        this.broadcastStateChange();
+      }).catch((err: unknown) => {
+        this.reviewInProgress.delete(task.id);
+        console.error(`[${this.config.name}] Review failed for ${task.id}:`, err instanceof Error ? err.message : String(err));
+      });
+    }
+  }
   // via spawn_reviewer effect. No auto-approve in tick.
 
   /**
