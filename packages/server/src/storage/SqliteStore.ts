@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes, taskEvents, taskComments } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -424,6 +424,46 @@ export class SqliteStore extends EventEmitter {
       .set({ role, updatedAt: new Date().toISOString() })
       .where(eq(tasks.id, taskId))
       .run();
+  }
+
+  // ── File Locks ──
+
+  acquireFileLock(filePath: string, agentId: string, agentRole: string, reason?: string, ttlMs: number = 10 * 60 * 1000): boolean {
+    const now = new Date();
+    // First, clean expired locks
+    this._db.run(sql`DELETE FROM file_locks WHERE expires_at < ${now.toISOString()}`);
+    // Check if already locked by someone else
+    const existing = this._db.select().from(fileLocks).where(eq(fileLocks.filePath, filePath)).get();
+    if (existing && existing.agentId !== agentId) {
+      return false; // locked by another agent
+    }
+    // Upsert lock
+    const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+    this._db.insert(fileLocks).values({
+      filePath,
+      agentId,
+      agentRole,
+      reason: reason ?? '',
+      acquiredAt: now.toISOString(),
+      expiresAt,
+    }).onConflictDoUpdate({
+      target: fileLocks.filePath,
+      set: { agentId, agentRole, reason: reason ?? '', acquiredAt: now.toISOString(), expiresAt },
+    }).run();
+    return true;
+  }
+
+  releaseFileLock(filePath: string, agentId: string): boolean {
+    const existing = this._db.select().from(fileLocks).where(eq(fileLocks.filePath, filePath)).get();
+    if (!existing || existing.agentId !== agentId) return false;
+    this._db.delete(fileLocks).where(eq(fileLocks.filePath, filePath)).run();
+    return true;
+  }
+
+  listFileLocks(): Array<{ filePath: string; agentId: string; agentRole: string; reason: string; acquiredAt: string; expiresAt: string }> {
+    // Clean expired first
+    this._db.run(sql`DELETE FROM file_locks WHERE expires_at < ${new Date().toISOString()}`);
+    return this._db.select().from(fileLocks).all() as any;
   }
 
   recordTaskCost(taskId: TaskId, amount: number): void {

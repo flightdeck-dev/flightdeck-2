@@ -1143,6 +1143,48 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Isolation status ──
 
+  // ── File Lock tools (file_lock isolation mode) ──
+
+  server.tool('flightdeck_file_lock', 'Acquire a lock on a file before modifying it. Required in file_lock isolation mode.', {
+    filePath: z.string().describe('Relative file path to lock'),
+    reason: z.string().optional().describe('Why you need this file'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const success = await client.acquireFileLock(params.filePath, resolved.agentId, ENV_AGENT_ROLE ?? 'worker', params.reason);
+      if (!success) {
+        const locks = await client.listFileLocks();
+        const holder = (locks as any[]).find((l: any) => l.filePath === params.filePath);
+        return errorResponse(`File "${params.filePath}" is locked by ${holder?.agentId ?? 'another agent'}. Wait and retry, or work on a different file.`);
+      }
+      return jsonResponse({ locked: true, filePath: params.filePath });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_file_unlock', 'Release a file lock after you are done modifying it.', {
+    filePath: z.string().describe('Relative file path to unlock'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const released = await client.releaseFileLock(params.filePath, resolved.agentId);
+      return jsonResponse({ released, filePath: params.filePath });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_file_locks', 'List all active file locks in the project.', {}, async () => {
+    try {
+      return jsonResponse(await client.listFileLocks());
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_isolation_status', 'Show current isolation mode and active worktrees/workdirs', {}, async () => {
     try {
       return jsonResponse(await client.getIsolationStatus());

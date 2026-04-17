@@ -32,7 +32,7 @@ export class IsolationManager {
 
   constructor(
     private projectRoot: string,
-    private config: IsolationConfig = { mode: 'none' },
+    private config: IsolationConfig = { mode: 'file_lock' },
   ) {
     this.worktreeManager = new WorktreeManager(projectRoot);
     this.directoryManager = new DirectoryManager(projectRoot);
@@ -58,11 +58,11 @@ export class IsolationManager {
         const wt = this.worktreeManager.create(taskId, baseBranch);
         return { cwd: wt.path, branch: wt.branch };
       }
-      case 'directory': {
+      case 'file_lock': {
         const wd = this.directoryManager.create(taskId);
         return { cwd: wd.path };
       }
-      case 'none':
+      case 'file_lock':
       default:
         return { cwd: this.projectRoot };
     }
@@ -108,7 +108,7 @@ export class IsolationManager {
 
         return mergeResult;
       }
-      case 'directory': {
+      case 'file_lock': {
         if (!opts?.skipCopyBack) {
           try {
             this.directoryManager.copyBack(taskId);
@@ -119,7 +119,7 @@ export class IsolationManager {
         } catch { /* best effort */ }
         return null;
       }
-      case 'none':
+      case 'file_lock':
       default:
         return null;
     }
@@ -132,7 +132,7 @@ export class IsolationManager {
     return {
       mode: this.config.mode,
       worktrees: this.config.mode === 'git_worktree' ? this.worktreeManager.list() : [],
-      workdirs: this.config.mode === 'directory' ? this.directoryManager.list() : [],
+      workdirs: this.config.mode === 'file_lock' ? this.directoryManager.list() : [],
     };
   }
 

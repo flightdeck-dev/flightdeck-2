@@ -47,7 +47,7 @@ export const DECISION_STATUSES = [
 export type DecisionStatus = typeof DECISION_STATUSES[number];
 
 // Isolation strategies
-export const ISOLATION_STRATEGIES = ['git_worktree', 'directory', 'none'] as const;
+export const ISOLATION_STRATEGIES = ['file_lock', 'git_worktree'] as const;
 export type IsolationStrategy = typeof ISOLATION_STRATEGIES[number];
 
 // On-completion actions

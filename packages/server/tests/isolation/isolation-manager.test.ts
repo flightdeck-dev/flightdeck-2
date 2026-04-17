@@ -99,16 +99,16 @@ describe('IsolationManager', () => {
     });
   });
 
-  describe('mode: directory', () => {
+  describe('mode: file_lock', () => {
     it('setup creates a working directory', () => {
-      const im = new IsolationManager(repoDir, { mode: 'directory' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const result = im.setup('task-1');
       expect(existsSync(result.cwd)).toBe(true);
       expect(result.cwd).toContain('.flightdeck/workdirs/task-1');
     });
 
     it('cleanup copies back and removes directory', () => {
-      const im = new IsolationManager(repoDir, { mode: 'directory' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const { cwd } = im.setup('task-2');
       writeFileSync(join(cwd, 'output.txt'), 'result');
 
@@ -118,7 +118,7 @@ describe('IsolationManager', () => {
     });
 
     it('cleanup with skipCopyBack does not copy', () => {
-      const im = new IsolationManager(repoDir, { mode: 'directory' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const { cwd } = im.setup('task-3');
       writeFileSync(join(cwd, 'output.txt'), 'result');
 
@@ -127,10 +127,10 @@ describe('IsolationManager', () => {
     });
 
     it('status lists active workdirs', () => {
-      const im = new IsolationManager(repoDir, { mode: 'directory' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       im.setup('task-4');
       const s = im.status();
-      expect(s.mode).toBe('directory');
+      expect(s.mode).toBe('file_lock');
       expect(s.workdirs).toContain('task-4');
     });
   });

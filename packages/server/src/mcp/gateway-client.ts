@@ -467,6 +467,20 @@ export class GatewayClient {
 
   // ── Isolation ──
 
+  async acquireFileLock(filePath: string, agentId: string, role: string, reason?: string): Promise<boolean> {
+    const result = await this.request('POST', '/file-locks', { filePath, agentId, role, reason }) as any;
+    return result?.locked === true;
+  }
+
+  async releaseFileLock(filePath: string, agentId: string): Promise<boolean> {
+    const result = await this.request('DELETE', `/file-locks/${encodeURIComponent(filePath)}`, { agentId }) as any;
+    return result?.released === true;
+  }
+
+  async listFileLocks(): Promise<unknown[]> {
+    return this.get('/file-locks');
+  }
+
   async getIsolationStatus(): Promise<unknown> {
     return this.get('/isolation/status');
   }

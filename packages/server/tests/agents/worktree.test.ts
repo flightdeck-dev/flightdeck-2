@@ -55,7 +55,7 @@ describe('WorktreeManager', () => {
     it('creates a worktree with expected path and branch', () => {
       const result = manager.create('task-1');
       expect(result.branch).toBe('agent/task-1');
-      expect(result.path).toContain('.flightdeck/worktrees/task-1');
+      expect(result.path).toContain('.worktrees/task-1');
       expect(existsSync(result.path)).toBe(true);
       expect(existsSync(join(result.path, 'README.md'))).toBe(true);
     });

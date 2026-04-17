@@ -254,16 +254,6 @@ export class AgentManager {
         // Worktree creation failed — fall back to shared cwd
         // Log but don't block agent spawn
       }
-    } else if (opts.isolation === 'directory' && opts.taskId) {
-      try {
-        const dm = this.directoryManager ?? new DirectoryManager(opts.cwd);
-        const wd = dm.create(opts.taskId);
-        effectiveCwd = wd.path;
-        this.agentWorkdirs.set(newId, opts.taskId);
-        if (!this.directoryManager) this.directoryManager = dm;
-      } catch {
-        // Directory creation failed — fall back to shared cwd
-      }
     }
 
     // 5. Write skill-based AGENTS.md and .mcp.json if SkillManager available
@@ -273,7 +263,7 @@ export class AgentManager {
         const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
         writeFileSync(`${effectiveCwd}/AGENTS.md`, agentsMd);
         // Only write .mcp.json if agent uses ACP adapter (not SDK)
-        const runtimeDef = (await import('./runtimes.js')).RUNTIME_REGISTRY[resolvedRuntime ?? ''];
+        const runtimeDef = (await import('./runtimes.js')).RUNTIME_REGISTRY[opts.runtime ?? ''];
         if (!runtimeDef || runtimeDef.adapter !== 'copilot-sdk') {
           const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
           const mcpJson = this.skillManager.generateMcpJson(opts.role, mcpBinPath, opts.projectName);
@@ -375,16 +365,25 @@ export class AgentManager {
   /**
    * Merge and clean up a worktree for an agent.
    */
-  async cleanupWorktree(agentId: AgentId, merge = true): Promise<void> {
+  async cleanupWorktree(agentId: AgentId, merge = true): Promise<{ mergeConflict?: { taskId: string; branch: string } }> {
     const wtInfo = this.agentWorktrees.get(agentId);
-    if (!wtInfo || !this.worktreeManager) return;
+    if (!wtInfo || !this.worktreeManager) return {};
 
+    let mergeConflict: { taskId: string; branch: string } | undefined;
     try {
       if (merge) {
         this.worktreeManager.merge(wtInfo.taskId, wtInfo.mergeStrategy);
       }
-    } catch {
-      // Merge failed — still clean up the worktree
+    } catch (err) {
+      // Check if it's a merge conflict
+      const { MergeConflictError } = await import('./WorktreeManager.js');
+      if (err instanceof MergeConflictError) {
+        mergeConflict = { taskId: err.taskId, branch: err.branch };
+      }
+      // Don't clean up worktree if merge failed — keep it for manual resolution
+      if (mergeConflict) {
+        return { mergeConflict };
+      }
     }
 
     try {
@@ -392,6 +391,7 @@ export class AgentManager {
     } catch { /* best effort */ }
 
     this.agentWorktrees.delete(agentId);
+    return {};
   }
 
   /**

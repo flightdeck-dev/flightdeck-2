@@ -1213,12 +1213,31 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const id = subPath.split('/')[2];
       const s = fd.suggestions.updateStatus(id, 'rejected');
       if (s) json(200, { success: true, suggestion: s }); else json(404, { error: 'Suggestion not found' });
+    } else if (subPath === '/file-locks' && method === 'GET') {
+      json(200, fd.sqlite.listFileLocks());
+    } else if (subPath === '/file-locks' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.filePath) { json(400, { error: 'Missing filePath' }); return; }
+        const agentId = body.agentId ?? req.headers['x-agent-id'] ?? 'unknown';
+        const role = body.role ?? req.headers['x-agent-role'] ?? 'worker';
+        const success = fd.sqlite.acquireFileLock(body.filePath, agentId, role, body.reason);
+        json(success ? 200 : 409, { locked: success, filePath: body.filePath });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/file-locks\//) && method === 'DELETE') {
+      try {
+        const filePath = decodeURIComponent(subPath.slice('/file-locks/'.length));
+        const body = await readBody().catch(() => ({})) as any;
+        const agentId = body?.agentId ?? req.headers['x-agent-id'] ?? '';
+        const released = fd.sqlite.releaseFileLock(filePath, agentId);
+        json(200, { released, filePath });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath === '/isolation/status' && method === 'GET') {
       try {
         const project = fd.project.getConfig();
-        const isolationMode = project.isolation ?? 'none';
+        const isolationMode = project.isolation ?? 'file_lock';
         const { IsolationManager } = await import('../isolation/IsolationManager.js');
-        const im = new IsolationManager(fd.project.cwd ?? process.cwd(), { mode: isolationMode as 'none' | 'git_worktree' | 'directory' });
+        const im = new IsolationManager(fd.project.cwd ?? process.cwd(), { mode: isolationMode as any });
         json(200, im.status());
       } catch (e: unknown) { json(500, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath === '/webhook/test' && method === 'POST') {

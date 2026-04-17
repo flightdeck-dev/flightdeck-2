@@ -1,6 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
+export class MergeConflictError extends Error {
+  constructor(public branch: string, public taskId: string, cause: string) {
+    super(`Merge conflict for ${branch} (task ${taskId}): ${cause}`);
+    this.name = 'MergeConflictError';
+  }
+}
+
 export interface WorktreeInfo {
   path: string;
   branch: string;
@@ -159,9 +166,10 @@ export class WorktreeManager {
       }
       return { strategy, branch, merged: true };
     } catch (err) {
-      // Merge conflict or other error
+      // Merge conflict or other error — abort and throw typed error
       try { this.git(['merge', '--abort']); } catch { /* ignore */ }
-      throw new Error(`Merge failed for ${branch}: ${String(err)}`);
+      const error = new MergeConflictError(branch, taskId, String(err));
+      throw error;
     }
   }
 
@@ -169,7 +177,7 @@ export class WorktreeManager {
    * Get the worktree path for a task.
    */
   worktreePath(taskId: string): string {
-    return resolve(this.projectRoot, '.flightdeck', 'worktrees', taskId);
+    return resolve(this.projectRoot, '.worktrees', taskId);
   }
 
   /**

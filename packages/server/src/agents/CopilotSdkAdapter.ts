@@ -463,6 +463,32 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
+    // File locks
+    tools.push({
+      name: 'flightdeck_file_lock',
+      description: 'Acquire a lock on a file before modifying it.',
+      parameters: { type: 'object', properties: { filePath: { type: 'string' }, reason: { type: 'string' } }, required: ['filePath'] },
+      handler: async (args: { filePath: string; reason?: string }) => JSON.stringify(await httpPost('/file-locks', { filePath: args.filePath, reason: args.reason })),
+      skipPermission: true,
+    });
+    tools.push({
+      name: 'flightdeck_file_unlock',
+      description: 'Release a file lock.',
+      parameters: { type: 'object', properties: { filePath: { type: 'string' } }, required: ['filePath'] },
+      handler: async (args: { filePath: string }) => {
+        const res = await fetch(`${baseUrl}/file-locks/${encodeURIComponent(args.filePath)}`, { method: 'DELETE', headers, body: JSON.stringify({}) });
+        return JSON.stringify(await res.json());
+      },
+      skipPermission: true,
+    });
+    tools.push({
+      name: 'flightdeck_file_locks',
+      description: 'List all active file locks.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/file-locks')),
+      skipPermission: true,
+    });
+
     // Role listing
     tools.push({
       name: 'flightdeck_role_list',

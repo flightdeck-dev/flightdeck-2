@@ -76,7 +76,7 @@ export class ProjectStore {
     const defaultConfig: ProjectConfig = {
       name: projectName,
       governance: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       onCompletion: 'ask',
     };
     this.setConfig(defaultConfig);
