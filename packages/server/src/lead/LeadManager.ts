@@ -235,16 +235,36 @@ export class LeadManager {
     }
     const steer = this.buildSteer(event);
     const sourceMessageId = event.type === 'user_message' ? event.message.id : undefined;
-    const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
-    this.lastSteerAt = new Date().toISOString();
-    // Mark Lead as idle after response
-    if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'idle');
+    try {
+      const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
+      this.lastSteerAt = new Date().toISOString();
+      // Mark Lead as idle after response
+      if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'idle');
 
-    // Log to SessionStore for session transcript search
-    this.logSessionEvent('user', steer);
-    if (response) this.logSessionEvent('agent', response);
+      // Log to SessionStore for session transcript search
+      this.logSessionEvent('user', steer);
+      if (response) this.logSessionEvent('agent', response);
 
-    return response;
+      return response;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('not found') || msg.includes('ended') || msg.includes('Session')) {
+        // Session is dead — reset and spawn fresh
+        console.error(`  Lead session dead (${msg}), spawning fresh...`);
+        this.leadSessionId = null;
+        this.leadAgentId = null;
+        try {
+          await this.spawnLead();
+          if (this.leadSessionId) {
+            return this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
+          }
+        } catch (err2) {
+          console.error(`  Failed to respawn Lead: ${err2 instanceof Error ? err2.message : String(err2)}`);
+        }
+      }
+      console.error(`  Failed to steer Lead: ${msg}`);
+      return '';
+    }
   }
 
   /** Set a handler to receive streaming updates (tool calls, thoughts, text chunks) from the lead session */
