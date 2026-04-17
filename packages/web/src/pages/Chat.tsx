@@ -108,8 +108,15 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
           </div>
         )}
         <div className={`flex items-baseline gap-2 ${isUser ? 'justify-end' : ''}`}>
-          <span className="text-sm font-medium" style={{ color: style.color }}>{style.label}</span>
-          {msg.authorId && msg.authorType !== 'user' && (
+          <span className="text-sm font-medium" style={{ color: style.color }}>
+            {msg.authorType === 'agent' && msg.authorId
+              ? msg.authorId.replace(/-[a-z0-9]+$/, '').replace(/^\w/, c => c.toUpperCase())
+              : style.label}
+          </span>
+          {msg.authorId && msg.authorType !== 'user' && msg.authorType !== 'agent' && (
+            <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
+          )}
+          {msg.authorType === 'agent' && msg.authorId && (
             <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
           )}
           <span className="text-xs text-[var(--color-text-tertiary)]">
