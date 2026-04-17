@@ -311,6 +311,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/state$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (!body.state) { json(400, { error: 'Missing required field: state' }); return; }
+        fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, body.state);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/cancel$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {

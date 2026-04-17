@@ -132,13 +132,13 @@ describe('Role Separation E2E', () => {
         expect(leadTools).not.toContain('flightdeck_task_claim');
       });
 
-      it('DOES have status, task_list, task_add, agent_spawn, escalate, declare_tasks, spec_create', () => {
+      it('DOES have status, task_list, task_add, plan_approve, escalate, spec_create', () => {
         expect(leadTools).toContain('flightdeck_status');
         expect(leadTools).toContain('flightdeck_task_list');
         expect(leadTools).toContain('flightdeck_task_add');
-        expect(leadTools).toContain('flightdeck_agent_spawn');
+        expect(leadTools).toContain('flightdeck_plan_approve');
         expect(leadTools).toContain('flightdeck_escalate');
-        expect(leadTools).toContain('flightdeck_declare_tasks');
+        expect(leadTools).toContain('flightdeck_plan_approve');
         expect(leadTools).toContain('flightdeck_spec_create');
       });
     });
@@ -146,10 +146,9 @@ describe('Role Separation E2E', () => {
     describe('Planner role', () => {
       const plannerTools = getToolsForRole('planner');
 
-      it('does NOT have task_claim, task_submit, task_complete', () => {
+      it('does NOT have task_claim, task_submit (those are for workers)', () => {
         expect(plannerTools).not.toContain('flightdeck_task_claim');
         expect(plannerTools).not.toContain('flightdeck_task_submit');
-        expect(plannerTools).not.toContain('flightdeck_task_complete');
       });
 
       it('DOES have task_list, task_add, declare_tasks, task_get, memory_write, escalate, spec_create', () => {

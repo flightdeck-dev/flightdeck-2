@@ -558,11 +558,9 @@ export class Orchestrator {
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
     const usedAgentIds = new Set<string>();
     let assigned = 0;
+    const maxWorkers = this.config.maxConcurrentWorkers ?? 30;
 
     for (const task of readyTasks) {
-      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
-      if (!agent) continue;
-
       // Check governance gate
       if (this.governance.shouldGateTaskStart(task.state, task.role)) {
         try {
@@ -571,21 +569,42 @@ export class Orchestrator {
         continue;
       }
 
-      try {
-        this.dag.claimTask(task.id, agent.id);
-        this.store.updateAgentStatus(agent.id, 'busy');
-        usedAgentIds.add(agent.id);
-        assigned++;
+      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
+      if (agent) {
+        // Assign to idle agent
+        try {
+          this.dag.claimTask(task.id, agent.id);
+          this.store.updateAgentStatus(agent.id, 'busy');
+          usedAgentIds.add(agent.id);
+          assigned++;
 
-        // Auto-steer the worker with task details so it starts working immediately
-        if (this.agentManager && agent.acpSessionId) {
-          const ts = new Date().toISOString().slice(0, 19) + 'Z';
-          void this.agentManager.sendToAgent(agent.id as AgentId,
-            `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`
-          ).catch(() => { /* best effort */ });
+          if (this.agentManager && agent.acpSessionId) {
+            const ts = new Date().toISOString().slice(0, 19) + 'Z';
+            void this.agentManager.sendToAgent(agent.id as AgentId,
+              `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`
+            ).catch(() => { /* best effort */ });
+          }
+        } catch { /* Skip */ }
+      } else if (this.agentManager) {
+        // No idle agent — auto-spawn if under cap
+        const activeWorkers = this.store.listAgents().filter(
+          a => (a.status === 'busy' || a.status === 'idle') && a.role === task.role
+        ).length;
+        if (activeWorkers < maxWorkers) {
+          void this.agentManager.spawnAgent({
+            role: task.role as any,
+            cwd: this.config.cwd ?? process.cwd(),
+            projectName: this.config.name,
+            taskContext: `Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`,
+          }).then(agent => {
+            try {
+              this.dag.claimTask(task.id, agent.id);
+            } catch { /* task may have been claimed by another path */ }
+          }).catch(err => {
+            console.error(`[${this.config.name}] Auto-spawn failed for ${task.role}:`, err instanceof Error ? err.message : String(err));
+          });
+          assigned++; // Optimistic — spawn is async
         }
-      } catch {
-        // Skip
       }
     }
 

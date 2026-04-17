@@ -36,11 +36,22 @@ describe('toolPermissions', () => {
     }
   });
 
-  it('only lead can spawn/terminate agents', () => {
-    expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_spawn');
-    expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_terminate');
+  it('lead and planner have correct agent management split', () => {
+    // Planner manages agents (spawn/terminate)
+    expect(ROLE_TOOLS.planner).toContain('flightdeck_agent_spawn');
+    expect(ROLE_TOOLS.planner).toContain('flightdeck_agent_terminate');
+    // Lead can view but not manage agents directly
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_list');
+    expect(ROLE_TOOLS.lead).not.toContain('flightdeck_agent_spawn');
+    // Workers/reviewers can't manage agents
     expect(ROLE_TOOLS.worker).not.toContain('flightdeck_agent_spawn');
     expect(ROLE_TOOLS.reviewer).not.toContain('flightdeck_agent_spawn');
+  });
+
+  it('lead has plan approval tools', () => {
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_approve');
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_reject');
+    expect(ROLE_TOOLS.planner).not.toContain('flightdeck_plan_approve');
   });
 
   it('worker can claim and submit tasks', () => {

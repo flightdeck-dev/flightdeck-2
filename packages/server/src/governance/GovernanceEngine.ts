@@ -104,6 +104,11 @@ export class GovernanceEngine {
     return false;
   }
 
+  /** Whether the Lead should auto-approve plans without asking the user. */
+  shouldAutoApprovePlan(): boolean {
+    return this._config.governance === 'autonomous';
+  }
+
   checkCostThreshold(currentCost: number): PolicyResult {
     const threshold = this._config.costThresholdPerDay;
     if (!threshold) return { allowed: true, action: 'approve' };

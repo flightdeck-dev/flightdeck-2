@@ -22,12 +22,12 @@ async function callTool(server: any, name: string, params: Record<string, unknow
 
 describe('toolPermissions', () => {
   it('returns correct tools for each role', () => {
-    expect(getToolsForRole('lead')).toContain('flightdeck_agent_spawn');
+    expect(getToolsForRole('lead')).toContain('flightdeck_plan_approve');
     expect(getToolsForRole('lead')).toContain('flightdeck_task_list');
     expect(getToolsForRole('worker')).toContain('flightdeck_task_claim');
     expect(getToolsForRole('worker')).not.toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('planner')).toContain('flightdeck_declare_tasks');
-    expect(getToolsForRole('planner')).not.toContain('flightdeck_agent_spawn');
+    expect(getToolsForRole('planner')).toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('reviewer')).toContain('flightdeck_task_complete');
     expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_claim');
   });
@@ -90,8 +90,8 @@ describe('MCP Server role-based tool filtering', () => {
   it('lead role sees management tools', () => {
     const server = createMcpServer({ projectName, agentRole: 'lead' });
     const tools = getToolNames(server);
-    expect(tools).toContain('flightdeck_agent_spawn');
-    expect(tools).toContain('flightdeck_agent_terminate');
+    expect(tools).toContain('flightdeck_plan_approve');
+    expect(tools).toContain('flightdeck_plan_reject');
     expect(tools).toContain('flightdeck_task_list');
     expect(tools).toContain('flightdeck_model_set');
     expect(tools).toContain('flightdeck_report');

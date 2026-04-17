@@ -907,6 +907,55 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  // ── Plan approval tools (Lead only) ──
+
+  server.tool('flightdeck_plan_approve', 'Approve a planned set of tasks (transitions planned → pending). Only for Lead.', {
+    specId: z.string().optional().describe('Approve tasks for this spec. If omitted, approves all planned tasks.'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const allTasks = client.listTasks();
+      const planned = (allTasks as any[]).filter((t: any) =>
+        t.state === 'planned' && (!params.specId || t.specId === params.specId)
+      );
+      let approved = 0;
+      for (const task of planned) {
+        try {
+          await client.updateTaskState(task.id, 'pending');
+          approved++;
+        } catch { /* skip invalid transitions */ }
+      }
+      return jsonResponse({ approved, total: planned.length });
+    } catch (err) {
+      return errorResponse(`Error approving plan: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_plan_reject', 'Reject a planned set of tasks (transitions planned → cancelled). Only for Lead.', {
+    specId: z.string().optional().describe('Reject tasks for this spec. If omitted, rejects all planned tasks.'),
+    reason: z.string().optional(),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const allTasks = client.listTasks();
+      const planned = (allTasks as any[]).filter((t: any) =>
+        t.state === 'planned' && (!params.specId || t.specId === params.specId)
+      );
+      let rejected = 0;
+      for (const task of planned) {
+        try {
+          await client.updateTaskState(task.id, 'cancelled');
+          rejected++;
+        } catch { /* skip */ }
+      }
+      return jsonResponse({ rejected, total: planned.length, reason: params.reason });
+    } catch (err) {
+      return errorResponse(`Error rejecting plan: ${(err as Error).message}`);
+    }
+  });
+
   // ── Decision tools ──
 
   server.tool('flightdeck_decision_log', 'Record a decision', {

@@ -27,7 +27,7 @@ describe('RoleRegistry', () => {
     expect(lead!.id).toBe('lead');
     expect(lead!.name).toBe('Lead');
     expect(lead!.icon).toBe('👑');
-    expect(lead!.permissions.agent_spawn).toBe(true);
+    expect(lead!.permissions.plan_approve).toBe(true);
   });
 
   it('returns null for unknown role', () => {
@@ -35,7 +35,8 @@ describe('RoleRegistry', () => {
   });
 
   it('hasPermission checks correctly', () => {
-    expect(registry.hasPermission('lead', 'agent_spawn')).toBe(true);
+    expect(registry.hasPermission('lead', 'plan_approve')).toBe(true);
+    expect(registry.hasPermission('planner', 'agent_spawn')).toBe(true);
     expect(registry.hasPermission('worker', 'agent_spawn')).toBe(false);
     expect(registry.hasPermission('worker', 'task_claim')).toBe(true);
     expect(registry.hasPermission('reviewer', 'task_complete')).toBe(true);

@@ -11,7 +11,7 @@ export type MessageId = Brand<string, 'MessageId'>;
 
 // Task states
 export const TASK_STATES = [
-  'pending', 'ready', 'running', 'in_review', 'done',
+  'planned', 'pending', 'ready', 'running', 'in_review', 'done',
   'failed', 'blocked', 'paused', 'skipped', 'cancelled', 'gated',
 ] as const;
 export type TaskState = typeof TASK_STATES[number];
@@ -153,6 +153,10 @@ export interface ProjectConfig {
   onCompletion: OnCompletionAction;
   costThresholdPerDay?: number;
   maxConcurrentAgents?: number;
+  /** Maximum concurrent workers the Orchestrator can auto-spawn. Default: 30. */
+  maxConcurrentWorkers?: number;
+  /** Minimum number of tasks in declare_tasks to require Lead approval. Default: 3. */
+  planApprovalThreshold?: number;
   agents?: AgentsConfig;
   /** Webhook notification configuration. */
   notifications?: {
@@ -178,6 +182,9 @@ export interface FlightdeckJson {
 type TransitionKey = `${TaskState}->${TaskState}`;
 
 const VALID_TRANSITIONS = new Set<TransitionKey>([
+  'planned->pending',
+  'planned->cancelled',
+  'planned->skipped',
   'pending->ready',
   'pending->blocked',
   'pending->skipped',
