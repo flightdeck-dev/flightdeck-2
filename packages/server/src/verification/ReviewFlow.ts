@@ -178,7 +178,7 @@ export async function processReview(
     artifacts: options?.artifacts,
   });
 
-  let meta: AgentMetadata;
+  let meta: AgentMetadata = undefined!;
   try {
     if (options?.agentManager) {
       // Check for idle reviewer to reuse before spawning a new one

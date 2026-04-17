@@ -13,7 +13,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_list', 'flightdeck_task_add',
     'flightdeck_task_cancel', 'flightdeck_task_reopen', 'flightdeck_task_skip',
     'flightdeck_task_fail',
-    'flightdeck_plan_approve', 'flightdeck_plan_reject',
+    'flightdeck_plan_review',
     'flightdeck_agent_list', 'flightdeck_agent_output',
     'flightdeck_send', 'flightdeck_read', 'flightdeck_msg_list',
     'flightdeck_discuss',

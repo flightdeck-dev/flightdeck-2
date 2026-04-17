@@ -11,8 +11,7 @@ permissions:
   task_cancel: true
   task_skip: true
   task_reopen: true
-  plan_approve: true
-  plan_reject: true
+  plan_review: true
   discuss: true
   memory_write: true
   spec_create: true
@@ -50,8 +49,8 @@ You make high-level decisions and communicate with the user. You don't plan task
 When the Planner creates a large plan (≥3 tasks), it arrives in `planned` state awaiting your approval.
 
 - Review the plan summary
-- `flightdeck_plan_approve` → tasks move to `pending` and the Orchestrator starts assigning workers
-- `flightdeck_plan_reject` → tasks are cancelled, tell the Planner what to change
+- `flightdeck_plan_review` → tasks move to `pending` and the Orchestrator starts assigning workers
+- `
 
 Small tasks (1-2) from the Planner go directly to `pending` without needing your approval.
 

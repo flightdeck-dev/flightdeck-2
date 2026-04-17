@@ -907,52 +907,31 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  // ── Plan approval tools (Lead only) ──
+  // ── Plan approval tool (Lead only) ──
 
-  server.tool('flightdeck_plan_approve', 'Approve a planned set of tasks (transitions planned → pending). Only for Lead.', {
-    specId: z.string().optional().describe('Approve tasks for this spec. If omitted, approves all planned tasks.'),
+  server.tool('flightdeck_plan_review', 'Approve or reject a planned set of tasks. Approve transitions planned → pending; reject transitions planned → cancelled.', {
+    verdict: z.enum(['approve', 'reject']).describe('Whether to approve or reject the plan'),
+    specId: z.string().optional().describe('Target tasks for this spec. If omitted, targets all planned tasks.'),
+    message: z.string().optional().describe('Reason or feedback for the decision'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
-      const allTasks = client.listTasks();
+      const allTasks = await client.listTasks();
       const planned = (allTasks as any[]).filter((t: any) =>
         t.state === 'planned' && (!params.specId || t.specId === params.specId)
       );
-      let approved = 0;
+      const targetState = params.verdict === 'approve' ? 'pending' : 'cancelled';
+      let count = 0;
       for (const task of planned) {
         try {
-          await client.updateTaskState(task.id, 'pending');
-          approved++;
+          await client.updateTaskState(task.id, targetState);
+          count++;
         } catch { /* skip invalid transitions */ }
       }
-      return jsonResponse({ approved, total: planned.length });
+      return jsonResponse({ verdict: params.verdict, count, total: planned.length, message: params.message });
     } catch (err) {
-      return errorResponse(`Error approving plan: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_plan_reject', 'Reject a planned set of tasks (transitions planned → cancelled). Only for Lead.', {
-    specId: z.string().optional().describe('Reject tasks for this spec. If omitted, rejects all planned tasks.'),
-    reason: z.string().optional(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const allTasks = client.listTasks();
-      const planned = (allTasks as any[]).filter((t: any) =>
-        t.state === 'planned' && (!params.specId || t.specId === params.specId)
-      );
-      let rejected = 0;
-      for (const task of planned) {
-        try {
-          await client.updateTaskState(task.id, 'cancelled');
-          rejected++;
-        } catch { /* skip */ }
-      }
-      return jsonResponse({ rejected, total: planned.length, reason: params.reason });
-    } catch (err) {
-      return errorResponse(`Error rejecting plan: ${(err as Error).message}`);
+      return errorResponse(`Error reviewing plan: ${(err as Error).message}`);
     }
   });
 

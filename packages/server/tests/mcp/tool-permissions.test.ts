@@ -49,9 +49,8 @@ describe('toolPermissions', () => {
   });
 
   it('lead has plan approval tools', () => {
-    expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_approve');
-    expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_reject');
-    expect(ROLE_TOOLS.planner).not.toContain('flightdeck_plan_approve');
+    expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_review');
+    expect(ROLE_TOOLS.planner).not.toContain('flightdeck_plan_review');
   });
 
   it('worker can claim and submit tasks', () => {
