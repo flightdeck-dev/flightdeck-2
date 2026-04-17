@@ -651,7 +651,7 @@ export default function Chat() {
                     setSpeechLang(e.target.value);
                     try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
                   }}
-                    className={`appearance-none cursor-pointer focus:outline-none px-1.5 py-2.5 rounded-r-xl text-[11px] pr-4 ${isListening ? 'bg-red-500 text-white/80' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-l-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'}`}
+                    className={`absolute inset-0 opacity-0 cursor-pointer w-full h-full`}
                     title="Speech language">
                     {[
                       ['af-ZA','Afrikaans'],['ar-SA','Arabic'],['ca-ES','Catalan'],['cs-CZ','Czech'],['da-DK','Danish'],
@@ -663,7 +663,7 @@ export default function Chat() {
                       ['tr-TR','Turkish'],['uk-UA','Ukrainian'],['vi-VN','Vietnamese'],['zh-CN','Chinese (Simplified)'],['zh-HK','Cantonese'],['zh-TW','Chinese (Traditional)'],
                     ].map(([val, label]) => <option key={val} value={val}>{label}</option>)}
                   </select>
-                  <span className={`absolute right-0.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none ${isListening ? 'text-white/60' : 'text-[var(--color-text-tertiary)]'}`}>▾</span>
+                  <span className={`text-[9px] px-1 py-2.5 rounded-r-xl pointer-events-none ${isListening ? 'bg-red-500 text-white/60' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-l-0 text-[var(--color-text-tertiary)]'}`}>▾</span>
                 </div>
               </div>
             )}
