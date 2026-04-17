@@ -32,7 +32,7 @@ describe('Orchestrator — on_completion modes', () => {
     const config: ProjectConfig = {
       name: 'test',
       governance: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       onCompletion,
     };
     const gov = new GovernanceEngine(config);

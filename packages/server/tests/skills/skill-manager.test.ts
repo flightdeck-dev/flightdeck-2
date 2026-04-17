@@ -201,38 +201,6 @@ skills:
     });
   });
 
-  describe('generateMcpJson', () => {
-    it('generates valid .mcp.json', () => {
-      const dir = setupProject(`
-mcp:
-  global:
-    flightdeck:
-      command: "npx flightdeck-mcp"
-  roles:
-    worker:
-      postgres:
-        command: "npx @mcp/server-postgres"
-        args: ["postgresql://localhost/mydb"]
-`);
-      const sm = new SkillManager(dir);
-      const json = sm.generateMcpJson('worker');
-      const parsed = JSON.parse(json);
-      expect(parsed.mcpServers.flightdeck).toEqual({ command: 'npx', args: ['flightdeck-mcp'] });
-      expect(parsed.mcpServers.postgres).toEqual({
-        command: 'npx',
-        args: ['@mcp/server-postgres', 'postgresql://localhost/mydb'],
-      });
-    });
-
-    it('generates empty mcpServers when no config', () => {
-      const dir = setupProject();
-      const sm = new SkillManager(dir);
-      const json = sm.generateMcpJson('reviewer');
-      const parsed = JSON.parse(json);
-      expect(parsed.mcpServers).toEqual({});
-    });
-  });
-
   describe('copyDefaults', () => {
     it('copies built-in skills to project', () => {
       const dir = join(TEST_DIR, `copy-test-${Date.now()}`);

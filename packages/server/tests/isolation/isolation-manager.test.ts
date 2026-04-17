@@ -27,26 +27,25 @@ describe('IsolationManager', () => {
     rmSync(repoDir, { recursive: true, force: true });
   });
 
-  describe('mode: none', () => {
+  describe('mode: file_lock', () => {
     it('setup returns project root as cwd', () => {
-      const im = new IsolationManager(repoDir, { mode: 'none' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const result = im.setup('task-1');
       expect(result.cwd).toBe(repoDir);
       expect(result.branch).toBeUndefined();
     });
 
     it('cleanup is a no-op', () => {
-      const im = new IsolationManager(repoDir, { mode: 'none' });
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const result = im.cleanup('task-1');
       expect(result).toBeNull();
     });
 
-    it('status shows mode none with empty lists', () => {
-      const im = new IsolationManager(repoDir, { mode: 'none' });
+    it('status shows mode file_lock with empty worktrees', () => {
+      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
       const s = im.status();
-      expect(s.mode).toBe('none');
+      expect(s.mode).toBe('file_lock');
       expect(s.worktrees).toEqual([]);
-      expect(s.workdirs).toEqual([]);
     });
   });
 
@@ -99,42 +98,6 @@ describe('IsolationManager', () => {
     });
   });
 
-  describe('mode: file_lock', () => {
-    it('setup creates a working directory', () => {
-      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
-      const result = im.setup('task-1');
-      expect(existsSync(result.cwd)).toBe(true);
-      expect(result.cwd).toContain('.flightdeck/workdirs/task-1');
-    });
-
-    it('cleanup copies back and removes directory', () => {
-      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
-      const { cwd } = im.setup('task-2');
-      writeFileSync(join(cwd, 'output.txt'), 'result');
-
-      im.cleanup('task-2');
-      expect(readFileSync(join(repoDir, 'output.txt'), 'utf-8')).toBe('result');
-      expect(existsSync(cwd)).toBe(false);
-    });
-
-    it('cleanup with skipCopyBack does not copy', () => {
-      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
-      const { cwd } = im.setup('task-3');
-      writeFileSync(join(cwd, 'output.txt'), 'result');
-
-      im.cleanup('task-3', { skipCopyBack: true });
-      expect(existsSync(join(repoDir, 'output.txt'))).toBe(false);
-    });
-
-    it('status lists active workdirs', () => {
-      const im = new IsolationManager(repoDir, { mode: 'file_lock' });
-      im.setup('task-4');
-      const s = im.status();
-      expect(s.mode).toBe('file_lock');
-      expect(s.workdirs).toContain('task-4');
-    });
-  });
-
   describe('mergeAll', () => {
     it('merges multiple accumulated branches', () => {
       const im = new IsolationManager(repoDir, { mode: 'git_worktree', mergeStrategy: 'accumulate' });
@@ -156,7 +119,6 @@ describe('IsolationManager', () => {
 
       // Now merge all at once
       const results = im.mergeAll(['task-a', 'task-b']);
-      // task-a should merge, task-b may or may not depending on branch state
       expect(results.length).toBe(2);
     });
   });

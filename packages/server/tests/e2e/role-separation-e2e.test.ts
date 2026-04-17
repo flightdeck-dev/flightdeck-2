@@ -380,7 +380,7 @@ describe('Role Separation E2E', () => {
     const config: ProjectConfig = {
       name: 'test-role-sep',
       governance: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       onCompletion: 'stop',
     };
 
@@ -529,7 +529,7 @@ describe('Role Separation E2E', () => {
     const config: ProjectConfig = {
       name: 'test-e2e-roles',
       governance: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       onCompletion: 'stop',
     };
 

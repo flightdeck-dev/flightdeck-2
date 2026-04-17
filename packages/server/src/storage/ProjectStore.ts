@@ -216,12 +216,11 @@ _Updated periodically by consolidating daily logs._
   }
 
   /**
-   * Write AGENTS.md and .mcp.json to a target directory (typically the working directory).
+   * Write AGENTS.md to a target directory (typically the working directory).
    */
   static writeAgentFiles(dir: string, role: AgentRole): AgentConfigOutput {
     const configs = generateAgentConfigs(role);
     writeFileSync(join(dir, 'AGENTS.md'), configs.agentsMd);
-    writeFileSync(join(dir, '.mcp.json'), configs.mcpJson);
     return configs;
   }
 }

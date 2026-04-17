@@ -1,6 +1,6 @@
 /**
  * Agent configuration generator — produces role-specific AGENTS.md
- * and MCP config files for various runtimes.
+ * and setup instructions for various runtimes.
  */
 
 import type { AgentRole } from '@flightdeck-ai/shared';
@@ -125,21 +125,10 @@ Use \`flightdeck_*\` tools to interact with Flightdeck:
 `,
 };
 
-// ── MCP config for Claude Code (.mcp.json) ──
+// ── MCP config helpers ──
 
 function mcpServerPath(): string {
   return new URL('../mcp/server.ts', import.meta.url).pathname;
-}
-
-function mcpJsonContent(): string {
-  return JSON.stringify({
-    mcpServers: {
-      flightdeck: {
-        command: 'npx',
-        args: ['tsx', mcpServerPath()],
-      },
-    },
-  }, null, 2);
 }
 
 // ── MCP config for Codex (.codex/config.toml snippet) ──
@@ -178,7 +167,6 @@ function copilotInstructions(): string {
 
 export interface AgentConfigOutput {
   agentsMd: string;
-  mcpJson: string;
   codexConfig: string;
   geminiInstructions: string;
   copilotInstructions: string;
@@ -187,7 +175,6 @@ export interface AgentConfigOutput {
 export function generateAgentConfigs(role: AgentRole): AgentConfigOutput {
   return {
     agentsMd: AGENTS_MD[role],
-    mcpJson: mcpJsonContent(),
     codexConfig: codexConfigSnippet(),
     geminiInstructions: geminiInstructions(),
     copilotInstructions: copilotInstructions(),

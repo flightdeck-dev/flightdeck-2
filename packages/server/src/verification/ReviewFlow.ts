@@ -146,7 +146,7 @@ export async function processReview(
     artifacts?: string[];
     cwd?: string;
     projectName?: string;
-    /** Use AgentManager for spawning (handles DB registration, role config, AGENTS.md, .mcp.json) */
+    /** Use AgentManager for spawning (handles DB registration, role config, AGENTS.md) */
     agentManager?: import('../agents/AgentManager.js').AgentManager;
     /** For testing: function to retrieve agent output */
     getOutput?: (sessionId: string) => string;

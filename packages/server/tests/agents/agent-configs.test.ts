@@ -30,14 +30,6 @@ describe('AgentConfigs', () => {
     expect(configs.agentsMd).not.toContain('flightdeck_task_submit');
   });
 
-  it('generates valid .mcp.json', () => {
-    const configs = generateAgentConfigs('worker');
-    const parsed = JSON.parse(configs.mcpJson);
-    expect(parsed.mcpServers.flightdeck.command).toBe('npx');
-    expect(parsed.mcpServers.flightdeck.args[0]).toBe('tsx');
-    expect(parsed.mcpServers.flightdeck.args[1]).toContain('server.ts');
-  });
-
   it('generates codex config snippet', () => {
     const configs = generateAgentConfigs('worker');
     expect(configs.codexConfig).toContain('[mcp_servers.flightdeck]');

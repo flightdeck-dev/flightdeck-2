@@ -18,7 +18,7 @@ import type { ProjectConfig } from '@flightdeck-ai/shared';
 const config: ProjectConfig = {
   name: 'test-project',
   governance: 'autonomous',
-  isolation: 'none',
+  isolation: 'file_lock',
   onCompletion: 'stop',
 };
 

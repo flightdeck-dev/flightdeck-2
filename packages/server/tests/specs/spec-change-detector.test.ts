@@ -144,7 +144,7 @@ describe('Orchestrator spec change detection', () => {
   const config: ProjectConfig = {
     name: 'test',
     governance: 'autonomous',
-    isolation: 'none',
+    isolation: 'file_lock',
     onCompletion: 'stop',
   };
 

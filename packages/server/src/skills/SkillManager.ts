@@ -262,33 +262,6 @@ export class SkillManager {
   }
 
   /**
-   * Generate .mcp.json content for a given role.
-   */
-  generateMcpJson(role: AgentRole, flightdeckMcpBin?: string, projectName?: string): string {
-    const servers = this.getMcpForRole(role);
-    const mcpServers: Record<string, { command: string; args?: string[] }> = {};
-
-    // Always include flightdeck MCP server
-    if (flightdeckMcpBin) {
-      const args = [flightdeckMcpBin];
-      if (projectName) args.push('--project', projectName);
-      mcpServers['flightdeck'] = { command: 'node', args };
-    }
-
-    for (const [name, config] of Object.entries(servers)) {
-      // Parse command into command + args if needed
-      const parts = config.command.split(/\s+/);
-      const cmd = parts[0];
-      const cmdArgs = [...parts.slice(1), ...(config.args ?? [])];
-      mcpServers[name] = cmdArgs.length > 0
-        ? { command: cmd, args: cmdArgs }
-        : { command: cmd };
-    }
-
-    return JSON.stringify({ mcpServers }, null, 2);
-  }
-
-  /**
    * Install a skill to .flightdeck/skills/ from a source directory.
    */
   installSkill(source: string): SkillInfo | null {

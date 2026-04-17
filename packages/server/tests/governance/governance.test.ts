@@ -6,7 +6,7 @@ function makeConfig(profile: ProjectConfig['governance']): ProjectConfig {
   return {
     name: 'test',
     governance: profile,
-    isolation: 'none',
+    isolation: 'file_lock',
     onCompletion: 'stop',
     costThresholdPerDay: 50,
   };

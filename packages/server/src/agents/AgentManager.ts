@@ -5,7 +5,6 @@ import type { RoleRegistry } from '../roles/RoleRegistry.js';
 import type { AgentAdapter, AgentMetadata } from './AgentAdapter.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
-import { DirectoryManager } from './DirectoryManager.js';
 import type { MessageStore } from '../comms/MessageStore.js';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -165,11 +164,8 @@ export class AgentManager {
   private agentToSession = new Map<AgentId, string>();
   /** agentId → worktree taskId for cleanup */
   private agentWorktrees = new Map<AgentId, { taskId: string; mergeStrategy: 'auto' | 'squash' | 'pr' }>();
-  /** agentId → directory taskId for cleanup */
-  private agentWorkdirs = new Map<AgentId, string>();
   private adapter: AgentAdapter;
   private worktreeManager: WorktreeManager | null = null;
-  private directoryManager: DirectoryManager | null = null;
   private messageStore: MessageStore | null = null;
 
   private skillManager: SkillManager | null;
@@ -190,13 +186,6 @@ export class AgentManager {
    */
   setWorktreeManager(wm: WorktreeManager): void {
     this.worktreeManager = wm;
-  }
-
-  /**
-   * Set the DirectoryManager for directory-based isolation.
-   */
-  setDirectoryManager(dm: DirectoryManager): void {
-    this.directoryManager = dm;
   }
 
   /**
@@ -348,7 +337,6 @@ export class AgentManager {
 
     // Clean up worktree or workdir if one was created
     await this.cleanupWorktree(agentId);
-    this.cleanupWorkdir(agentId);
 
     this.store.updateAgentStatus(agentId, 'offline');
     this.store.updateAgentAcpSession(agentId, null);
@@ -386,25 +374,6 @@ export class AgentManager {
     return {};
   }
 
-  /**
-   * Copy results back and clean up a directory workdir for an agent.
-   */
-  cleanupWorkdir(agentId: AgentId, copyBack = true): void {
-    const taskId = this.agentWorkdirs.get(agentId);
-    if (!taskId || !this.directoryManager) return;
-
-    try {
-      if (copyBack) {
-        this.directoryManager.copyBack(taskId);
-      }
-    } catch { /* copy failed — still clean up */ }
-
-    try {
-      this.directoryManager.remove(taskId);
-    } catch { /* best effort */ }
-
-    this.agentWorkdirs.delete(agentId);
-  }
 
   async interruptAgent(agentId: AgentId, message: string): Promise<void> {
     const agent = this.store.getAgent(agentId);
@@ -593,7 +562,6 @@ export class AgentManager {
 
     // Clean up worktree/workdir
     await this.cleanupWorktree(agentId);
-    this.cleanupWorkdir(agentId);
 
     this.store.updateAgentStatus(agentId, 'retired');
     this.store.updateAgentAcpSession(agentId, null);

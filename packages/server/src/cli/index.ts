@@ -117,7 +117,7 @@ switch (command) {
     cfg.cwd = process.cwd();
     store.setConfig(cfg);
     ProjectStore.writeFlightdeckJson(process.cwd(), name);
-    // Generate default AGENTS.md (worker role) and .mcp.json
+    // Generate default AGENTS.md (worker role)
     ProjectStore.writeAgentFiles(process.cwd(), 'worker');
     // Copy built-in skills and generate default config
     SkillManager.copyDefaults(process.cwd());
@@ -128,7 +128,6 @@ switch (command) {
     console.log(`Project "${name}" initialized.`);
     console.log(`Created .flightdeck.json in ${process.cwd()}`);
     console.log(`Created AGENTS.md (worker role)`);
-    console.log(`Created .mcp.json (Claude Code MCP config)`);
     console.log(`Project data at ~/.flightdeck/projects/${name}/`);
     console.log();
     console.log('Setup for other runtimes:');
@@ -150,7 +149,7 @@ switch (command) {
     const configs = ProjectStore.writeAgentFiles(process.cwd(), role);
     console.log(configs.agentsMd);
     console.log('---');
-    console.log('Written: AGENTS.md, .mcp.json');
+    console.log('Written: AGENTS.md');
     console.log();
     console.log('Codex config snippet:');
     console.log(configs.codexConfig);

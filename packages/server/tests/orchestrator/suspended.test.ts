@@ -19,7 +19,7 @@ describe('Orchestrator suspended agents', () => {
   const config: ProjectConfig = {
     name: 'test',
     governance: 'autonomous',
-    isolation: 'none',
+    isolation: 'file_lock',
     onCompletion: 'stop',
   };
 

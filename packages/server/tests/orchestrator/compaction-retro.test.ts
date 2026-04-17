@@ -35,12 +35,12 @@ describe('Orchestrator: Compaction & Retrospective', () => {
     dag = new TaskDAG(store);
     const gov = new GovernanceEngine({
       profile: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       costThresholdPerDay: 100,
     });
     orchestrator = new Orchestrator(dag, store, gov, mockAdapter as any, {
       name: 'test',
-      isolation: 'none',
+      isolation: 'file_lock',
       costThresholdPerDay: 100,
     } as any, undefined, {
       leadManager: mockLeadManager as any,
@@ -104,12 +104,12 @@ describe('Orchestrator: Compaction & Retrospective', () => {
   it('does not compact tasks newer than TTL', async () => {
     const gov = new GovernanceEngine({
       profile: 'autonomous',
-      isolation: 'none',
+      isolation: 'file_lock',
       costThresholdPerDay: 100,
     });
     const orch2 = new Orchestrator(dag, store, gov, mockAdapter as any, {
       name: 'test',
-      isolation: 'none',
+      isolation: 'file_lock',
       costThresholdPerDay: 100,
     } as any, undefined, {
       governanceConfig: { compactionTtlHours: 24 }, // 24h TTL

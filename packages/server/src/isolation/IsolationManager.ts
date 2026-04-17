@@ -1,6 +1,5 @@
 import type { IsolationStrategy } from '@flightdeck-ai/shared';
 import { WorktreeManager, type MergeResult, type WorktreeInfo } from '../agents/WorktreeManager.js';
-import { DirectoryManager } from '../agents/DirectoryManager.js';
 
 export type MergeStrategy = 'auto' | 'squash' | 'pr' | 'accumulate';
 
@@ -19,23 +18,20 @@ export interface IsolationResult {
 export interface IsolationStatus {
   mode: IsolationStrategy;
   worktrees: WorktreeInfo[];
-  workdirs: string[];
 }
 
 /**
  * Unified facade for workspace isolation (FR-013).
- * Delegates to WorktreeManager or DirectoryManager based on config.
+ * Delegates to WorktreeManager for git_worktree; file_lock uses the project root directly.
  */
 export class IsolationManager {
   private worktreeManager: WorktreeManager;
-  private directoryManager: DirectoryManager;
 
   constructor(
     private projectRoot: string,
     private config: IsolationConfig = { mode: 'file_lock' },
   ) {
     this.worktreeManager = new WorktreeManager(projectRoot);
-    this.directoryManager = new DirectoryManager(projectRoot);
   }
 
   get mode(): IsolationStrategy {
@@ -57,10 +53,6 @@ export class IsolationManager {
         }
         const wt = this.worktreeManager.create(taskId, baseBranch);
         return { cwd: wt.path, branch: wt.branch };
-      }
-      case 'file_lock': {
-        const wd = this.directoryManager.create(taskId);
-        return { cwd: wd.path };
       }
       case 'file_lock':
       default:
@@ -108,17 +100,6 @@ export class IsolationManager {
 
         return mergeResult;
       }
-      case 'file_lock': {
-        if (!opts?.skipCopyBack) {
-          try {
-            this.directoryManager.copyBack(taskId);
-          } catch { /* best effort */ }
-        }
-        try {
-          this.directoryManager.remove(taskId);
-        } catch { /* best effort */ }
-        return null;
-      }
       case 'file_lock':
       default:
         return null;
@@ -132,7 +113,6 @@ export class IsolationManager {
     return {
       mode: this.config.mode,
       worktrees: this.config.mode === 'git_worktree' ? this.worktreeManager.list() : [],
-      workdirs: this.config.mode === 'file_lock' ? this.directoryManager.list() : [],
     };
   }
 
