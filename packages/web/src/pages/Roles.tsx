@@ -22,8 +22,10 @@ interface RoleInfo {
   instructions: string;
 }
 
-function RoleCard({ role, onClick, isSelected }: { role: RoleInfo; onClick: () => void; isSelected: boolean }) {
+function RoleCard({ role, onClick, isSelected, disabledRuntimes }: { role: RoleInfo; onClick: () => void; isSelected: boolean; disabledRuntimes: string[] }) {
   const enabledCount = role.enabledModels.filter(m => m.enabled).length;
+  const defaultModel = role.enabledModels.find(m => m.isDefault && m.enabled);
+  const defaultModelDisabled = defaultModel ? disabledRuntimes.includes(defaultModel.runtime) : false;
   return (
     <button
       onClick={onClick}
@@ -45,6 +47,11 @@ function RoleCard({ role, onClick, isSelected }: { role: RoleInfo; onClick: () =
           <p className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5">{role.description}</p>
         </div>
         <div className="text-right">
+          {defaultModelDisabled && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 block mb-1">
+              ⚠️ Default model unavailable
+            </span>
+          )}
           <span className="text-xs text-[var(--color-text-secondary)]">
             {enabledCount} model{enabledCount !== 1 ? 's' : ''}
           </span>
@@ -326,7 +333,8 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 }
 
 export default function Roles() {
-  const { projectName } = useFlightdeck();
+  const { projectName, status } = useFlightdeck();
+  const disabledRuntimes: string[] = (status?.config as any)?.disabledRuntimes ?? [];
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [preference, setPreference] = useState('');
@@ -408,6 +416,7 @@ export default function Roles() {
               role={role}
               isSelected={selectedRole === role.id}
               onClick={() => setSelectedRole(role.id)}
+              disabledRuntimes={disabledRuntimes}
             />
           ))}
           {roles.length === 0 && (

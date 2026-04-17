@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { Markdown } from '../components/Markdown.tsx';
-import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot } from 'lucide-react';
+import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const PIPELINE_COLUMNS: { state: TaskState; label: string; icon: React.ReactNode }[] = [
@@ -58,6 +59,61 @@ function PipelineColumn({ state, label, icon, tasks }: { state: TaskState; label
   );
 }
 
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+interface TokenByAgent {
+  agentId: string;
+  model: string;
+  totalIn: number;
+  totalOut: number;
+  totalCost: number;
+  requestCount: number;
+}
+
+function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsage: { totalIn: number; totalOut: number; totalCacheRead: number; totalCacheWrite: number; totalCost: number; requestCount: number } }) {
+  const [expanded, setExpanded] = useState(false);
+  const [byAgent, setByAgent] = useState<TokenByAgent[]>([]);
+
+  useEffect(() => {
+    if (!expanded || !projectName) return;
+    fetch(`/api/projects/${projectName}/token-usage`)
+      .then(r => r.json())
+      .then(data => setByAgent(data.byAgent ?? []))
+      .catch(() => {});
+  }, [expanded, projectName]);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+      >
+        <span>📊 Tokens: {formatTokenCount(tokenUsage.totalIn)} in / {formatTokenCount(tokenUsage.totalOut)} out | {tokenUsage.requestCount} calls{tokenUsage.totalCacheRead > 0 ? ` | Cache: ${formatTokenCount(tokenUsage.totalCacheRead)} read` : ''}</span>
+        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {expanded && byAgent.length > 0 && (
+        <div className="mt-2 space-y-1 pl-4">
+          {byAgent.map((a, i) => (
+            <div key={i} className="text-[11px] font-mono text-[var(--color-text-tertiary)] flex items-center gap-2">
+              <span className="truncate max-w-[120px]">{a.agentId}</span>
+              <span className="opacity-50">·</span>
+              <span className="truncate max-w-[140px]">{a.model}</span>
+              <span className="opacity-50">·</span>
+              <span>{formatTokenCount(a.totalIn)}/{formatTokenCount(a.totalOut)}</span>
+              <span className="opacity-50">·</span>
+              <span>${a.totalCost.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { status, tasks, agents, messages, loading } = useFlightdeck();
 
@@ -87,6 +143,9 @@ export default function Dashboard() {
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             {status?.config?.governance ?? '—'} governance · ${(status?.totalCost ?? 0).toFixed(2)} spent
           </p>
+          {(status as any)?.tokenUsage && (
+            <TokenUsage projectName={(status?.config as any)?.name ?? ''} tokenUsage={(status as any).tokenUsage} />
+          )}
         </div>
         <div className="flex items-center gap-4 text-sm">
           <div className="text-center">

@@ -389,6 +389,17 @@ function ProjectSettings() {
             </select>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-sm">Isolation</span>
+            <select
+              value={(status.config as any)?.isolation ?? 'file_lock'}
+              onChange={e => saveConfig({ isolation: e.target.value })}
+              className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer"
+            >
+              <option value="file_lock">File Lock (shared directory)</option>
+              <option value="git_worktree">Git Worktree (per-task branches)</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-sm">Total Cost</span>
             <span className="text-sm font-mono">${(status.totalCost ?? 0).toFixed(2)}</span>
           </div>
