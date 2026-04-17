@@ -135,9 +135,9 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
     }
   }
 
-  // Inject available roles & models for Lead
+  // Inject available roles & models (informational — Lead delegates to Planner)
   if (opts.roleConfigs && opts.roleConfigs.length > 0) {
-    prompt += `\n## Available Roles & Models\n`;
+    prompt += `\n## Available Roles (for reference — Planner handles spawning)\n`;
     for (const rc of opts.roleConfigs) {
       const models = rc.enabledModels?.filter(m => m.enabled) ?? [];
       const defaultModel = models.find(m => m.isDefault) ?? models[0];
@@ -285,7 +285,8 @@ export class AgentManager {
         const { ModelConfig } = await import('./ModelConfig.js');
         const mc = new ModelConfig(opts.cwd);
         const enabledModels = mc.getRoleEnabledModels(opts.role);
-        const activeModels = enabledModels.filter(m => m.enabled);
+        const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
+        const activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
         const defaultModel = activeModels.find(m => m.isDefault) ?? activeModels[0];
         if (defaultModel) {
           resolvedModel = defaultModel.model;

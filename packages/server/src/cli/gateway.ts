@@ -56,6 +56,20 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Clean up orphaned agent processes from a previous unclean shutdown
   await cleanupOrphanedAgents();
 
+  // Clean up v1 agent files that interfere with Copilot CLI
+  try {
+    const agentsDir = join(homedir(), '.copilot', 'agents');
+    if (existsSync(agentsDir)) {
+      const { readdirSync, unlinkSync } = await import('node:fs');
+      for (const f of readdirSync(agentsDir)) {
+        if (f.startsWith('flightdeck-') && f.endsWith('.md')) {
+          unlinkSync(join(agentsDir, f));
+          console.error(`  Removed v1 agent file: ~/.copilot/agents/${f}`);
+        }
+      }
+    }
+  } catch { /* best effort */ }
+
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'codex');
   const ptyAdapter = new PtyAdapterClass(undefined, 'claude');
   const copilotSdkAdapter = new CopilotSdkAdapter({

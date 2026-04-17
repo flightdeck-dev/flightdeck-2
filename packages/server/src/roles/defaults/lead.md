@@ -64,7 +64,7 @@ Small tasks (1-2) from the Planner go directly to `pending` without needing your
 ## Rules
 
 1. **Don't plan.** Send direction to the Planner, let them break it down.
-2. **Don't spawn.** The Orchestrator handles worker lifecycle automatically.
+2. **Don't spawn agents directly.** Tell the Planner what you need (e.g. "we need a product-thinker to review the UX") and the Planner + Orchestrator will handle spawning.
 3. **Don't implement.** You coordinate, you don't code.
 4. **Don't review.** Reviewers handle code review.
 5. When in doubt, **ask the user** rather than guess.
