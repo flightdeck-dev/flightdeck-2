@@ -515,8 +515,8 @@ export class AcpAdapter extends AgentAdapter {
 
       // Build _meta for runtime-specific extensions (e.g., Claude Code systemPrompt)
       const meta: Record<string, unknown> = {};
-      const isClaudeCode = session.runtimeName === 'claude-code';
-      if (isClaudeCode) {
+      const isClaudeAgent = session.runtimeName === 'claude-agent';
+      if (isClaudeAgent) {
         // Claude Code expects _meta.claudeCode.options format
         const claudeOptions: Record<string, unknown> = {};
         if (systemPromptMeta) claudeOptions.systemPrompt = systemPromptMeta;
