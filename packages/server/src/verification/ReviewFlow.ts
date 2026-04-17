@@ -44,13 +44,20 @@ export function buildReviewPrompt(task: {
   }
   sections.push(`
 ## Instructions
-Review the changes above. Respond with exactly one of these verdicts on the FIRST line:
+Review the changes above. You MUST submit your review using the \`flightdeck_review_submit\` MCP tool:
 
-VERDICT: APPROVE
-VERDICT: REQUEST-CHANGES
-VERDICT: REJECT
+\`\`\`
+flightdeck_review_submit({
+  taskId: "${task.id}",
+  verdict: "approve",        // or "request_changes"
+  comment: "Your feedback"
+})
+\`\`\`
 
-Then provide your reasoning and any feedback below the verdict line.
+- **approve** — Work meets requirements, task will be marked done.
+- **request_changes** — Worker must address your feedback.
+
+Always include a comment explaining your reasoning.
 Focus on: correctness, edge cases, security, and whether the claim matches the actual changes.`);
   return sections.join('\n');
 }
