@@ -183,7 +183,26 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
     // DELETE project
     if (subPath === '/' && method === 'DELETE') {
-      if (projectManager.delete(projectName)) json(200, { message: `Project "${projectName}" deleted` });
+      // Clean up LeadManager and state for this project
+      const lm = leadManagers?.get(projectName);
+      if (lm) {
+        try { lm.stop?.(); } catch { /* best effort */ }
+        leadManagers?.delete(projectName);
+      }
+      if (wsServers?.has(projectName)) wsServers.delete(projectName);
+      modelCfgCache.delete(projectName);
+      if (projectManager.delete(projectName)) {
+        // Force gateway state save to remove deleted project's sessions
+        try {
+          const { loadGatewayState, saveGatewayState } = await import('../cli/gatewayState.js');
+          const existingState = loadGatewayState();
+          if (existingState) {
+            const filtered = existingState.sessions.filter(s => s.project !== projectName);
+            saveGatewayState({ savedAt: new Date().toISOString(), sessions: filtered });
+          }
+        } catch { /* best effort */ }
+        json(200, { message: `Project "${projectName}" deleted` });
+      }
       else json(404, { error: `Project "${projectName}" not found` });
       return;
     }
