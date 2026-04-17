@@ -958,37 +958,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_handoff', 'Transfer a task to another agent or back to the ready pool with context', {
-    taskId: z.string(),
-    targetRole: z.string().optional().describe('Role to hand off to (e.g. worker, reviewer). Task goes to ready pool for that role.'),
-    targetAgent: z.string().optional().describe('Specific agent ID to hand off to.'),
-    context: z.string().describe('Handoff context: what was done, what remains, any gotchas.'),
-    preserveProgress: z.boolean().optional().describe('If true, keep current description + append context. If false, replace.'),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.getTask(params.taskId) as any;
-      if (!task) return errorResponse(`Task not found: ${params.taskId}`);
-      // Save handoff context as comment
-      await client.addTaskComment(params.taskId, `[HANDOFF from ${resolved.agentId}] ${params.context}`);
-      // Update description with context
-      const newDesc = params.preserveProgress !== false
-        ? `${task.description ?? ''}\n\n--- HANDOFF CONTEXT ---\n${params.context}`
-        : params.context;
-      await client.updateTaskDescription(params.taskId, newDesc);
-      // Unassign current agent, set back to ready
-      await client.updateTaskState(params.taskId, 'ready');
-      // If target role specified, update task role
-      if (params.targetRole) {
-        await client.updateTaskRole(params.taskId, params.targetRole);
-      }
-      return jsonResponse({ success: true, taskId: params.taskId, handedOffTo: params.targetRole ?? params.targetAgent ?? 'ready pool' });
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
   server.tool('flightdeck_discuss', 'Create a group discussion', {
     topic: z.string(),
     invitees: z.array(z.string()).optional(),

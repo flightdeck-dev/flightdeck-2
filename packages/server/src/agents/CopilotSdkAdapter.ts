@@ -463,21 +463,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
-    // Task handoff
-    tools.push({
-      name: 'flightdeck_task_handoff',
-      description: 'Transfer a task to another agent or back to the ready pool with context.',
-      parameters: { type: 'object', properties: { taskId: { type: 'string' }, targetRole: { type: 'string' }, context: { type: 'string' } }, required: ['taskId', 'context'] },
-      handler: async (args: { taskId: string; targetRole?: string; context: string }) => {
-        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/comments`, { comment: `[HANDOFF] ${args.context}` });
-        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/description`, { description: args.context });
-        await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/state`, { state: 'ready' });
-        if (args.targetRole) await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/role`, { role: args.targetRole });
-        return JSON.stringify({ success: true, taskId: args.taskId });
-      },
-      skipPermission: true,
-    });
-
     // Role listing
     tools.push({
       name: 'flightdeck_role_list',
