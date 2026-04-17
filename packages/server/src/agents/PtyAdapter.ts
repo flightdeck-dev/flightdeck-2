@@ -15,7 +15,7 @@ import { RUNTIME_REGISTRY } from './runtimes.js';
  * that use --print mode (one-shot per invocation).
  *
  * For Claude Code, each interaction spawns a new process:
- *   claude --print --resume <sessionId> --output-format json ...
+ *   claude --print --resume <sessionId> --output-format stream-json ...
  *
  * Session persistence is handled by the CLI itself (saves to disk).
  * --resume allows continuing the same conversation across invocations.
@@ -84,7 +84,7 @@ export class PtyAdapter extends AgentAdapter {
     const runtime = RUNTIME_REGISTRY[this.runtimeName];
     if (!runtime) throw new Error(`Unknown runtime: ${this.runtimeName}`);
 
-    const args: string[] = ['--print', '--output-format', 'json'];
+    const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
     if (opts.sessionId) {
       args.push('--resume', opts.sessionId);
     }
@@ -126,14 +126,30 @@ export class PtyAdapter extends AgentAdapter {
         if (code !== 0 && !stdout) {
           reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`));
         } else {
-          // Parse single JSON output from --output-format json
-          try {
-            const result = JSON.parse(stdout.trim());
-            claudeSessionId = result.session_id;
-            resolve({ output: result.result ?? stdout, claudeSessionId });
-          } catch {
-            resolve({ output: stdout, claudeSessionId });
+          // Parse stream-json output (one JSON object per line)
+          let textOutput = '';
+          for (const line of stdout.split('\n').filter(Boolean)) {
+            try {
+              const event = JSON.parse(line);
+              // Capture session ID from result event
+              if (event.session_id) claudeSessionId = event.session_id;
+              // Extract text from assistant messages
+              if (event.type === 'assistant' && event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === 'text') textOutput += block.text;
+                }
+              }
+              // Extract from content_block_delta
+              if (event.type === 'content_block_delta' && event.delta?.text) {
+                textOutput += event.delta.text;
+              }
+              // Extract from result
+              if (event.type === 'result' && event.result) {
+                textOutput = event.result;
+              }
+            } catch { /* not valid JSON line */ }
           }
+          resolve({ output: textOutput || stdout, claudeSessionId });
         }
       });
     });
