@@ -569,7 +569,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     acpAdapter.clear();
     // Clean up PID tracking — graceful shutdown means no orphans
     clearAgentPids();
-    wss.close();
+    (wss as any).close();
     httpServer.close();
     projectManager.closeAll();
     process.exit(0);
@@ -857,13 +857,13 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
     leadManager.setStreamHandler((update: SessionUpdate) => {
       switch (update.sessionUpdate) {
         case 'agent_message_chunk':
-          if (update.content?.type === 'text') {
-            wsServer.streamChunk(msgIdRef.current, update.content.text, false);
+          { const c = Array.isArray(update.content) ? update.content[0] : update.content;
+            if (c?.type === 'text') wsServer.streamChunk(msgIdRef.current, c.text, false);
           }
           break;
         case 'agent_thought_chunk':
-          if (update.content?.type === 'text') {
-            wsServer.streamChunk(msgIdRef.current, update.content.text, false, 'thinking');
+          { const c = Array.isArray(update.content) ? update.content[0] : update.content;
+            if (c?.type === 'text') wsServer.streamChunk(msgIdRef.current, c.text, false, 'thinking');
           }
           break;
         case 'tool_call': {
