@@ -356,7 +356,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
             <button
               type="submit"
               disabled={loading || !name.trim() || !cwd.trim()}
-              className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-accent)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-md bg-[#2f80ed] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Creating...' : 'Create'}
             </button>
