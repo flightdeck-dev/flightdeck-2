@@ -644,16 +644,16 @@ export default function Chat() {
               <button onClick={() => setReplyTo(null)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]">✕</button>
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-stretch">
             <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
               placeholder={connected ? 'Message Lead... (Enter to send)' : 'Connecting...'}
               disabled={!connected} rows={1}
               className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] disabled:opacity-50 max-h-32 overflow-y-auto"
             />
             {speechSupported && (
-              <div className="flex items-center">
+              <div className="flex items-stretch">
                 <button onClick={toggleListening}
-                  className={`px-3 py-2.5 rounded-l-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-r-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
+                  className={`px-3 rounded-l-xl text-sm transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-r-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
                   title={isListening ? 'Stop listening' : 'Voice input'}>
                   {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
                 </button>
