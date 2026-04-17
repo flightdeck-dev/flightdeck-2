@@ -267,13 +267,18 @@ export class AgentManager {
     }
 
     // 5. Write skill-based AGENTS.md and .mcp.json if SkillManager available
+    // Only write .mcp.json for ACP agents (Copilot SDK injects tools directly)
     if (this.skillManager) {
       try {
         const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
         writeFileSync(`${effectiveCwd}/AGENTS.md`, agentsMd);
-        const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
-        const mcpJson = this.skillManager.generateMcpJson(opts.role, mcpBinPath, opts.projectName);
-        writeFileSync(`${effectiveCwd}/.mcp.json`, mcpJson);
+        // Only write .mcp.json if agent uses ACP adapter (not SDK)
+        const runtimeDef = (await import('./runtimes.js')).RUNTIME_REGISTRY[resolvedRuntime ?? ''];
+        if (!runtimeDef || runtimeDef.adapter !== 'copilot-sdk') {
+          const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
+          const mcpJson = this.skillManager.generateMcpJson(opts.role, mcpBinPath, opts.projectName);
+          writeFileSync(`${effectiveCwd}/.mcp.json`, mcpJson);
+        }
       } catch { /* best effort — skills are optional */ }
     }
 

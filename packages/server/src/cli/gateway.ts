@@ -360,11 +360,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     webhookNotifiers.set(name, whNotifier);
     console.error(`  Orchestrator running.`);
 
-    // Write .mcp.json to project cwd (once per project, not per-agent).
-    // Role env is injected per-process in AcpAdapter.spawn() via process env,
-    // which MCP subprocess inherits.
+    // Write .mcp.json to Flightdeck's internal state directory (not the project repo).
+    // ACP agents get a copy written to their cwd at spawn time by AgentManager.
+    // This avoids polluting the user's repo with Flightdeck config files.
     try {
-      const { writeFileSync, mkdirSync } = await import('node:fs');
+      const { writeFileSync } = await import('node:fs');
       const { resolve: resolvePath, dirname: dirnamePath } = await import('node:path');
       const { fileURLToPath: futp } = await import('node:url');
       const mcpBinPath = resolvePath(dirnamePath(futp(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
@@ -376,9 +376,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           },
         },
       }, null, 2);
-      const mcpCwd = projectCwd;
-      writeFileSync(resolvePath(mcpCwd, '.mcp.json'), mcpJson);
-      console.error(`  Wrote .mcp.json (MCP server: ${mcpBinPath}) → ${mcpCwd}`);
+      // Write to state dir, not project root
+      const stateDir = fd.project.subpath('.');
+      writeFileSync(resolvePath(stateDir, '.mcp.json'), mcpJson);
+      console.error(`  Wrote .mcp.json (MCP server: ${mcpBinPath}) → ${stateDir}`);
     } catch (err) {
       console.error(`  Warning: failed to write .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
     }
