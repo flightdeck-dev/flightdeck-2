@@ -10,18 +10,21 @@ export class MultiAdapter extends AgentAdapter {
   readonly runtime: AgentRuntime = 'acp'; // default
   private acpAdapter: AgentAdapter;
   private ptyAdapter: AgentAdapter;
+  private copilotSdkAdapter: AgentAdapter | null;
   /** Maps sessionId → adapter for routing steer/kill/getMetadata */
   private sessionAdapterMap = new Map<string, AgentAdapter>();
 
-  constructor(acpAdapter: AgentAdapter, ptyAdapter: AgentAdapter) {
+  constructor(acpAdapter: AgentAdapter, ptyAdapter: AgentAdapter, copilotSdkAdapter?: AgentAdapter | null) {
     super();
     this.acpAdapter = acpAdapter;
     this.ptyAdapter = ptyAdapter;
+    this.copilotSdkAdapter = copilotSdkAdapter ?? null;
   }
 
   private pickAdapter(runtime?: string): AgentAdapter {
     if (!runtime) return this.acpAdapter;
     const def = RUNTIME_REGISTRY[runtime];
+    if (def?.adapter === 'copilot-sdk' && this.copilotSdkAdapter) return this.copilotSdkAdapter;
     if (def?.adapter === 'pty') return this.ptyAdapter;
     return this.acpAdapter;
   }
@@ -52,4 +55,5 @@ export class MultiAdapter extends AgentAdapter {
   /** Expose ACP adapter for session-end callbacks etc. */
   getAcpAdapter(): AgentAdapter { return this.acpAdapter; }
   getPtyAdapter(): AgentAdapter { return this.ptyAdapter; }
+  getCopilotSdkAdapter(): AgentAdapter | null { return this.copilotSdkAdapter; }
 }

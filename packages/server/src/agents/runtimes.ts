@@ -21,7 +21,7 @@ export interface RuntimeDefinition {
   /** Whether session/load is supported for restart/resume */
   supportsSessionLoad: boolean;
   /** Adapter type for Flightdeck */
-  adapter: 'acp' | 'pty';
+  adapter: 'acp' | 'pty' | 'copilot-sdk';
   /** Implementation notes and gotchas */
   notes: string | string[];
   /** Icon emoji */
@@ -80,6 +80,24 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     installHint: 'npm install -g @anthropic-ai/claude-code',
     loginInstructions: 'Authenticate using the GitHub Copilot CLI',
     notes: 'GitHub Copilot coding agent. --allow-all auto-approves permissions.',
+  },
+
+  'copilot-sdk': {
+    name: 'GitHub Copilot (SDK)',
+    command: 'copilot',
+    args: [],
+    systemPromptMethod: 'both',
+    supportsAcp: false,
+    supportsSessionLoad: false,
+    adapter: 'copilot-sdk',
+    icon: '🐙',
+    docsUrl: 'https://github.com/github/copilot-sdk',
+    setupLinks: [{ label: 'SDK Documentation', url: 'https://github.com/github/copilot-sdk' }],
+    installHint: 'npm install @github/copilot-sdk',
+    loginInstructions: 'Authenticate using the GitHub Copilot CLI (copilot auth login)',
+    notes: 'Uses @github/copilot-sdk for direct tool injection. No MCP subprocess needed. ' +
+      'Tools are injected as native session tools via createSession({ tools }). ' +
+      'Requires Copilot subscription with SDK access.',
   },
 
   'claude-code': {

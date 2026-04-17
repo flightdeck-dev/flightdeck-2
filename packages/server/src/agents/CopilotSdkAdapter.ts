@@ -15,6 +15,7 @@ import { CopilotClient, type CopilotSession, approveAll } from '@github/copilot-
 import type { SessionConfig, SessionEvent, Tool } from '@github/copilot-sdk';
 import type { AgentId, AgentRole, AgentRuntime } from '@flightdeck-ai/shared';
 import { agentId as makeAgentId } from '@flightdeck-ai/shared';
+import { AgentAdapter, type SpawnOptions as BaseSpawnOptions, type SteerMessage, type AgentMetadata } from './AgentAdapter.js';
 
 export interface CopilotSdkAdapterOptions {
   /** Gateway URL for tool HTTP calls. Default: http://localhost:18800 */
@@ -37,16 +38,8 @@ export interface CopilotAgentSession {
   model?: string;
 }
 
-export interface SpawnOptions {
-  agentId?: string;
-  role: AgentRole;
-  cwd: string;
-  model?: string;
-  systemPrompt?: string;
-  projectName?: string;
-}
-
-export class CopilotSdkAdapter {
+export class CopilotSdkAdapter extends AgentAdapter {
+  readonly runtime: AgentRuntime = 'acp';
   private client: CopilotClient | null = null;
   private sessions = new Map<string, CopilotAgentSession>();
   private gatewayUrl: string;
@@ -60,6 +53,7 @@ export class CopilotSdkAdapter {
   onOutput: ((agentId: string, event: SessionEvent) => void) | null = null;
 
   constructor(options?: CopilotSdkAdapterOptions) {
+    super();
     this.gatewayUrl = options?.gatewayUrl ?? process.env.FLIGHTDECK_URL ?? 'http://localhost:18800';
     this.defaultModel = options?.defaultModel;
   }
@@ -415,7 +409,7 @@ export class CopilotSdkAdapter {
   /**
    * Spawn a new Copilot agent session with flightdeck tools injected.
    */
-  async spawn(opts: SpawnOptions): Promise<{ agentId: AgentId; sessionId: string; status: string }> {
+  async spawn(opts: BaseSpawnOptions): Promise<AgentMetadata> {
     const client = await this.ensureClient();
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
     const sessionId = `copilot-sdk-${Date.now().toString(36)}`;
@@ -481,13 +475,13 @@ export class CopilotSdkAdapter {
       }
     });
 
-    return { agentId: aid, sessionId, status: 'active' };
+    return { agentId: aid, sessionId, status: 'running' as const };
   }
 
   /**
    * Send a prompt to an existing session (steer).
    */
-  async steer(sessionId: string, message: string): Promise<string> {
+  async steer(sessionId: string, message: SteerMessage): Promise<string> {
     const agentSession = this.sessions.get(sessionId);
     if (!agentSession) throw new Error(`Session not found: ${sessionId}`);
     if (agentSession.status === 'ended') throw new Error(`Session ended: ${sessionId}`);
@@ -495,7 +489,7 @@ export class CopilotSdkAdapter {
     const outputBefore = agentSession.output.length;
     agentSession.status = 'active';
 
-    await agentSession.session.send({ prompt: message });
+    await agentSession.session.send({ prompt: message.content });
 
     // Wait for idle (turn complete)
     await new Promise<void>((resolve) => {
@@ -526,11 +520,19 @@ export class CopilotSdkAdapter {
     setTimeout(() => this.sessions.delete(sessionId), 60_000);
   }
 
-  /**
-   * Get session metadata.
-   */
-  getSession(sessionId: string): CopilotAgentSession | null {
-    return this.sessions.get(sessionId) ?? null;
+  async getMetadata(sessionId: string): Promise<AgentMetadata | null> {
+    const s = this.sessions.get(sessionId);
+    if (!s) return null;
+    return {
+      agentId: s.agentId,
+      sessionId: s.id,
+      status: s.status === 'ended' ? 'ended' : s.status === 'idle' ? 'idle' : 'running',
+    };
+  }
+
+  override getSession(sessionId: string): { output: string } | undefined {
+    const s = this.sessions.get(sessionId);
+    return s ? { output: s.output } : undefined;
   }
 
   /**
