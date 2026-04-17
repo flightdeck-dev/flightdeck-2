@@ -107,6 +107,25 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
 
+    // ── Directory browser (for file picker in create project dialog) ──
+    if (url.pathname === '/api/browse-directory' && method === 'GET') {
+      const { readdirSync, statSync } = await import('node:fs');
+      const { resolve: resolvePath } = await import('node:path');
+      const { homedir } = await import('node:os');
+      const startPath = url.searchParams.get('path') || homedir();
+      try {
+        const resolved = resolvePath(startPath);
+        const entries = readdirSync(resolved, { withFileTypes: true })
+          .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+          .map(e => ({ name: e.name, path: resolvePath(resolved, e.name) }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        json(200, { path: resolved, parent: resolvePath(resolved, '..'), entries });
+      } catch {
+        json(200, { path: startPath, parent: startPath, entries: [] });
+      }
+      return;
+    }
+
     // ── Gateway state (for restart recovery) ──
     if (url.pathname === '/api/gateway/state' && method === 'GET') {
       const agents: Array<{ project: string; agentId: string; role: string; acpSessionId: string | null }> = [];

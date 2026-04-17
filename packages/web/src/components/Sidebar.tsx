@@ -237,6 +237,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState('');
   const [governance, setGovernance] = useState('autonomous');
+  const [isolation, setIsolation] = useState('file_lock');
   const [leadRuntime, setLeadRuntime] = useState('');
   const [leadModel, setLeadModel] = useState('');
   const [loading, setLoading] = useState(false);
@@ -280,12 +281,25 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
           </div>
           <div>
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Working directory</label>
-            <input
-              value={cwd}
-              onChange={e => setCwd(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
-              placeholder="/home/user/projects/my-project"
-            />
+            <div className="flex gap-1.5">
+              <input
+                value={cwd}
+                onChange={e => setCwd(e.target.value)}
+                className="flex-1 px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+                placeholder="/home/user/projects/my-project"
+              />
+              <button type="button" onClick={async () => {
+                try {
+                  const res = await fetch('/api/browse-directory' + (cwd ? `?path=${encodeURIComponent(cwd)}` : ''));
+                  const data = await res.json();
+                  if (data.path) setCwd(data.path);
+                } catch { /* fallback: user types manually */ }
+              }}
+                className="px-2.5 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] shrink-0"
+                title="Browse directory">
+                📂
+              </button>
+            </div>
             <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Absolute path to your project</p>
           </div>
           <div>
@@ -298,6 +312,17 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
               <option value="autonomous">Autonomous</option>
               <option value="collaborative">Collaborative</option>
               <option value="supervised">Supervised</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Isolation</label>
+            <select
+              value={isolation}
+              onChange={e => setIsolation(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+            >
+              <option value="file_lock">File Lock (shared directory)</option>
+              <option value="git_worktree">Git Worktree (per-task branches)</option>
             </select>
           </div>
           <div>
