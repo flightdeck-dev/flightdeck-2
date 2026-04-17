@@ -67,23 +67,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
   },
 
   copilot: {
-    name: 'GitHub Copilot CLI',
-    command: 'copilot',
-    args: ['--acp', '--stdio', '--allow-all'],
-    systemPromptMethod: 'agents-md',
-    supportsAcp: true,
-    supportsSessionLoad: false,
-    adapter: 'acp',
-    icon: '🐙',
-    docsUrl: 'https://docs.github.com/en/copilot/github-copilot-in-the-cli',
-    setupLinks: [{ label: 'Documentation', url: 'https://github.com/features/copilot/cli' }],
-    installHint: 'npm install -g @anthropic-ai/claude-code',
-    loginInstructions: 'Authenticate using the GitHub Copilot CLI',
-    notes: 'GitHub Copilot coding agent. --allow-all auto-approves permissions.',
-  },
-
-  'copilot-sdk': {
-    name: 'GitHub Copilot (SDK)',
+    name: 'GitHub Copilot',
     command: 'copilot',
     args: [],
     systemPromptMethod: 'both',
@@ -95,6 +79,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     setupLinks: [{ label: 'SDK Documentation', url: 'https://github.com/github/copilot-sdk' }],
     installHint: 'npm install @github/copilot-sdk',
     loginInstructions: 'Authenticate using the GitHub Copilot CLI (copilot auth login)',
+    supportsModelDiscovery: true,
     notes: 'Uses @github/copilot-sdk for direct tool injection. No MCP subprocess needed. ' +
       'Tools are injected as native session tools via createSession({ tools }). ' +
       'Requires Copilot subscription with SDK access.',

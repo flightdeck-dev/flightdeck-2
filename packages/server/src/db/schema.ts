@@ -23,6 +23,8 @@ export const tasks = sqliteTable('tasks', {
   cost: real('cost').default(0),
   stale: integer('stale', { mode: 'boolean' }).notNull().default(false),
   needsReview: integer('needs_review', { mode: 'boolean' }).notNull().default(true),
+  acceptanceCriteria: text('acceptance_criteria'),
+  context: text('context'),
   compactedAt: text('compacted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

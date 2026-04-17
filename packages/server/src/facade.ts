@@ -271,13 +271,20 @@ export class Flightdeck {
 
   // ── Status ──
 
-  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; totalCost: number; tokenUsage: ReturnType<SqliteStore['getTokenUsageTotal']> } {
+  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; totalCost: number; tokenUsage: ReturnType<SqliteStore['getTokenUsageTotal']>; agents: Array<{ id: string; role: string; status: string; currentTask?: string }> } {
+    const agentList = this.listAgents();
+    const tasks = this.dag.listTasks();
+    const agentDetails = agentList.map(a => {
+      const currentTask = tasks.find(t => t.assignedAgent === a.id && t.state === 'running');
+      return { id: a.id, role: a.role, status: a.status, currentTask: currentTask?.title };
+    });
     return {
       config: this.project.getConfig(),
       taskStats: this.getTaskStats(),
-      agentCount: this.listAgents().length,
+      agentCount: agentList.length,
       totalCost: this.sqlite.getTotalCost(),
       tokenUsage: this.sqlite.getTokenUsageTotal(),
+      agents: agentDetails,
     };
   }
 

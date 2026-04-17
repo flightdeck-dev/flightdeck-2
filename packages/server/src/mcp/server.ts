@@ -168,6 +168,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     dependsOn: z.array(z.string()).optional(),
     priority: z.number().optional(),
     needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
+      context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
@@ -349,6 +351,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
+      context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();
@@ -370,6 +374,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
+      context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();

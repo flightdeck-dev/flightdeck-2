@@ -74,6 +74,8 @@ export interface Task {
   stale: boolean;
   compactedAt: string | null;
   needsReview?: boolean; // Default: true. If false, skip review and go straight to done.
+  acceptanceCriteria?: string; // What "done" looks like — shown to worker and reviewer
+  context?: string; // Additional context, references, code snippets
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }

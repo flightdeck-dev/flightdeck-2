@@ -478,6 +478,18 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         });
       });
     });
+
+    // Discover copilot-sdk models separately (not ACP-based)
+    import('../agents/ModelTiers.js').then(({ modelRegistry }) => {
+      copilotSdkAdapter.discoverModels().then(models => {
+        if (models.length > 0) {
+          modelRegistry.registerModels('copilot', models);
+          console.error(`  copilot (SDK): ${models.length} models discovered`);
+        }
+      }).catch(e => {
+        console.error(`  copilot (SDK): model discovery failed — ${e instanceof Error ? e.message.split('\n')[0] : e}`);
+      });
+    });
   });
 
   // Helper: collect active sessions for state persistence

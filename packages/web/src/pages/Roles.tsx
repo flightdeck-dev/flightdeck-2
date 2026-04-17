@@ -218,7 +218,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                 const isActive = rt === currentRuntime;
                 const rtInfo = allRuntimes.find(r => r.id === rt);
                 const noDiscovery = rtInfo?.supportsModelDiscovery === false;
-                const notAcp = rtInfo?.supportsAcp === false;
+                const notAcp = rtInfo?.supportsAcp === false && !rtInfo?.supportsModelDiscovery;
                 // Status: has models = normal, no models + no discovery support = "default only", no models + discoverable = "discovering..."
                 const statusHint = count > 0 ? '' : noDiscovery || notAcp ? ' ·' : ' ⟳';
                 return (
@@ -248,7 +248,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
               {currentModels.length === 0 && (() => {
                 const rtInfo = allRuntimes.find(r => r.id === currentRuntime);
                 const noDiscovery = rtInfo?.supportsModelDiscovery === false;
-                const notAcp = rtInfo?.supportsAcp === false;
+                const notAcp = rtInfo?.supportsAcp === false && !rtInfo?.supportsModelDiscovery;
                 return (
                   <p className="text-xs text-[var(--color-text-tertiary)]">
                     {noDiscovery || notAcp

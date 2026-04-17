@@ -49,6 +49,8 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('agents', 'context_window_tokens', 'integer');
     this.addColumnIfMissing('agents', 'context_window_limit', 'integer');
     this.addColumnIfMissing('agents', 'model', 'text');
+    this.addColumnIfMissing('tasks', 'acceptance_criteria', 'text');
+    this.addColumnIfMissing('tasks', 'context', 'text');
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
@@ -408,6 +410,13 @@ export class SqliteStore extends EventEmitter {
 
   updateAgentModel(agentId: AgentId, model: string): void {
     this._db.run(sql`UPDATE agents SET model = ${model} WHERE id = ${agentId}`);
+  }
+
+  updateTaskDescription(taskId: TaskId, description: string): void {
+    this._db.update(tasks)
+      .set({ description, updatedAt: new Date().toISOString() })
+      .where(eq(tasks.id, taskId))
+      .run();
   }
 
   recordTaskCost(taskId: TaskId, amount: number): void {

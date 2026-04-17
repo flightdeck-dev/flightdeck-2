@@ -580,6 +580,21 @@ export class CopilotSdkAdapter extends AgentAdapter {
   }
 
   /**
+   * Discover available models from the Copilot SDK.
+   * Returns model list for registration in ModelRegistry.
+   */
+  async discoverModels(): Promise<Array<{ modelId: string; name: string }>> {
+    try {
+      const client = await this.ensureClient();
+      const models = await client.listModels();
+      return models.map(m => ({ modelId: m.id, name: m.name }));
+    } catch (err) {
+      console.error('[CopilotSdk] Failed to discover models:', err instanceof Error ? err.message : String(err));
+      return [];
+    }
+  }
+
+  /**
    * Stop the Copilot CLI server and clean up all sessions.
    */
   async shutdown(): Promise<void> {

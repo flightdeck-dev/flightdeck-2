@@ -498,7 +498,20 @@ export class Orchestrator {
           this.dag.failTask(task.id);
 
           if (retries < maxRetries) {
-            // Retry: reset to ready for re-assignment
+            // Retry: append error context to description so next worker has it
+            const comments = this.store.getTaskComments(task.id);
+            const lastReview = comments.filter(c => c.type === 'review').pop();
+            const lastError = comments.filter(c => c.type === 'system').pop();
+            const retryContext = [
+              `\n\n--- RETRY #${retries + 1} CONTEXT ---`,
+              lastError ? `Previous failure: ${lastError.content}` : 'Previous attempt: agent session ended without submission.',
+              lastReview ? `Last review feedback: ${lastReview.content}` : '',
+            ].filter(Boolean).join('\n');
+            // Append context to task description
+            const currentTask = this.store.getTask(task.id);
+            if (currentTask) {
+              this.store.updateTaskDescription(task.id, (currentTask.description ?? '') + retryContext);
+            }
             this.dag.retryTask(task.id);
             this.retryCount.set(task.id, retries + 1);
           } else {
