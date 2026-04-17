@@ -235,6 +235,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
+        // Permission check: only lead/planner can add tasks
+        const callerAgentId = req.headers['x-agent-id'] as string;
+        if (callerAgentId) {
+          const callerAgent = fd.sqlite.getAgent(callerAgentId as import('@flightdeck-ai/shared').AgentId);
+          if (!callerAgent) { json(403, { error: `Error: Agent '${callerAgentId}' not found. Check flightdeck_status() to see registered agents.` }); return; }
+          if (callerAgent.role !== 'lead' && callerAgent.role !== 'planner') {
+            json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only lead/planner roles can add tasks. Use flightdeck_escalate() to request task creation.` }); return;
+          }
+        }
         const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview });
         if (wsServer) {
           wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
@@ -251,11 +260,23 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/')[2];
       const agentId = req.headers['x-agent-id'] as string;
       if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return; }
+      // Permission check: only workers can claim tasks
+      const callerAgent = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+      if (callerAgent && callerAgent.role !== 'worker') {
+        json(403, { error: `Error: Agent '${agentId}' (role: ${callerAgent.role}) cannot claim tasks. Only worker role can claim tasks.` }); return;
+      }
       try {
         const task = fd.claimTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         json(200, task);
-      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('Task not found')) {
+          json(404, { error: `Error: Task '${taskId}' not found. Use flightdeck_task_list() to see available tasks.` });
+        } else {
+          json(400, { error: msg });
+        }
+      }
     } else if (subPath.match(/^\/tasks\/[^/]+\/submit$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
@@ -263,7 +284,19 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const task = fd.submitTask(taskId as import('@flightdeck-ai/shared').TaskId, body.claim);
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         json(200, task);
-      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('not running')) {
+          // Extract state from message like "Task xxx is not running (state: ready)"
+          const stateMatch = msg.match(/state:\s*(\w+)/);
+          const currentState = stateMatch ? stateMatch[1] : 'unknown';
+          json(400, { error: `Error: Cannot submit task '${taskId}' — current state is '${currentState}', must be 'running'. Did you forget to call flightdeck_task_claim() first?` });
+        } else if (msg.includes('Task not found')) {
+          json(404, { error: `Error: Task '${taskId}' not found. Use flightdeck_task_list() to see available tasks.` });
+        } else {
+          json(400, { error: msg });
+        }
+      }
     } else if (subPath.match(/^\/tasks\/[^/]+\/complete$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
@@ -287,6 +320,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/pause$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
+      // Permission check: workers cannot pause tasks
+      const pauseAgentId = req.headers['x-agent-id'] as string;
+      if (pauseAgentId) {
+        const pauseAgent = fd.sqlite.getAgent(pauseAgentId as import('@flightdeck-ai/shared').AgentId);
+        if (pauseAgent && pauseAgent.role === 'worker') {
+          json(403, { error: `Error: Agent '${pauseAgentId}' (role: worker) cannot pause tasks. Only lead/planner roles can pause tasks.` }); return;
+        }
+      }
       try {
         const task = fd.pauseTask(taskId as import('@flightdeck-ai/shared').TaskId);
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
@@ -351,6 +392,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return; }
+        // Permission check: only lead/planner can declare tasks
+        const declareCallerId = req.headers['x-agent-id'] as string;
+        if (declareCallerId) {
+          const declareCaller = fd.sqlite.getAgent(declareCallerId as import('@flightdeck-ai/shared').AgentId);
+          if (!declareCaller) { json(403, { error: `Error: Agent '${declareCallerId}' not found. Check flightdeck_status() to see registered agents.` }); return; }
+          if (declareCaller.role !== 'lead' && declareCaller.role !== 'planner') {
+            json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only lead/planner roles can declare tasks. Use flightdeck_escalate() to request task creation.` }); return;
+          }
+        }
         const tasks = fd.declareTasks(body.tasks as any);
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         json(201, tasks);
@@ -409,6 +459,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.role) { json(400, { error: 'Missing required field: role' }); return; }
+        // Permission check: only lead can spawn agents
+        const spawnCallerId = req.headers['x-agent-id'] as string;
+        if (spawnCallerId) {
+          const spawnCaller = fd.sqlite.getAgent(spawnCallerId as import('@flightdeck-ai/shared').AgentId);
+          if (spawnCaller && spawnCaller.role !== 'lead') {
+            json(403, { error: `Error: Agent '${spawnCallerId}' (role: ${spawnCaller.role}) cannot spawn agents. Only lead role can spawn agents.` }); return;
+          }
+        }
         // Resolve per-role runtime from project config
         let resolvedRuntime = body.runtime;
         if (!resolvedRuntime) {
@@ -548,6 +606,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       else json(404, { error: 'Spec not found' });
     } else if (subPath === '/threads' && method === 'GET') {
       json(200, fd.messages?.listThreads() ?? []);
+    } else if (subPath === '/threads' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.origin_id) { json(400, { error: 'Missing origin_id' }); return; }
+        if (!fd.messages) { json(500, { error: 'MessageStore not available' }); return; }
+        const thread = fd.messages.createThread({ originId: body.origin_id, title: body.title });
+        json(201, thread);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/search/sessions' && method === 'GET') {
       const query = url.searchParams.get('query');
       if (!query) { json(400, { error: 'Missing query parameter' }); return; }
@@ -579,10 +645,52 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       // Search messages (uses FTS5)
       const matchedMessages = fd.messages?.searchMessages(q, { limit }) ?? [];
 
+      // Search memory files
+      const source = url.searchParams.get('source');
+      const memoryResults: Array<{ source: string; file: string; line: number; content: string }> = [];
+      if (!source || source === 'memory') {
+        try {
+          const { readdirSync, readFileSync, statSync } = await import('node:fs');
+          const { join: pjoin } = await import('node:path');
+          const memDir = fd.project.subpath('memory');
+          const searchDir = (dir: string) => {
+            try {
+              for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                const full = pjoin(dir, entry.name);
+                if (entry.isDirectory()) { searchDir(full); continue; }
+                if (!entry.name.endsWith('.md')) continue;
+                try {
+                  const content = readFileSync(full, 'utf-8');
+                  const lines = content.split('\n');
+                  for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].toLowerCase().includes(q!.toLowerCase())) {
+                      memoryResults.push({ source: 'memory', filename: full.replace(fd.project.subpath('.') + '/', '').replace('memory/', ''), line: i + 1, snippet: lines[i].slice(0, 200) });
+                      if (memoryResults.length >= limit) break;
+                    }
+                  }
+                } catch { /* skip unreadable files */ }
+                if (memoryResults.length >= limit) break;
+              }
+            } catch { /* dir doesn't exist */ }
+          };
+          searchDir(memDir);
+        } catch { /* memory search optional */ }
+      }
+
+      // Return unified results array (for MCP compatibility) + structured data
+      const results = [
+        ...matchedTasks.map(t => ({ source: 'task', id: t.id, title: t.title, state: t.state })),
+        ...matchedAgents.map(a => ({ source: 'agent', id: a.id, role: a.role, status: a.status })),
+        ...matchedMessages.map(m => ({ source: 'message', id: m.id, content: m.content.slice(0, 200) })),
+        ...memoryResults,
+      ];
+
       json(200, {
+        results,
         tasks: matchedTasks.map(t => ({ id: t.id, title: t.title, state: t.state, type: 'task' as const })),
         agents: matchedAgents.map(a => ({ id: a.id, name: a.id, role: a.role, status: a.status, type: 'agent' as const })),
         messages: matchedMessages.map(m => ({ id: m.id, content: m.content.slice(0, 200), authorType: m.authorType, authorId: m.authorId, type: 'message' as const })),
+        memory: memoryResults,
       });
     } else if (subPath === '/models' && method === 'GET') {
       const mc = await getModelConfig(fd, projectName);
@@ -672,6 +780,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         };
       });
       json(200, roles);
+    } else if (subPath.match(/^\/roles\/[^/]+$/) && method === 'GET') {
+      const roleId = subPath.split('/')[2];
+      const { RoleRegistry } = await import('../roles/RoleRegistry.js');
+      const registry = new RoleRegistry(projectName);
+      const cwd = fd.project.getConfig().cwd;
+      if (cwd) registry.discoverRepoRoles(cwd);
+      const role = registry.get(roleId);
+      if (!role) { json(404, { error: `Role '${roleId}' not found.` }); return; }
+      const specialists = registry.getSpecialists ? registry.getSpecialists(roleId) : [];
+      json(200, { id: role.id, name: role.name, description: role.description, icon: role.icon, color: role.color, permissions: role.permissions, instructions: role.instructions, specialists: specialists ?? [] });
     } else if (subPath.match(/^\/roles\/[^/]+\/models$/) && method === 'PUT') {
       const roleId = subPath.split('/')[2];
       try {
@@ -889,6 +1007,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const body = await readBody();
         const agentId = req.headers['x-agent-id'] as string || 'http-api';
         if (!body.topic) { json(400, { error: 'Missing topic' }); return; }
+        // Permission check: only lead/planner can create discussions
+        if (agentId !== 'http-api') {
+          const discussCaller = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+          if (discussCaller && discussCaller.role !== 'lead' && discussCaller.role !== 'planner') {
+            json(403, { error: `Error: Agent '${agentId}' (role: ${discussCaller.role}) cannot create discussions. Only lead/planner roles can create discussions. Use flightdeck_escalate() to request one.` }); return;
+          }
+        }
         const topicHash = Array.from(body.topic as string).reduce((h: number, c: string) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
         const channel = `discuss-${Math.abs(topicHash).toString(36)}-${Date.now().toString(36)}`;
         const now = new Date().toISOString();
@@ -1002,6 +1127,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, { status: 'logged', filename: fd.memory.getDailyLogFilename() });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/cost' && method === 'GET') {
+      // Permission check: only lead/planner can view cost reports
+      const costCallerId = req.headers['x-agent-id'] as string;
+      if (costCallerId) {
+        const costCaller = fd.sqlite.getAgent(costCallerId as import('@flightdeck-ai/shared').AgentId);
+        if (costCaller && costCaller.role !== 'lead' && costCaller.role !== 'planner') {
+          json(403, { error: `Error: Agent '${costCallerId}' (role: ${costCaller.role}) cannot view cost reports. Only lead/planner roles can view cost reports.` }); return;
+        }
+      }
       json(200, { totalCost: fd.sqlite.getTotalCost(), byAgent: fd.sqlite.getCostByAgent(), byTask: fd.sqlite.getCostByTask() });
     } else if (subPath === '/timers' && method === 'POST') {
       try {

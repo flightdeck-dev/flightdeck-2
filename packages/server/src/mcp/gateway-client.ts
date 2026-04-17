@@ -23,8 +23,8 @@ export class GatewayClient {
   private headers(extra?: Record<string, string>): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'X-Agent-Id': this.agentId,
-      'X-Agent-Role': this.agentRole,
+      'X-Agent-Id': process.env.FLIGHTDECK_AGENT_ID || this.agentId,
+      'X-Agent-Role': process.env.FLIGHTDECK_AGENT_ROLE || this.agentRole,
       ...extra,
     };
   }

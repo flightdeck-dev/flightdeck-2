@@ -146,7 +146,7 @@ describe('MCP new tools', () => {
     });
     const agent = JSON.parse(getText(result));
     expect(agent.role).toBe('worker');
-    expect(agent.status).toBe('idle');
+    expect(agent.status).toMatch(/idle|busy/); // busy if process spawned, idle if registered only
   });
 
   it('agent_spawn rejected for non-lead', async () => {
