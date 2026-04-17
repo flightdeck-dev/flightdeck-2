@@ -111,7 +111,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
         api.getTasks(projectName).catch(() => []),
         api.getAgents(projectName).catch(() => []),
         api.getDecisions(projectName).catch(() => []),
-        api.getMessages(projectName, { limit: 100, author_types: 'user,lead,system' }).catch(() => []),
+        api.getMessages(projectName, { limit: 100, author_types: displayConfig.flightdeckTools === 'detail' ? undefined : 'user,lead,system' }).catch(() => []),
       ]);
       if (s) setStatus(s);
       setTasks(t);
@@ -175,7 +175,9 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
         case 'chat:message': {
           const msg = event.message;
           // Only show user, lead, and system messages in main chat
-          if (msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
+          // In debug mode (flightdeckTools=detail), show all messages; otherwise filter to user+lead+system
+          const isDebugMode = displayConfig.flightdeckTools === 'detail';
+          if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), msg];
