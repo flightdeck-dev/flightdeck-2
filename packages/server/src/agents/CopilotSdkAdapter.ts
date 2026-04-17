@@ -518,7 +518,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
   async spawn(opts: BaseSpawnOptions): Promise<AgentMetadata> {
     const client = await this.ensureClient();
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
-    const sessionId = `copilot-sdk-${Date.now().toString(36)}`;
 
     const tools = this.buildTools(aid, opts.role, opts.projectName);
 
@@ -533,8 +532,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const session = await client.createSession(sessionConfig);
 
+    // Use the SDK's session ID for persistence/resume
+    const sdkSessionId = session.sessionId;
+
     const agentSession: CopilotAgentSession = {
-      id: sessionId,
+      id: sdkSessionId,
       agentId: aid,
       role: opts.role,
       session,
@@ -547,7 +549,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
-    this.sessions.set(sessionId, agentSession);
+    this.sessions.set(sdkSessionId, agentSession);
 
     // Wire up event handlers
     session.on((event: SessionEvent) => {
@@ -561,18 +563,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
       if (event.type === 'session.idle') {
         agentSession.status = 'idle';
         if (this.onSessionTurnEnd) {
-          try { this.onSessionTurnEnd(sessionId, aid); } catch { /* */ }
+          try { this.onSessionTurnEnd(sdkSessionId, aid); } catch { /* */ }
         }
       }
 
       if (event.type === 'session.error') {
-        console.error(`[CopilotSdk] Session ${sessionId} error: ${event.data.message}`);
+        console.error(`[CopilotSdk] Session ${sdkSessionId} error: ${event.data.message}`);
       }
 
       if (event.type === 'session.shutdown' as any) {
         agentSession.status = 'ended';
         if (this.onSessionEnd) {
-          try { this.onSessionEnd(sessionId, agentSession); } catch { /* */ }
+          try { this.onSessionEnd(sdkSessionId, agentSession); } catch { /* */ }
         }
       }
 
@@ -609,7 +611,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       }
     });
 
-    return { agentId: aid, sessionId, status: 'running' as const };
+    return { agentId: aid, sessionId: sdkSessionId, status: 'running' as const };
   }
 
   /**
@@ -667,6 +669,87 @@ export class CopilotSdkAdapter extends AgentAdapter {
   override getSession(sessionId: string): { output: string } | undefined {
     const s = this.sessions.get(sessionId);
     return s ? { output: s.output } : undefined;
+  }
+
+  /**
+   * Resume a previous Copilot SDK session.
+   */
+  override async resumeSession(opts: {
+    previousSessionId: string;
+    cwd: string;
+    role: string;
+    agentId?: string;
+    model?: string;
+    projectName?: string;
+  }): Promise<import('./AgentAdapter.js').AgentMetadata> {
+    const client = await this.ensureClient();
+    const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
+    const tools = this.buildTools(aid, opts.role as AgentRole, opts.projectName);
+
+    const session = await client.resumeSession(opts.previousSessionId, {
+      model: opts.model ?? this.defaultModel,
+      tools,
+      onPermissionRequest: approveAll,
+    });
+
+    const sdkSessionId = session.sessionId;
+    const agentSession: CopilotAgentSession = {
+      id: sdkSessionId,
+      agentId: aid,
+      role: opts.role as AgentRole,
+      session,
+      status: 'active',
+      output: '',
+      startedAt: new Date(),
+      lastActivityAt: new Date(),
+      projectName: opts.projectName,
+      cwd: opts.cwd,
+      model: opts.model,
+    };
+
+    this.sessions.set(sdkSessionId, agentSession);
+
+    // Wire same event handlers as spawn
+    session.on((event: SessionEvent) => {
+      agentSession.lastActivityAt = new Date();
+      if (event.type === 'assistant.message') {
+        agentSession.output += event.data.content;
+        agentSession.status = 'active';
+      }
+      if (event.type === 'session.idle') {
+        agentSession.status = 'idle';
+        if (this.onSessionTurnEnd) {
+          try { this.onSessionTurnEnd(sdkSessionId, aid); } catch { /* */ }
+        }
+      }
+      if ((event as any).type === 'session.shutdown') {
+        agentSession.status = 'ended';
+        if (this.onSessionEnd) {
+          try { this.onSessionEnd(sdkSessionId, agentSession); } catch { /* */ }
+        }
+      }
+      if ((event as any).type === 'assistant.usage' && this.usageCallback) {
+        const data = (event as any).data;
+        try {
+          this.usageCallback(aid, {
+            model: data.model ?? '', inputTokens: data.inputTokens ?? 0,
+            outputTokens: data.outputTokens ?? 0, cacheReadTokens: data.cacheReadTokens ?? 0,
+            cacheWriteTokens: data.cacheWriteTokens ?? 0, cost: data.cost ?? 0, durationMs: data.durationMs ?? 0,
+          });
+        } catch { /* */ }
+      }
+      if ((event as any).type === 'session.usage_info' && this.contextWindowCallback) {
+        const data = (event as any).data;
+        try {
+          this.contextWindowCallback(aid, {
+            currentTokens: data.currentTokens ?? 0, tokenLimit: data.tokenLimit ?? 0, messagesLength: data.messagesLength ?? 0,
+          });
+        } catch { /* */ }
+      }
+      if (this.onOutput) { try { this.onOutput(aid, event); } catch { /* */ } }
+    });
+
+    return { agentId: aid, sessionId: sdkSessionId, status: 'running' as const };
   }
 
   /**
