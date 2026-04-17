@@ -15,7 +15,7 @@ import { RUNTIME_REGISTRY } from './runtimes.js';
  * that use --print mode (one-shot per invocation).
  *
  * For Claude Code, each interaction spawns a new process:
- *   claude --print --resume <sessionId> --output-format stream-json ...
+ *   claude --print --resume <sessionId> --output-format json ...
  *
  * Session persistence is handled by the CLI itself (saves to disk).
  * --resume allows continuing the same conversation across invocations.
@@ -84,7 +84,7 @@ export class PtyAdapter extends AgentAdapter {
     const runtime = RUNTIME_REGISTRY[this.runtimeName];
     if (!runtime) throw new Error(`Unknown runtime: ${this.runtimeName}`);
 
-    const args: string[] = ['--print', '--output-format', 'stream-json'];
+    const args: string[] = ['--print', '--output-format', 'json'];
     if (opts.sessionId) {
       args.push('--resume', opts.sessionId);
     }
@@ -99,7 +99,6 @@ export class PtyAdapter extends AgentAdapter {
       args.push('--mcp-config', opts.mcpConfigPath);
     }
     args.push('--permission-mode', 'auto');
-    args.push('--include-partial-messages');
 
     return new Promise<{ output: string; claudeSessionId?: string }>((resolve, reject) => {
       const child = cpSpawn(runtime.command, args, {
@@ -113,16 +112,7 @@ export class PtyAdapter extends AgentAdapter {
       let claudeSessionId: string | undefined;
 
       child.stdout.on('data', (data: Buffer) => {
-        const chunk = data.toString();
-        stdout += chunk;
-        // Parse stream-json to extract session ID
-        for (const line of chunk.split('\n').filter(Boolean)) {
-          try {
-            const event = JSON.parse(line);
-            if (event.session_id) claudeSessionId = event.session_id;
-            if (event.type === 'system' && event.session_id) claudeSessionId = event.session_id;
-          } catch { /* not valid JSON line */ }
-        }
+        stdout += data.toString();
       });
 
       child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
@@ -136,25 +126,14 @@ export class PtyAdapter extends AgentAdapter {
         if (code !== 0 && !stdout) {
           reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`));
         } else {
-          // Extract text content from stream-json output
-          let textOutput = '';
-          for (const line of stdout.split('\n').filter(Boolean)) {
-            try {
-              const event = JSON.parse(line);
-              if (event.type === 'assistant' && event.message?.content) {
-                for (const block of event.message.content) {
-                  if (block.type === 'text') textOutput += block.text;
-                }
-              }
-              if (event.type === 'content_block_delta' && event.delta?.text) {
-                textOutput += event.delta.text;
-              }
-              if (event.type === 'result' && event.result) {
-                textOutput = event.result;
-              }
-            } catch { /* skip */ }
+          // Parse single JSON output from --output-format json
+          try {
+            const result = JSON.parse(stdout.trim());
+            claudeSessionId = result.session_id;
+            resolve({ output: result.result ?? stdout, claudeSessionId });
+          } catch {
+            resolve({ output: stdout, claudeSessionId });
           }
-          resolve({ output: textOutput || stdout, claudeSessionId });
         }
       });
     });
