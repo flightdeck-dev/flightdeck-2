@@ -109,6 +109,17 @@ export class LeadManager {
 
   /** Start Lead ACP session */
   async spawnLead(): Promise<string> {
+    // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
+    try {
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const mc = new ModelConfig(this.project.subpath('.'));
+      const leadConfig = mc.getRoleConfig('lead');
+      if (leadConfig.runtime && leadConfig.runtime !== this.leadRuntime) {
+        console.error(`  Lead runtime changed: ${this.leadRuntime} → ${leadConfig.runtime}`);
+        this.leadRuntime = leadConfig.runtime;
+      }
+    } catch { /* fallback to existing runtime */ }
+
     // Purge stale offline agents before spawning
     const purged = this.sqlite.purgeOfflineAgents();
     if (purged > 0) {
