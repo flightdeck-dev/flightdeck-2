@@ -157,6 +157,10 @@ export interface ProjectConfig {
   maxConcurrentWorkers?: number;
   /** Minimum number of tasks in declare_tasks to require Lead approval. Default: 3. */
   planApprovalThreshold?: number;
+  /** User-defined runtime priority order (array of runtime ids). */
+  runtimeOrder?: string[];
+  /** Disabled runtime ids. */
+  disabledRuntimes?: string[];
   agents?: AgentsConfig;
   /** Webhook notification configuration. */
   notifications?: {

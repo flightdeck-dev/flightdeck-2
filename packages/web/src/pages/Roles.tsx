@@ -55,6 +55,7 @@ function RoleCard({ role, onClick, isSelected }: { role: RoleInfo; onClick: () =
 }
 
 function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: string; onUpdate: () => void }) {
+  const { status } = useFlightdeck();
   const [availableModels, setAvailableModels] = useState<Record<string, unknown>>({});
   const [allRuntimes, setAllRuntimes] = useState<Array<{ id: string; name: string; supportsAcp?: boolean; supportsModelDiscovery?: boolean }>>([]);
   const [prompt, setPrompt] = useState(role.instructions);
@@ -117,13 +118,23 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
     }
   }
 
-  const runtimePriority: Record<string, number> = { copilot: 0, codex: 1, 'claude-code': 2, claude: 3, gemini: 4 };
-  const runtimes = Object.keys(modelsByRuntime).sort((a, b) => {
-    const pa = runtimePriority[a] ?? 999;
-    const pb = runtimePriority[b] ?? 999;
-    if (pa !== pb) return pa - pb;
-    return a.localeCompare(b);
-  });
+  // Get user config for runtime ordering and filtering
+  const disabledRuntimes: string[] = (status?.config as any)?.disabledRuntimes ?? [];
+  const runtimeOrder: string[] = (status?.config as any)?.runtimeOrder ?? [];
+
+  const runtimes = Object.keys(modelsByRuntime)
+    .filter(rt => !disabledRuntimes.includes(rt))
+    .sort((a, b) => {
+      const ia = runtimeOrder.indexOf(a);
+      const ib = runtimeOrder.indexOf(b);
+      // Both in order: sort by position
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      // One in order: it comes first
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      // Neither: alphabetical
+      return a.localeCompare(b);
+    });
   const currentRuntime = activeRuntime && runtimes.includes(activeRuntime) ? activeRuntime : runtimes[0] ?? null;
   const currentModels = currentRuntime ? modelsByRuntime[currentRuntime] ?? [] : [];
 

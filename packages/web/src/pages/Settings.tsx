@@ -67,17 +67,6 @@ function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }
   return (
     <div className={`border-b border-[var(--color-border)] last:border-0 ${!enabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center gap-3 py-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-        <button
-          onClick={e => { e.stopPropagation(); onToggle(rt.id, !enabled); }}
-          className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
-            enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
-          }`}
-          title={enabled ? `Disable ${rt.name}` : `Enable ${rt.name}`}
-        >
-          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-            enabled ? 'left-4' : 'left-0.5'
-          }`} />
-        </button>
         <span className="text-lg shrink-0">{rt.icon ?? '🔌'}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -92,7 +81,7 @@ function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }
             )}
           </div>
           <p className="text-xs text-[var(--color-text-tertiary)]">
-            <span className="font-mono">{rt.command}</span>
+            <span className="font-mono">{testResult?.success && testResult.message ? testResult.message : rt.command}</span>
             {rt.supportsSessionLoad && <span className="ml-2 opacity-60">· Resume</span>}
           </p>
         </div>
@@ -101,6 +90,17 @@ function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }
         }`}>
           {rt.supportsAcp ? 'ACP' : 'PTY'}
         </span>
+        <button
+          onClick={e => { e.stopPropagation(); onToggle(rt.id, !enabled); }}
+          className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+            enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
+          }`}
+          title={enabled ? `Disable ${rt.name}` : `Enable ${rt.name}`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+            enabled ? 'left-4' : 'left-0.5'
+          }`} />
+        </button>
       </div>
 
       {expanded && (
@@ -148,6 +148,7 @@ function GlobalSettings() {
   const [runtimes, setRuntimes] = useState<RuntimeInfo[] | null>(null);
   const [runtimeProject, setRuntimeProject] = useState<string>('');
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
+  const [runtimeOrder, setRuntimeOrder] = useState<string[]>([]);
   const [disabledLoaded, setDisabledLoaded] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
   const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
@@ -180,6 +181,10 @@ function GlobalSettings() {
           if (configuredDisabled !== undefined) {
             setDisabledRuntimes(configuredDisabled);
           }
+          const configuredOrder = status?.config?.runtimeOrder;
+          if (configuredOrder !== undefined) {
+            setRuntimeOrder(configuredOrder);
+          }
           setDisabledLoaded(true);
         }).catch(() => {});
       }
@@ -198,6 +203,35 @@ function GlobalSettings() {
       setDisabledRuntimes(disabledRuntimes);
     }
   }, [disabledRuntimes, runtimeProject]);
+
+  const moveRuntime = useCallback(async (id: string, direction: 'up' | 'down') => {
+    if (!runtimes) return;
+    const sorted = getSortedRuntimes();
+    const idx = sorted.findIndex(rt => rt.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const newOrder = sorted.map(rt => rt.id);
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    setRuntimeOrder(newOrder);
+    try {
+      await api.updateProjectConfig(runtimeProject, { runtimeOrder: newOrder });
+    } catch {
+      setRuntimeOrder(runtimeOrder);
+    }
+  }, [runtimes, runtimeOrder, runtimeProject]);
+
+  const getSortedRuntimes = useCallback(() => {
+    if (!runtimes) return [];
+    return [...runtimes].sort((a, b) => {
+      const ia = runtimeOrder.indexOf(a.id);
+      const ib = runtimeOrder.indexOf(b.id);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return 0;
+    });
+  }, [runtimes, runtimeOrder]);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
     const preset = DISPLAY_PRESETS[p];
@@ -264,10 +298,20 @@ function GlobalSettings() {
             </span>
           </div>
           <Card>
-            {runtimes.map(rt => (
-              <RuntimeCard key={rt.id} rt={rt} projectName={runtimeProject}
-                enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : !(rt as any).disabledByDefault}
-                onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
+            {getSortedRuntimes().map((rt, idx, arr) => (
+              <div key={rt.id} className="flex items-center">
+                <div className="flex flex-col mr-1">
+                  <button disabled={idx === 0} onClick={() => moveRuntime(rt.id, 'up')}
+                    className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] disabled:opacity-20 px-0.5">▲</button>
+                  <button disabled={idx === arr.length - 1} onClick={() => moveRuntime(rt.id, 'down')}
+                    className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] disabled:opacity-20 px-0.5">▼</button>
+                </div>
+                <div className="flex-1">
+                  <RuntimeCard rt={rt} projectName={runtimeProject}
+                    enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : !(rt as any).disabledByDefault}
+                    onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
+                </div>
+              </div>
             ))}
           </Card>
         </section>

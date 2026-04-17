@@ -929,6 +929,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           const { GOVERNANCE_PROFILES } = await import('@flightdeck-ai/shared');
           if (!GOVERNANCE_PROFILES.includes(body.governance)) { json(400, { error: `Invalid governance. Options: ${GOVERNANCE_PROFILES.join(', ')}` }); return; }
           cfg.governance = body.governance;
+          // Hot-reload governance engine
+          fd.governance.setProfile(body.governance);
         }
         if (body.heartbeatEnabled !== undefined) {
           (cfg as any).heartbeatEnabled = !!body.heartbeatEnabled;
@@ -943,6 +945,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             json(400, { error: 'disabledRuntimes must be string[]' }); return;
           }
           (cfg as any).disabledRuntimes = body.disabledRuntimes;
+        }
+        if (body.runtimeOrder !== undefined) {
+          if (!Array.isArray(body.runtimeOrder) || !body.runtimeOrder.every((r: unknown) => typeof r === 'string')) {
+            json(400, { error: 'runtimeOrder must be string[]' }); return;
+          }
+          (cfg as any).runtimeOrder = body.runtimeOrder;
         }
         fd.project.setConfig(cfg);
         json(200, { config: cfg });

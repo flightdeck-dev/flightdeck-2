@@ -65,6 +65,12 @@ export class GovernanceEngine {
     return this._governanceConfig;
   }
 
+  /** Hot-reload governance profile at runtime. */
+  setProfile(profile: GovernanceProfile): void {
+    this._config.governance = profile;
+    this._governanceConfig = GovernanceEngine.profileDefaults(profile);
+  }
+
   // ── Legacy API (backward compat) ──
 
   evaluateDecision(decision: Decision): PolicyResult {
