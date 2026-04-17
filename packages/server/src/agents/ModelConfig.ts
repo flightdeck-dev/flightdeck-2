@@ -108,10 +108,12 @@ export class ModelConfig {
     if (rc?.enabledModels && rc.enabledModels.length > 0) {
       return rc.enabledModels;
     }
-    // Backward compat: synthesize from legacy fields
-    const runtime = rc?.runtime ?? agents.default_runtime ?? 'copilot';
-    const model = rc?.model ?? agents.default_model ?? 'high';
-    return [{ runtime, model, enabled: true, isDefault: true }];
+    // Backward compat: synthesize from legacy fields.
+    // Don't set a default runtime here — let the adapter decide.
+    const runtime = rc?.runtime ?? agents.default_runtime;
+    const model = rc?.model ?? agents.default_model;
+    if (!runtime && !model) return []; // No config → let adapter use its default
+    return [{ runtime: runtime ?? 'copilot', model: model ?? 'high', enabled: true, isDefault: true }];
   }
 
   /**
