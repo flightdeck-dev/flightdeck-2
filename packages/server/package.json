@@ -24,6 +24,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.18.2",
     "@flightdeck-ai/shared": "workspace:*",
+    "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/ws": "^8.18.1",
     "better-sqlite3": "^11.8.1",

@@ -647,7 +647,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
       // Search memory files
       const source = url.searchParams.get('source');
-      const memoryResults: Array<{ source: string; file: string; line: number; content: string }> = [];
+      const memoryResults: Array<{ source: string; filename: string; line: number; snippet: string }> = [];
       if (!source || source === 'memory') {
         try {
           const { readdirSync, readFileSync, statSync } = await import('node:fs');
