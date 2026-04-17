@@ -336,7 +336,11 @@ export class AgentManager {
     this.agentToSession.delete(agentId);
 
     // Clean up worktree or workdir if one was created
-    await this.cleanupWorktree(agentId);
+    const { mergeConflict } = await this.cleanupWorktree(agentId);
+    if (mergeConflict) {
+      // Emit event for Orchestrator/Planner to handle
+      this.store.emit('merge-conflict', mergeConflict);
+    }
 
     this.store.updateAgentStatus(agentId, 'offline');
     this.store.updateAgentAcpSession(agentId, null);

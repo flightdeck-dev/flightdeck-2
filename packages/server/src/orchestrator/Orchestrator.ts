@@ -593,8 +593,23 @@ export class Orchestrator {
 
           if (this.agentManager && agent.acpSessionId) {
             const ts = new Date().toISOString().slice(0, 19) + 'Z';
-            void this.agentManager.sendToAgent(agent.id as AgentId,
-              `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`
+            const t = task as any;
+            const contextParts = [
+              `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})`,
+              t.description ? `\nDescription: ${t.description}` : '',
+              t.acceptanceCriteria ? `\nAcceptance Criteria: ${t.acceptanceCriteria}` : '',
+              t.context ? `\nContext: ${t.context}` : '',
+            ];
+            // Add dependency info
+            if (task.dependsOn?.length) {
+              const depInfos = task.dependsOn.map(depId => {
+                const dep = this.dag.getTask(depId);
+                return dep ? `  - ${dep.title} (${dep.state})` : `  - ${depId}`;
+              });
+              contextParts.push(`\nDependencies:\n${depInfos.join('\n')}`);
+            }
+            contextParts.push('\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.');
+            void this.agentManager.sendToAgent(agent.id as AgentId, contextParts.filter(Boolean).join('')
             ).catch(() => { /* best effort */ });
           }
         } catch { /* Skip */ }
@@ -604,11 +619,19 @@ export class Orchestrator {
           a => (a.status === 'busy' || a.status === 'idle') && a.role === task.role
         ).length;
         if (activeWorkers < maxWorkers) {
+          const t2 = task as any;
+          const spawnContext = [
+            `Task assigned: "${task.title}" (ID: ${task.id})`,
+            t2.description ? `\nDescription: ${t2.description}` : '',
+            t2.acceptanceCriteria ? `\nAcceptance Criteria: ${t2.acceptanceCriteria}` : '',
+            t2.context ? `\nContext: ${t2.context}` : '',
+            '\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.',
+          ].filter(Boolean).join('');
           void this.agentManager.spawnAgent({
             role: task.role as any,
             cwd: this.config.cwd ?? process.cwd(),
             projectName: this.config.name,
-            taskContext: `Task assigned: "${task.title}" (ID: ${task.id})${task.description ? '\n\nDescription: ' + task.description : ''}\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.`,
+            taskContext: spawnContext,
           }).then(agent => {
             try {
               this.dag.claimTask(task.id, agent.id);
@@ -822,6 +845,15 @@ export class Orchestrator {
     // Subscribe to task state changes for event-driven reactivity
     this.boundReactHandler = () => this.scheduleReactiveTick();
     this.store.on('task-state-changed', this.boundReactHandler);
+
+    // Subscribe to merge conflicts for Planner notification
+    this.store.on('merge-conflict', (info: { taskId: string; branch: string }) => {
+      this.leadManager?.steerPlannerEvent({
+        type: 'file_conflict' as any,
+        taskId: info.taskId,
+        message: `Merge conflict on branch ${info.branch} for task ${info.taskId}. The worktree is preserved for manual resolution. Options: task_pause other conflicting tasks, task_retry on latest main, or escalate to Lead.`,
+      });
+    });
   }
 
   /**
