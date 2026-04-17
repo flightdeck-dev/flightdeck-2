@@ -115,3 +115,33 @@ A stdio-based MCP server exposing Flightdeck operations as tools for AI agents. 
 | Messaging | Partial persistence | Full persistence with priority + threading |
 | Compaction | None | Auto-summarize completed tasks |
 | File conflicts | Manual | Automatic detection |
+
+## MCP Server as Gateway HTTP Client (2026-04-17)
+
+### Problem
+The MCP server (`flightdeck-mcp.mjs`) was creating its own `new Flightdeck()` instance,
+directly accessing SQLite. This caused state divergence between the MCP subprocess and
+the gateway daemon — side effects (like `spawn_reviewer`) only exist in the gateway's
+DAG effectHandler but never fire from MCP calls.
+
+### Decision
+MCP server is a **thin HTTP client** to the gateway. It has no direct database access.
+
+```
+Agent process
+  └── MCP server (stdio subprocess)
+        └── HTTP fetch() → Gateway daemon (port 18800)
+                              └── Flightdeck (single instance)
+                                    └── SQLite
+```
+
+### Rationale
+- **Single source of truth**: Gateway owns all state and side effects
+- **No state divergence**: MCP doesn't maintain its own DAG or Flightdeck instance
+- **Side effects work**: task_submit → in_review → spawn_reviewer all happen in-process
+- **Simpler MCP code**: Just HTTP calls, no domain logic
+
+### Agent Identity
+- `X-Agent-Id` / `X-Agent-Role` HTTP headers (from env vars set by AcpAdapter)
+- Gateway validates agent exists and has permission for the requested action
+- MCP server doesn't need to resolve agents itself
