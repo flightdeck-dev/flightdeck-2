@@ -7,121 +7,280 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { spawn as cpSpawn } from 'node:child_process';
+import { RUNTIME_REGISTRY } from './runtimes.js';
 
 /**
  * PTY/subprocess agent adapter for Claude Code and similar CLI agents
- * that don't support ACP natively.
+ * that use --print mode (one-shot per invocation).
  *
- * For Claude Code, uses stream-json mode for structured I/O:
- *   claude --print --output-format stream-json --input-format stream-json
+ * For Claude Code, each interaction spawns a new process:
+ *   claude --print --resume <sessionId> --output-format stream-json ...
  *
- * Creates a temporary MCP config file per session to inject the
- * Flightdeck MCP server without touching user's global config.
+ * Session persistence is handled by the CLI itself (saves to disk).
+ * --resume allows continuing the same conversation across invocations.
  */
 export class PtyAdapter extends AgentAdapter {
   readonly runtime: AgentRuntime = 'pty';
   private sessionManager: SessionManager;
   private runtimeName: string;
   private mcpConfigPaths = new Map<string, string>();
+  /** Tracks session state for --print mode agents (process exits after each turn) */
+  private printSessions = new Map<string, {
+    agentId: string;
+    claudeSessionId: string; // The session ID for --resume
+    cwd: string;
+    status: 'idle' | 'running' | 'ended';
+    output: string;
+    model?: string;
+    mcpConfigPath?: string;
+    role: string;
+  }>();
 
   constructor(
     sessionManager?: SessionManager,
     runtimeName: string = 'claude',
   ) {
     super();
-    this.sessionManager = sessionManager ?? new SessionManager();
     this.runtimeName = runtimeName;
+    this.sessionManager = sessionManager ?? new SessionManager();
   }
 
   /**
-   * Create a temporary MCP config file for a session.
-   * This injects the Flightdeck MCP server so the agent can use
-   * task_list, task_submit, etc. without modifying user's global config.
+   * Create a temporary MCP config for Flightdeck tools.
    */
-  private createMcpConfig(agentIdStr: string, role: string, projectName?: string): string {
+  private createMcpConfig(aid: string, role: string, projectName?: string): string {
+    const tmpDir = join(tmpdir(), '.flightdeck-mcp');
+    mkdirSync(tmpDir, { recursive: true });
+    const configPath = join(tmpDir, `${aid}.json`);
     const mcpBinPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/flightdeck-mcp.mjs');
-    const config = {
+    writeFileSync(configPath, JSON.stringify({
       mcpServers: {
         flightdeck: {
           command: 'node',
-          args: [mcpBinPath],
+          args: [mcpBinPath, '--project', projectName ?? 'default'],
           env: {
-            FLIGHTDECK_AGENT_ID: agentIdStr,
-            FLIGHTDECK_AGENT_ROLE: role ?? '',
-            ...(projectName ? { FLIGHTDECK_PROJECT: projectName } : {}),
+            FLIGHTDECK_AGENT_ID: aid,
+            FLIGHTDECK_AGENT_ROLE: role,
           },
         },
       },
-    };
-
-    const configDir = join(tmpdir(), 'flightdeck-mcp-configs');
-    mkdirSync(configDir, { recursive: true });
-    const configPath = join(configDir, `mcp-${randomUUID().slice(0, 8)}.json`);
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    }, null, 2));
     return configPath;
+  }
+
+  /**
+   * Run claude --print with given prompt, optionally resuming a session.
+   * Returns collected output.
+   */
+  private async runClaude(opts: {
+    cwd: string;
+    prompt: string;
+    sessionId?: string;
+    model?: string;
+    systemPrompt?: string;
+    mcpConfigPath?: string;
+  }): Promise<{ output: string; claudeSessionId?: string }> {
+    const runtime = RUNTIME_REGISTRY[this.runtimeName];
+    if (!runtime) throw new Error(`Unknown runtime: ${this.runtimeName}`);
+
+    const args: string[] = ['--print', '--output-format', 'stream-json'];
+    if (opts.sessionId) {
+      args.push('--resume', opts.sessionId);
+    }
+    if (opts.model) {
+      args.push('--model', opts.model);
+    }
+    if (opts.systemPrompt && !opts.sessionId) {
+      // Only set system prompt on first run (resume carries it forward)
+      args.push('--system-prompt', opts.systemPrompt);
+    }
+    if (opts.mcpConfigPath) {
+      args.push('--mcp-config', opts.mcpConfigPath);
+    }
+    args.push('--permission-mode', 'auto');
+    args.push('--include-partial-messages');
+
+    return new Promise<{ output: string; claudeSessionId?: string }>((resolve, reject) => {
+      const child = cpSpawn(runtime.command, args, {
+        cwd: opts.cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env },
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let claudeSessionId: string | undefined;
+
+      child.stdout.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        // Parse stream-json to extract session ID
+        for (const line of chunk.split('\n').filter(Boolean)) {
+          try {
+            const event = JSON.parse(line);
+            if (event.session_id) claudeSessionId = event.session_id;
+            if (event.type === 'system' && event.session_id) claudeSessionId = event.session_id;
+          } catch { /* not valid JSON line */ }
+        }
+      });
+
+      child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+      // Send prompt on stdin and close
+      child.stdin.write(opts.prompt);
+      child.stdin.end();
+
+      const timeout = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(new Error('Claude process timed out (5 min)'));
+      }, 5 * 60 * 1000);
+
+      child.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code !== 0 && !stdout) {
+          reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`));
+        } else {
+          // Extract text content from stream-json output
+          let textOutput = '';
+          for (const line of stdout.split('\n').filter(Boolean)) {
+            try {
+              const event = JSON.parse(line);
+              if (event.type === 'assistant' && event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === 'text') textOutput += block.text;
+                }
+              }
+              if (event.type === 'content_block_delta' && event.delta?.text) {
+                textOutput += event.delta.text;
+              }
+              if (event.type === 'result' && event.result) {
+                textOutput = event.result;
+              }
+            } catch { /* skip */ }
+          }
+          resolve({ output: textOutput || stdout, claudeSessionId });
+        }
+      });
+    });
   }
 
   async spawn(opts: SpawnOptions): Promise<AgentMetadata> {
     const aid = agentId(opts.role, 'pty', Date.now().toString());
     const prompt = opts.systemPrompt ?? `You are a ${opts.role} agent. Complete your assigned tasks.`;
-
-    // Create MCP config file for this session
     const mcpConfigPath = this.createMcpConfig(aid, opts.role, opts.projectName);
+    const sessionId = `pty-${randomUUID().slice(0, 8)}`;
 
-    const session = this.sessionManager.spawn(
-      aid,
-      this.runtimeName,
-      opts.cwd,
-      prompt,
-      { mcpConfig: mcpConfigPath },
-    );
+    // Run initial prompt
+    try {
+      const result = await this.runClaude({
+        cwd: opts.cwd,
+        prompt,
+        model: opts.model,
+        systemPrompt: prompt,
+        mcpConfigPath,
+      });
 
-    this.mcpConfigPaths.set(session.id, mcpConfigPath);
+      this.printSessions.set(sessionId, {
+        agentId: aid,
+        claudeSessionId: result.claudeSessionId ?? sessionId,
+        cwd: opts.cwd,
+        status: 'idle',
+        output: result.output,
+        model: opts.model,
+        mcpConfigPath,
+        role: opts.role,
+      });
+    } catch (err) {
+      // Even if first run fails, create session entry for retry
+      this.printSessions.set(sessionId, {
+        agentId: aid,
+        claudeSessionId: sessionId,
+        cwd: opts.cwd,
+        status: 'idle',
+        output: `Spawn error: ${err instanceof Error ? err.message : String(err)}`,
+        model: opts.model,
+        mcpConfigPath,
+        role: opts.role,
+      });
+    }
 
     return {
-      agentId: session.agentId,
-      sessionId: session.id,
-      status: 'running',
+      agentId: aid,
+      sessionId,
+      status: 'running' as const,
       model: opts.model,
     };
   }
 
   async steer(sessionId: string, message: SteerMessage): Promise<string> {
-    const session = this.sessionManager.getSession(sessionId);
+    const session = this.printSessions.get(sessionId);
     if (!session || session.status === 'ended') return '';
 
-    // For stream-json mode, send a JSON message on stdin
-    const prefix = message.urgent ? '[URGENT] ' : '';
-    const jsonMsg = JSON.stringify({ type: 'user_message', content: prefix + message.content });
-    this.sessionManager.steer(sessionId, jsonMsg);
-    return '';
+    session.status = 'running';
+    try {
+      const result = await this.runClaude({
+        cwd: session.cwd,
+        prompt: (message.urgent ? '[URGENT] ' : '') + message.content,
+        sessionId: session.claudeSessionId, // --resume
+        model: session.model,
+        mcpConfigPath: session.mcpConfigPath,
+      });
+
+      session.output += '\n' + result.output;
+      // Update session ID if claude returned one
+      if (result.claudeSessionId) session.claudeSessionId = result.claudeSessionId;
+      session.status = 'idle';
+      return result.output;
+    } catch (err) {
+      session.status = 'idle';
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[PtyAdapter] steer failed for ${sessionId}: ${errMsg}`);
+      return `Error: ${errMsg}`;
+    }
   }
 
   async kill(sessionId: string): Promise<void> {
+    const session = this.printSessions.get(sessionId);
+    if (session) {
+      session.status = 'ended';
+      // Clean up MCP config
+      if (session.mcpConfigPath) {
+        try { unlinkSync(session.mcpConfigPath); } catch { /* */ }
+      }
+    }
+    // Also try legacy SessionManager
     this.sessionManager.kill(sessionId);
-    // Clean up MCP config file
     const configPath = this.mcpConfigPaths.get(sessionId);
     if (configPath) {
-      try { unlinkSync(configPath); } catch { /* already gone */ }
+      try { unlinkSync(configPath); } catch { /* */ }
       this.mcpConfigPaths.delete(sessionId);
     }
   }
 
   async getMetadata(sessionId: string): Promise<AgentMetadata | null> {
-    const session = this.sessionManager.getSession(sessionId);
-    if (!session) return null;
-
-    const statusMap = {
-      active: 'running' as const,
-      idle: 'idle' as const,
-      ended: 'ended' as const,
-    };
-
+    const session = this.printSessions.get(sessionId);
+    if (session) {
+      return {
+        agentId: session.agentId as any,
+        sessionId,
+        status: session.status === 'running' ? 'running' : session.status === 'ended' ? 'ended' : 'idle',
+      };
+    }
+    // Legacy fallback
+    const legacySession = this.sessionManager.getSession(sessionId);
+    if (!legacySession) return null;
     return {
-      agentId: session.agentId,
-      sessionId: session.id,
-      status: statusMap[session.status],
+      agentId: legacySession.agentId,
+      sessionId: legacySession.id,
+      status: legacySession.status === 'active' ? 'running' : legacySession.status === 'ended' ? 'ended' : 'idle',
     };
+  }
+
+  override getSession(sessionId: string): { output: string } | undefined {
+    const session = this.printSessions.get(sessionId);
+    if (session) return { output: session.output };
+    return undefined;
   }
 
   getSessionManager(): SessionManager {
