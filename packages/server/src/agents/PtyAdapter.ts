@@ -39,7 +39,7 @@ export class PtyAdapter extends AgentAdapter {
 
   constructor(
     sessionManager?: SessionManager,
-    runtimeName: string = 'claude',
+    runtimeName: string = 'claude-code',
   ) {
     super();
     this.runtimeName = runtimeName;

@@ -82,7 +82,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   } catch { /* best effort */ }
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'codex');
-  const ptyAdapter = new PtyAdapterClass(undefined, 'claude');
+  const ptyAdapter = new PtyAdapterClass(undefined, 'claude-code');
   const copilotSdkAdapter = new CopilotSdkAdapter({
     onUsage: (agentId, usage) => {
       for (const name of projectManager.list()) {
