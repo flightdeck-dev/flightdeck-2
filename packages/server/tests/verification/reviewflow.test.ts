@@ -114,7 +114,7 @@ describe('buildReviewPrompt', () => {
     expect(prompt).toContain('task-42');
     expect(prompt).toContain('Fix auth bug');
     expect(prompt).toContain('OAuth token refresh');
-    expect(prompt).toContain('VERDICT: APPROVE');
+    expect(prompt).toContain('flightdeck_review_submit');
   });
 
   it('includes diff when provided', () => {

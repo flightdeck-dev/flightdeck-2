@@ -129,6 +129,7 @@ export class Orchestrator {
         processReview(effect.taskId, this.store, this.adapter, {
           cwd: this.config.cwd ?? process.cwd(),
           projectName: this.config.name,
+          agentManager: this.agentManager ?? undefined,
         }).then(result => {
           if (result.passed) {
             this.webhookNotifier?.notify(

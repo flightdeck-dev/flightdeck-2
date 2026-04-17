@@ -146,6 +146,8 @@ export async function processReview(
     artifacts?: string[];
     cwd?: string;
     projectName?: string;
+    /** Use AgentManager for spawning (handles DB registration, role config, AGENTS.md, .mcp.json) */
+    agentManager?: import('../agents/AgentManager.js').AgentManager;
     /** For testing: function to retrieve agent output */
     getOutput?: (sessionId: string) => string;
   },
@@ -178,45 +180,44 @@ export async function processReview(
 
   let meta: AgentMetadata;
   try {
-    // Register reviewer in DB so MCP tools can resolve it
-    const reviewerAgentId = `reviewer-${Date.now().toString(36)}` as import('@flightdeck-ai/shared').AgentId;
-    sqlite.insertAgent({
-      id: reviewerAgentId,
-      role: 'reviewer',
-      runtime: 'acp',
-      acpSessionId: null,
-      status: 'busy',
-      currentSpecId: null,
-      costAccumulated: 0,
-      lastHeartbeat: null,
-    });
-
-    // Resolve reviewer runtime/model from role config (same as AgentManager)
-    let reviewerRuntime = options?.reviewerRuntime;
-    let reviewerModel = options?.reviewerModel;
-    if (!reviewerModel && options?.cwd) {
-      try {
-        const { ModelConfig } = await import('../agents/ModelConfig.js');
-        const mc = new ModelConfig(options.cwd);
-        const enabledModels = mc.getRoleEnabledModels('reviewer');
-        const activeModels = enabledModels.filter((m: { enabled: boolean }) => m.enabled);
-        const defaultModel = activeModels.find((m: { isDefault?: boolean }) => m.isDefault) ?? activeModels[0];
-        if (defaultModel) {
-          reviewerModel = defaultModel.model;
-          if (!reviewerRuntime) reviewerRuntime = defaultModel.runtime;
-        }
-      } catch { /* fallback to adapter defaults */ }
+    if (options?.agentManager) {
+      // Use AgentManager — handles DB registration, role config, AGENTS.md, .mcp.json
+      const agent = await options.agentManager.spawnAgent({
+        role: 'reviewer',
+        cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
+        model: options?.reviewerModel,
+        runtime: options?.reviewerRuntime,
+        projectName: options?.projectName,
+        taskContext: prompt,
+      });
+      meta = {
+        agentId: agent.id as string as import('@flightdeck-ai/shared').AgentId,
+        sessionId: agent.acpSessionId ?? '',
+        status: 'running',
+      };
+    } else {
+      // Fallback: direct adapter.spawn (for tests or when no AgentManager)
+      const reviewerAgentId = `reviewer-${Date.now().toString(36)}` as import('@flightdeck-ai/shared').AgentId;
+      sqlite.insertAgent({
+        id: reviewerAgentId,
+        role: 'reviewer',
+        runtime: 'acp',
+        acpSessionId: null,
+        status: 'busy',
+        currentSpecId: null,
+        costAccumulated: 0,
+        lastHeartbeat: null,
+      });
+      meta = await adapter!.spawn({
+        agentId: reviewerAgentId,
+        role: 'reviewer' as any,
+        cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
+        model: options?.reviewerModel,
+        runtime: options?.reviewerRuntime,
+        systemPrompt: prompt,
+        projectName: options?.projectName,
+      });
     }
-
-    meta = await adapter.spawn({
-      agentId: reviewerAgentId,
-      role: 'reviewer' as any,
-      cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
-      model: reviewerModel,
-      runtime: reviewerRuntime,
-      systemPrompt: prompt,
-      projectName: options?.projectName,
-    });
   } catch (err: unknown) {
     // Spawn failure — don't block the pipeline, return pending
     return {

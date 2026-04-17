@@ -271,8 +271,8 @@ describe('Role Separation E2E', () => {
         expect(prompt).toContain('task-1');
         expect(prompt).toContain('Fix auth bug');
         expect(prompt).toContain('Fixed the token refresh logic');
-        expect(prompt).toContain('VERDICT: APPROVE');
-        expect(prompt).toContain('VERDICT: REJECT');
+        expect(prompt).toContain('flightdeck_review_submit');
+        expect(prompt).toContain('approve');
       });
 
       it('includes diff when provided', () => {
