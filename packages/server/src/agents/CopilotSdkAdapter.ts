@@ -521,7 +521,14 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const tools = this.buildTools(aid, opts.role, opts.projectName);
 
+    // Generate a stable session ID that we control.
+    // Per Copilot SDK docs: providing your own sessionId is required for resumable sessions.
+    // Without it, the SDK generates a random ID and the session can't be resumed later.
+    // Format: fd-{agentId} — deterministic, maps 1:1 to the agent.
+    const sessionId = `fd-${aid}`;
+
     const sessionConfig: SessionConfig = {
+      sessionId,
       model: opts.model ?? this.defaultModel,
       systemMessage: opts.systemPrompt
         ? { mode: 'append', content: opts.systemPrompt }
@@ -532,11 +539,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const session = await client.createSession(sessionConfig);
 
-    // Use the SDK's session ID for persistence/resume
-    const sdkSessionId = session.sessionId;
-
     const agentSession: CopilotAgentSession = {
-      id: sdkSessionId,
+      id: sessionId,
       agentId: aid,
       role: opts.role,
       session,
@@ -549,7 +553,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
-    this.sessions.set(sdkSessionId, agentSession);
+    this.sessions.set(sessionId, agentSession);
 
     // Wire up event handlers
     session.on((event: SessionEvent) => {
@@ -563,18 +567,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
       if (event.type === 'session.idle') {
         agentSession.status = 'idle';
         if (this.onSessionTurnEnd) {
-          try { this.onSessionTurnEnd(sdkSessionId, aid); } catch { /* */ }
+          try { this.onSessionTurnEnd(sessionId, aid); } catch { /* */ }
         }
       }
 
       if (event.type === 'session.error') {
-        console.error(`[CopilotSdk] Session ${sdkSessionId} error: ${event.data.message}`);
+        console.error(`[CopilotSdk] Session ${sessionId} error: ${event.data.message}`);
       }
 
       if (event.type === 'session.shutdown' as any) {
         agentSession.status = 'ended';
         if (this.onSessionEnd) {
-          try { this.onSessionEnd(sdkSessionId, agentSession); } catch { /* */ }
+          try { this.onSessionEnd(sessionId, agentSession); } catch { /* */ }
         }
       }
 
@@ -611,7 +615,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       }
     });
 
-    return { agentId: aid, sessionId: sdkSessionId, status: 'running' as const };
+    return { agentId: aid, sessionId: sessionId, status: 'running' as const };
   }
 
   /**
@@ -692,9 +696,10 @@ export class CopilotSdkAdapter extends AgentAdapter {
       onPermissionRequest: approveAll,
     });
 
-    const sdkSessionId = session.sessionId;
+    // Use the same session ID we originally created (passed as previousSessionId)
+    const sessionId = opts.previousSessionId;
     const agentSession: CopilotAgentSession = {
-      id: sdkSessionId,
+      id: sessionId,
       agentId: aid,
       role: opts.role as AgentRole,
       session,
@@ -707,7 +712,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
-    this.sessions.set(sdkSessionId, agentSession);
+    this.sessions.set(sessionId, agentSession);
 
     // Wire same event handlers as spawn
     session.on((event: SessionEvent) => {
@@ -719,13 +724,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
       if (event.type === 'session.idle') {
         agentSession.status = 'idle';
         if (this.onSessionTurnEnd) {
-          try { this.onSessionTurnEnd(sdkSessionId, aid); } catch { /* */ }
+          try { this.onSessionTurnEnd(sessionId, aid); } catch { /* */ }
         }
       }
       if ((event as any).type === 'session.shutdown') {
         agentSession.status = 'ended';
         if (this.onSessionEnd) {
-          try { this.onSessionEnd(sdkSessionId, agentSession); } catch { /* */ }
+          try { this.onSessionEnd(sessionId, agentSession); } catch { /* */ }
         }
       }
       if ((event as any).type === 'assistant.usage' && this.usageCallback) {
@@ -749,7 +754,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       if (this.onOutput) { try { this.onOutput(aid, event); } catch { /* */ } }
     });
 
-    return { agentId: aid, sessionId: sdkSessionId, status: 'running' as const };
+    return { agentId: aid, sessionId: sessionId, status: 'running' as const };
   }
 
   /**
