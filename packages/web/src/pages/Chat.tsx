@@ -646,7 +646,7 @@ export default function Chat() {
                   title={isListening ? 'Stop listening' : 'Voice input'}>
                   {isListening ? <MicOff size={16} strokeWidth={1.5} /> : <Mic size={16} strokeWidth={1.5} />}
                 </button>
-                <div className="relative">
+                <div className="relative flex items-stretch">
                   <select value={speechLang} onChange={e => {
                     setSpeechLang(e.target.value);
                     try { localStorage.setItem('flightdeck:speech-lang', e.target.value); } catch {}
@@ -663,7 +663,7 @@ export default function Chat() {
                       ['tr-TR','Turkish'],['uk-UA','Ukrainian'],['vi-VN','Vietnamese'],['zh-CN','Chinese (Simplified)'],['zh-HK','Cantonese'],['zh-TW','Chinese (Traditional)'],
                     ].map(([val, label]) => <option key={val} value={val}>{label}</option>)}
                   </select>
-                  <span className={`text-[9px] px-1 py-2.5 rounded-r-xl pointer-events-none ${isListening ? 'bg-red-500 text-white/60' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-l-0 text-[var(--color-text-tertiary)]'}`}>▾</span>
+                  <span className={`flex items-center text-[9px] px-1.5 rounded-r-xl pointer-events-none ${isListening ? 'bg-red-500 text-white/60' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)] border-l-0 text-[var(--color-text-tertiary)]'}`}>▾</span>
                 </div>
               </div>
             )}
