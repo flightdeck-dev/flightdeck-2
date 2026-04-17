@@ -67,7 +67,7 @@ describe('MCP chat & memory tools', () => {
     });
 
     const result = await callTool(server, 'flightdeck_thread_create', {
-      origin_id: 'msg-origin',
+      originId: 'msg-origin',
       title: 'My Thread',
     });
     const thread = JSON.parse(getText(result));

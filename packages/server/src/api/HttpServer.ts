@@ -322,6 +322,22 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
         json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/description$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (!body.description) { json(400, { error: 'Missing required field: description' }); return; }
+        fd.sqlite.updateTaskDescription(taskId as import('@flightdeck-ai/shared').TaskId, body.description);
+        json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/role$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (!body.role) { json(400, { error: 'Missing required field: role' }); return; }
+        fd.sqlite.updateTaskRole(taskId as import('@flightdeck-ai/shared').TaskId, body.role);
+        json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/cancel$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
@@ -462,7 +478,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, { status: 'broadcast' });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/agents' && method === 'GET') {
-      const includeRetired = url.searchParams.get('includeRetired') === 'true';
+      const includeRetired = url.searchParams.get('include_retired') === 'true';
       json(200, fd.listAgents(includeRetired));
     } else if (subPath === '/agents/spawn' && method === 'POST') {
       const am = agentManagers?.get(projectName) ?? fd.agentManager;
@@ -620,9 +636,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath === '/threads' && method === 'POST') {
       try {
         const body = await readBody();
-        if (!body.origin_id) { json(400, { error: 'Missing origin_id' }); return; }
+        if (!body.originId && !body.origin_id) { json(400, { error: 'Missing originId' }); return; }
         if (!fd.messages) { json(500, { error: 'MessageStore not available' }); return; }
-        const thread = fd.messages.createThread({ originId: body.origin_id, title: body.title });
+        const thread = fd.messages.createThread({ originId: body.originId ?? body.origin_id, title: body.title });
         json(201, thread);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/search/sessions' && method === 'GET') {

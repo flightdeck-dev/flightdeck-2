@@ -68,7 +68,7 @@ export const api = {
   getModels: () => get<Record<string, unknown>>('/api/models'),
   updateProjectConfig: (project: string, body: Record<string, unknown>) =>
     put<{ config: unknown }>(projectPath(project, '/config'), body),
-  sendMessage: (project: string, content: string, opts?: { thread_id?: string }) =>
+  sendMessage: (project: string, content: string, opts?: { threadId?: string }) =>
     post<import('./types.ts').ChatMessage>(projectPath(project, '/messages'), { content, ...opts }),
   getAgentOutput: (project: string, agentId: string, tail?: number) =>
     get<{ agentId: string; lines: string[]; totalLines: number }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/output?tail=${tail ?? 100}`)),

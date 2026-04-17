@@ -160,6 +160,64 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_task_context', 'Get full working context for a task — aggregates task details, dependency states, messages, decisions, learnings, and spec in one call', {
+    taskId: z.string(),
+    include: z.array(z.enum(['deps', 'messages', 'decisions', 'learnings', 'spec', 'history'])).optional().describe('What to include. Default: all.'),
+  }, async (params) => {
+    try {
+      const task = await client.getTask(params.taskId);
+      if (!task) return errorResponse(`Task not found: ${params.taskId}`);
+      const t = task as any;
+      const include = new Set(params.include ?? ['deps', 'messages', 'decisions', 'learnings', 'spec', 'history']);
+      const result: Record<string, unknown> = { task };
+
+      const promises: Array<Promise<void>> = [];
+
+      if (include.has('deps') && t.dependsOn?.length) {
+        promises.push(
+          Promise.all(t.dependsOn.map((id: string) => client.getTask(id)))
+            .then(deps => { result.deps = (deps as any[]).map(d => ({ id: d?.id, title: d?.title, state: d?.state, claim: d?.claim })); })
+            .catch(() => { result.deps = []; })
+        );
+      }
+      if (include.has('messages')) {
+        promises.push(
+          client.listMessages({ taskId: params.taskId }).then(msgs => { result.messages = msgs; }).catch(() => { result.messages = []; })
+        );
+      }
+      if (include.has('decisions')) {
+        promises.push(
+          client.listDecisions().then(decs => {
+            result.decisions = (decs as any[]).filter(d => d.taskId === params.taskId);
+          }).catch(() => { result.decisions = []; })
+        );
+      }
+      if (include.has('learnings')) {
+        promises.push(
+          client.searchLearnings(t.title ?? '').then(l => { result.learnings = l; }).catch(() => { result.learnings = []; })
+        );
+      }
+      if (include.has('spec') && t.specId) {
+        promises.push(
+          client.getSpec(t.specId).then(s => { result.spec = s; }).catch(() => {})
+        );
+      }
+      if (include.has('history')) {
+        // Previous submissions from task comments
+        promises.push(
+          client.listTaskComments(params.taskId).then(comments => {
+            result.previousSubmissions = (comments as any[]).filter(c => c.type === 'submission' || c.type === 'review');
+          }).catch(() => { result.previousSubmissions = []; })
+        );
+      }
+
+      await Promise.all(promises);
+      return jsonResponse(result);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_task_add', 'Add a new task to the DAG', {
     title: z.string(),
     description: z.string().optional(),
@@ -610,12 +668,12 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Chat message tools ──
 
   server.tool('flightdeck_msg_list', 'List chat messages', {
-    thread_id: z.string().optional(),
-    task_id: z.string().optional(),
+    threadId: z.string().optional(),
+    taskId: z.string().optional(),
     limit: z.number().optional(),
   }, async (params) => {
     try {
-      const msgs = await client.listMessages(params);
+      const msgs = await client.listMessages({ thread_id: params.threadId, task_id: params.taskId, limit: params.limit });
       return jsonResponse(msgs);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
@@ -623,11 +681,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   });
 
   server.tool('flightdeck_thread_create', 'Create a chat thread from a message', {
-    origin_id: z.string(),
+    originId: z.string(),
     title: z.string().optional(),
   }, async (params) => {
     try {
-      const thread = await client.createThread(params.origin_id, params.title);
+      const thread = await client.createThread(params.originId, params.title);
       return jsonResponse(thread);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
@@ -900,6 +958,37 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_task_handoff', 'Transfer a task to another agent or back to the ready pool with context', {
+    taskId: z.string(),
+    targetRole: z.string().optional().describe('Role to hand off to (e.g. worker, reviewer). Task goes to ready pool for that role.'),
+    targetAgent: z.string().optional().describe('Specific agent ID to hand off to.'),
+    context: z.string().describe('Handoff context: what was done, what remains, any gotchas.'),
+    preserveProgress: z.boolean().optional().describe('If true, keep current description + append context. If false, replace.'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const task = await client.getTask(params.taskId) as any;
+      if (!task) return errorResponse(`Task not found: ${params.taskId}`);
+      // Save handoff context as comment
+      await client.addTaskComment(params.taskId, `[HANDOFF from ${resolved.agentId}] ${params.context}`);
+      // Update description with context
+      const newDesc = params.preserveProgress !== false
+        ? `${task.description ?? ''}\n\n--- HANDOFF CONTEXT ---\n${params.context}`
+        : params.context;
+      await client.updateTaskDescription(params.taskId, newDesc);
+      // Unassign current agent, set back to ready
+      await client.updateTaskState(params.taskId, 'ready');
+      // If target role specified, update task role
+      if (params.targetRole) {
+        await client.updateTaskRole(params.taskId, params.targetRole);
+      }
+      return jsonResponse({ success: true, taskId: params.taskId, handedOffTo: params.targetRole ?? params.targetAgent ?? 'ready pool' });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_discuss', 'Create a group discussion', {
     topic: z.string(),
     invitees: z.array(z.string()).optional(),
@@ -1021,14 +1110,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   });
 
   server.tool('flightdeck_model_set', 'Change a running agent\'s model (Lead only, user-requested)', {
-    agent_id: z.string().describe('Agent ID to change model for'),
+    agentId: z.string().describe('Agent ID to change model for'),
     model: z.string().describe('Tier name (high/medium/fast) or specific model ID'),
     reason: z.string().optional().describe('Why the model is being changed (logged)'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
-      return jsonResponse(await client.setAgentModel(params.agent_id, params.model, params.reason));
+      return jsonResponse(await client.setAgentModel(params.agentId, params.model, params.reason));
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }
@@ -1037,11 +1126,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Suggestion tools ──
 
   server.tool('flightdeck_suggestion_list', 'List scout suggestions', {
-    spec_id: z.string().optional().describe('Filter by spec ID'),
+    specId: z.string().optional().describe('Filter by spec ID'),
     status: z.enum(['pending', 'approved', 'rejected']).optional().describe('Filter by status'),
   }, async (params) => {
     try {
-      return jsonResponse(await client.listSuggestions(params));
+      return jsonResponse(await client.listSuggestions({ spec_id: params.specId, status: params.status }));
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

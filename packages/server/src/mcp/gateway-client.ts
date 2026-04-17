@@ -142,6 +142,14 @@ export class GatewayClient {
     return this.request('POST', `/tasks/${taskId}/comments`, { comment });
   }
 
+  async updateTaskDescription(taskId: string, description: string): Promise<unknown> {
+    return this.request('POST', `/tasks/${taskId}/description`, { description });
+  }
+
+  async updateTaskRole(taskId: string, role: string): Promise<unknown> {
+    return this.request('POST', `/tasks/${taskId}/role`, { role });
+  }
+
   async declareTasks(tasks: unknown[]): Promise<unknown> {
     return this.request('POST', '/tasks/declare', { tasks });
   }
@@ -166,10 +174,14 @@ export class GatewayClient {
     return this.get(`/tasks/${taskId}/comments`);
   }
 
+  async listTaskComments(taskId: string): Promise<unknown[]> {
+    return this.getTaskComments(taskId);
+  }
+
   // ── Agents ──
 
   async listAgents(includeRetired?: boolean): Promise<unknown[]> {
-    return this.get('/agents', includeRetired ? { includeRetired: 'true' } : undefined);
+    return this.get('/agents', includeRetired ? { include_retired: 'true' } : undefined);
   }
 
   async spawnAgent(params: { role: string; model?: string; runtime?: string; task?: string; cwd?: string }): Promise<unknown> {
@@ -218,7 +230,7 @@ export class GatewayClient {
     return this.get('/messages/read', params as Record<string, string | undefined>);
   }
 
-  async listMessages(params?: { thread_id?: string; task_id?: string; limit?: number }): Promise<unknown[]> {
+  async listMessages(params?: { thread_id?: string; task_id?: string; taskId?: string; limit?: number }): Promise<unknown[]> {
     return this.get('/messages', {
       thread_id: params?.thread_id,
       task_id: params?.task_id,
@@ -344,6 +356,10 @@ export class GatewayClient {
     return this.get('/specs');
   }
 
+  async getSpec(specId: string): Promise<unknown> {
+    return this.get(`/specs/${specId}`);
+  }
+
   async createSpec(title: string, content: string): Promise<unknown> {
     return this.request('POST', '/specs', { title, content });
   }
@@ -423,7 +439,7 @@ export class GatewayClient {
   // ── Threads ──
 
   async createThread(originId: string, title?: string): Promise<unknown> {
-    return this.request('POST', '/threads', { origin_id: originId, title });
+    return this.request('POST', '/threads', { originId: originId, title });
   }
 
   async listThreads(params?: { archived?: boolean; limit?: number }): Promise<unknown[]> {
