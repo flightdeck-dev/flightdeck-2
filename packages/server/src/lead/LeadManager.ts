@@ -589,23 +589,23 @@ export class LeadManager {
   }
 
   /** Get Lead session info for gateway state persistence. */
-  getLeadSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string } | null {
+  getLeadSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string; runtime?: string } | null {
     if (!this.leadSessionId || !this.leadAgentId) return null;
-    // For SDK adapter, the session ID IS the ACP session ID (we control it: fd-{agentId})
     return {
       agentId: this.leadAgentId,
       sessionId: this.leadSessionId,
-      acpSessionId: this.leadSessionId, // same for SDK
+      acpSessionId: this.leadSessionId,
+      runtime: this.leadRuntime,
     };
   }
 
-  /** Get Planner session info for gateway state persistence. */
-  getPlannerSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string } | null {
+  getPlannerSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string; runtime?: string } | null {
     if (!this.plannerSessionId || !this.plannerAgentId) return null;
     return {
       agentId: this.plannerAgentId,
       sessionId: this.plannerSessionId,
       acpSessionId: this.plannerSessionId,
+      runtime: this.plannerRuntime,
     };
   }
 
@@ -633,6 +633,7 @@ export class LeadManager {
         cwd,
         role: 'lead',
         model,
+        runtime: this.leadRuntime,
       });
       this.leadSessionId = meta.sessionId;
     this.leadAgentId = meta.agentId;

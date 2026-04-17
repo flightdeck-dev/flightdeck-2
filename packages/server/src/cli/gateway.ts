@@ -497,6 +497,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           role: 'lead',
           acpSessionId: leadInfo.acpSessionId,
           localSessionId: leadInfo.sessionId,
+          runtime: leadInfo.runtime,
           cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
         });
       }
@@ -509,6 +510,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           role: 'planner',
           acpSessionId: plannerInfo.acpSessionId,
           localSessionId: plannerInfo.sessionId,
+          runtime: plannerInfo.runtime,
           cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
         });
       }

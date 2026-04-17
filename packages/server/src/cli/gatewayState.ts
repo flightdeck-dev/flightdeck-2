@@ -11,6 +11,7 @@ export interface SavedSession {
   localSessionId: string;
   cwd: string;
   model?: string;
+  runtime?: string;
   status?: 'hibernated' | 'active';
 }
 

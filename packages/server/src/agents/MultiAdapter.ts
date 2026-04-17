@@ -36,6 +36,13 @@ export class MultiAdapter extends AgentAdapter {
     return meta;
   }
 
+  override async resumeSession(opts: { previousSessionId: string; cwd: string; role: string; agentId?: string; model?: string; projectName?: string; runtime?: string }): Promise<AgentMetadata> {
+    const adapter = this.pickAdapter(opts.runtime);
+    const meta = await adapter.resumeSession(opts);
+    this.sessionAdapterMap.set(meta.sessionId, adapter);
+    return meta;
+  }
+
   async steer(sessionId: string, message: SteerMessage): Promise<string> {
     const adapter = this.sessionAdapterMap.get(sessionId) ?? this.acpAdapter;
     return adapter.steer(sessionId, message);
