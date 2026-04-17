@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { Flightdeck } from '../../src/facade.js';
 import { createMcpServer } from '../../src/mcp/server.js';
+import { startTestGateway } from './test-gateway.js';
 import { getToolsForRole, ROLE_TOOLS } from '../../src/mcp/toolPermissions.js';
 import type { AgentId, Agent } from '@flightdeck-ai/shared';
 
@@ -49,17 +50,28 @@ describe('toolPermissions', () => {
 describe('MCP Server role-based tool filtering', () => {
   const projectName = `test-mcp-role-filter-${Date.now()}`;
   let fd: Flightdeck;
+  let gateway: { port: number; close: () => void };
+  const savedUrl = process.env.FLIGHTDECK_URL;
+  const savedProject = process.env.FLIGHTDECK_PROJECT;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fd = new Flightdeck(projectName);
     const worker: Agent = { id: 'agent-worker-1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     const lead: Agent = { id: 'agent-lead-1' as AgentId, role: 'lead', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     fd.registerAgent(lead);
+    gateway = await startTestGateway(fd, projectName);
+    process.env.FLIGHTDECK_URL = `http://127.0.0.1:${gateway.port}`;
+    process.env.FLIGHTDECK_PROJECT = projectName;
   });
 
   afterEach(() => {
+    gateway?.close();
     fd.close();
+    if (savedUrl) process.env.FLIGHTDECK_URL = savedUrl;
+    else delete process.env.FLIGHTDECK_URL;
+    if (savedProject) process.env.FLIGHTDECK_PROJECT = savedProject;
+    else delete process.env.FLIGHTDECK_PROJECT;
     const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });

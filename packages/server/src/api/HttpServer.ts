@@ -90,7 +90,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', corsOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Agent-Id, X-Agent-Role');
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     // Auth check
@@ -247,6 +247,123 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/').pop()!;
       const task = fd.listTasks().find(t => t.id === taskId);
       if (task) json(200, task); else json(404, { error: 'Task not found' });
+    } else if (subPath.match(/^\/tasks\/[^/]+\/claim$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      const agentId = req.headers['x-agent-id'] as string;
+      if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return; }
+      try {
+        const task = fd.claimTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/submit$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        const task = fd.submitTask(taskId as import('@flightdeck-ai/shared').TaskId, body.claim);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/complete$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.completeTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/fail$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.failTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/cancel$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.cancelTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/pause$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.pauseTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/resume$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.resumeTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/retry$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.retryTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/skip$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.skipTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/reopen$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const task = fd.reopenTask(taskId as import('@flightdeck-ai/shared').TaskId);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/review$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string;
+        if (!body.verdict || !body.comment) { json(400, { error: 'Missing verdict or comment' }); return; }
+        fd.sqlite.addTaskComment(taskId as import('@flightdeck-ai/shared').TaskId, body.comment, (agentId || 'http-api') as import('@flightdeck-ai/shared').AgentId, 'review', body.verdict);
+        if (body.verdict === 'approve') {
+          fd.dag.completeTask(taskId as import('@flightdeck-ai/shared').TaskId);
+          json(200, { taskId, verdict: 'approve', newState: 'done' });
+        } else {
+          fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, 'running' as any);
+          json(200, { taskId, verdict: 'request_changes', newState: 'running', feedback: body.comment });
+        }
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/compact$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        const task = fd.compactTask(taskId as any, body.summary);
+        json(200, task);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/clear-stale$/) && method === 'POST') {
+      const taskId = subPath.split('/')[2];
+      fd.sqlite.clearTaskStale(taskId as import('@flightdeck-ai/shared').TaskId);
+      json(200, { status: 'ok', taskId });
+    } else if (subPath === '/tasks/declare' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return; }
+        const tasks = fd.declareTasks(body.tasks as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(201, tasks);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath.match(/^\/tasks\/[^/]+\/subtasks$/) && method === 'POST') {
+      const parentTaskId = subPath.split('/')[2];
+      try {
+        const body = await readBody();
+        if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return; }
+        const tasks = fd.declareSubTasks(parentTaskId as any, body.tasks as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        json(201, tasks);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/events$/) && method === 'GET') {
       const taskId = subPath.split('/')[2];
       const events = fd.sqlite.getTaskEvents(taskId as import('@flightdeck-ai/shared').TaskId);
@@ -256,15 +373,23 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const comments = fd.sqlite.getTaskComments(taskId as import('@flightdeck-ai/shared').TaskId);
       json(200, comments);
     } else if (subPath.match(/^\/tasks\/[^/]+\/comments$/) && method === 'POST') {
-      // POST /api/projects/:name/tasks/:id/comments — broadcast a pre-created task comment
+      // POST /api/projects/:name/tasks/:id/comments — add a task comment or broadcast
       try {
         const body = await readBody();
-        if (!body.message) { json(400, { error: 'Missing required field: message' }); return; }
         const taskId = subPath.split('/')[2];
-        if (wsServer) {
-          wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: body.message });
+        if (body.comment) {
+          // MCP-style: create comment via agent header
+          const agentId = req.headers['x-agent-id'] as string || 'http-api';
+          const id = fd.sqlite.addTaskComment(taskId as import('@flightdeck-ai/shared').TaskId, body.comment, agentId as import('@flightdeck-ai/shared').AgentId);
+          if (wsServer) wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: body.comment });
+          json(200, { id, taskId, message: 'Comment added' });
+        } else if (body.message) {
+          // Legacy: broadcast a pre-created task comment
+          if (wsServer) wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: body.message });
+          json(200, { status: 'broadcast' });
+        } else {
+          json(400, { error: 'Missing required field: comment or message' });
         }
-        json(200, { status: 'broadcast' });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/tool-events' && method === 'POST') {
       try {
@@ -742,6 +867,212 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       // Fire and forget
       lm.steerLead({ type: 'cron', job: { id: job.id, name: job.name, prompt: job.prompt, skill: job.skill } }).catch(() => {});
       json(202, { status: 'triggered' });
+    } else if (subPath === '/escalate' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'http-api';
+        if (!body.taskId || !body.reason) { json(400, { error: 'Missing taskId or reason' }); return; }
+        const { messageId } = await import('@flightdeck-ai/shared');
+        const msg = {
+          id: messageId(agentId, 'escalation', Date.now().toString()),
+          from: agentId as import('@flightdeck-ai/shared').AgentId,
+          to: null,
+          channel: 'escalations',
+          content: `ESCALATION for task ${body.taskId}: ${body.reason}`,
+          timestamp: new Date().toISOString(),
+        };
+        fd.sendMessage(msg, 'escalations');
+        json(200, { status: 'escalated', taskId: body.taskId });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/discuss' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'http-api';
+        if (!body.topic) { json(400, { error: 'Missing topic' }); return; }
+        const topicHash = Array.from(body.topic as string).reduce((h: number, c: string) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+        const channel = `discuss-${Math.abs(topicHash).toString(36)}-${Date.now().toString(36)}`;
+        const now = new Date().toISOString();
+        const { messageId } = await import('@flightdeck-ai/shared');
+        const initMsg = {
+          id: messageId('system', channel, now),
+          from: agentId as import('@flightdeck-ai/shared').AgentId,
+          to: null,
+          channel,
+          content: `Discussion created: "${body.topic}"\nInvitees: ${(body.invitees ?? []).join(', ') || 'open'}\nCreated: ${now}`,
+          timestamp: now,
+        };
+        fd.sendMessage(initMsg, channel);
+        json(200, { channel, topic: body.topic, invitees: body.invitees ?? [], createdAt: now });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/learnings' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'http-api';
+        if (!body.category || !body.content) { json(400, { error: 'Missing category or content' }); return; }
+        const learning = fd.learnings.append({
+          agentId,
+          category: body.category,
+          content: body.content,
+          tags: body.tags ?? [],
+        });
+        json(201, learning);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/learnings/search' && method === 'GET') {
+      const query = url.searchParams.get('query');
+      if (!query) { json(400, { error: 'Missing query parameter' }); return; }
+      json(200, fd.learnings.search(query));
+    } else if (subPath === '/messages/send' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'http-api';
+        if (!body.content) { json(400, { error: 'Missing content' }); return; }
+        const { messageId: mkMsgId } = await import('@flightdeck-ai/shared');
+        if (body.taskId) {
+          // Task comment path
+          if (fd.messages) {
+            const senderAgent = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+            const msg = fd.messages.createMessage({
+              threadId: null, parentId: body.parentId ?? null, taskId: body.taskId,
+              authorType: (senderAgent?.role === 'lead' ? 'lead' : 'agent') as 'lead' | 'agent',
+              authorId: agentId, content: body.content, metadata: null,
+            });
+            if (wsServer) wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: body.taskId, message: msg });
+            json(200, { status: 'sent', taskId: body.taskId, messageId: msg.id });
+          } else {
+            json(500, { error: 'MessageStore not available' });
+          }
+        } else if (body.to) {
+          // DM path
+          const msg = {
+            id: mkMsgId(agentId, body.to, Date.now().toString()),
+            from: agentId as import('@flightdeck-ai/shared').AgentId,
+            to: body.to as import('@flightdeck-ai/shared').AgentId,
+            channel: null, content: body.content,
+            timestamp: new Date().toISOString(),
+            parentId: body.parentId ?? null,
+          };
+          fd.sendMessage(msg);
+          json(200, { status: 'sent', to: body.to });
+        } else if (body.channel) {
+          // Channel path
+          const msg = {
+            id: mkMsgId(agentId, body.channel, Date.now().toString()),
+            from: agentId as import('@flightdeck-ai/shared').AgentId,
+            to: null, channel: body.channel, content: body.content,
+            timestamp: new Date().toISOString(),
+            parentId: body.parentId ?? null,
+          };
+          fd.sendMessage(msg, body.channel);
+          json(200, { status: 'sent', channel: body.channel });
+        } else {
+          json(400, { error: 'Must provide to, channel, or taskId' });
+        }
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/messages/read' && method === 'GET') {
+      const channel = url.searchParams.get('channel') ?? undefined;
+      const since = url.searchParams.get('since') ?? undefined;
+      const agentId = req.headers['x-agent-id'] as string;
+      if (channel) {
+        json(200, fd.readMessages(channel, since));
+      } else {
+        if (!agentId) { json(400, { error: 'Missing X-Agent-Id header for DM inbox' }); return; }
+        const unread = fd.getUnreadDMs(agentId as import('@flightdeck-ai/shared').AgentId);
+        fd.markDMsRead(agentId as import('@flightdeck-ai/shared').AgentId);
+        json(200, unread.length === 0
+          ? { status: 'empty', messages: [] }
+          : { status: 'unread', count: unread.length, messages: unread.map(m => ({ from: m.from, content: m.content, timestamp: m.timestamp })) });
+      }
+    } else if (subPath.match(/^\/memory\/[^/]+$/) && method === 'GET') {
+      const filename = decodeURIComponent(subPath.split('/')[2]);
+      const content = fd.memory.read(filename);
+      if (content === null) { json(404, { error: `Memory file not found: ${filename}` }); return; }
+      json(200, { content });
+    } else if (subPath.match(/^\/memory\/[^/]+$/) && method === 'PUT') {
+      const filename = decodeURIComponent(subPath.split('/')[2]);
+      try {
+        const body = await readBody();
+        fd.writeMemory(filename, body.content);
+        json(200, { status: 'written', path: `memory/${filename}` });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/memory/daily-log' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.entry) { json(400, { error: 'Missing entry' }); return; }
+        fd.memory.appendDailyLog(body.entry);
+        json(200, { status: 'logged', filename: fd.memory.getDailyLogFilename() });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/cost' && method === 'GET') {
+      json(200, { totalCost: fd.sqlite.getTotalCost(), byAgent: fd.sqlite.getCostByAgent(), byTask: fd.sqlite.getCostByTask() });
+    } else if (subPath === '/timers' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'http-api';
+        const timer = fd.timers.setTimer(agentId, body.label, body.delayMs, body.message, body.repeat);
+        json(200, timer);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/timers' && method === 'GET') {
+      const agentId = req.headers['x-agent-id'] as string || 'http-api';
+      json(200, fd.timers.listTimers(agentId));
+    } else if (subPath.match(/^\/timers\/[^/]+$/) && method === 'DELETE') {
+      const label = decodeURIComponent(subPath.split('/')[2]);
+      const agentId = req.headers['x-agent-id'] as string || 'http-api';
+      json(200, { cancelled: fd.timers.cancelTimer(agentId, label) });
+    } else if (subPath === '/specs' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.title || !body.content) { json(400, { error: 'Missing title or content' }); return; }
+        const spec = fd.createSpec(body.title, body.content);
+        json(201, spec);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/spec-changes' && method === 'GET') {
+      json(200, fd.orchestrator.getRecentSpecChanges());
+    } else if (subPath === '/suggestions' && method === 'GET') {
+      const specId = url.searchParams.get('spec_id') ?? undefined;
+      const status = url.searchParams.get('status') ?? undefined;
+      json(200, fd.suggestions.list({ specId, status: status as any }));
+    } else if (subPath.match(/^\/suggestions\/[^/]+\/approve$/) && method === 'POST') {
+      const id = subPath.split('/')[2];
+      const s = fd.suggestions.updateStatus(id, 'approved');
+      if (s) json(200, { success: true, suggestion: s }); else json(404, { error: 'Suggestion not found' });
+    } else if (subPath.match(/^\/suggestions\/[^/]+\/reject$/) && method === 'POST') {
+      const id = subPath.split('/')[2];
+      const s = fd.suggestions.updateStatus(id, 'rejected');
+      if (s) json(200, { success: true, suggestion: s }); else json(404, { error: 'Suggestion not found' });
+    } else if (subPath === '/isolation/status' && method === 'GET') {
+      try {
+        const project = fd.project.getConfig();
+        const isolationMode = project.isolation ?? 'none';
+        const { IsolationManager } = await import('../isolation/IsolationManager.js');
+        const im = new IsolationManager(fd.project.cwd ?? process.cwd(), { mode: isolationMode as 'none' | 'git_worktree' | 'directory' });
+        json(200, im.status());
+      } catch (e: unknown) { json(500, { error: e instanceof Error ? e.message : String(e) }); }
+    } else if (subPath === '/webhook/test' && method === 'POST') {
+      const wn = fd.orchestrator.getWebhookNotifier();
+      if (wn.count === 0) { json(400, { error: 'No webhooks configured' }); return; }
+      const result = await wn.sendTest();
+      json(200, result);
+    } else if (subPath === '/skills' && method === 'GET') {
+      const { SkillManager } = await import('../skills/SkillManager.js');
+      const sm = new SkillManager(fd.project.cwd ?? process.cwd());
+      sm.loadProjectConfig();
+      const installed = sm.listInstalledSkills();
+      const repoSkills = sm.discoverRepoSkills(process.cwd());
+      sm.loadProjectConfig();
+      const roleAssignments: Record<string, string[]> = {};
+      for (const role of ['lead', 'planner', 'worker', 'reviewer'] as const) {
+        roleAssignments[role] = sm.getSkillsForRole(role);
+      }
+      json(200, { installed, repoSkills, roleAssignments });
+    } else if (subPath === '/skills/install' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.source) { json(400, { error: 'Missing source' }); return; }
+        const { SkillManager } = await import('../skills/SkillManager.js');
+        const sm = new SkillManager(fd.project.cwd ?? process.cwd());
+        const result = sm.installSkill(body.source);
+        if (!result) { json(400, { error: 'Failed to install skill' }); return; }
+        json(200, result);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else {
       res.writeHead(404); res.end('Not found');
     }

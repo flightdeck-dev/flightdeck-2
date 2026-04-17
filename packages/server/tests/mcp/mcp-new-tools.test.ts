@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { Flightdeck } from '../../src/facade.js';
 import { createMcpServer } from '../../src/mcp/server.js';
+import { startTestGateway } from './test-gateway.js';
 import type { AgentId, Agent } from '@flightdeck-ai/shared';
 
 async function callTool(server: any, name: string, params: Record<string, unknown>) {
@@ -24,10 +25,13 @@ function setCallerAgent(agentId: string) {
 describe('MCP new tools', () => {
   let fd: Flightdeck;
   let server: any;
+  let gateway: { port: number; close: () => void };
   const projectName = `test-mcp-new-${Date.now()}`;
   const savedEnv = process.env.FLIGHTDECK_AGENT_ID;
+  const savedUrl = process.env.FLIGHTDECK_URL;
+  const savedProject = process.env.FLIGHTDECK_PROJECT;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fd = new Flightdeck(projectName);
     const lead: Agent = { id: 'lead-1' as AgentId, role: 'lead', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     const worker: Agent = { id: 'worker-1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
@@ -37,13 +41,21 @@ describe('MCP new tools', () => {
     fd.registerAgent(worker);
     fd.registerAgent(planner);
     fd.registerAgent(reviewer);
+    gateway = await startTestGateway(fd, projectName);
+    process.env.FLIGHTDECK_URL = `http://127.0.0.1:${gateway.port}`;
+    process.env.FLIGHTDECK_PROJECT = projectName;
     server = createMcpServer(projectName);
   });
 
   afterEach(() => {
+    gateway?.close();
     fd.close();
     if (savedEnv) process.env.FLIGHTDECK_AGENT_ID = savedEnv;
     else delete process.env.FLIGHTDECK_AGENT_ID;
+    if (savedUrl) process.env.FLIGHTDECK_URL = savedUrl;
+    else delete process.env.FLIGHTDECK_URL;
+    if (savedProject) process.env.FLIGHTDECK_PROJECT = savedProject;
+    else delete process.env.FLIGHTDECK_PROJECT;
     const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
