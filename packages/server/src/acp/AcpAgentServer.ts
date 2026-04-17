@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  AgentSideConnection,
+  type AgentSideConnection,
   PROTOCOL_VERSION,
   type Agent,
   type InitializeRequest,

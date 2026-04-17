@@ -32,7 +32,7 @@ export interface HttpServerDeps {
 export function createHttpServer(deps: HttpServerDeps): Server {
   const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers, cronStores } = deps;
 
-  let modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
+  const modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
   let presetNames: string[] = [];
   let modRegistry: typeof import('../agents/ModelTiers.js').modelRegistry | null = null;
   let displayModule: typeof import('@flightdeck-ai/shared') | null = null;

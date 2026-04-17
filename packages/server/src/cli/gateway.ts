@@ -917,7 +917,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
     })();
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   wsServer.on('chat:interrupt', () => {
     if (leadManager.cancelLead) {
       leadManager.cancelLead().catch((err) => console.error(`[${projectName}] Failed to cancel Lead:`, err));

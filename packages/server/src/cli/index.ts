@@ -516,7 +516,7 @@ switch (command) {
 
   case 'display': {
     const { DEFAULT_DISPLAY, DISPLAY_PRESET_NAMES, } = await import('@flightdeck-ai/shared');
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
+ 
     const displayPort = values.port || '18800';
     const displayBase = `http://localhost:${displayPort}`;
 

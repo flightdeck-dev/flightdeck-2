@@ -168,6 +168,7 @@ export class AcpAdapter extends AgentAdapter {
    * This is the core of "Flightdeck = Client" — we provide fs + terminal capabilities.
    */
   private buildClient(session: AcpSession): Client {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     return {
       async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {

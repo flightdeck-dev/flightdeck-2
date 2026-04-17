@@ -122,7 +122,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     assignedAgent: z.string().optional().describe('Filter by assigned agent ID'),
   }, async (params) => {
     try {
-      let tasks = await client.listTasks(params) as any[];
+      const tasks = await client.listTasks(params) as any[];
       // Group tasks: top-level first, then indent sub-tasks under their parent
       const topLevel = tasks.filter(t => t.parentTaskId === null);
       const byParent = new Map<string, typeof tasks>();

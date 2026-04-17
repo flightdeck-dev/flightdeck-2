@@ -3,7 +3,7 @@ import { type TaskDAG } from '../dag/TaskDAG.js';
 import { type SqliteStore } from '../storage/SqliteStore.js';
 import { type GovernanceEngine } from '../governance/GovernanceEngine.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
-import { SuggestionStore } from '../storage/SuggestionStore.js';
+import { type SuggestionStore } from '../storage/SuggestionStore.js';
 import type { WorkflowEngine, StepAction } from '../workflow/WorkflowEngine.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { LeadManager } from '../lead/LeadManager.js';
