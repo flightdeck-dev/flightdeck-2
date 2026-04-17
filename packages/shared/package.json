@@ -1,18 +1,45 @@
 {
   "name": "@flightdeck-ai/shared",
   "version": "2.0.0-alpha.1",
+  "description": "Shared types and utilities for Flightdeck multi-agent orchestration",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justinchuby/flightdeck.git",
+    "directory": "packages/shared"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./display": "./src/display.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./display": {
+      "types": "./dist/display.d.ts",
+      "import": "./dist/display.js"
+    }
   },
   "typesVersions": {
     "*": {
-      "display": ["src/display.ts"],
-      "core/types": ["src/core/types.ts"],
-      "core/ids": ["src/core/ids.ts"]
+      "display": ["dist/display.d.ts"],
+      "core/types": ["dist/core/types.d.ts"],
+      "core/ids": ["dist/core/ids.d.ts"]
     }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "typescript": "^5.8.3"
   }
 }

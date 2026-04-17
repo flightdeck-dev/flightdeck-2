@@ -1,20 +1,37 @@
 {
-  "name": "@flightdeck-ai/server",
+  "name": "@flightdeck-ai/flightdeck",
   "version": "2.0.0-alpha.1",
+  "description": "Multi-agent orchestration platform for AI coding agents",
   "type": "module",
-  "main": "src/index.ts",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justinchuby/flightdeck.git",
+    "directory": "packages/server"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
-    "flightdeck": "./src/cli/index.ts",
+    "flightdeck": "./dist/cli/index.js",
     "flightdeck-mcp": "./bin/flightdeck-mcp.mjs"
   },
   "files": [
     "bin/",
     "dist/",
-    "src/",
+    "sql/",
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmitOnError false",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
