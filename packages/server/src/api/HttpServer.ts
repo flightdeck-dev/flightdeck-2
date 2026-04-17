@@ -883,6 +883,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       fd.orchestrator.pause(); json(200, { paused: true });
     } else if (subPath === '/orchestrator/resume' && method === 'POST') {
       fd.orchestrator.resume(); json(200, { paused: false });
+    } else if (subPath === '/orchestrator/tick' && method === 'POST') {
+      try { const result = await fd.orchestrator.tick(); json(200, { ok: true, ...result }); } catch (e: unknown) { json(500, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath === '/orchestrator/status' && method === 'GET') {
       json(200, { paused: fd.orchestrator.paused, running: fd.orchestrator.isRunning() });
     } else if (subPath === '/notifications' && method === 'GET') {
