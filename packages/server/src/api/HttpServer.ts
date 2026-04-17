@@ -970,6 +970,11 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           }
           (cfg as any).runtimeOrder = body.runtimeOrder;
         }
+        if (body.isolation !== undefined) {
+          const validModes = ['file_lock', 'git_worktree'];
+          if (!validModes.includes(body.isolation)) { json(400, { error: `Invalid isolation mode. Options: ${validModes.join(', ')}` }); return; }
+          cfg.isolation = body.isolation;
+        }
         fd.project.setConfig(cfg);
         json(200, { config: cfg });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
