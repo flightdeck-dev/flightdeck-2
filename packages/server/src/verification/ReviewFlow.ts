@@ -141,6 +141,7 @@ export async function processReview(
   options?: {
     timeoutMs?: number;
     reviewerModel?: string;
+    reviewerRuntime?: string;
     diff?: string;
     artifacts?: string[];
     cwd?: string;
@@ -195,6 +196,7 @@ export async function processReview(
       role: 'reviewer' as any,
       cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
       model: options?.reviewerModel,
+      runtime: options?.reviewerRuntime ?? 'codex',
       systemPrompt: prompt,
       projectName: options?.projectName,
     });
