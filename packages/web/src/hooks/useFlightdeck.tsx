@@ -254,7 +254,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           });
           break;
         case 'state:update':
-          // Tasks/agents changed — refetch
+          // Tasks/agents changed — refetch everything including project list
+          fetchProjects();
           fetchAllRef.current();
           break;
         case 'agent:stream': {
@@ -350,7 +351,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     <Ctx.Provider value={{
       projects, projectName, status, tasks, agents, decisions, messages, streamingMessages, streamingChunks, toolCallMap, agentOutputs, agentStreamChunks,
       displayConfig, connected, loading, sendChat, sendTaskComment,
-      setDisplayConfig, applyDisplayPreset, interruptLead, refresh: fetchAll,
+      setDisplayConfig, applyDisplayPreset, interruptLead, refresh: () => { fetchProjects(); fetchAll(); },
     }}>
       {children}
     </Ctx.Provider>
