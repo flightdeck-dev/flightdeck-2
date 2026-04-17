@@ -849,7 +849,7 @@ export class Orchestrator {
     // Subscribe to merge conflicts for Planner notification
     this.store.on('merge-conflict', (info: { taskId: string; branch: string }) => {
       this.leadManager?.steerPlannerEvent({
-        type: 'file_conflict' as any,
+        type: 'file_conflict',
         taskId: info.taskId,
         message: `Merge conflict on branch ${info.branch} for task ${info.taskId}. The worktree is preserved for manual resolution. Options: task_pause other conflicting tasks, task_retry on latest main, or escalate to Lead.`,
       });

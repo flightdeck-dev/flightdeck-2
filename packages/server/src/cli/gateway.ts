@@ -1,6 +1,6 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
-import { messageId as makeMessageId } from '@flightdeck-ai/shared';
+import { messageId as makeMessageId, type AgentId, type TaskId, type AgentRole, type TaskState } from '@flightdeck-ai/shared';
 import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents, type SavedSession } from './gatewayState.js';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,6 +8,17 @@ import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
 import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
+
+/** Loosely-typed ACP session update for streaming output. */
+interface SessionUpdate {
+  sessionUpdate: string;
+  content?: { type: string; text?: string } | Array<{ type: string; text?: string }>;
+  title?: string;
+  toolCallId?: string;
+  rawInput?: unknown;
+  input?: unknown;
+  status?: string;
+}
 
 export interface GatewayDeps {
   port: number;
@@ -80,7 +91,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
         if (agent) {
           fd.sqlite.insertCostEntry({
-            agentId: agentId as any,
+            agentId: agentId as AgentId,
             specId: null,
             model: usage.model,
             tokensIn: usage.inputTokens,
@@ -91,7 +102,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
             durationMs: usage.durationMs,
             timestamp: new Date().toISOString(),
           });
-          fd.sqlite.recordCost(agentId as any, usage.cost);
+          fd.sqlite.recordCost(agentId as AgentId, usage.cost);
           break;
         }
       }
@@ -102,14 +113,14 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         if (!fd) continue;
         const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
         if (agent) {
-          fd.sqlite.updateAgentContextWindow(agentId as any, info.currentTokens, info.tokenLimit);
+          fd.sqlite.updateAgentContextWindow(agentId as AgentId, info.currentTokens, info.tokenLimit);
           if (info.tokenLimit > 0 && info.currentTokens / info.tokenLimit > 0.8 && agent.role === 'lead') {
             const pct = Math.round(info.currentTokens / info.tokenLimit * 100);
             console.error(`  [${name}] ⚠️ Lead context window at ${pct}% (${info.currentTokens}/${info.tokenLimit} tokens)`);
             const lm = leadManagers.get(name);
             if (lm) {
               void lm.steerLead({
-                type: 'worker_recovery' as any,
+                type: 'worker_recovery',
                 message: `⚠️ Your context window is at ${pct}%. Write a diary/summary to memory now. Use flightdeck_memory_write.`,
               }).catch(() => {});
             }
@@ -171,32 +182,34 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       let contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result' = 'text';
       let toolName: string | undefined;
 
-      switch ((update as any).sessionUpdate) {
+      const u = update as SessionUpdate;
+
+      switch (u.sessionUpdate) {
         case 'agent_message_chunk':
-          if ((update as any).content?.type === 'text') {
-            delta = (update as any).content.text;
+          if (u.content && !Array.isArray(u.content) && u.content.type === 'text') {
+            delta = u.content.text ?? '';
             contentType = 'text';
           }
           break;
         case 'agent_thought_chunk':
-          if ((update as any).content?.type === 'text') {
-            delta = (update as any).content.text;
+          if (u.content && !Array.isArray(u.content) && u.content.type === 'text') {
+            delta = u.content.text ?? '';
             contentType = 'thinking';
           }
           break;
         case 'tool_call':
-          toolName = (update as any).title ?? '';
+          toolName = u.title ?? '';
           if (!toolName) break; // Skip empty — wait for tool_call_update
-          delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, input: (update as any).rawInput ? JSON.stringify((update as any).rawInput) : ((update as any).input ? JSON.stringify((update as any).input) : ''), status: (update as any).status ?? 'pending' });
+          delta = JSON.stringify({ toolCallId: u.toolCallId, name: toolName, input: u.rawInput ? JSON.stringify(u.rawInput) : (u.input ? JSON.stringify(u.input) : ''), status: u.status ?? 'pending' });
           contentType = 'tool_call';
           break;
         case 'tool_call_update': {
-          toolName = (update as any).title ?? '';
+          toolName = u.title ?? '';
           let resultText = '';
-          if ((update as any).content && Array.isArray((update as any).content)) {
-            resultText = (update as any).content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('');
+          if (u.content && Array.isArray(u.content)) {
+            resultText = u.content.filter((c) => c.type === 'text').map((c) => c.text ?? '').join('');
           }
-          delta = JSON.stringify({ toolCallId: (update as any).toolCallId, name: toolName, result: resultText, status: (update as any).status ?? 'completed' });
+          delta = JSON.stringify({ toolCallId: u.toolCallId, name: toolName, result: resultText, status: u.status ?? 'completed' });
           contentType = 'tool_result';
           break;
         }
@@ -205,7 +218,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       }
 
       if (delta) {
-        wsServer.broadcast({ type: 'agent:stream', agentId, delta, contentType, toolName } as any);
+        wsServer.broadcast({ type: 'agent:stream', agentId, delta, contentType, toolName });
       }
     }
   };
@@ -285,13 +298,13 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       console.error(`  Marking ${activeAgents.length} existing agents offline (--no-recover).`);
       for (const agent of activeAgents) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'offline');
       }
     } else if (activeAgents.length > 0) {
       console.error(`  Marking ${activeAgents.length} stale agent(s) offline (will attempt session recovery).`);
       for (const agent of activeAgents) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fd.sqlite.updateAgentStatus(agent.id as any, 'offline');
+        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'offline');
       }
     }
 
@@ -556,8 +569,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     acpAdapter.clear();
     // Clean up PID tracking — graceful shutdown means no orphans
     clearAgentPids();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (wss as any).close();
+    wss.close();
     httpServer.close();
     projectManager.closeAll();
     process.exit(0);
@@ -747,8 +759,8 @@ async function recoverWorkers(
 
         // Re-register agent as busy
         fd.sqlite.insertAgent({
-          id: result.agentId as any,
-          role: ws.role as any,
+          id: result.agentId as AgentId,
+          role: ws.role as AgentRole,
           runtime: 'acp',
           acpSessionId: ws.acpSessionId,
           status: 'busy',
@@ -759,7 +771,7 @@ async function recoverWorkers(
 
         // Update task's assignedAgent to the new agent ID if it changed
         if (assignedTask && result.agentId !== ws.agentId) {
-          fd.sqlite.updateTaskState(assignedTask.id as any, 'running', result.agentId as any);
+          fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'running' as TaskState, result.agentId as AgentId);
         }
 
         resumedCount.success++;
@@ -770,7 +782,7 @@ async function recoverWorkers(
         // Graceful degradation: pause the task
         if (assignedTask) {
           try {
-            fd.sqlite.updateTaskState(assignedTask.id as any, 'paused' as any);
+            fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'paused' as TaskState);
             pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
             console.error(`  [${projectName}] Paused task ${assignedTask.id} (${assignedTask.title})`);
           } catch (e) {
@@ -781,7 +793,7 @@ async function recoverWorkers(
         const hibernatedId = makeAgentId(ws.role, Date.now().toString());
         fd.sqlite.insertAgent({
           id: hibernatedId,
-          role: ws.role as any,
+          role: ws.role as AgentRole,
           runtime: 'acp',
           acpSessionId: ws.acpSessionId,
           status: 'hibernated',
@@ -794,7 +806,7 @@ async function recoverWorkers(
       // Default mode: pause task, mark agent hibernated (preserve session for potential wake)
       if (assignedTask) {
         try {
-          fd.sqlite.updateTaskState(assignedTask.id as any, 'paused' as any);
+          fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'paused' as TaskState);
           pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
           console.error(`  [${projectName}] Paused worker task ${assignedTask.id} (${assignedTask.title})`);
         } catch (e) {
@@ -805,7 +817,7 @@ async function recoverWorkers(
       const hibernatedId = makeAgentId(ws.role, Date.now().toString());
       fd.sqlite.insertAgent({
         id: hibernatedId,
-        role: ws.role as any,
+        role: ws.role as AgentRole,
         runtime: 'acp',
         acpSessionId: ws.acpSessionId,
         status: 'hibernated',
@@ -842,7 +854,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
 
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
-    leadManager.setStreamHandler((update: any) => {
+    leadManager.setStreamHandler((update: SessionUpdate) => {
       switch (update.sessionUpdate) {
         case 'agent_message_chunk':
           if (update.content?.type === 'text') {
@@ -870,8 +882,8 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
           let resultText = '';
           if (update.content && Array.isArray(update.content)) {
             resultText = update.content
-              .filter((c: any) => c.type === 'text')
-              .map((c: any) => c.text)
+              .filter((c: { type: string; text?: string }) => c.type === 'text')
+              .map((c: { type: string; text?: string }) => c.text ?? '')
               .join('');
           }
           const delta = JSON.stringify({ toolCallId: update.toolCallId, name: tcName, result: resultText, status: update.status ?? 'completed' });
@@ -912,7 +924,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
           }
         }
         // Broadcast state update so UI refreshes agent status (busy → idle)
-        wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       } catch (err) { console.error(`[${projectName}] Failed to steer Lead:`, err); }
     })();
   });

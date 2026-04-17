@@ -23,7 +23,8 @@ export type PlannerEvent =
   | { type: 'task_failed'; taskId: string; error: string; retriesLeft: number }
   | { type: 'worker_escalation'; taskId: string; agentId: string; reason: string }
   | { type: 'spec_milestone'; specId: string; completed: number; total: number }
-  | { type: 'plan_validation_request'; specId: string; context: string };
+  | { type: 'plan_validation_request'; specId: string; context: string }
+  | { type: 'file_conflict'; taskId: string; message: string };
 
 export type LeadEvent =
   | { type: 'user_message'; message: ChatMessage }

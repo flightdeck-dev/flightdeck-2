@@ -8,6 +8,12 @@ import { leadResponseEvent } from '../integrations/WebhookNotifier.js';
 import type { AgentManager } from '../agents/AgentManager.js';
 import type { AgentRole } from '@flightdeck-ai/shared';
 import type { CronStore } from '../cron/CronStore.js';
+import type { ChatMessage } from '../comms/MessageStore.js';
+
+/** Minimal interface for WebSocket servers used by the HTTP API. */
+export interface WsBroadcaster {
+  broadcast(event: Record<string, unknown>): void;
+}
 
 export interface HttpServerDeps {
   projectManager: ProjectManager;
@@ -15,8 +21,7 @@ export interface HttpServerDeps {
   agentManagers?: Map<string, AgentManager>;
   port: number;
   corsOrigin: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  wsServers: Map<string, any>;
+  wsServers: Map<string, WsBroadcaster>;
   /** Auth check function. Returns true if request was blocked (401 sent). */
   authCheck?: (req: IncomingMessage, res: ServerResponse) => boolean;
   /** Webhook notifiers per project, for firing lead_response and agent_message events. */
@@ -70,7 +75,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     const method = req.method ?? 'GET';
 
     const MAX_BODY = 1024 * 1024;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON body is inherently untyped
     const readBody = (): Promise<any> => new Promise((resolve, reject) => {
       let size = 0;
       let data = '';
@@ -195,8 +200,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (isAsync) {
           // Fire-and-forget: steer Lead in background, return immediately
           if (leadManager) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any }).then(raw => {
+            leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content as string } as ChatMessage }).then(raw => {
               if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
                 if (fd.messages) {
                   const leadMsg = fd.messages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
@@ -215,8 +219,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           let leadMsg = null;
           if (leadManager) {
             try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content } as any });
+              const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content as string } as ChatMessage });
               if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
                 leadResponse = raw.trim();
                 if (fd.messages) {
@@ -248,7 +251,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
         const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview });
         if (wsServer) {
-          wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+          wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         }
         json(201, task);
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
@@ -269,7 +272,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       }
       try {
         const task = fd.claimTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -284,7 +287,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         const task = fd.submitTask(taskId as import('@flightdeck-ai/shared').TaskId, body.claim);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -303,14 +306,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.completeTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/fail$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.failTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/state$/) && method === 'POST') {
@@ -319,7 +322,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const body = await readBody();
         if (!body.state) { json(400, { error: 'Missing required field: state' }); return; }
         fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, body.state);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/description$/) && method === 'POST') {
@@ -342,7 +345,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.cancelTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/pause$/) && method === 'POST') {
@@ -357,35 +360,35 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       }
       try {
         const task = fd.pauseTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/resume$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.resumeTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/retry$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.retryTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/skip$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.skipTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/reopen$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const task = fd.reopenTask(taskId as import('@flightdeck-ai/shared').TaskId);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/review$/) && method === 'POST') {
@@ -399,16 +402,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           fd.dag.completeTask(taskId as import('@flightdeck-ai/shared').TaskId);
           json(200, { taskId, verdict: 'approve', newState: 'done' });
         } else {
-          fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, 'running' as any);
+          fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, 'running' as import('@flightdeck-ai/shared').TaskState);
           json(200, { taskId, verdict: 'request_changes', newState: 'running', feedback: body.comment });
         }
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/compact$/) && method === 'POST') {
       const taskId = subPath.split('/')[2];
       try {
         const body = await readBody();
-        const task = fd.compactTask(taskId as any, body.summary);
+        const task = fd.compactTask(taskId as import('@flightdeck-ai/shared').TaskId, body.summary);
         json(200, task);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/clear-stale$/) && method === 'POST') {
@@ -428,8 +431,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only lead/planner roles can declare tasks. Use flightdeck_escalate() to request task creation.` }); return;
           }
         }
-        const tasks = fd.declareTasks(body.tasks as any);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        const tasks = fd.declareTasks(body.tasks as Parameters<typeof fd.declareTasks>[0]);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(201, tasks);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/subtasks$/) && method === 'POST') {
@@ -437,8 +440,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return; }
-        const tasks = fd.declareSubTasks(parentTaskId as any, body.tasks as any);
-        if (wsServer) wsServer.broadcast({ type: 'state:update' as any, stats: fd.getTaskStats() } as any);
+        const tasks = fd.declareSubTasks(parentTaskId as import('@flightdeck-ai/shared').TaskId, body.tasks as Parameters<typeof fd.declareTasks>[0]);
+        if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         json(201, tasks);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath.match(/^\/tasks\/[^/]+\/events$/) && method === 'GET') {
@@ -890,8 +893,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath.match(/^\/display\/preset\/[^/]+$/) && method === 'POST') {
       const preset = subPath.split('/').pop()!;
       if (preset in displayModule!.DISPLAY_PRESETS) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        serverDisplayConfig = { ...(displayModule!.DISPLAY_PRESETS as any)[preset] };
+        serverDisplayConfig = { ...(displayModule!.DISPLAY_PRESETS)[preset as import('@flightdeck-ai/shared').DisplayPreset] };
         json(200, serverDisplayConfig);
       } else json(400, { error: `Unknown preset: ${preset}. Available: ${displayModule!.DISPLAY_PRESET_NAMES.join(', ')}` });
     } else if (subPath.match(/^\/models\/[^/]+$/) && method === 'PUT') {
@@ -951,6 +953,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           fd.governance.setProfile(body.governance);
         }
         if (body.heartbeatEnabled !== undefined) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
           (cfg as any).heartbeatEnabled = !!body.heartbeatEnabled;
         }
         if (body.heartbeatIdleTimeoutDays !== undefined) {
@@ -962,12 +965,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           if (!Array.isArray(body.disabledRuntimes) || !body.disabledRuntimes.every((r: unknown) => typeof r === 'string')) {
             json(400, { error: 'disabledRuntimes must be string[]' }); return;
           }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
           (cfg as any).disabledRuntimes = body.disabledRuntimes;
         }
         if (body.runtimeOrder !== undefined) {
           if (!Array.isArray(body.runtimeOrder) || !body.runtimeOrder.every((r: unknown) => typeof r === 'string')) {
             json(400, { error: 'runtimeOrder must be string[]' }); return;
           }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
           (cfg as any).runtimeOrder = body.runtimeOrder;
         }
         if (body.isolation !== undefined) {
@@ -1209,7 +1214,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath === '/suggestions' && method === 'GET') {
       const specId = url.searchParams.get('spec_id') ?? undefined;
       const status = url.searchParams.get('status') ?? undefined;
-      json(200, fd.suggestions.list({ specId, status: status as any }));
+      json(200, fd.suggestions.list({ specId, status: status as 'pending' | 'approved' | 'rejected' | undefined }));
     } else if (subPath.match(/^\/suggestions\/[^/]+\/approve$/) && method === 'POST') {
       const id = subPath.split('/')[2];
       const s = fd.suggestions.updateStatus(id, 'approved');
@@ -1232,7 +1237,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath.match(/^\/file-locks\//) && method === 'DELETE') {
       try {
         const filePath = decodeURIComponent(subPath.slice('/file-locks/'.length));
-        const body = await readBody().catch(() => ({})) as any;
+        const body = await readBody().catch(() => ({} as Record<string, unknown>));
         const agentId = body?.agentId ?? req.headers['x-agent-id'] ?? '';
         const released = fd.sqlite.releaseFileLock(filePath, agentId);
         json(200, { released, filePath });
@@ -1242,7 +1247,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const project = fd.project.getConfig();
         const isolationMode = project.isolation ?? 'file_lock';
         const { IsolationManager } = await import('../isolation/IsolationManager.js');
-        const im = new IsolationManager(fd.project.cwd ?? process.cwd(), { mode: isolationMode as any });
+        const im = new IsolationManager(fd.project.cwd ?? process.cwd(), { mode: isolationMode as 'file_lock' | 'git_worktree' });
         json(200, im.status());
       } catch (e: unknown) { json(500, { error: e instanceof Error ? e.message : String(e) }); }
     } else if (subPath === '/webhook/test' && method === 'POST') {
