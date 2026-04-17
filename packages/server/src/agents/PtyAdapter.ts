@@ -131,13 +131,8 @@ export class PtyAdapter extends AgentAdapter {
       child.stdin.write(opts.prompt);
       child.stdin.end();
 
-      const timeout = setTimeout(() => {
-        child.kill('SIGTERM');
-        reject(new Error('Claude process timed out (5 min)'));
-      }, 5 * 60 * 1000);
 
       child.on('close', (code) => {
-        clearTimeout(timeout);
         if (code !== 0 && !stdout) {
           reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`));
         } else {
