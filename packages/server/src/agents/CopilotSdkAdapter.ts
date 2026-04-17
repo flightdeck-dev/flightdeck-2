@@ -15,6 +15,7 @@ import { CopilotClient, type CopilotSession, approveAll } from '@github/copilot-
 import type { SessionConfig, SessionEvent, Tool } from '@github/copilot-sdk';
 import type { AgentId, AgentRole, AgentRuntime } from '@flightdeck-ai/shared';
 import { agentId as makeAgentId } from '@flightdeck-ai/shared';
+import { getToolsForRole } from '../mcp/toolPermissions.js';
 import { AgentAdapter, type SpawnOptions as BaseSpawnOptions, type SteerMessage, type AgentMetadata } from './AgentAdapter.js';
 
 export interface CopilotSdkAdapterOptions {
@@ -419,7 +420,56 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
-    return tools;
+    // Plan review (Lead only)
+    tools.push({
+      name: 'flightdeck_plan_review',
+      description: 'Approve or reject a planned set of tasks.',
+      parameters: { type: 'object', properties: { verdict: { type: 'string', enum: ['approve', 'reject'] }, specId: { type: 'string' }, message: { type: 'string' } }, required: ['verdict'] },
+      handler: async (args: { verdict: string; specId?: string; message?: string }) => {
+        const allTasks = await httpGet('/tasks') as any[];
+        const planned = allTasks.filter((t: any) => t.state === 'planned' && (!args.specId || t.specId === args.specId));
+        const targetState = args.verdict === 'approve' ? 'pending' : 'cancelled';
+        let count = 0;
+        for (const task of planned) {
+          try { await httpPost(`/tasks/${encodeURIComponent(task.id)}/state`, { state: targetState }); count++; } catch {}
+        }
+        return JSON.stringify({ verdict: args.verdict, count, total: planned.length, message: args.message });
+      },
+      skipPermission: true,
+    });
+
+    // Role listing
+    tools.push({
+      name: 'flightdeck_role_list',
+      description: 'List available roles.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/roles')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_role_info',
+      description: 'Get details about a role.',
+      parameters: { type: 'object', properties: { roleId: { type: 'string' } }, required: ['roleId'] },
+      handler: async (args: { roleId: string }) => JSON.stringify(await httpGet(`/roles/${encodeURIComponent(args.roleId)}`)),
+      skipPermission: true,
+    });
+
+    // Tools available (self-report)
+    tools.push({
+      name: 'flightdeck_tools_available',
+      description: 'List your available tools and role.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => {
+        const allowed = getToolsForRole(role);
+        return JSON.stringify({ role, tools: allowed });
+      },
+      skipPermission: true,
+    });
+
+    // Filter by role permissions
+    const allowedTools = new Set(getToolsForRole(role));
+    return tools.filter(t => allowedTools.has(t.name));
   }
 
   /**
