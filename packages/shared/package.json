@@ -12,23 +12,31 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./display": {
-      "types": "./dist/display.d.ts",
-      "import": "./dist/display.js"
+      "types": "./src/display.ts",
+      "import": "./src/display.ts",
+      "default": "./src/display.ts"
     }
   },
   "typesVersions": {
     "*": {
-      "display": ["dist/display.d.ts"],
-      "core/types": ["dist/core/types.d.ts"],
-      "core/ids": ["dist/core/ids.d.ts"]
+      "display": [
+        "dist/display.d.ts"
+      ],
+      "core/types": [
+        "dist/core/types.d.ts"
+      ],
+      "core/ids": [
+        "dist/core/ids.d.ts"
+      ]
     }
   },
   "files": [
@@ -41,5 +49,19 @@
   "devDependencies": {
     "@types/node": "^22.15.2",
     "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./display": {
+        "types": "./dist/display.d.ts",
+        "import": "./dist/display.js"
+      }
+    }
   }
 }
