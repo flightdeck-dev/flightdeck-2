@@ -58,7 +58,45 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'codex');
   const ptyAdapter = new PtyAdapterClass(undefined, 'claude');
-  const copilotSdkAdapter = new CopilotSdkAdapter();
+  const copilotSdkAdapter = new CopilotSdkAdapter({
+    onUsage: (agentId, usage) => {
+      for (const name of projectManager.list()) {
+        const fd = projectManager.get(name);
+        if (!fd) continue;
+        const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+        if (agent) {
+          fd.sqlite.insertCostEntry({
+            agentId: agentId as any,
+            specId: null,
+            model: usage.model,
+            tokensIn: usage.inputTokens,
+            tokensOut: usage.outputTokens,
+            cacheReadTokens: usage.cacheReadTokens,
+            cacheWriteTokens: usage.cacheWriteTokens,
+            costUsd: usage.cost,
+            durationMs: usage.durationMs,
+            timestamp: new Date().toISOString(),
+          });
+          fd.sqlite.recordCost(agentId as any, usage.cost);
+          break;
+        }
+      }
+    },
+    onContextWindow: (agentId, info) => {
+      for (const name of projectManager.list()) {
+        const fd = projectManager.get(name);
+        if (!fd) continue;
+        const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+        if (agent) {
+          fd.sqlite.updateAgentContextWindow(agentId as any, info.currentTokens, info.tokenLimit);
+          if (info.tokenLimit > 0 && info.currentTokens / info.tokenLimit > 0.8) {
+            console.error(`  [${name}] \u26a0\ufe0f Agent ${agentId} context window at ${Math.round(info.currentTokens / info.tokenLimit * 100)}% (${info.currentTokens}/${info.tokenLimit} tokens)`);
+          }
+          break;
+        }
+      }
+    },
+  });
   const multiAdapter = new MultiAdapterClass(acpAdapter, ptyAdapter, copilotSdkAdapter);
   const projectManager = new ProjectManager(multiAdapter);
 

@@ -44,6 +44,10 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('messages', 'channel', 'text');
     this.addColumnIfMissing('messages', 'recipient', 'text');
     this.addColumnIfMissing('tasks', 'needs_review', 'integer NOT NULL DEFAULT 1');
+    this.addColumnIfMissing('cost_entries', 'model', 'text');
+    this.addColumnIfMissing('cost_entries', 'duration_ms', 'integer');
+    this.addColumnIfMissing('agents', 'context_window_tokens', 'integer');
+    this.addColumnIfMissing('agents', 'context_window_limit', 'integer');
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
@@ -369,6 +373,38 @@ export class SqliteStore extends EventEmitter {
     }).from(tasks).orderBy(sql`${tasks.cost} DESC`).all();
   }
 
+  getTokenUsageByAgent(): Array<{ agentId: string; model: string | null; totalIn: number; totalOut: number; totalCacheRead: number; totalCacheWrite: number; totalCost: number; requestCount: number }> {
+    return this._db.select({
+      agentId: costEntries.agentId,
+      model: costEntries.model,
+      totalIn: sql<number>`SUM(${costEntries.tokensIn})`,
+      totalOut: sql<number>`SUM(${costEntries.tokensOut})`,
+      totalCacheRead: sql<number>`SUM(${costEntries.cacheReadTokens})`,
+      totalCacheWrite: sql<number>`SUM(${costEntries.cacheWriteTokens})`,
+      totalCost: sql<number>`SUM(${costEntries.costUsd})`,
+      requestCount: sql<number>`COUNT(*)`,
+    }).from(costEntries)
+      .groupBy(costEntries.agentId, costEntries.model)
+      .orderBy(sql`SUM(${costEntries.tokensIn}) + SUM(${costEntries.tokensOut}) DESC`)
+      .all();
+  }
+
+  getTokenUsageTotal(): { totalIn: number; totalOut: number; totalCacheRead: number; totalCacheWrite: number; totalCost: number; requestCount: number } {
+    const row = this._db.select({
+      totalIn: sql<number>`COALESCE(SUM(${costEntries.tokensIn}), 0)`,
+      totalOut: sql<number>`COALESCE(SUM(${costEntries.tokensOut}), 0)`,
+      totalCacheRead: sql<number>`COALESCE(SUM(${costEntries.cacheReadTokens}), 0)`,
+      totalCacheWrite: sql<number>`COALESCE(SUM(${costEntries.cacheWriteTokens}), 0)`,
+      totalCost: sql<number>`COALESCE(SUM(${costEntries.costUsd}), 0)`,
+      requestCount: sql<number>`COUNT(*)`,
+    }).from(costEntries).get();
+    return row ?? { totalIn: 0, totalOut: 0, totalCacheRead: 0, totalCacheWrite: 0, totalCost: 0, requestCount: 0 };
+  }
+
+  updateAgentContextWindow(agentId: AgentId, currentTokens: number, tokenLimit: number): void {
+    this._db.run(sql`UPDATE agents SET context_window_tokens = ${currentTokens}, context_window_limit = ${tokenLimit} WHERE id = ${agentId}`);
+  }
+
   recordTaskCost(taskId: TaskId, amount: number): void {
     this._db.update(tasks)
       .set({ cost: sql`COALESCE(${tasks.cost}, 0) + ${amount}` })
@@ -392,15 +428,17 @@ export class SqliteStore extends EventEmitter {
 
   // ── Cost ──
 
-  insertCostEntry(entry: CostEntry): void {
+  insertCostEntry(entry: CostEntry & { model?: string; durationMs?: number }): void {
     this._db.insert(costEntries).values({
       agentId: entry.agentId,
       specId: entry.specId,
+      model: entry.model ?? null,
       tokensIn: entry.tokensIn,
       tokensOut: entry.tokensOut,
       cacheReadTokens: entry.cacheReadTokens ?? 0,
       cacheWriteTokens: entry.cacheWriteTokens ?? 0,
       costUsd: entry.costUsd,
+      durationMs: entry.durationMs ?? null,
       timestamp: entry.timestamp,
     }).run();
   }

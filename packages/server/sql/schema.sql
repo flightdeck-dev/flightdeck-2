@@ -48,11 +48,13 @@ CREATE TABLE IF NOT EXISTS `cost_entries` (
   `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
   `agent_id` text NOT NULL,
   `spec_id` text,
+  `model` text,
   `tokens_in` integer NOT NULL DEFAULT 0,
   `tokens_out` integer NOT NULL DEFAULT 0,
   `cache_read_tokens` integer NOT NULL DEFAULT 0,
   `cache_write_tokens` integer NOT NULL DEFAULT 0,
   `cost_usd` real NOT NULL DEFAULT 0,
+  `duration_ms` integer,
   `timestamp` text NOT NULL
 );
 

@@ -97,11 +97,13 @@ export const costEntries = sqliteTable('cost_entries', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   agentId: text('agent_id').notNull(),
   specId: text('spec_id'),
+  model: text('model'),
   tokensIn: integer('tokens_in').notNull().default(0),
   tokensOut: integer('tokens_out').notNull().default(0),
   cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
   cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
   costUsd: real('cost_usd').notNull().default(0),
+  durationMs: integer('duration_ms'),
   timestamp: text('timestamp').notNull(),
 }, (table) => [
   index('idx_cost_entries_agent').on(table.agentId),

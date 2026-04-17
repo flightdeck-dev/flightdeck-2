@@ -271,12 +271,13 @@ export class Flightdeck {
 
   // ── Status ──
 
-  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; totalCost: number } {
+  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; totalCost: number; tokenUsage: ReturnType<SqliteStore['getTokenUsageTotal']> } {
     return {
       config: this.project.getConfig(),
       taskStats: this.getTaskStats(),
       agentCount: this.listAgents().length,
       totalCost: this.sqlite.getTotalCost(),
+      tokenUsage: this.sqlite.getTokenUsageTotal(),
     };
   }
 

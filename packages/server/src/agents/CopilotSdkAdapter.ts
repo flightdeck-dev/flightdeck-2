@@ -18,10 +18,22 @@ import { agentId as makeAgentId } from '@flightdeck-ai/shared';
 import { AgentAdapter, type SpawnOptions as BaseSpawnOptions, type SteerMessage, type AgentMetadata } from './AgentAdapter.js';
 
 export interface CopilotSdkAdapterOptions {
-  /** Gateway URL for tool HTTP calls. Default: http://localhost:18800 */
   gatewayUrl?: string;
-  /** Default model. If not set, uses Copilot's default. */
   defaultModel?: string;
+  onUsage?: (agentId: string, usage: {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    cost: number;
+    durationMs: number;
+  }) => void;
+  onContextWindow?: (agentId: string, info: {
+    currentTokens: number;
+    tokenLimit: number;
+    messagesLength: number;
+  }) => void;
 }
 
 export interface CopilotAgentSession {
@@ -44,6 +56,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
   private sessions = new Map<string, CopilotAgentSession>();
   private gatewayUrl: string;
   private defaultModel?: string;
+  private usageCallback: CopilotSdkAdapterOptions['onUsage'];
+  private contextWindowCallback: CopilotSdkAdapterOptions['onContextWindow'];
 
   /** Callback fired when a session ends. */
   onSessionEnd: ((sessionId: string, session: CopilotAgentSession) => void) | null = null;
@@ -56,6 +70,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
     super();
     this.gatewayUrl = options?.gatewayUrl ?? process.env.FLIGHTDECK_URL ?? 'http://localhost:18800';
     this.defaultModel = options?.defaultModel;
+    this.usageCallback = options?.onUsage;
+    this.contextWindowCallback = options?.onContextWindow;
   }
 
   private async ensureClient(): Promise<CopilotClient> {
@@ -468,6 +484,34 @@ export class CopilotSdkAdapter extends AgentAdapter {
         if (this.onSessionEnd) {
           try { this.onSessionEnd(sessionId, agentSession); } catch { /* */ }
         }
+      }
+
+      // Track per-call token usage
+      if ((event as any).type === 'assistant.usage' && this.usageCallback) {
+        const data = (event as any).data;
+        try {
+          this.usageCallback(aid, {
+            model: data.model ?? '',
+            inputTokens: data.inputTokens ?? 0,
+            outputTokens: data.outputTokens ?? 0,
+            cacheReadTokens: data.cacheReadTokens ?? 0,
+            cacheWriteTokens: data.cacheWriteTokens ?? 0,
+            cost: data.cost ?? 0,
+            durationMs: data.durationMs ?? 0,
+          });
+        } catch { /* */ }
+      }
+
+      // Track context window utilization
+      if ((event as any).type === 'session.usage_info' && this.contextWindowCallback) {
+        const data = (event as any).data;
+        try {
+          this.contextWindowCallback(aid, {
+            currentTokens: data.currentTokens ?? 0,
+            tokenLimit: data.tokenLimit ?? 0,
+            messagesLength: data.messagesLength ?? 0,
+          });
+        } catch { /* */ }
       }
 
       if (this.onOutput) {

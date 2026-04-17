@@ -1138,6 +1138,11 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
       }
       json(200, { totalCost: fd.sqlite.getTotalCost(), byAgent: fd.sqlite.getCostByAgent(), byTask: fd.sqlite.getCostByTask() });
+    } else if (subPath === '/token-usage' && method === 'GET') {
+      json(200, {
+        total: fd.sqlite.getTokenUsageTotal(),
+        byAgent: fd.sqlite.getTokenUsageByAgent(),
+      });
     } else if (subPath === '/timers' && method === 'POST') {
       try {
         const body = await readBody();
