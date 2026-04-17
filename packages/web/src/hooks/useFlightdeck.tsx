@@ -111,7 +111,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
         api.getTasks(projectName).catch(() => []),
         api.getAgents(projectName).catch(() => []),
         api.getDecisions(projectName).catch(() => []),
-        api.getMessages(projectName, { limit: 100 }).catch(() => []),
+        api.getMessages(projectName, { limit: 100, author_types: 'user,lead,system' }).catch(() => []),
       ]);
       if (s) setStatus(s);
       setTasks(t);
@@ -172,10 +172,13 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     let ignoreFirstConfig = true; // Skip server's initial DEFAULT_DISPLAY push
     const unsub = wsClient.on((event: WsEvent) => {
       switch (event.type) {
-        case 'chat:message':
+        case 'chat:message': {
+          const msg = event.message;
+          // Only show user, lead, and system messages in main chat
+          if (msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
           setMessages(prev => {
-            if (prev.some(m => m.id === event.message.id)) return prev;
-            return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev.slice(-(MAX_MESSAGES - 1)), msg];
           });
           // Keep streaming chunks (tool calls, thinking) visible — just remove the raw text stream
           streamingRef.current.delete(event.message.id);
@@ -185,6 +188,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           toolCallMapRef.current.clear();
           setToolCallMap(new Map());
           break;
+        }
         case 'chat:stream': {
           const current = streamingRef.current.get(event.message_id) ?? '';
           streamingRef.current.set(event.message_id, current + event.delta);

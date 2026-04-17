@@ -178,8 +178,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath === '/messages' && method === 'GET') {
       const threadId = url.searchParams.get('thread_id') ?? undefined;
       const taskId = url.searchParams.get('task_id') ?? undefined;
+      const authorTypesParam = url.searchParams.get('author_types');
+      const authorTypes = authorTypesParam ? authorTypesParam.split(',') : undefined;
       const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-      json(200, (fd.messages?.listMessages({ threadId, taskId, limit }) ?? []).reverse());
+      json(200, (fd.messages?.listMessages({ threadId, taskId, limit, authorTypes }) ?? []).reverse());
     } else if (subPath === '/messages' && method === 'POST') {
       try {
         const body = await readBody();

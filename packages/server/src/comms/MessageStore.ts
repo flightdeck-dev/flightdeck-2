@@ -72,7 +72,7 @@ export class MessageStore {
     };
   }
 
-  listMessages(opts: { threadId?: string; taskId?: string; before?: string; limit?: number } = {}): ChatMessage[] {
+  listMessages(opts: { threadId?: string; taskId?: string; before?: string; limit?: number; authorTypes?: string[] } = {}): ChatMessage[] {
     const conditions = [];
     if (opts.threadId !== undefined) {
       conditions.push(eq(messages.threadId, opts.threadId));
@@ -82,6 +82,9 @@ export class MessageStore {
     }
     if (opts.before) {
       conditions.push(lt(messages.createdAt, opts.before));
+    }
+    if (opts.authorTypes && opts.authorTypes.length > 0) {
+      conditions.push(sql`${messages.authorType} IN (${sql.join(opts.authorTypes.map(t => sql`${t}`), sql`, `)})`);
     }
     const limit = opts.limit ?? 50;
     const where = conditions.length > 0 ? and(...conditions) : undefined;
