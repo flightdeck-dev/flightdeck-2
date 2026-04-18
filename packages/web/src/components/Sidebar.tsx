@@ -5,6 +5,7 @@ import { useAgents } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
 import { Folder, FolderOpen, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown } from 'lucide-react';
+import { FolderPicker } from './FolderPicker.tsx';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -308,6 +309,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
   const [leadModel, setLeadModel] = useState('');
   const [availableModels, setAvailableModels] = useState<Array<{ modelId: string; displayName?: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -355,17 +357,18 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
                 className="flex-1 px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
                 placeholder="/home/user/projects/my-project"
               />
-              <button type="button" onClick={async () => {
-                try {
-                  const res = await fetch('/api/browse-directory' + (cwd ? `?path=${encodeURIComponent(cwd)}` : ''));
-                  const data = await res.json();
-                  if (data.path) setCwd(data.path);
-                } catch { /* fallback: user types manually */ }
-              }}
+              <button type="button" onClick={() => setShowFolderPicker(true)}
                 className="px-2.5 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] shrink-0"
                 title="Browse directory">
                 📂
               </button>
+              {showFolderPicker && (
+                <FolderPicker
+                  value={cwd}
+                  onChange={(path) => setCwd(path)}
+                  onClose={() => setShowFolderPicker(false)}
+                />
+              )}
             </div>
             <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Absolute path to your project</p>
           </div>
