@@ -400,3 +400,30 @@ Reporting:          daily         per-task      per-milestone
 | `agents/AgentManager.ts` | Agent spawn, steer, session management |
 | `dag/TaskDAG.ts` | Task graph, claimTask, failTask, retryTask |
 | `acp/SessionStore.ts` | Session persistence for Lead/Planner transcripts |
+
+
+## Role Responsibilities
+
+| Role | Responsibilities | Does NOT do | MCP Tools |
+|------|-----------------|-------------|-----------|
+| **Lead** | User communication, high-level decisions, plan approval/rejection, escalation handling, status reporting | Task breakdown, agent spawning, code implementation, code review | plan_review, task_add (trivial only), task_cancel, task_skip, send, read, search, status, spec_create, role_list |
+| **Planner** | Task breakdown (declare_tasks), dependency management, conflict resolution, agent spawning, task pause/resume/retry | User communication, architecture decisions, code implementation | declare_tasks, agent_spawn, task_pause, task_resume, task_skip, task_fail, task_retry, task_complete, send, search |
+| **Orchestrator** | Auto-assign ready tasks to idle workers, auto-spawn workers (up to maxConcurrentWorkers), auto-spawn reviewers, promote blocked→ready (event-driven), stall detection, budget monitoring | No LLM calls — pure code logic | N/A (code, not an agent) |
+| **Worker** | Code implementation, testing, task_submit, escalate when blocked | Task planning, agent management, code review | task_list, task_claim, task_submit, task_fail, escalate, file_lock, search, memory_write |
+| **Reviewer** | Code review, approve/request_changes via review_submit | Implementation, task planning | task_list, task_get, task_complete, task_fail, review_submit, search |
+| **Scout** | Read-only codebase analysis, suggest improvements | Write files, create tasks, modify anything | task_list, spec_list, search, decision_list, learning_search (all read-only) |
+| **QA Tester** | End-to-end testing, bug reporting, verify fixes | Code implementation, architecture decisions | task_claim, task_submit, task_fail, search, memory_write |
+| **Tech Writer** | Documentation, README, API guides, examples | Code implementation, testing | task_claim, task_submit, task_fail, search, memory_write, spec_list |
+| **Product Thinker** | UX perspective, feature evaluation, scope decisions | Code implementation, task management | task_list, task_add, send, discuss, search, memory_write |
+
+### Key Principle: Separation of Concerns
+
+```
+User ↔ Lead (decisions) → Planner (planning) → Orchestrator (execution) → Workers (implementation) → Reviewers (quality)
+```
+
+- **Lead** conserves tokens — only speaks when needed (user messages, approvals, escalations)
+- **Planner** owns the execution plan — breaks down, sequences, resolves conflicts
+- **Orchestrator** is pure code — no token cost, handles mechanical assignment/spawning
+- **Workers** are disposable — spawn, implement, submit, done
+- **Reviewers** are pooled — reused across tasks to reduce spawn overhead

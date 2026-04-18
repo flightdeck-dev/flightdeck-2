@@ -583,6 +583,17 @@ function ProjectSettings() {
             </select>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-sm">Max Workers</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={(status.config as any)?.maxConcurrentWorkers ?? 30}
+              onChange={e => saveConfig({ maxConcurrentWorkers: parseInt(e.target.value) || 30 })}
+              className="w-20 text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] text-right"
+            />
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-sm">Lead Runtime</span>
             <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel || 'high' }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
               <option value="copilot">Copilot (SDK)</option>
