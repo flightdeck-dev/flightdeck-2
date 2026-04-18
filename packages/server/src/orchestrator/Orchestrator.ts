@@ -847,7 +847,7 @@ export class Orchestrator {
     if (this.intervalHandle) return;
     // Recover orphaned running tasks from previous daemon session
     this.recoverOrphanedTasks();
-    this.intervalHandle = setInterval(() => { void this.tick(); }, intervalMs);
+    this.intervalHandle = setInterval(() => { void this.tick().catch(() => { /* DB may be closed */ }); }, intervalMs);
 
     // Subscribe to task state changes for event-driven reactivity
     this.boundReactHandler = () => this.scheduleReactiveTick();
@@ -938,7 +938,7 @@ export class Orchestrator {
     if (this.reactDebounceTimer) return; // already scheduled
     this.reactDebounceTimer = setTimeout(() => {
       this.reactDebounceTimer = null;
-      void this.reactiveTick();
+      void this.reactiveTick().catch(() => { /* DB may be closed */ });
     }, Orchestrator.REACT_DEBOUNCE_MS);
   }
 
