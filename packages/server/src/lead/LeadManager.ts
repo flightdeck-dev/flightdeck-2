@@ -109,6 +109,12 @@ export class LeadManager {
 
   /** Start Lead ACP session */
   async spawnLead(): Promise<string> {
+    // Ensure only one active Lead — retire any existing ones
+    const existingLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
+    for (const old of existingLeads) {
+      try { this.sqlite.retireAgent(old.id); } catch { /* best effort */ }
+    }
+
     // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
