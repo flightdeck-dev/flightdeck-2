@@ -8,7 +8,7 @@ import { useDisplay } from '../hooks/useDisplay.tsx';
 import type { ToolCallState } from '../hooks/useChat.tsx';
 import type { StreamChunk } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
-import { Crown, Code, Search, ClipboardList, Bot, Send, Zap, X, Info, MessageSquare } from 'lucide-react';
+import { Crown, Code, Search, ClipboardList, Bot, Send, Zap, X, Info, MessageSquare, MoreHorizontal, Pause, Play, LogOut, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { ThinkingBlock, ToolCallCard, groupChunks } from './Chat.tsx';
 import { shouldShow, type DisplayConfig } from '@flightdeck-ai/shared/display';
@@ -27,6 +27,8 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: bo
   idle: { color: 'var(--color-status-ready)', label: 'Idle' },
   terminated: { color: 'var(--color-status-cancelled)', label: 'Offline' },
   ended: { color: 'var(--color-status-cancelled)', label: 'Ended' },
+  hibernated: { color: 'var(--color-status-pending)', label: 'Hibernated' },
+  retired: { color: 'var(--color-status-cancelled)', label: 'Retired' },
 };
 
 const PANEL_WIDTH_KEY = 'flightdeck:agent-panel-width';
@@ -383,7 +385,7 @@ function AgentDetailPanel({
                   ['Status', config.label],
                   ['Runtime', agent.runtimeName ?? agent.runtime ?? 'acp'],
                   ['Tokens', `${((agent as any).tokensIn ?? 0).toLocaleString()} in / ${((agent as any).tokensOut ?? 0).toLocaleString()} out`],
-                  ['Session ID', agent.acp_session_id ?? '—'],
+                  ['Session ID', agent.acp_session_id ?? (agent as any).acpSessionId ?? '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-4">
                     <span className="text-[var(--color-text-tertiary)] shrink-0">{label}</span>
@@ -424,7 +426,140 @@ function AgentDetailPanel({
   );
 }
 
-function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (id: string) => void; isSelected: boolean }) {
+function AgentActionMenu({ agent, projectName, onAction }: { agent: Agent; projectName: string; onAction: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const s = agent.status;
+  const actions: { label: string; icon: React.ReactNode; show: boolean; fn: () => Promise<unknown> }[] = [
+    { label: 'Hibernate', icon: <Pause size={13} />, show: s === 'busy' || s === 'working' || s === 'idle', fn: () => api.hibernateAgent(projectName, agent.id) },
+    { label: 'Interrupt', icon: <AlertTriangle size={13} />, show: s === 'busy' || s === 'working', fn: () => api.sendAgentMessage(projectName, agent.id, 'User interrupt', true) },
+    { label: 'Wake', icon: <Play size={13} />, show: s === 'hibernated', fn: () => api.wakeAgent(projectName, agent.id) },
+    { label: 'Retire', icon: <LogOut size={13} />, show: s !== 'terminated' && s !== 'ended', fn: () => api.retireAgent(projectName, agent.id) },
+  ];
+  const visible = actions.filter(a => a.show);
+  if (!visible.length) return null;
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setLoading(true);
+    try { await fn(); onAction(); } catch (err) { console.error(err); }
+    setLoading(false);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(!open); }}
+        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] transition-colors"
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-50 min-w-[140px] py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          {visible.map(a => (
+            <button key={a.label} disabled={loading}
+              onClick={e => { e.stopPropagation(); run(a.fn); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-surface-secondary)] disabled:opacity-50 transition-colors">
+              {a.icon} {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; projectName: string; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { data: modelsData } = useSWR(
+    open && projectName ? ['card-models', projectName] : null,
+    () => api.getAvailableModels(projectName)
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  // Group models by runtime, filter to agent's runtime
+  const groups = useMemo(() => {
+    if (!modelsData) return [];
+    const result: { runtime: string; models: string[] }[] = [];
+    const agentRuntime = agent.runtimeName ?? agent.runtime ?? '';
+    for (const [runtime, tiers] of Object.entries(modelsData as Record<string, Record<string, Array<{ modelId: string }>>>)) {
+      const models: string[] = [];
+      for (const tier of Object.values(tiers)) {
+        for (const m of tier) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
+      }
+      if (models.length) result.push({ runtime, models });
+    }
+    // Put agent's runtime first
+    result.sort((a, b) => {
+      if (a.runtime === agentRuntime) return -1;
+      if (b.runtime === agentRuntime) return 1;
+      return 0;
+    });
+    return result;
+  }, [modelsData, agent.runtimeName, agent.runtime]);
+
+  const selectModel = async (model: string) => {
+    setLoading(true);
+    try { await api.setAgentModel(projectName, agent.id, model); onChanged(); } catch (err) { console.error(err); }
+    setLoading(false);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(!open); }}
+        className="flex items-center gap-1 font-mono text-xs truncate hover:text-[var(--color-text)] transition-colors"
+        disabled={loading}
+      >
+        <span className="truncate">{agent.model ?? agent.runtimeName ?? '—'}</span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-6 z-50 min-w-[220px] max-h-[300px] overflow-y-auto py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          {!groups.length && <div className="px-3 py-2 text-xs text-[var(--color-text-tertiary)]">Loading…</div>}
+          {groups.map(g => (
+            <div key={g.runtime}>
+              <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">{g.runtime}</div>
+              {g.models.map(m => (
+                <button key={m}
+                  onClick={e => { e.stopPropagation(); selectModel(m); }}
+                  className={`w-full px-3 py-1.5 text-xs text-left font-mono truncate hover:bg-[var(--color-surface-secondary)] transition-colors ${
+                    m === agent.model ? 'text-[var(--color-primary)]' : ''
+                  }`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentCard({ agent, projectName, onSelect, isSelected, onMutate }: { agent: Agent; projectName: string; onSelect: (id: string) => void; isSelected: boolean; onMutate: () => void }) {
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
   const { tasks } = useTasks();
   const { agentOutputs } = useAgentsHook();
@@ -434,7 +569,7 @@ function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (i
   return (
     <div
       onClick={() => onSelect(agent.id)}
-      className={`p-5 rounded-xl border bg-[var(--color-surface)] hover:border-[var(--color-text-tertiary)] transition-colors space-y-4 cursor-pointer ${
+      className={`group p-5 rounded-xl border bg-[var(--color-surface)] hover:border-[var(--color-text-tertiary)] transition-colors space-y-4 cursor-pointer ${
         isSelected ? 'border-[var(--color-accent)]' : 'border-[var(--color-border)]'
       }`}
     >
@@ -451,12 +586,17 @@ function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (i
             <p className="font-mono text-xs text-[var(--color-text-tertiary)] mt-0.5 truncate max-w-[160px]">{agent.id}</p>
           </div>
         </div>
-        <span className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
-              style={{ backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)`, color: config.color }}>
-          <span className={`w-2 h-2 rounded-full ${config.animate ? 'animate-pulse' : ''}`}
-                style={{ backgroundColor: config.color }} />
-          {config.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            {projectName && <AgentActionMenu agent={agent} projectName={projectName} onAction={onMutate} />}
+          </div>
+          <span className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
+                style={{ backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)`, color: config.color }}>
+            <span className={`w-2 h-2 rounded-full ${config.animate ? 'animate-pulse' : ''}`}
+                  style={{ backgroundColor: config.color }} />
+            {config.label}
+          </span>
+        </div>
       </div>
 
       {/* Current task */}
@@ -471,7 +611,11 @@ function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (i
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div>
           <p className="text-[var(--color-text-tertiary)]">Model</p>
-          <p className="font-mono mt-0.5 truncate">{agent.model ?? agent.runtimeName ?? '—'}</p>
+          {projectName ? (
+            <AgentModelDropdown agent={agent} projectName={projectName} onChanged={onMutate} />
+          ) : (
+            <p className="font-mono mt-0.5 truncate">{agent.model ?? agent.runtimeName ?? '—'}</p>
+          )}
         </div>
         <div>
           <p className="text-[var(--color-text-tertiary)]">Runtime</p>
@@ -498,6 +642,8 @@ export default function Agents() {
   const { agents, agentOutputs, agentStreamChunks } = useAgentsHook();
   const { loading, projectName } = useProject();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const { mutate } = useSWR(projectName ? ['agents', projectName] : null);
+  const handleMutate = useCallback(() => { mutate(); }, [mutate]);
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) ?? null;
 
@@ -555,7 +701,7 @@ export default function Agents() {
 
       {active.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {active.map(a => <AgentCard key={a.id} agent={a} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} />)}
+          {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
         </div>
       )}
 
@@ -565,7 +711,7 @@ export default function Agents() {
             {terminated.length} terminated agent{terminated.length !== 1 ? 's' : ''}
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
-            {terminated.map(a => <AgentCard key={a.id} agent={a} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} />)}
+            {terminated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
           </div>
         </details>
       )}

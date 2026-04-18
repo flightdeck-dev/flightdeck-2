@@ -4,6 +4,7 @@ import { useProject } from '../hooks/useProject.tsx';
 import { useDisplay } from '../hooks/useDisplay.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
+import { useAgents as useAgentsHook } from '../hooks/useAgents.tsx';
 import { Loader2 } from 'lucide-react';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
@@ -329,10 +330,12 @@ function GlobalSettings() {
 /** Project-scoped settings — project info, heartbeat, governance */
 function ProjectSettings() {
   const { status, projectName } = useProject();
+  const { agents } = useAgentsHook();
   const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(false);
   const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
   const [saving, setSaving] = useState(false);
+  const [restartingLead, setRestartingLead] = useState(false);
 
   useEffect(() => {
     if (!status?.config) return;
@@ -350,6 +353,21 @@ function ProjectSettings() {
   };
 
   if (!status) return null;
+
+  const activeLeads = agents.filter(a => a.role === 'lead' && a.status !== 'terminated' && a.status !== 'ended');
+
+  const restartLead = async () => {
+    if (!projectName) return;
+    setRestartingLead(true);
+    try {
+      for (const lead of activeLeads) {
+        await api.terminateAgent(projectName, lead.id);
+      }
+    } catch (err) {
+      console.error('Failed to restart lead:', err);
+    }
+    setRestartingLead(false);
+  };
 
   return (
     <>
@@ -385,6 +403,21 @@ function ProjectSettings() {
               <option value="git_worktree">Git Worktree (per-task branches)</option>
             </select>
           </div>
+          {activeLeads.length > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
+              <div>
+                <p className="text-sm">Restart Lead</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Terminate active Lead(s) — will auto-respawn with current config</p>
+              </div>
+              <button
+                disabled={restartingLead}
+                onClick={restartLead}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[var(--color-status-failed)] text-[var(--color-status-failed)] hover:bg-[color-mix(in_srgb,var(--color-status-failed)_10%,transparent)] transition-colors disabled:opacity-50"
+              >
+                {restartingLead ? 'Restarting…' : `Restart Lead (${activeLeads.length})`}
+              </button>
+            </div>
+          )}
         </Card>
       </section>
 
