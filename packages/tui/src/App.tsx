@@ -12,6 +12,24 @@ import { TaskOverlay } from './components/TaskOverlay';
 import { DISPLAY_PRESET_NAMES } from '@flightdeck-ai/shared/display';
 import type { DisplayPreset, ToolVisibility } from '@flightdeck-ai/shared/display';
 
+const COMMANDS = [
+  { cmd: '/help', desc: 'Show all commands' },
+  { cmd: '/quit', desc: 'Exit Flightdeck TUI' },
+  { cmd: '/agents', desc: 'Full-screen agent dashboard' },
+  { cmd: '/tasks', desc: 'Full-screen task dashboard' },
+  { cmd: '/projects', desc: 'List all projects' },
+  { cmd: '/project', desc: 'Switch project: /project <name>' },
+  { cmd: '/status', desc: 'Project status' },
+  { cmd: '/report', desc: 'Daily report' },
+  { cmd: '/models', desc: 'Available models' },
+  { cmd: '/model', desc: 'Set agent model: /model <id> <model>' },
+  { cmd: '/hibernate', desc: 'Hibernate agent: /hibernate <id>' },
+  { cmd: '/wake', desc: 'Wake agent: /wake <id>' },
+  { cmd: '/retire', desc: 'Retire agent: /retire <id>' },
+  { cmd: '/interrupt', desc: 'Interrupt agent: /interrupt <id> [msg]' },
+  { cmd: '/display', desc: 'Display config: /display [preset]' },
+];
+
 type Panel = 'tasks' | 'center' | 'agents';
 
 interface AppProps {
@@ -34,6 +52,8 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [cmdOutput, setCmdOutput] = useState<string[]>([]);
   const [isInputMode, setIsInputMode] = useState(false);
   const [overlay, setOverlay] = useState<'agents' | 'tasks' | null>(null);
+  const [suggestions, setSuggestions] = useState<typeof COMMANDS>([]);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0);
 
   // Mouse scroll support: enable SGR mouse tracking
   useEffect(() => {
@@ -81,7 +101,22 @@ export function App({ baseUrl, wsUrl }: AppProps) {
 
     // When typing in chat input, don't intercept
     if (isInputMode) {
-      if (key.escape) setIsInputMode(false);
+      if (key.escape) {
+        setIsInputMode(false);
+        setSuggestions([]);
+        setSelectedSuggestion(0);
+      } else if (key.tab && suggestions.length > 0) {
+        const selected = suggestions[selectedSuggestion];
+        if (selected) {
+          setInput(selected.cmd + ' ');
+          setSuggestions([]);
+          setSelectedSuggestion(0);
+        }
+      } else if (key.upArrow && suggestions.length > 0) {
+        setSelectedSuggestion(prev => Math.max(0, prev - 1));
+      } else if (key.downArrow && suggestions.length > 0) {
+        setSelectedSuggestion(prev => Math.min(suggestions.length - 1, prev + 1));
+      }
       return;
     }
 
@@ -278,6 +313,19 @@ export function App({ baseUrl, wsUrl }: AppProps) {
     fd.sendMessage(text);
   }, [exit, fd]);
 
+  // Update suggestions when input changes
+  const handleInputChange = useCallback((val: string) => {
+    setInput(val);
+    if (val.startsWith('/') && !val.includes(' ')) {
+      const matches = COMMANDS.filter(c => c.cmd.startsWith(val));
+      setSuggestions(matches);
+      setSelectedSuggestion(0);
+    } else {
+      setSuggestions([]);
+      setSelectedSuggestion(0);
+    }
+  }, []);
+
   if (overlay === 'agents') {
     return (
       <Box flexDirection="column" width="100%">
@@ -332,7 +380,9 @@ export function App({ baseUrl, wsUrl }: AppProps) {
             isLeadTyping={fd.isLeadTyping}
             streamingText={fd.streamingText}
             input={input}
-            onInputChange={setInput}
+            onInputChange={handleInputChange}
+            suggestions={suggestions}
+            selectedSuggestion={selectedSuggestion}
             onSubmit={handleSubmit}
             scrollOffset={chatScroll}
           />

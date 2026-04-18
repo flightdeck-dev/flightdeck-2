@@ -8,7 +8,7 @@ import { App } from './App';
 const { values } = parseArgs({
   strict: false,
   options: {
-    port: { type: 'string', default: '3000' },
+    port: { type: 'string', default: '18800' },
     url: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   },
@@ -38,7 +38,7 @@ Keyboard:
   process.exit(0);
 }
 
-const port = values.port || '3000';
+const port = values.port || '18800';
 const wsUrl = (values.url as string) || `ws://localhost:${port}`;
 const baseUrl = (values.url as string) ? (values.url as string).replace(/^ws(s?):/, 'http$1:') : `http://localhost:${port}`;
 
