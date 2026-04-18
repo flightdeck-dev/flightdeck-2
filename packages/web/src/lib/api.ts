@@ -3,10 +3,27 @@ import type { DisplayConfig } from '@flightdeck-ai/shared/display';
 
 const BASE = '';
 
+function camelizeKey(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function camelizeKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(camelizeKeys);
+  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      result[camelizeKey(k)] = camelizeKeys(v);
+    }
+    return result;
+  }
+  return obj;
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`GET ${path}: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return camelizeKeys(data) as T;
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {

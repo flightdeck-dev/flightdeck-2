@@ -158,7 +158,7 @@ function GlobalSettings() {
   );
   const runtimeProject = projectsData?.[0]?.name ?? '';
 
-  const { data: runtimesData, mutate: _mutateRuntimes } = useSWR(
+  const { data: runtimesData } = useSWR(
     runtimeProject ? ['runtimes-settings', runtimeProject] : null,
     () => api.getRuntimes(runtimeProject) as Promise<RuntimeInfo[]>
   );
@@ -198,16 +198,15 @@ function GlobalSettings() {
   }, [runtimes, runtimeProject]);
 
   const toggleRuntime = useCallback(async (id: string, enabled: boolean) => {
-    const newDisabled = enabled
-      ? disabledRuntimes.filter(r => r !== id)
-      : [...disabledRuntimes, id];
-    setDisabledRuntimes(newDisabled);
-    try {
-      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabledRuntimes: newDisabled }) });
-    } catch {
-      setDisabledRuntimes(disabledRuntimes);
-    }
-  }, [disabledRuntimes, runtimeProject]);
+    setDisabledRuntimes(prev => {
+      const newDisabled = enabled
+        ? prev.filter(r => r !== id)
+        : [...prev, id];
+      fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabledRuntimes: newDisabled }) })
+        .catch(() => setDisabledRuntimes(prev));
+      return newDisabled;
+    });
+  }, []);
 
   const getSortedRuntimes = useCallback(() => {
     if (!runtimes) return [];
@@ -222,7 +221,7 @@ function GlobalSettings() {
   }, [runtimes, runtimeOrder]);
 
   const handleDrop = useCallback(async (targetId: string) => {
-    if (!dragId || dragId === targetId || !runtimes) return;
+    if (!dragId || dragId === targetId || !runtimes || !runtimeProject) return;
     const sorted = getSortedRuntimes();
     const order = sorted.map(rt => rt.id);
     const fromIdx = order.indexOf(dragId);
@@ -235,9 +234,9 @@ function GlobalSettings() {
     try {
       await api.updateProjectConfig(runtimeProject, { runtimeOrder: order });
     } catch {
-      setRuntimeOrder(runtimeOrder);
+      setRuntimeOrder(prev => prev); // revert handled by SWR refresh
     }
-  }, [dragId, runtimes, runtimeOrder, runtimeProject, getSortedRuntimes]);
+  }, [dragId, runtimes, runtimeProject, getSortedRuntimes]);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
     const preset = DISPLAY_PRESETS[p];
@@ -315,7 +314,7 @@ function GlobalSettings() {
                 <span className="cursor-grab active:cursor-grabbing text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] px-1 select-none" title="Drag to reorder">≡</span>
                 <div className="flex-1">
                   <RuntimeCard rt={rt} projectName={runtimeProject}
-                    enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : !(rt as any).disabledByDefault}
+                    enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : true}
                     onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
                 </div>
               </div>
@@ -347,14 +346,16 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef('');
+  const originalRef = useRef('');
 
   const hasChanges = content !== original;
 
   useEffect(() => {
     fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`)
       .then(r => r.ok ? r.json() : { content: '' })
-      .then(d => { setContent(d.content ?? ''); setOriginal(d.content ?? ''); })
-      .catch(() => { setContent(''); setOriginal(''); })
+      .then(d => { const c = d.content ?? ''; setContent(c); setOriginal(c); contentRef.current = c; originalRef.current = c; })
+      .catch(() => { setContent(''); setOriginal(''); contentRef.current = ''; originalRef.current = ''; })
       .finally(() => setLoading(false));
   }, [projectName, filename]);
 
@@ -367,18 +368,20 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
     try {
       await fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: contentRef.current }),
       });
-      setOriginal(content);
+      setOriginal(contentRef.current);
+      originalRef.current = contentRef.current;
     } catch {}
     setSaving(false);
   };
 
   const handleClose = () => {
-    if (hasChanges && !window.confirm('You have unsaved changes. Discard?')) return;
+    if (contentRef.current !== originalRef.current && !window.confirm('You have unsaved changes. Discard?')) return;
     onClose();
   };
 
+  // #2: Use refs to avoid stale closure
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(); }
@@ -386,7 +389,7 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  });
+  }, [projectName, filename]);
 
   return (
     <div className="fixed inset-0 z-50 bg-[var(--color-bg)] flex flex-col">
@@ -401,7 +404,7 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
             className="px-4 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
-          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]" aria-label="Close editor">
             <X size={18} />
           </button>
         </div>
@@ -410,7 +413,7 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
         {loading ? (
           <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
         ) : (
-          <textarea ref={textareaRef} value={content} onChange={e => setContent(e.target.value)}
+          <textarea ref={textareaRef} value={content} onChange={e => { setContent(e.target.value); contentRef.current = e.target.value; }}
             className="w-full h-full resize-none font-mono text-sm p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
             spellCheck={false} />
         )}

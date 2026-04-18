@@ -5,6 +5,7 @@ import { useTasks } from '../hooks/useTasks.tsx';
 import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { api } from '../lib/api.ts';
+import { Modal, ModalHeader, ModalFooter } from '../components/Modal.tsx';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const STATES: TaskState[] = ['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
@@ -49,8 +50,7 @@ function DependencyTree({ task, allTasks }: { task: Task; allTasks: Task[] }) {
 }
 
 // M10 TODO: Extract a shared <Modal> compound component with focus trapping and aria-* attributes.
-// Currently 4 modal implementations (CreateTaskModal, CreateCronModal, CreateRoleModal, CreateProjectModal)
-// duplicate backdrop, close-on-click-outside, and layout patterns.
+// ✅ Done — using shared Modal component.
 function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { projectName } = useProject();
   const [title, setTitle] = useState('');
@@ -77,13 +77,8 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-lg bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-2xl"
-           onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-          <h2 className="text-base font-semibold">Create Task</h2>
-          <button onClick={onClose} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">✕</button>
-        </div>
+    <Modal onClose={onClose} aria-label="Create Task">
+      <ModalHeader onClose={onClose}>Create Task</ModalHeader>
         <div className="px-6 py-4 space-y-4">
           <div>
             <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Title</label>
@@ -126,7 +121,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
           </div>
           {error && <p className="text-xs text-[var(--color-status-failed)]">{error}</p>}
         </div>
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+        <ModalFooter>
           <button onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
             Cancel
@@ -135,9 +130,8 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
             className="px-4 py-2 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-40">
             {submitting ? 'Creating...' : 'Create Task'}
           </button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+    </Modal>
   );
 }
 
@@ -146,8 +140,8 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
 }) {
   const { sendTaskComment, messages } = useChat();
   const [comment, setComment] = useState('');
-  const agent = task.assignedAgent ?? task.assigned_agent;
-  const taskComments = messages.filter(m => m.taskId === task.id || m.task_id === task.id);
+  const agent = task.assignedAgent;
+  const taskComments = messages.filter(m => m.taskId === task.id);
 
   const handleComment = () => {
     const text = comment.trim();
@@ -157,7 +151,9 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
   };
 
   return (
-    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden hover:border-[var(--color-text-tertiary)] transition-colors">
+    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden hover:border-[var(--color-text-tertiary)] transition-colors"
+         role="button" tabIndex={0}
+         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}>
       <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={onToggle}>
         <PriorityIndicator priority={task.priority} />
         <div className="flex-1 min-w-0">
@@ -165,15 +161,15 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
           <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-0.5">{task.id}</p>
         </div>
         <Badge state={task.state} />
-        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(task.needsReview ?? task.needs_review ?? true) !== false ? 'text-[var(--color-text-tertiary)] bg-[var(--color-surface-secondary)]' : 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30'}`}>
-          {(task.needsReview ?? task.needs_review ?? true) !== false ? '🔍 Review' : '⚡ Auto'}
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(task.needsReview ?? true) !== false ? 'text-[var(--color-text-tertiary)] bg-[var(--color-surface-secondary)]' : 'text-amber-600 bg-[color-mix(in_srgb,#d97706_10%,transparent)]'}`}>
+          {(task.needsReview ?? true) !== false ? '🔍 Review' : '⚡ Auto'}
         </span>
         {agent && (
           <span className="text-xs font-mono text-[var(--color-text-secondary)] bg-[var(--color-surface-secondary)] px-2 py-0.5 rounded">
             {agent}
           </span>
         )}
-        <span className="text-[var(--color-text-tertiary)]">{isExpanded ? <ChevronUp size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}</span>
+        <span className="text-[var(--color-text-tertiary)]" aria-hidden="true">{isExpanded ? <ChevronUp size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}</span>
       </div>
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t border-[var(--color-border)] bg-[var(--color-surface-secondary)]">
@@ -188,7 +184,7 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
             )}
             <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-tertiary)]">
               <span>Role: {task.role}</span>
-              {task.created_at && <span>Created: {new Date(task.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+              {task.createdAt && <span>Created: {new Date(task.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
               {task.cost != null && <span>Cost: ${task.cost.toFixed(2)}</span>}
             </div>
             <DependencyTree task={task} allTasks={allTasks} />

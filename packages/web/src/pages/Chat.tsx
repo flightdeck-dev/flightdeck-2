@@ -18,7 +18,7 @@ const CJK_RE = /[\u4e00-\u9fff]/;
 const EMPTY_CHUNKS: StreamChunk[] = [];
 
 const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  user: { label: 'You', color: '#2f80ed', bg: 'color-mix(in srgb, #2f80ed 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
+  user: { label: 'You', color: 'var(--color-primary)', bg: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
   lead: { label: 'Lead', color: '#d97706', bg: 'color-mix(in srgb, #d97706 10%, transparent)', icon: <Crown size={16} strokeWidth={1.5} /> },
   agent: { label: 'Agent', color: 'var(--color-status-in-review)', bg: 'color-mix(in srgb, var(--color-status-in-review) 10%, transparent)', icon: <Bot size={16} strokeWidth={1.5} /> },
   system: { label: 'System', color: 'var(--color-text-tertiary)', bg: 'transparent', icon: <SettingsIcon size={16} strokeWidth={1.5} /> },
@@ -53,13 +53,13 @@ function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: bo
     <>
       {/* Top toolbar */}
       <div className={`absolute ${isUser ? 'left-0' : 'right-0'} -top-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm rounded-lg z-10`}>
-        <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy">
+        <button onClick={handleCopy} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Copy" aria-label="Copy message">
           {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
         </button>
-        <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply">
+        <button onClick={() => onReply(msg)} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Reply" aria-label="Reply to message">
           <Reply size={14} strokeWidth={1.5} />
         </button>
-        <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud">
+        <button onClick={handleSpeak} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" title="Read aloud" aria-label="Read aloud">
           {speaking ? <VolumeX size={14} strokeWidth={1.5} /> : <Volume2 size={14} strokeWidth={1.5} />}
         </button>
       </div>
@@ -149,7 +149,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
         </div>
         <div className={`inline-block mt-1 text-sm break-words max-w-[85%] ${
           isUser
-            ? 'px-3 py-2 rounded-2xl bg-[#2f80ed] text-white rounded-br-sm whitespace-pre-wrap text-left'
+            ? 'px-3 py-2 rounded-2xl bg-[var(--color-primary)] text-white rounded-br-sm whitespace-pre-wrap text-left'
             : 'px-3 py-2 rounded-2xl bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
           {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
@@ -555,8 +555,10 @@ export default function Chat() {
     try { return localStorage.getItem('flightdeck:speech-lang') ?? (navigator.language?.startsWith('zh') ? 'zh-CN' : 'en-US'); } catch { return 'en-US'; }
   });
   const recognitionRef = useRef<any>(null);
+  // #12: SpeechRecognition types — non-standard API, accessed via (window as any)
   const speechSupported = useMemo(() => {
-    return typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    return typeof window !== 'undefined' && !!(
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -565,6 +567,7 @@ export default function Chat() {
       setIsListening(false);
       return;
     }
+    // SpeechRecognition is a non-standard browser API, accessed via (window as any)
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     const recognition = new SR();
@@ -623,7 +626,7 @@ export default function Chat() {
                 {searchMatches.length > 0 ? `${searchIdx + 1}/${searchMatches.length}` : 'No results'}
               </span>
             )}
-            <button onClick={() => { setShowSearch(false); setSearchQuery(''); }} className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+            <button onClick={() => { setShowSearch(false); setSearchQuery(''); }} className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" aria-label="Close search">
               <X size={14} />
             </button>
           </div>
@@ -671,7 +674,7 @@ export default function Chat() {
             <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
               placeholder={connected ? 'Message Lead... (Enter to send)' : 'Connecting...'}
               disabled={!connected} rows={1}
-              className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] disabled:opacity-50 max-h-32 overflow-y-auto"
+              className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)] disabled:opacity-50 max-h-32 overflow-y-auto"
             />
             {speechSupported && (
               <div className="flex items-stretch">
@@ -704,12 +707,14 @@ export default function Chat() {
             {isStreaming && (
               <button onClick={interruptLead}
                 className="px-3 py-2.5 rounded-xl bg-[var(--color-status-failed)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-                title="Stop Lead">
+                title="Stop Lead"
+                aria-label="Stop Lead">
                 <Square size={16} strokeWidth={1.5} fill="currentColor" />
               </button>
             )}
             <button onClick={handleSend} disabled={!connected || !input.trim()}
-              className="px-5 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity">
+              className="px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity"
+              aria-label="Send message">
               <Send size={16} strokeWidth={1.5} />
             </button>
           </div>

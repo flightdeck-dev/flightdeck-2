@@ -130,12 +130,12 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
             )}
           </div>
           {project.agentCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2f80ed] text-white font-medium min-w-[18px] text-center">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-white font-medium min-w-[18px] text-center">
               {project.agentCount}
             </span>
           )}
           {activeTasks > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2f80ed] text-white font-medium min-w-[18px] text-center">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-white font-medium min-w-[18px] text-center">
               {activeTasks}
             </span>
           )}
@@ -449,7 +449,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
             <button
               type="submit"
               disabled={loading || !name.trim() || !cwd.trim()}
-              className="px-3 py-1.5 text-xs rounded-md bg-[#2f80ed] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Creating...' : 'Create'}
             </button>

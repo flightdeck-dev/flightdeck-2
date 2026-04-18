@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { useTasks } from '../hooks/useTasks.tsx';
 import { useAgents as useAgentsHook } from '../hooks/useAgents.tsx';
@@ -133,7 +133,8 @@ function AgentDetailPanel({
   const { tasks } = useTasks();
   const { displayConfig } = useDisplay();
   const { toolCallMap } = useChat();
-  const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
+  const { mutate: globalMutate } = useSWRConfig();
+  const currentTask = tasks.find(t => t.id === agent.currentTask);
 
   // H8: Add projectName to deps so models refetch when project changes
   const { data: modelsData } = useSWR(
@@ -217,8 +218,7 @@ function AgentDetailPanel({
     try {
       await api.setAgentModel(projectName, agent.id, model);
       // Revalidate agents list to reflect new model
-      const { mutate } = await import('swr');
-      mutate((key: unknown) => Array.isArray(key) && key[0] === 'agents');
+      globalMutate((key: unknown) => Array.isArray(key) && key[0] === 'agents');
     } catch (err) {
       console.error('Failed to set model:', err);
     }
@@ -269,7 +269,7 @@ function AgentDetailPanel({
                   {config.label}
                 </span>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text)]">
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text)]" aria-label="Close agent panel">
                 <X size={16} />
               </button>
             </div>
@@ -325,7 +325,7 @@ function AgentDetailPanel({
                   {/* Sent messages (user → agent) */}
                   {sentMessages.map((m, i) => (
                     <div key={i} className="flex justify-end">
-                      <div className="inline-block px-3 py-2 rounded-2xl rounded-br-sm bg-[#2f80ed] text-white text-sm max-w-[85%] whitespace-pre-wrap break-words">
+                      <div className="inline-block px-3 py-2 rounded-2xl rounded-br-sm bg-[var(--color-primary)] text-white text-sm max-w-[85%] whitespace-pre-wrap break-words">
                         {m.text}
                       </div>
                     </div>
@@ -347,7 +347,7 @@ function AgentDetailPanel({
                       value={message}
                       onChange={e => setMessage(e.target.value)}
                       placeholder="Message this agent... (⌘Enter to send)"
-                      className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed] max-h-32 overflow-y-auto"
+                      className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)] max-h-32 overflow-y-auto"
                       rows={1}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -364,7 +364,8 @@ function AgentDetailPanel({
                     <button
                       onClick={() => handleSend(false)}
                       disabled={sending || !message.trim()}
-                      className="px-4 py-2.5 rounded-xl bg-[#2f80ed] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity"
+                      className="px-4 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-30 transition-opacity"
+                      aria-label="Send message"
                     >
                       <Send size={14} strokeWidth={1.5} />
                     </button>
@@ -372,6 +373,7 @@ function AgentDetailPanel({
                       onClick={() => handleSend(true)}
                       disabled={sending || !message.trim()}
                       className="px-4 py-2.5 rounded-xl border border-[var(--color-status-failed)] text-[var(--color-status-failed)] text-sm font-medium hover:bg-[color-mix(in_srgb,var(--color-status-failed)_10%,transparent)] transition-colors disabled:opacity-30"
+                      aria-label="Send urgent message"
                     >
                       <Zap size={14} strokeWidth={1.5} />
                     </button>
@@ -566,7 +568,7 @@ function AgentCard({ agent, projectName, onSelect, isSelected, onMutate }: { age
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
   const { tasks } = useTasks();
   const { agentOutputs } = useAgentsHook();
-  const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
+  const currentTask = tasks.find(t => t.id === agent.currentTask);
   const liveOutput = agentOutputs.get(agent.id) ?? '';
 
   return (

@@ -3,7 +3,8 @@ import useSWR from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { api } from '../lib/api.ts';
 import type { CronJob } from '../lib/types.ts';
-import { Clock, Plus, Play, Trash2, X } from 'lucide-react';
+import { Clock, Plus, Play, Trash2 } from 'lucide-react';
+import { Modal, ModalHeader, ModalFooter } from '../components/Modal.tsx';
 
 const PRESETS = [
   { label: 'Every 5 minutes', value: '*/5 * * * *' },
@@ -139,6 +140,7 @@ export default function Cron() {
                   onClick={() => runNow(job)}
                   className="p-1.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
                   title="Run now"
+                  aria-label={`Run ${job.name} now`}
                 >
                   <Play size={14} strokeWidth={1.5} />
                 </button>
@@ -146,6 +148,7 @@ export default function Cron() {
                   onClick={() => deleteJob(job)}
                   className="p-1.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-red-400 transition-colors"
                   title="Delete"
+                  aria-label={`Delete ${job.name}`}
                 >
                   <Trash2 size={14} strokeWidth={1.5} />
                 </button>
@@ -192,15 +195,9 @@ function CreateCronModal({ project, onClose, onCreated }: { project: string; onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl w-[480px] p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Create Cron Job</h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]">
-            <X size={14} strokeWidth={1.5} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
+    <Modal onClose={onClose} aria-label="Create Cron Job">
+      <ModalHeader onClose={onClose}>Create Cron Job</ModalHeader>
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-3">
           <div>
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Name</label>
             <input
@@ -280,7 +277,7 @@ function CreateCronModal({ project, onClose, onCreated }: { project: string; onC
             </button>
             <span className="text-xs text-[var(--color-text-secondary)]">Enabled</span>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <ModalFooter>
             <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">
               Cancel
             </button>
@@ -291,9 +288,8 @@ function CreateCronModal({ project, onClose, onCreated }: { project: string; onC
             >
               {loading ? 'Creating...' : 'Create'}
             </button>
-          </div>
+          </ModalFooter>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

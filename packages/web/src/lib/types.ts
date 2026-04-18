@@ -1,9 +1,5 @@
-// M12 TODO: Normalize snake_case to camelCase at the API boundary (in lib/api.ts)
-// to eliminate dual-field checks like `agent.currentTask ?? agent.current_task`.
-// Types have both camelCase and snake_case for: assignedAgent/assigned_agent,
-// dependsOn/depends_on, needsReview/needs_review, currentTask/current_task, etc.
-
 // Types matching server-side data structures
+// snake_case → camelCase normalization happens at the API boundary (lib/api.ts camelizeKeys)
 
 export type TaskState = 'pending' | 'ready' | 'running' | 'in_review' | 'done' | 'failed' | 'cancelled' | 'paused' | 'skipped';
 export type DecisionStatus = 'recorded' | 'confirmed' | 'rejected';
@@ -14,19 +10,14 @@ export interface Task {
   state: TaskState;
   role: string;
   assignedAgent?: string;
-  assigned_agent?: string;
   priority: number;
   source: string;
   description: string;
   claim?: string;
   dependsOn?: string[];
-  depends_on?: string;
-  spec_id?: string;
+  specId?: string;
   cost?: number;
   needsReview?: boolean;
-  needs_review?: boolean;
-  created_at?: string;
-  updated_at?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -40,7 +31,6 @@ export interface Agent {
   model?: string;
   cost?: number;
   acpSessionId?: string;
-  current_task?: string;
   currentTask?: string;
   sessionStart?: string;
 }
@@ -70,7 +60,6 @@ export interface ChatMessage {
   parentId: string | null;
   parentIds?: string[] | null;
   taskId: string | null;
-  task_id?: string | null;
   authorType: 'user' | 'lead' | 'agent' | 'system';
   authorId: string | null;
   content: string;

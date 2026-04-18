@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useProject } from '../hooks/useProject.tsx';
-import { Folder, FolderOpen, FileText, FileCode, Image, Music, File, ChevronRight, ChevronDown, Edit3, Save, X, Loader2 } from 'lucide-react';
+import { Folder, FolderOpen, FileText, FileCode, Image, Music, File, ChevronRight, ChevronDown, Edit3, Save, X, Loader2, PanelLeftClose, PanelLeft } from 'lucide-react';
 
 interface FileEntry {
   name: string;
@@ -78,6 +78,9 @@ function TreeNode({ entry, basePath, projectName, selectedPath, onSelect }: {
     <div>
       <div
         onClick={handleClick}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
+        role="treeitem"
+        tabIndex={0}
         className={`flex items-center gap-1.5 px-2 py-0.5 cursor-pointer text-xs rounded transition-colors ${
           isSelected ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
         }`}
@@ -210,7 +213,7 @@ function FilePreview({ projectName, path, entry }: { projectName: string; path: 
         <span className="text-xs text-[var(--color-text-secondary)] flex-1 truncate">{path}</span>
         {editing ? (
           <>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-[#2f80ed] text-white hover:opacity-90 disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50">
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Save
             </button>
             <button onClick={() => { setEditing(false); setEditContent(''); }} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
@@ -245,6 +248,7 @@ export default function Files() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
 
   useEffect(() => {
     if (!projectName) return;
@@ -266,8 +270,13 @@ export default function Files() {
   return (
     <div className="flex h-full">
       {/* Left panel: tree */}
-      <div className="w-[280px] shrink-0 border-r border-[var(--color-border)] overflow-y-auto py-2">
-        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Files</div>
+      <div className={`${treeCollapsed ? 'w-0 overflow-hidden' : 'w-[280px]'} shrink-0 border-r border-[var(--color-border)] overflow-y-auto py-2 transition-all duration-200`}>
+        <div className="flex items-center justify-between px-3 pb-2">
+          <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Files</span>
+          <button onClick={() => setTreeCollapsed(true)} className="p-0.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]" aria-label="Collapse file tree">
+            <PanelLeftClose size={14} />
+          </button>
+        </div>
         {loading ? (
           <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin text-[var(--color-text-tertiary)]" /></div>
         ) : rootEntries.length === 0 ? (
@@ -281,6 +290,11 @@ export default function Files() {
 
       {/* Right panel: preview */}
       <div className="flex-1 min-w-0">
+        {treeCollapsed && (
+          <button onClick={() => setTreeCollapsed(false)} className="absolute top-2 left-2 z-10 p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]" aria-label="Expand file tree">
+            <PanelLeft size={16} />
+          </button>
+        )}
         {selectedPath && selectedEntry ? (
           <FilePreview projectName={projectName} path={selectedPath} entry={selectedEntry} />
         ) : (

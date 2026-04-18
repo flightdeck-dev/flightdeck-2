@@ -21,7 +21,7 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 };
 
 function PipelineCard({ task }: { task: Task }) {
-  const agent = task.assignedAgent || task.assigned_agent;
+  const agent = task.assignedAgent;
   return (
     <div className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-tertiary)] transition-colors cursor-default">
       <p className="text-sm font-medium truncate">{task.title}</p>
@@ -159,7 +159,7 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-tertiary)]">tasks</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: '#2f80ed' }}>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--color-primary)' }}>
               {activeAgents.length}
             </p>
             <p className="text-xs text-[var(--color-text-tertiary)]">agents</p>
@@ -217,7 +217,7 @@ export default function Dashboard() {
                   ? 'var(--color-status-running)'
                   : a.status === 'idle' ? 'var(--color-status-ready)'
                   : 'var(--color-status-cancelled)';
-                const currentTask = tasks.find(t => t.id === (a.currentTask ?? a.current_task));
+                const currentTask = tasks.find(t => t.id === a.currentTask);
                 return (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
                     <span className="text-base">{ROLE_ICONS[a.role] ?? <Bot size={18} strokeWidth={1.5} />}</span>

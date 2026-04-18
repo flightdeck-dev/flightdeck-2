@@ -17,8 +17,11 @@
   --color-status-in-review: #d97706;
   --color-status-done: #9333ea;
   --color-primary: #2f80ed;
+  --color-bg: var(--color-surface);
+  --color-accent: #2f80ed;
   --color-status-failed: #dc2626;
   --color-status-cancelled: #9ca3af;
+  --color-status-pending: #9ca3af;
 }
 
 .dark {

@@ -36,8 +36,8 @@ function TaskPanel() {
   const inProgress = useMemo(() => tasks.filter(t => ['running', 'in_review', 'ready'].includes(t.state)), [tasks]);
   const recent = useMemo(() => {
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return tasks.filter(t => t.state === 'done' && new Date(t.updatedAt ?? (t as any).updated_at ?? 0).getTime() > dayAgo)
-      .sort((a, b) => new Date(b.updatedAt ?? (b as any).updated_at ?? 0).getTime() - new Date(a.updatedAt ?? (a as any).updated_at ?? 0).getTime());
+    return tasks.filter(t => t.state === 'done' && new Date(t.updatedAt ?? 0).getTime() > dayAgo)
+      .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
   }, [tasks]);
   const pending = useMemo(() => tasks.filter(t => ['pending', 'blocked', 'planned'].includes(t.state)), [tasks]);
 
@@ -45,6 +45,9 @@ function TaskPanel() {
     <div
       className={`px-2 py-1.5 rounded-md cursor-pointer hover:bg-[var(--color-surface-hover)] transition-colors ${dimmed ? 'opacity-60' : ''}`}
       onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedTask(expandedTask === task.id ? null : task.id); } }}
     >
       <div className="flex items-center gap-2 min-w-0">
         {task.state === 'done' ? (
@@ -56,12 +59,12 @@ function TaskPanel() {
           />
         )}
         <span className="text-xs truncate flex-1">{task.title}</span>
-        {(task.assignedAgent ?? task.assigned_agent) && (
+        {task.assignedAgent && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] shrink-0 truncate max-w-[80px]">
-            {(task.assignedAgent ?? task.assigned_agent)?.replace(/-[a-z0-9]+$/, '')}
+            {task.assignedAgent.replace(/-[a-z0-9]+$/, '')}
           </span>
         )}
-        {dimmed && <span className="text-[10px] text-[var(--color-text-tertiary)] shrink-0">{timeAgo(task.updatedAt ?? task.updated_at)}</span>}
+        {dimmed && <span className="text-[10px] text-[var(--color-text-tertiary)] shrink-0">{timeAgo(task.updatedAt)}</span>}
       </div>
       {expandedTask === task.id && (
         <div className="mt-1.5 pl-4 text-xs text-[var(--color-text-secondary)] space-y-1">
@@ -95,6 +98,7 @@ function TaskPanel() {
           <button
             onClick={() => setShowPending(!showPending)}
             className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium px-2 mb-1 hover:text-[var(--color-text-secondary)]"
+            aria-label={`Toggle ${pending.length} pending tasks`}
           >
             {showPending ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
             {pending.length} pending
@@ -125,7 +129,7 @@ function AgentPanel() {
           </div>
           <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-tertiary)] pl-4">
             {a.model && <span className="truncate">{a.model}</span>}
-            {(a.currentTask ?? a.current_task) && <span className="truncate">→ {a.currentTask ?? a.current_task}</span>}
+            {a.currentTask && <span className="truncate">→ {a.currentTask}</span>}
           </div>
         </div>
       ))}
@@ -141,6 +145,9 @@ function SearchPanel() {
   const [results, setResults] = useState<Array<{ id: string; content: string; authorType: string; authorId: string }>>([]);
   const [loading, setLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // #1: Clean up debounce timer on unmount
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const doSearch = useCallback((q: string) => {
     if (!q.trim() || !projectName) { setResults([]); return; }
@@ -162,7 +169,7 @@ function SearchPanel() {
         value={query}
         onChange={e => handleChange(e.target.value)}
         placeholder="Search messages..."
-        className="w-full px-2 py-1.5 text-xs bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[#2f80ed]"
+        className="w-full px-2 py-1.5 text-xs bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)]"
       />
       {loading && <p className="text-[10px] text-[var(--color-text-tertiary)] px-2">Searching...</p>}
       {results.map(r => (
@@ -182,24 +189,30 @@ function MemoryPanel() {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // #6: AbortController for memory fetch
   useEffect(() => {
     if (!projectName) return;
-    // Try to fetch status-summary from memory API
-    fetch(`/api/projects/${encodeURIComponent(projectName)}/memory`)
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    fetch(`/api/projects/${encodeURIComponent(projectName)}/memory`, { signal })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
+        if (signal.aborted) return;
         if (data?.files) {
           const summary = data.files.find((f: string) => f.includes('status-summary'));
           if (summary) {
-            return fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(summary)}`)
+            return fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(summary)}`, { signal })
               .then(r => r.ok ? r.text() : null);
           }
         }
         return null;
       })
-      .then(text => setContent(text ?? 'No memory files found.'))
-      .catch(() => setContent('Unable to load memory.'))
-      .finally(() => setLoading(false));
+      .then(text => { if (!signal.aborted) setContent(text ?? 'No memory files found.'); })
+      .catch(() => { if (!signal.aborted) setContent('Unable to load memory.'); })
+      .finally(() => { if (!signal.aborted) setLoading(false); });
+
+    return () => controller.abort();
   }, [projectName]);
 
   return (
@@ -269,7 +282,7 @@ export function ChatSidePanel() {
       {/* Drag handle */}
       {isOpen && (
         <div
-          className="w-1 cursor-col-resize hover:bg-[#2f80ed] active:bg-[#2f80ed] transition-colors"
+          className="w-1 cursor-col-resize hover:bg-[var(--color-primary)] active:bg-[var(--color-primary)] transition-colors"
           onMouseDown={onDragStart}
         />
       )}
@@ -290,6 +303,7 @@ export function ChatSidePanel() {
               <button
                 onClick={() => setActiveTab(null)}
                 className="p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                aria-label="Close panel"
               >
                 <X size={14} />
               </button>
@@ -306,16 +320,16 @@ export function ChatSidePanel() {
 
       {/* Icon bar */}
       <div className="w-10 bg-[var(--color-surface)] border-l border-[var(--color-border)] flex flex-col items-center py-2 gap-1 shrink-0">
-        {TABS.map(({ id, icon: Icon }) => (
+        {TABS.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             onClick={() => handleTabClick(id)}
             className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${
               activeTab === id
-                ? 'bg-[#2f80ed]/15 text-[#2f80ed]'
+                ? 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
                 : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]'
             }`}
-            title={TABS.find(t => t.id === id)?.label}
+            aria-label={label}
           >
             <Icon size={18} strokeWidth={1.5} />
           </button>
