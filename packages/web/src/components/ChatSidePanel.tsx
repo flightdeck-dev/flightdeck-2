@@ -34,12 +34,11 @@ function TaskPanel() {
   const [showPending, setShowPending] = useState(false);
 
   const inProgress = useMemo(() => tasks.filter(t => ['running', 'in_review', 'ready'].includes(t.state)), [tasks]);
-  const recent = useMemo(() =>
-    tasks.filter(t => t.state === 'done')
-      .sort((a, b) => new Date(b.updatedAt ?? b.updated_at ?? 0).getTime() - new Date(a.updatedAt ?? a.updated_at ?? 0).getTime())
-      .slice(0, 5),
-    [tasks]
-  );
+  const recent = useMemo(() => {
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return tasks.filter(t => t.state === 'done' && new Date(t.updatedAt ?? (t as any).updated_at ?? 0).getTime() > dayAgo)
+      .sort((a, b) => new Date(b.updatedAt ?? (b as any).updated_at ?? 0).getTime() - new Date(a.updatedAt ?? (a as any).updated_at ?? 0).getTime());
+  }, [tasks]);
   const pending = useMemo(() => tasks.filter(t => ['pending', 'blocked', 'planned'].includes(t.state)), [tasks]);
 
   const TaskItem = ({ task, dimmed }: { task: typeof tasks[0]; dimmed?: boolean }) => (
