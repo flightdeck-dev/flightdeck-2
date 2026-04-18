@@ -157,6 +157,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       }
       return;
     }
+    if (url.pathname === '/api/create-directory' && method === 'POST') {
+      try {
+        const body = await readBody();
+        if (!body.path) { json(400, { error: 'Missing path' }); return; }
+        const { mkdirSync } = await import('node:fs');
+        mkdirSync(body.path, { recursive: true });
+        json(200, { created: true, path: body.path });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+      return;
+    }
 
     // ── Gateway state (for restart recovery) ──
     if (url.pathname === '/api/gateway/state' && method === 'GET') {

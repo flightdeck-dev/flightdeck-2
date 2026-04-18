@@ -25,6 +25,8 @@ export function FolderPicker({ value, onChange, onClose }: Props) {
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   const browse = async (path?: string) => {
     setLoading(true);
@@ -50,6 +52,20 @@ export function FolderPicker({ value, onChange, onClose }: Props) {
   useEffect(() => {
     browse(value || undefined);
   }, []);
+
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      await fetch('/api/create-directory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: current + '/' + newFolderName.trim() }),
+      });
+      setNewFolderName('');
+      setShowNewFolder(false);
+      browse(current); // refresh
+    } catch { setError('Failed to create directory'); }
+  };
 
   return (
     <div
@@ -119,6 +135,29 @@ export function FolderPicker({ value, onChange, onClose }: Props) {
                 </button>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* New Folder */}
+        <div className="px-4 py-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+          {showNewFolder ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
+                placeholder="folder name"
+                className="flex-1 px-2 py-1 text-xs rounded border font-mono"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+              />
+              <button onClick={createFolder} className="px-2 py-1 text-xs rounded font-medium" style={{ background: '#2f80ed', color: '#fff' }}>Create</button>
+              <button onClick={() => setShowNewFolder(false)} className="px-2 py-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>✕</button>
+            </div>
+          ) : (
+            <button onClick={() => setShowNewFolder(true)} className="text-xs flex items-center gap-1 hover:opacity-80" style={{ color: 'var(--color-text-secondary)' }}>
+              + New Folder
+            </button>
           )}
         </div>
 
