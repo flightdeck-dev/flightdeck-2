@@ -124,6 +124,8 @@ export class AcpAdapter extends AgentAdapter {
   private runtimeName: string;
   /** Callback fired when a session ends (process exit, crash, etc.) */
   onSessionEnd: ((sessionId: string, session: AcpSession) => void) | null = null;
+  /** Callback for token usage tracking (called on usage_update events) */
+  onUsage: ((agentId: string, usage: { inputTokens: number; outputTokens: number }) => void) | null = null;
 
   /** Callback fired when any session's prompt turn completes (agent goes idle). */
   onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
@@ -200,6 +202,9 @@ export class AcpAdapter extends AgentAdapter {
           case 'usage_update':
             session.tokensIn = update.used;
             session.tokensOut = update.size;
+            if (self.onUsage) {
+              try { self.onUsage(session.agentId, { inputTokens: update.used ?? 0, outputTokens: update.size ?? 0 }); } catch { /* */ }
+            }
             break;
           case 'tool_call':
             // Store tool call and forward to listener

@@ -168,6 +168,26 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
+  // Track ACP agent token usage in per-project SQLite
+  acpAdapter.onUsage = (agentId, usage) => {
+    for (const name of projectManager.list()) {
+      const fd = projectManager.get(name);
+      if (!fd) continue;
+      const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+      if (agent) {
+        fd.sqlite.insertCostEntry({
+          agentId: agentId as any,
+          specId: null,
+          tokensIn: usage.inputTokens,
+          tokensOut: usage.outputTokens,
+          costUsd: 0,
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+    }
+  };
+
   // When an agent's prompt turn ends, check for unsubmitted tasks and nudge
   acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
     for (const name of projectManager.list()) {
