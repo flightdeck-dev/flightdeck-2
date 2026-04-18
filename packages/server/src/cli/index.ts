@@ -617,6 +617,7 @@ switch (command) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const urlArg = (values as any).url;
     if (urlArg) tuiArgs.push('--url', urlArg);
+    if ((values as any).project) tuiArgs.push('--project', String((values as any).project));
     // Resolve TUI entry point (source or dist)
     const serverDir = dirname(fileURLToPath(import.meta.url));
     const tuiSrc = resolvePath(serverDir, '..', '..', '..', 'tui', 'src', 'index.tsx');

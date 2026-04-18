@@ -136,27 +136,11 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
 
   const fetchInitial = useCallback(async () => {
     try {
-      // If no project set, resolve from API
-      let projectBase = baseUrl;
-      if (!project) {
-        try {
-          const projRes = await fetch(`${baseUrl}/api/projects`).then(r => r.json());
-          const projects = projRes?.projects ?? projRes ?? [];
-          const firstName = typeof projects[0] === 'string' ? projects[0] : projects[0]?.name;
-          if (firstName) {
-            setProject(firstName);
-            projectBase = `${baseUrl}/api/projects/${encodeURIComponent(firstName)}`;
-            setWsUrl(`${baseUrl.replace('http', 'ws')}/ws/${encodeURIComponent(firstName)}`);
-          }
-        } catch {}
-      } else {
-        projectBase = `${baseUrl}/api/projects/${encodeURIComponent(project)}`;
-      }
       const [statusRes, tasksRes, agentsRes, messagesRes] = await Promise.all([
-        fetch(`${projectBase}/status`).then(r => r.json()).catch(() => ({})),
-        fetch(`${projectBase}/tasks`).then(r => r.json()).catch(() => []),
-        fetch(`${projectBase}/agents?include_retired=true`).then(r => r.json()).catch(() => []),
-        fetch(`${projectBase}/messages`).then(r => r.json()).catch(() => []),
+        fetch(`${baseUrl}/status`).then(r => r.json()).catch(() => ({})),
+        fetch(`${baseUrl}/tasks`).then(r => r.json()).catch(() => []),
+        fetch(`${baseUrl}/agents?include_retired=true`).then(r => r.json()).catch(() => []),
+        fetch(`${baseUrl}/messages`).then(r => r.json()).catch(() => []),
       ]);
       setStatus({ ...statusRes, connected: true });
       if (Array.isArray(tasksRes)) {
@@ -199,14 +183,14 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
             const { icon, color } = statusIcon(msg.data?.status || '');
             addActivity({ time: timestamp(), icon, text: `${msg.data?.id?.slice(0, 8) || 'task'} "${msg.data?.title || ''}" → ${msg.data?.status || ''}`, color });
             // Re-fetch tasks for full state
-            fetch(`${baseUrl}/api/tasks`).then(r => r.json()).then(t => {
+            fetch(`${baseUrl}/tasks`).then(r => r.json()).then(t => {
               if (Array.isArray(t)) { setTasks(t); setTaskCounts(countTasks(t)); }
             }).catch(() => {});
             break;
           }
           case 'agent:update':
           case 'agent:status': {
-            fetch(`${baseUrl}/api/agents`).then(r => r.json()).then(a => {
+            fetch(`${baseUrl}/agents`).then(r => r.json()).then(a => {
               if (Array.isArray(a)) setAgents(a);
             }).catch(() => {});
             addActivity({ time: timestamp(), icon: '◆', text: `Agent ${msg.data?.role || '?'} → ${msg.data?.status || '?'}`, color: 'blue' });
@@ -292,14 +276,13 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
   }, [sendDisplayUpdate]);
 
   const fetchJson = useCallback(async (path: string) => {
-    const projBase = project ? `${baseUrl}/api/projects/${encodeURIComponent(project)}` : baseUrl;
-    try { return await fetch(`${projBase}${path}`).then(r => r.json()); }
+    try { return await fetch(`${baseUrl}${path}`).then(r => r.json()); }
     catch { return null; }
-  }, [baseUrl, project]);
+  }, [baseUrl]);
 
   const switchProject = useCallback((name: string) => {
-    const newBase = baseUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${name}`);
-    const newWs = wsUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${name}`);
+    const newBase = baseUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${encodeURIComponent(name)}`);
+    const newWs = wsUrl.replace(/\/ws\/[^/]+/, `/ws/${encodeURIComponent(name)}`);
     setBaseUrl(newBase);
     setWsUrl(newWs);
     setProject(name);

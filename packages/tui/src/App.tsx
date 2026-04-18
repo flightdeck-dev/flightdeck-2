@@ -12,6 +12,7 @@ import { AgentOverlay } from './components/AgentOverlay';
 import { TaskOverlay } from './components/TaskOverlay';
 import { DISPLAY_PRESET_NAMES } from '@flightdeck-ai/shared/display';
 import type { DisplayPreset, ToolVisibility } from '@flightdeck-ai/shared/display';
+import { ProjectSelect } from './components/ProjectSelect';
 
 const COMMANDS = [
   { cmd: '/help', desc: 'Show all commands' },
@@ -36,10 +37,24 @@ type Panel = 'tasks' | 'center' | 'agents';
 interface AppProps {
   baseUrl: string;
   wsUrl: string;
+  initialProject?: string;
 }
 
-export function App({ baseUrl, wsUrl }: AppProps) {
-  const fd = useFlightdeck(baseUrl, wsUrl);
+export function App({ baseUrl, wsUrl, initialProject }: AppProps) {
+  const [selectedProject, setSelectedProject] = useState<string | null>(initialProject ?? null);
+
+  if (!selectedProject) {
+    return <ProjectSelect baseUrl={baseUrl} onSelect={setSelectedProject} />;
+  }
+
+  const projectBaseUrl = `${baseUrl}/api/projects/${encodeURIComponent(selectedProject)}`;
+  const projectWsUrl = `${wsUrl}/ws/${encodeURIComponent(selectedProject)}`;
+
+  return <AppMain baseUrl={baseUrl} projectBaseUrl={projectBaseUrl} projectWsUrl={projectWsUrl} project={selectedProject} />;
+}
+
+function AppMain({ baseUrl, projectBaseUrl, projectWsUrl, project }: { baseUrl: string; projectBaseUrl: string; projectWsUrl: string; project: string }) {
+  const fd = useFlightdeck(projectBaseUrl, projectWsUrl);
   const { exit } = useApp();
 
   const [focusedPanel, setFocusedPanel] = useState<Panel>('center');
@@ -57,7 +72,7 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const fetchSubcommands = useCallback(async (cmd: string) => {
     if (cmd === '/project' || cmd === '/projects') {
       try {
-        const data = await fd.fetchJson('/api/projects');
+        const data = await fetch(`${baseUrl}/api/projects`).then(r => r.json());
         const projects = Array.isArray(data) ? data : (data?.projects ?? []);
         return projects.map((p: any) => ({ cmd: typeof p === 'string' ? p : p.name, desc: 'Switch to project' }));
       } catch { return []; }
@@ -207,8 +222,9 @@ export function App({ baseUrl, wsUrl }: AppProps) {
         case '/project': {
           const sub = args[0];
           if (!sub || sub === 'list') {
-            const projects = await fd.fetchJson('/api/projects');
-            if (!projects || !Array.isArray(projects)) { setCmdOutput(['Failed to fetch projects']); return; }
+            const res = await fetch(`${baseUrl}/api/projects`).then(r => r.json()).catch(() => null);
+            const projects = res ? (Array.isArray(res) ? res : (res.projects ?? [])) : [];
+            if (!projects.length) { setCmdOutput(['No projects found']); return; }
             setCmdOutput(projects.map((p: any) => {
               const agents = p.agentCount ?? p.agents?.length ?? '?';
               const tasks = p.taskStats ? `${p.taskStats.done || 0}/${p.taskStats.total || 0} done` : '';
