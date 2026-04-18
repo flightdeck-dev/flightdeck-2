@@ -107,6 +107,33 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
 
+    // ── Global config (runtime toggles, display prefs shared across projects) ──
+    if (url.pathname === '/api/global-config' && method === 'GET') {
+      const { existsSync, readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const { FD_HOME } = await import('../cli/constants.js');
+      const cfgPath = join(FD_HOME, 'global-config.json');
+      try {
+        json(200, existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf-8')) : {});
+      } catch { json(200, {}); }
+      return;
+    }
+    if (url.pathname === '/api/global-config' && method === 'PUT') {
+      try {
+        const body = await readBody();
+        const { existsSync, readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { FD_HOME } = await import('../cli/constants.js');
+        mkdirSync(FD_HOME, { recursive: true });
+        const cfgPath = join(FD_HOME, 'global-config.json');
+        const existing = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf-8')) : {};
+        Object.assign(existing, body);
+        writeFileSync(cfgPath, JSON.stringify(existing, null, 2));
+        json(200, existing);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+      return;
+    }
+
     // ── Directory browser (for file picker in create project dialog) ──
     if (url.pathname === '/api/browse-directory' && method === 'GET') {
       const { readdirSync, statSync } = await import('node:fs');
@@ -169,6 +196,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (!/^[a-zA-Z0-9_-]+$/.test(name)) { json(400, { error: 'Project name must be alphanumeric (with - and _)' }); return; }
         if (projectManager.list().includes(name)) { json(409, { error: `Project "${name}" already exists` }); return; }
         projectManager.create(name);
+        // Hot-register: set up orchestrator for the new project
+        const fd = projectManager.get(name);
+        if (fd) {
+          fd.orchestrator.start();
+          // Note: LeadManager/WebSocket created on-demand when user first accesses project
+        }
         json(201, { name, message: `Project "${name}" created` });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
       return;

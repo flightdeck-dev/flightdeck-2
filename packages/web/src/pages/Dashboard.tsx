@@ -141,7 +141,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-xl font-semibold">{status?.config?.name ?? 'Flightdeck'}</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {status?.config?.governance ?? '—'} governance · cost: ${(status?.totalCost ?? 0).toFixed(2)} units
+            {status?.config?.governance ?? '—'} governance
           </p>
           {(status as any)?.tokenUsage && (
             <TokenUsage projectName={(status?.config as any)?.name ?? ''} tokenUsage={(status as any).tokenUsage} />

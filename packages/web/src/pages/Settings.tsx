@@ -177,17 +177,15 @@ function GlobalSettings() {
               });
           }
         }).catch(() => {});
-        fetch(`/api/projects/${pName}/status`).then(r => r.json()).then(status => {
-          const configuredDisabled = status?.config?.disabledRuntimes;
-          if (configuredDisabled !== undefined) {
-            setDisabledRuntimes(configuredDisabled);
+        fetch(`/api/global-config`).then(r => r.json()).then(globalCfg => {
+          if (globalCfg.disabledRuntimes) {
+            setDisabledRuntimes(globalCfg.disabledRuntimes);
           }
-          const configuredOrder = status?.config?.runtimeOrder;
-          if (configuredOrder !== undefined) {
-            setRuntimeOrder(configuredOrder);
+          if (globalCfg.runtimeOrder) {
+            setRuntimeOrder(globalCfg.runtimeOrder);
           }
           setDisabledLoaded(true);
-        }).catch(() => {});
+        }).catch(() => { setDisabledLoaded(true); });
       }
     }).catch(() => {});
   }, []);
@@ -198,9 +196,8 @@ function GlobalSettings() {
       : [...disabledRuntimes, id];
     setDisabledRuntimes(newDisabled);
     try {
-      await api.updateProjectConfig(runtimeProject, { disabledRuntimes: newDisabled });
+      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabledRuntimes: newDisabled }) });
     } catch {
-      // Revert on failure
       setDisabledRuntimes(disabledRuntimes);
     }
   }, [disabledRuntimes, runtimeProject]);
@@ -216,7 +213,7 @@ function GlobalSettings() {
     [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
     setRuntimeOrder(newOrder);
     try {
-      await api.updateProjectConfig(runtimeProject, { runtimeOrder: newOrder });
+      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtimeOrder: newOrder }) });
     } catch {
       setRuntimeOrder(runtimeOrder);
     }

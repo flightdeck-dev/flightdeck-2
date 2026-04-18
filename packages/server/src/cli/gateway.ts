@@ -428,7 +428,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { DEFAULT_DISPLAY } = await import('@flightdeck-ai/shared');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  wss.on('connection', (socket: any, req: any) => {
+  wss.on('connection', async (socket: any, req: any) => {
     // Auth check for WebSocket connections
     if (authMode === 'token' && authToken) {
       const wsAuthUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
@@ -446,8 +446,15 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const wsUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
     const wsMatch = wsUrl.pathname.match(/^\/ws\/([^/]+)$/);
     const wsProjectName = wsMatch ? decodeURIComponent(wsMatch[1]) : projectNames[0];
-    const wsServer = wsServers.get(wsProjectName);
-    if (!wsServer) { socket.close(4004, 'Project not found'); return; }
+    let wsServer = wsServers.get(wsProjectName);
+    if (!wsServer) {
+      // Hot-create WebSocket broadcaster for new projects
+      const fd = projectManager.get(wsProjectName);
+      if (!fd) { socket.close(4004, 'Project not found'); return; }
+      const { WebSocketServer: WsServerClass } = await import('../api/WebSocketServer.js');
+      wsServer = new WsServerClass(fd.messages) as any;
+      wsServers.set(wsProjectName, wsServer as any);
+    }
 
     const clientId = `ws-${wsProjectName}-${++clientCounter}`;
     const client = { id: clientId, send: (data: string) => { try { socket.send(data); } catch {} } };
