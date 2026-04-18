@@ -7,6 +7,8 @@ import { ChatPanel } from './components/ChatPanel';
 import { ActivityFeed } from './components/ActivityFeed';
 import { AgentPanel } from './components/AgentPanel';
 import { HelpBar } from './components/HelpBar';
+import { AgentOverlay } from './components/AgentOverlay';
+import { TaskOverlay } from './components/TaskOverlay';
 import { DISPLAY_PRESET_NAMES } from '@flightdeck-ai/shared/display';
 import type { DisplayPreset, ToolVisibility } from '@flightdeck-ai/shared/display';
 
@@ -31,6 +33,7 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [activityScroll, setActivityScroll] = useState(0);
   const [cmdOutput, setCmdOutput] = useState<string[]>([]);
   const [isInputMode, setIsInputMode] = useState(false);
+  const [overlay, setOverlay] = useState<'agents' | 'tasks' | null>(null);
 
   // Mouse scroll support: enable SGR mouse tracking
   useEffect(() => {
@@ -73,6 +76,9 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const panels: Panel[] = ['tasks', 'center', 'agents'];
 
   useInput((ch, key) => {
+    // Overlay handles its own input
+    if (overlay) return;
+
     // When typing in chat input, don't intercept
     if (isInputMode) {
       if (key.escape) setIsInputMode(false);
@@ -148,17 +154,11 @@ export function App({ baseUrl, wsUrl }: AppProps) {
           ]);
           return;
         case '/tasks': {
-          const tasks = await fd.fetchJson('/api/tasks');
-          if (!tasks || !Array.isArray(tasks)) { setCmdOutput(['Failed to fetch tasks']); return; }
-          setCmdOutput(tasks.map((t: any) => `  ${t.status.padEnd(10)} ${t.title || t.id}`).slice(0, 20));
+          setOverlay('tasks');
           return;
         }
         case '/agents': {
-          const agents = await fd.fetchJson('/api/agents');
-          if (!agents || !Array.isArray(agents)) { setCmdOutput(['Failed to fetch agents']); return; }
-          setCmdOutput(agents.map((a: any) =>
-            `  ${(a.id || '?').slice(0, 8).padEnd(10)} ${(a.role || '?').padEnd(10)} ${(a.status || '?').padEnd(10)} ${(a.model || '?').padEnd(20)} ${a.runtime || '?'}`
-          ));
+          setOverlay('agents');
           return;
         }
         case '/hibernate': case '/wake': case '/retire': {
@@ -264,9 +264,42 @@ export function App({ baseUrl, wsUrl }: AppProps) {
     fd.sendMessage(text);
   }, [exit, fd]);
 
+  if (overlay === 'agents') {
+    return (
+      <Box flexDirection="column" width="100%">
+        <AgentOverlay
+          agents={fd.agents}
+          baseUrl={fd.baseUrl}
+          project={fd.project}
+          onClose={() => setOverlay(null)}
+        />
+      </Box>
+    );
+  }
+
+  if (overlay === 'tasks') {
+    return (
+      <Box flexDirection="column" width="100%">
+        <TaskOverlay
+          tasks={fd.tasks}
+          onClose={() => setOverlay(null)}
+        />
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" width="100%">
-      <StatusBar status={fd.status} counts={fd.taskCounts} agentCount={fd.agents.length} />
+      <StatusBar
+        status={fd.status}
+        counts={fd.taskCounts}
+        agentCount={fd.agents.length}
+        agentSummary={{
+          busy: fd.agents.filter(a => a.status === 'busy' || a.status === 'active').length,
+          idle: fd.agents.filter(a => a.status === 'idle').length,
+          total: fd.agents.length,
+        }}
+      />
 
       {/* Three-column layout */}
       <Box flexGrow={1} height={20}>

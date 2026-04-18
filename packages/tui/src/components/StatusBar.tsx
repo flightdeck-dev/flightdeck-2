@@ -3,13 +3,20 @@ import { Box, Text } from 'ink';
 import type { StatusData, TaskCounts } from '../hooks/useFlightdeck';
 import { formatTokenCount } from '../hooks/useFlightdeck';
 
+interface AgentSummary {
+  busy: number;
+  idle: number;
+  total: number;
+}
+
 interface Props {
   status: StatusData;
   counts: TaskCounts;
   agentCount: number;
+  agentSummary?: AgentSummary;
 }
 
-export function StatusBar({ status, counts, agentCount }: Props) {
+export function StatusBar({ status, counts, agentCount, agentSummary }: Props) {
   const conn = status.connected;
   return (
     <Box borderStyle="single" borderColor={conn ? 'cyan' : 'red'} paddingX={1} justifyContent="space-between">
@@ -26,7 +33,11 @@ export function StatusBar({ status, counts, agentCount }: Props) {
         {counts.blocked > 0 && <Text color="yellow">{counts.blocked}⊘</Text>}
         {counts.failed > 0 && <Text color="red">{counts.failed}✗</Text>}
         <Text dimColor>│</Text>
-        <Text>{agentCount} agents</Text>
+        {agentSummary ? (
+          <Text><Text color="blue">● {agentSummary.busy} busy</Text> <Text color="green">○ {agentSummary.idle} idle</Text></Text>
+        ) : (
+          <Text>{agentCount} agents</Text>
+        )}
         <Text dimColor>│</Text>
         <Text color={conn ? 'green' : 'red'}>{conn ? '● connected' : '○ disconnected'}</Text>
         {status.tokenUsage && (
