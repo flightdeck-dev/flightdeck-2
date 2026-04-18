@@ -305,6 +305,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
   const [isolation, setIsolation] = useState('file_lock');
   const [leadRuntime, setLeadRuntime] = useState('');
   const [leadModel, setLeadModel] = useState('');
+  const [availableModels, setAvailableModels] = useState<Array<{ modelId: string; displayName?: string }>>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -394,7 +395,26 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Lead runtime</label>
             <select
               value={leadRuntime}
-              onChange={e => setLeadRuntime(e.target.value)}
+              onChange={e => {
+                setLeadRuntime(e.target.value);
+                setLeadModel('');
+                setAvailableModels([]);
+                if (e.target.value) {
+                  // Fetch available models for this runtime from any existing project (or wait until project created)
+                  fetch('/api/projects').then(r => r.json()).then(data => {
+                    const p = data.projects?.[0]?.name;
+                    if (p) {
+                      fetch(`/api/projects/${p}/models/available`).then(r => r.json()).then(models => {
+                        const rtModels = models[e.target.value];
+                        if (rtModels) {
+                          const all = [...(rtModels.high ?? []), ...(rtModels.medium ?? []), ...(rtModels.fast ?? [])];
+                          setAvailableModels(all);
+                        }
+                      }).catch(() => {});
+                    }
+                  }).catch(() => {});
+                }
+              }}
               className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">Default</option>
@@ -407,11 +427,16 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
           </div>
           <div>
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1">Lead model <span className="text-[var(--color-text-tertiary)]">(optional)</span></label>
-            <input
+            <select
               value={leadModel}
               onChange={e => setLeadModel(e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
-              placeholder="e.g. claude-sonnet-4-20250514"
+            >
+              <option value="">Default</option>
+              {availableModels.map(m => (
+                <option key={m.modelId} value={m.modelId}>{m.displayName ?? m.modelId}</option>
+              ))}
+            </select>
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
