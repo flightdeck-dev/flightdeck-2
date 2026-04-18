@@ -93,6 +93,20 @@ export function App({ baseUrl, wsUrl }: AppProps) {
       });
       return;
     }
+    if (key.leftArrow) {
+      setFocusedPanel(prev => {
+        const idx = panels.indexOf(prev);
+        return panels[(idx - 1 + panels.length) % panels.length];
+      });
+      return;
+    }
+    if (key.rightArrow) {
+      setFocusedPanel(prev => {
+        const idx = panels.indexOf(prev);
+        return panels[(idx + 1) % panels.length];
+      });
+      return;
+    }
 
     // Quick panel switches
     if (ch === 't') { setFocusedPanel('tasks'); return; }
@@ -114,8 +128,8 @@ export function App({ baseUrl, wsUrl }: AppProps) {
     }
 
     // j/k scrolling
-    if (ch === 'j' || ch === 'k') {
-      const delta = ch === 'j' ? 1 : -1;
+    if (ch === 'j' || ch === 'k' || key.downArrow || key.upArrow) {
+      const delta = (ch === 'j' || key.downArrow) ? 1 : -1;
       if (focusedPanel === 'tasks') {
         setTaskIndex(prev => Math.max(0, Math.min(prev + delta, fd.tasks.length - 1)));
         // Auto-scroll
@@ -126,8 +140,8 @@ export function App({ baseUrl, wsUrl }: AppProps) {
           return prev;
         });
       } else if (focusedPanel === 'center') {
-        if (centerTab === 'chat') setChatScroll(prev => Math.max(0, prev + (ch === 'k' ? 1 : -1)));
-        else setActivityScroll(prev => Math.max(0, prev + (ch === 'k' ? 1 : -1)));
+        if (centerTab === 'chat') setChatScroll(prev => Math.max(0, prev + (ch === 'k' || key.upArrow ? 1 : -1)));
+        else setActivityScroll(prev => Math.max(0, prev + (ch === 'k' || key.upArrow ? 1 : -1)));
       } else if (focusedPanel === 'agents') {
         setAgentIndex(prev => Math.max(0, Math.min(prev + delta, fd.agents.length - 1)));
       }

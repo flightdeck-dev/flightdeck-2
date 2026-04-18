@@ -46,8 +46,8 @@ export function AgentOverlay({ agents, baseUrl, project, onClose }: Props) {
 
   useInput((ch, key) => {
     if (key.escape) { onClose(); return; }
-    if (ch === 'j') setSelectedIndex(prev => Math.min(prev + 1, sorted.length - 1));
-    if (ch === 'k') setSelectedIndex(prev => Math.max(prev - 1, 0));
+    if (ch === 'j' || key.downArrow) setSelectedIndex(prev => Math.min(prev + 1, sorted.length - 1));
+    if (ch === 'k' || key.upArrow) setSelectedIndex(prev => Math.max(prev - 1, 0));
     if (ch === 'h') doAction('hibernate');
     if (ch === 'w') doAction('wake');
     if (ch === 'r') doAction('retire');

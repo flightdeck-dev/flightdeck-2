@@ -69,8 +69,8 @@ export function TaskOverlay({ tasks, onClose }: Props) {
 
   useInput((ch, key) => {
     if (key.escape) { onClose(); return; }
-    if (ch === 'j') setSelectedIndex(prev => Math.min(prev + 1, flatItems.length - 1));
-    if (ch === 'k') setSelectedIndex(prev => Math.max(prev - 1, 0));
+    if (ch === 'j' || key.downArrow) setSelectedIndex(prev => Math.min(prev + 1, flatItems.length - 1));
+    if (ch === 'k' || key.upArrow) setSelectedIndex(prev => Math.max(prev - 1, 0));
     if (key.return) {
       const item = flatItems[selectedIndex];
       if (!item) return;
