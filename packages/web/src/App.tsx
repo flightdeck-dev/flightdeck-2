@@ -14,6 +14,7 @@ const Decisions = lazy(() => import('./pages/Decisions.tsx'));
 const Cron = lazy(() => import('./pages/Cron.tsx'));
 const Roles = lazy(() => import('./pages/Roles.tsx'));
 const Settings = lazy(() => import('./pages/Settings.tsx'));
+const Files = lazy(() => import('./pages/Files.tsx'));
 
 function PageFallback() {
   return <div className="p-8 text-[var(--color-text-secondary)]">Loading...</div>;
@@ -35,6 +36,7 @@ function ProjectScope() {
             <Route path="decisions" element={<Decisions />} />
             <Route path="cron" element={<Cron />} />
             <Route path="roles" element={<Roles />} />
+            <Route path="files" element={<Files />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

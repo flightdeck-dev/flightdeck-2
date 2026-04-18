@@ -1409,6 +1409,93 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (!result) { json(400, { error: 'Failed to install skill' }); return; }
         json(200, result);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath === '/files' && method === 'GET') {
+      // List directory contents
+      const { readdirSync, statSync } = await import('node:fs');
+      const { join: pjoin, resolve: resolvePath } = await import('node:path');
+      const cfg = fd.project.getConfig();
+      const projectCwd = cfg.cwd ?? fd.project.subpath('.');
+      const relPath = url.searchParams.get('path') || '';
+      try {
+        const absPath = resolvePath(projectCwd, relPath);
+        // Prevent path traversal
+        if (!absPath.startsWith(resolvePath(projectCwd))) { json(400, { error: 'Invalid path' }); return; }
+        const dirEntries = readdirSync(absPath, { withFileTypes: true })
+          .filter(e => e.name !== '.git')
+          .map(e => {
+            const full = pjoin(absPath, e.name);
+            let size = 0;
+            try { size = statSync(full).size; } catch {}
+            const ext = e.isFile() ? (e.name.includes('.') ? e.name.split('.').pop()! : '') : '';
+            return { name: e.name, type: (e.isDirectory() ? 'directory' : 'file') as 'file' | 'directory', size, extension: ext };
+          })
+          .sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+        const parent = relPath ? relPath.split('/').slice(0, -1).join('/') || null : null;
+        json(200, { path: relPath, parent, entries: dirEntries });
+      } catch {
+        json(200, { path: relPath, parent: null, entries: [] });
+      }
+    } else if (subPath === '/files/read' && method === 'GET') {
+      // Read file content
+      const { readFileSync, statSync: fStatSync } = await import('node:fs');
+      const { resolve: resolvePath } = await import('node:path');
+      const cfg = fd.project.getConfig();
+      const projectCwd = cfg.cwd ?? fd.project.subpath('.');
+      const filePath = url.searchParams.get('path');
+      if (!filePath) { json(400, { error: 'Missing path parameter' }); return; }
+      const absPath = resolvePath(projectCwd, filePath);
+      if (!absPath.startsWith(resolvePath(projectCwd))) { json(400, { error: 'Invalid path' }); return; }
+      try {
+        const st = fStatSync(absPath);
+        const ext = filePath.includes('.') ? filePath.split('.').pop()!.toLowerCase() : '';
+        const textExts = new Set(['md','txt','json','yaml','yml','ts','tsx','js','jsx','dart','py','rs','toml','cfg','sh','html','css','sql','lock','env','gitignore','xml','csv','log','ini','conf','rb','go','java','c','cpp','h','hpp','bat','makefile','dockerfile','ps1','properties']);
+        const imageExts: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
+        const audioExts: Record<string, string> = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4', opus: 'audio/opus' };
+        if (imageExts[ext]) {
+          const buf = readFileSync(absPath);
+          res.writeHead(200, { 'Content-Type': imageExts[ext], 'Content-Length': buf.length.toString(), 'Cache-Control': 'no-cache' });
+          res.end(buf);
+        } else if (audioExts[ext]) {
+          const buf = readFileSync(absPath);
+          res.writeHead(200, { 'Content-Type': audioExts[ext], 'Content-Length': buf.length.toString() });
+          res.end(buf);
+        } else if (textExts.has(ext) || st.size < 512 * 1024) {
+          // Treat as text if known ext or small enough
+          try {
+            const content = readFileSync(absPath, 'utf-8');
+            json(200, { content, size: st.size, mimeType: 'text/plain' });
+          } catch {
+            json(200, { size: st.size, mimeType: 'application/octet-stream', binary: true });
+          }
+        } else {
+          json(200, { size: st.size, mimeType: 'application/octet-stream', binary: true });
+        }
+      } catch (e: unknown) {
+        json(404, { error: `File not found: ${filePath}` });
+      }
+    } else if (subPath === '/files/write' && method === 'PUT') {
+      // Write file content
+      const { writeFileSync, mkdirSync: mkdirSyncFs } = await import('node:fs');
+      const { resolve: resolvePath, dirname } = await import('node:path');
+      const cfg = fd.project.getConfig();
+      const projectCwd = cfg.cwd ?? fd.project.subpath('.');
+      try {
+        const body = await readBody();
+        if (!body.path || typeof body.content !== 'string') { json(400, { error: 'Missing path or content' }); return; }
+        const absPath = resolvePath(projectCwd, body.path);
+        if (!absPath.startsWith(resolvePath(projectCwd))) { json(400, { error: 'Invalid path' }); return; }
+        const ext = body.path.includes('.') ? body.path.split('.').pop()!.toLowerCase() : '';
+        const textExts = new Set(['md','txt','json','yaml','yml','ts','tsx','js','jsx','dart','py','rs','toml','cfg','sh','html','css','sql','lock','env','gitignore','xml','csv','log','ini','conf','rb','go','java','c','cpp','h','hpp','bat','makefile','dockerfile','ps1','properties']);
+        if (!textExts.has(ext)) { json(400, { error: 'Only text files can be written' }); return; }
+        mkdirSyncFs(dirname(absPath), { recursive: true });
+        writeFileSync(absPath, body.content, 'utf-8');
+        json(200, { success: true, path: body.path });
+      } catch (e: unknown) {
+        json(400, { error: e instanceof Error ? e.message : 'Write failed' });
+      }
     } else {
       res.writeHead(404); res.end('Not found');
     }
