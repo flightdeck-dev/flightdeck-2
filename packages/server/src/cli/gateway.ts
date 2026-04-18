@@ -439,6 +439,87 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     authCheck: authCheckFn,
     webhookNotifiers,
     cronStores,
+    onProjectSetup: async (name: string) => {
+      const fd = projectManager.get(name);
+      if (!fd) return;
+      const profile = fd.status().config.governance;
+      console.error(`\n── Hot-register project: ${name} (profile: ${profile}) ──`);
+
+      // ModelConfig
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const modelConfig = new ModelConfig(fd.project.subpath('.'));
+      const leadRoleConfig = modelConfig.getRoleConfig('lead');
+      const plannerRoleConfig = modelConfig.getRoleConfig('planner');
+
+      // LeadManager
+      const projectConfig = fd.project.getConfig();
+      const projectCwd = fd.status().config.cwd ?? process.cwd();
+      const leadManager = new LeadManager({
+        sqlite: fd.sqlite,
+        project: fd.project,
+        messageStore: fd.messages ?? undefined,
+        acpAdapter: multiAdapter,
+        projectName: name,
+        cwd: projectCwd,
+        leadRuntime: leadRoleConfig.runtime,
+        plannerRuntime: plannerRoleConfig.runtime,
+        heartbeat: {
+          enabled: projectConfig.heartbeatEnabled !== false,
+          interval: 30 * 60 * 1000,
+          conditions: [],
+          idleTimeoutDays: projectConfig.heartbeatIdleTimeoutDays ?? 3,
+        },
+      });
+      leadManagers.set(name, leadManager);
+
+      // CronStore + CronScheduler
+      const cronStore = new CronStore(fd.project.subpath('.'));
+      cronStores.set(name, cronStore);
+      const cronScheduler = new CronScheduler(cronStore, async (job) => {
+        const response = await leadManager.steerLead({
+          type: 'cron',
+          job: { id: job.id, name: job.name, prompt: job.prompt, skill: job.skill },
+        });
+        return response;
+      });
+      cronScheduler.start();
+      cronSchedulers.push(cronScheduler);
+
+      // WebSocketServer
+      const { WebSocketServer: WsServerClass } = await import('../api/WebSocketServer.js');
+      const wsServer = fd.messages ? new WsServerClass(fd.messages) : null;
+      if (wsServer) wsServers.set(name, wsServer as any);
+
+      // Orchestrator
+      fd.orchestrator.stop();
+      const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
+      const orchestrator = new OrchestratorClass(
+        fd.dag, fd.sqlite, fd.governance, acpAdapter, { ...projectConfig, cwd: fd.project.subpath('.') },
+        undefined,
+        {
+          agentManager: fd.agentManager,
+          leadManager,
+          messageStore: fd.messages ?? undefined,
+          wsServer: wsServer as any ?? undefined,
+          governanceConfig: { costThresholdPerDay: projectConfig.costThresholdPerDay },
+          notifications: projectConfig.notifications as import('../integrations/WebhookNotifier.js').NotificationsConfig | undefined,
+        },
+      );
+      orchestrator.start();
+      orchestrators.push(orchestrator);
+      const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
+      const whNotifier = orchestrator.getWebhookNotifier();
+      webhookNotifiers.set(name, whNotifier);
+
+      // Wire WS to Lead
+      if (wsServer) {
+        wireWsToLead(wsServer as any, leadManager, fd, name, whNotifier);
+      }
+
+      // Lead will spawn on-demand (no saved sessions for new projects)
+      console.error(`  [${name}] Lead — will spawn on-demand.`);
+      console.error(`  [${name}] Hot-register complete.`);
+    },
   });
 
   // Wire WebSocket upgrade for all projects
