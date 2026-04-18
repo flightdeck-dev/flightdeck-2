@@ -619,8 +619,8 @@ switch (command) {
     if (urlArg) tuiArgs.push('--url', urlArg);
     // Resolve TUI entry point (source or dist)
     const serverDir = dirname(fileURLToPath(import.meta.url));
-    const tuiSrc = resolvePath(serverDir, '..', '..', 'tui', 'src', 'index.tsx');
-    const tuiDist = resolvePath(serverDir, '..', '..', 'tui', 'dist', 'index.js');
+    const tuiSrc = resolvePath(serverDir, '..', '..', '..', 'tui', 'src', 'index.tsx');
+    const tuiDist = resolvePath(serverDir, '..', '..', '..', 'tui', 'dist', 'index.js');
     const { existsSync } = await import('node:fs');
     try {
       if (existsSync(tuiDist)) {
