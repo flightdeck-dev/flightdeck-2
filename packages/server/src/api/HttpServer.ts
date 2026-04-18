@@ -1088,6 +1088,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
           (cfg as any).heartbeatEnabled = validBody.heartbeatEnabled;
         }
+        if (validBody.scoutEnabled !== undefined) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
+          (cfg as any).scoutEnabled = validBody.scoutEnabled;
+        }
         if (validBody.heartbeatIdleTimeoutDays !== undefined) {
           cfg.heartbeatIdleTimeoutDays = validBody.heartbeatIdleTimeoutDays;
         }

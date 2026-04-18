@@ -7,6 +7,7 @@ export const ProjectConfigSchema = z.object({
   onCompletion: z.enum(['stop', 'ask', 'explore']),
   heartbeatEnabled: z.boolean().default(false),
   heartbeatIdleTimeoutDays: z.number().min(0).max(30).default(3),
+  scoutEnabled: z.boolean().default(false),
   maxConcurrentWorkers: z.number().min(1).max(100).default(30),
   planApprovalThreshold: z.number().min(1).default(3),
   costThresholdPerDay: z.number().optional(),

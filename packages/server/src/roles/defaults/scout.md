@@ -53,3 +53,6 @@ Return your analysis as a JSON array of suggestions:
 4. Focus on actionable improvements, not vague observations
 5. Aim for 5-15 suggestions per analysis
 6. Output ONLY the JSON array — no preamble, no explanation outside the JSON
+7. Report your findings to the Lead agent via flightdeck_send. The Lead decides what to act on.
+8. Do NOT send suggestions directly to the Planner. The Lead approves all plans.
+9. You may discuss findings with other agents for context, but final recommendations go to Lead.

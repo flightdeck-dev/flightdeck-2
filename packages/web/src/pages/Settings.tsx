@@ -493,6 +493,7 @@ function ProjectSettings() {
   const { status, projectName } = useProject();
   const { agents } = useAgentsHook();
   const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(false);
+  const [scoutEnabled, setScoutEnabled] = useState<boolean>(false);
   const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
   const [saving, setSaving] = useState(false);
@@ -505,6 +506,7 @@ function ProjectSettings() {
     if (!status?.config) return;
     const cfg = status.config as any;
     setHeartbeatEnabled(cfg.heartbeatEnabled === true);
+    setScoutEnabled(cfg.scoutEnabled === true);
     setIdleTimeoutEnabled((cfg.heartbeatIdleTimeoutDays ?? 3) > 0);
     setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
   }, [status?.config]);
@@ -685,6 +687,23 @@ function ProjectSettings() {
               )}
             </>
           )}
+        </Card>
+      </section>
+
+      {/* Scout */}
+      <section className="space-y-3">
+        <SectionHeader>Scout</SectionHeader>
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">Enable Scout</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">Periodic codebase analysis and improvement suggestions</p>
+            </div>
+            <Toggle value={scoutEnabled} onChange={async v => {
+              setScoutEnabled(v);
+              await saveConfig({ scoutEnabled: v });
+            }} />
+          </div>
         </Card>
       </section>
 

@@ -343,6 +343,17 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     });
     leadManagers.set(name, leadManager);
 
+    // Wire scout heartbeat callback
+    leadManager.onScoutHeartbeat = async () => {
+      try {
+        const { runScout } = await import('../orchestrator/Scout.js');
+        const suggestions = await runScout(fd, 'latest', { adapter: multiAdapter });
+        if (suggestions.length > 0) {
+          await leadManager.steerLead({ type: 'scout_report', suggestions });
+        }
+      } catch (e) { console.error('  Scout run failed:', e); }
+    };
+
     // Create and start cron scheduler
     const cronStore = new CronStore(fd.project.subpath('.'));
     cronStores.set(name, cronStore);
@@ -471,6 +482,17 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         },
       });
       leadManagers.set(name, leadManager);
+
+      // Wire scout heartbeat callback
+      leadManager.onScoutHeartbeat = async () => {
+        try {
+          const { runScout } = await import('../orchestrator/Scout.js');
+          const suggestions = await runScout(fd, 'latest', { adapter: multiAdapter });
+          if (suggestions.length > 0) {
+            await leadManager.steerLead({ type: 'scout_report', suggestions });
+          }
+        } catch (e) { console.error('  Scout run failed:', e); }
+      };
 
       // CronStore + CronScheduler
       const cronStore = new CronStore(fd.project.subpath('.'));

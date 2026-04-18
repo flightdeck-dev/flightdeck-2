@@ -36,6 +36,11 @@ export interface ChatContextValue {
 
 const ChatCtx = createContext<ChatContextValue | null>(null);
 
+// Request notification permission on module load
+if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [wsMessages, setWsMessages] = useState<ChatMessage[]>([]);
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
@@ -97,6 +102,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const msg = event.message;
           const isDebugMode = displayConfigRef.current.flightdeckTools === 'detail';
           if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
+          // Browser notification when Lead replies and tab is not focused
+          if (msg.authorType === 'lead' && !document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification('Flightdeck — Lead replied', { body: (msg.content || '').slice(0, 100) });
+          }
           setWsMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), msg];

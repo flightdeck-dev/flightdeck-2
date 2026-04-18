@@ -36,7 +36,8 @@ export type LeadEvent =
   | { type: 'spec_changed'; specId: string; summary: string }
   | { type: 'heartbeat' }
   | { type: 'worker_recovery'; message: string }
-  | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } };
+  | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } }
+  | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> };
 
 export interface HeartbeatCondition {
   type: 'tasks_completed' | 'idle_duration' | 'time_window' | 'spec_completed' | 'cost_threshold' | 'custom';
@@ -85,6 +86,8 @@ export class LeadManager {
   private agentCwd: string;
   private leadRuntime: string | undefined;
   private plannerRuntime: string | undefined;
+  /** Optional callback invoked during heartbeat when scout should run */
+  public onScoutHeartbeat: (() => Promise<void>) | null = null;
 
   private plannerSessionId: string | null = null;
   private plannerAgentId: string | null = null;
@@ -415,6 +418,22 @@ export class LeadManager {
       case 'cron': {
         parts.push(`[cron: ${event.job.name}]`);
         parts.push(event.job.prompt);
+        break;
+      }
+
+      case 'scout_report': {
+        const srTs = new Date().toISOString().slice(0, 19) + 'Z';
+        parts.push(`[${srTs}] [SYSTEM]`);
+        parts.push(`source: scout_report`);
+        parts.push('---');
+        parts.push('Scout has completed an analysis and has improvement suggestions:');
+        parts.push('');
+        for (const s of event.suggestions) {
+          parts.push(`- **${s.title}** [${s.category}] (effort: ${s.effort}, impact: ${s.impact})`);
+          parts.push(`  ${s.description}`);
+        }
+        parts.push('');
+        parts.push('Evaluate these suggestions. Delegate worthwhile items to Planner.');
         break;
       }
     }
@@ -774,7 +793,15 @@ export class LeadManager {
       if (this.isHeartbeating) return; // Guard against overlapping heartbeats
       if (this.checkHeartbeatConditions()) {
         this.isHeartbeating = true;
+        const tasksCompleted = this.tasksSinceLastHeartbeat;
         this.steerLead({ type: 'heartbeat' })
+          .then(async () => {
+            // Run scout if enabled and there were completed tasks
+            const cfg = this.project.getConfig() as any;
+            if (cfg.scoutEnabled && tasksCompleted > 0 && this.onScoutHeartbeat) {
+              try { await this.onScoutHeartbeat(); } catch (e) { console.error('  Scout heartbeat failed:', e); }
+            }
+          })
           .catch(() => {})
           .finally(() => { this.isHeartbeating = false; });
         this.tasksSinceLastHeartbeat = 0;

@@ -55,6 +55,10 @@ When the Planner creates a large plan (≥3 tasks), it arrives in `planned` stat
 
 Small tasks (1-2) from the Planner go directly to `pending` without needing your approval.
 
+**Only YOU can approve plans.** Planner creates plans in 'planned' state. Use plan_review to approve or reject. No other agent has this authority.
+
+**Scout may send you improvement suggestions.** Evaluate them and delegate worthwhile items to Planner.
+
 ## Communication
 
 - `flightdeck_send` with `to` — DM the Planner or any agent
