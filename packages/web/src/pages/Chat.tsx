@@ -7,6 +7,12 @@ import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
 
+// L2: Hoist regex outside component to avoid re-creation per call
+const CJK_RE = /[\u4e00-\u9fff]/;
+
+// M3: Hoist empty fallback arrays to avoid new references defeating memo
+const EMPTY_CHUNKS: StreamChunk[] = [];
+
 const AUTHOR_STYLES: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   user: { label: 'You', color: '#2f80ed', bg: 'color-mix(in srgb, #2f80ed 10%, transparent)', icon: <User size={16} strokeWidth={1.5} /> },
   lead: { label: 'Lead', color: '#d97706', bg: 'color-mix(in srgb, #d97706 10%, transparent)', icon: <Crown size={16} strokeWidth={1.5} /> },
@@ -32,7 +38,7 @@ function MessageToolbar({ msg, isUser, onReply }: { msg: ChatMessage; isUser: bo
       return;
     }
     const utterance = new SpeechSynthesisUtterance(msg.content);
-    utterance.lang = /[\u4e00-\u9fff]/.test(msg.content) ? 'zh-CN' : 'en-US';
+    utterance.lang = CJK_RE.test(msg.content) ? 'zh-CN' : 'en-US';
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
@@ -84,21 +90,24 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
 
   const replies = replyCountMap?.get(msg.id);
 
+  // H4: Memoize tooltip computation to avoid running on every render
+  const avatarTitle = useMemo(() => {
+    if (msg.authorType === 'user') return 'You';
+    if (msg.authorType === 'system') return 'System';
+    const agent = agents?.find(a => a.id === msg.authorId);
+    const lines = [msg.authorType === 'lead' ? 'Lead Agent' : `${msg.authorId?.replace(/-[a-z0-9]+$/, '').replace(/^\w/, (c: string) => c.toUpperCase())} Agent`];
+    if (msg.authorId) lines.push(`ID: ${msg.authorId}`);
+    if (agent?.runtimeName) lines.push(`Runtime: ${agent.runtimeName}`);
+    if (agent?.model) lines.push(`Model: ${agent.model}`);
+    if (agent?.status) lines.push(`Status: ${agent.status}`);
+    return lines.join('\n');
+  }, [msg.authorType, msg.authorId, agents]);
+
   return (
     <div id={`msg-${msg.id}`} className={`group relative flex gap-3 py-2 px-3 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors min-w-0 ${isUser ? 'flex-row-reverse' : ''} ${highlighted ? 'ring-2 ring-[var(--color-primary)] bg-[var(--color-primary)]/5' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 cursor-default"
            style={{ backgroundColor: style.bg, color: style.color }}
-           title={(() => {
-             if (msg.authorType === 'user') return 'You';
-             if (msg.authorType === 'system') return 'System';
-             const agent = agents?.find(a => a.id === msg.authorId);
-             const lines = [msg.authorType === 'lead' ? 'Lead Agent' : `${msg.authorId?.replace(/-[a-z0-9]+$/, '').replace(/^\w/, (c: string) => c.toUpperCase())} Agent`];
-             if (msg.authorId) lines.push(`ID: ${msg.authorId}`);
-             if (agent?.runtimeName) lines.push(`Runtime: ${agent.runtimeName}`);
-             if (agent?.model) lines.push(`Model: ${agent.model}`);
-             if (agent?.status) lines.push(`Status: ${agent.status}`);
-             return lines.join('\n');
-           })()}>
+           title={avatarTitle}>
         {style.icon}
       </div>
       <div className={`relative flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
@@ -409,6 +418,10 @@ class MessageAreaErrorBoundary extends Component<{ children: ReactNode }, { hasE
 }
 
 export default function Chat() {
+  // H5 TODO: Group related states into custom hooks to reduce re-render surface:
+  // - useSearchState() for searchQuery, showSearch, searchIdx
+  // - useSpeechRecognition() for isListening, speechLang, recognition
+  // - useChatInput() for input, replyTo, waitingForLead
   const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName, agents } = useFlightdeck();
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
@@ -440,10 +453,10 @@ export default function Chat() {
     return () => window.removeEventListener('keydown', handler);
   }, [showSearch]);
 
-  // Fetch threads
+  // H6: Add projectName to deps so threads refetch when project changes
   useEffect(() => {
     if (projectName) api.getThreads(projectName).then(setThreads).catch(() => {});
-  }, []);
+  }, [projectName]);
 
   // Filter messages by thread
   const filteredMessages = useMemo(() =>
@@ -503,11 +516,14 @@ export default function Chat() {
     inputRef.current?.focus();
   }, [input, replyTo, sendChat, activeThread]);
 
+  // M11: Use rAF to batch textarea height calculation, reducing layout thrashing
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     const el = e.target;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+    requestAnimationFrame(() => {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -624,7 +640,7 @@ export default function Chat() {
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}
-                chunks={streamingChunks.get(id)} toolCallMap={toolCallMap} displayConfig={displayConfig} />
+                chunks={streamingChunks.get(id) ?? EMPTY_CHUNKS} toolCallMap={toolCallMap} displayConfig={displayConfig} />
             ))}
 
             {waitingForLead && !isStreaming && <TypingIndicator />}

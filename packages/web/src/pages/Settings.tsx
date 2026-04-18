@@ -162,10 +162,10 @@ function GlobalSettings() {
         setRuntimeProject(pName);
         api.getRuntimes(pName).then((rts: RuntimeInfo[]) => {
           setRuntimes(rts);
-          // Auto-test all runtimes asynchronously
-          for (const rt of rts) {
+          // H7: Test all runtimes in parallel instead of serially
+          const testPromises = rts.map(rt => {
             setTestingSet(prev => new Set(prev).add(rt.id));
-            api.testRuntime(pName, rt.id)
+            return api.testRuntime(pName, rt.id)
               .then(result => {
                 setTestResults(prev => ({ ...prev, [rt.id]: result }));
               })
@@ -175,7 +175,8 @@ function GlobalSettings() {
               .finally(() => {
                 setTestingSet(prev => { const next = new Set(prev); next.delete(rt.id); return next; });
               });
-          }
+          });
+          Promise.all(testPromises);
         }).catch(() => {});
         fetch(`/api/global-config`).then(r => r.json()).then(globalCfg => {
           if (globalCfg.disabledRuntimes) {

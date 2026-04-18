@@ -35,8 +35,9 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
       setResults([]);
       return;
     }
-    setLoading(true);
+    // M7: Move setLoading inside timeout to avoid flash of "Searching..." before debounce fires
     debounceRef.current = setTimeout(async () => {
+      setLoading(true);
       try {
         const data = await api.search(projectName, query.trim());
         const all: SearchResult[] = [

@@ -1,6 +1,10 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { memo } from "react";
 import type { Components } from "react-markdown";
+
+// L1: Hoist static plugin array outside component to avoid new reference each render
+const remarkPlugins = [remarkGfm];
 
 const components: Components = {
   h1: ({ children }) => (
@@ -79,10 +83,11 @@ const components: Components = {
   hr: () => <hr className="border-[var(--color-border)] my-3" />,
 };
 
-export function Markdown({ content }: { content: string }) {
+// H3: Memoize Markdown to avoid expensive remark/rehype re-parsing when content hasn't changed
+export const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+    <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
       {content}
     </ReactMarkdown>
   );
-}
+});

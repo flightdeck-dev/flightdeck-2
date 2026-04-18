@@ -70,6 +70,9 @@ interface FlightdeckState {
 
 const Ctx = createContext<FlightdeckState | null>(null);
 
+// TODO [C1]: Split FlightdeckProvider into focused contexts (ProjectContext, TaskContext, AgentContext, ChatContext, DisplayContext, ConnectionContext) to avoid cascading re-renders. Currently every WS event re-renders all consumers.
+// TODO [C2]: Adopt SWR or TanStack Query for all read operations to get caching, deduplication, and stale-while-revalidate. The api module already provides clean functions — just wrap them with useSWR.
+
 export function FlightdeckProvider({ projectName, children }: { projectName: string | null; children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [status, setStatus] = useState<ProjectStatus | null>(null);
@@ -80,6 +83,9 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [displayConfig, setDisplayConfigState] = useState<DisplayConfig>(loadDisplayConfig);
+  // C3: Use ref for displayConfig so WS handler always reads latest value
+  const displayConfigRef = useRef(displayConfig);
+  displayConfigRef.current = displayConfig;
   const streamingRef = useRef(new Map<string, string>());
   const streamingChunksRef = useRef(new Map<string, StreamChunk[]>());
   const toolCallMapRef = useRef(new Map<string, ToolCallState>());
@@ -93,6 +99,21 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
   const streamingDirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
+  // H2: Single flush function to batch all streaming state updates into 1 setState cycle per rAF
+  const scheduleStreamingFlush = () => {
+    if (!streamingDirtyRef.current) {
+      streamingDirtyRef.current = true;
+      rafRef.current = requestAnimationFrame(() => {
+        setStreamingMessages(new Map(streamingRef.current));
+        setStreamingChunks(new Map(streamingChunksRef.current));
+        setToolCallMap(new Map(toolCallMapRef.current));
+        setAgentOutputs(new Map(agentOutputsRef.current));
+        setAgentStreamChunks(new Map(agentStreamChunksRef.current));
+        streamingDirtyRef.current = false;
+      });
+    }
+  };
+
   const fetchProjects = useCallback(async () => {
     try {
       const p = await api.getProjects();
@@ -100,6 +121,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
     } catch { /* ignore */ }
   }, []);
 
+  // H1: Include displayConfig.flightdeckTools in deps so changing display mode refetches messages with correct filtering
   const fetchAll = useCallback(async () => {
     if (!projectName) {
       setLoading(false);
@@ -125,7 +147,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
       if (import.meta.env.DEV) console.warn('[Flightdeck] fetchAll error:', err);
     }
     setLoading(false);
-  }, [projectName]);
+  }, [projectName, displayConfig.flightdeckTools]);
 
   useEffect(() => {
     fetchProjects();
@@ -176,7 +198,8 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           const msg = event.message;
           // Only show user, lead, and system messages in main chat
           // In debug mode (flightdeckTools=detail), show all messages; otherwise filter to user+lead+system
-          const isDebugMode = displayConfig.flightdeckTools === 'detail';
+          // C3: Read from ref to avoid stale closure — WS handler has [] deps
+          const isDebugMode = displayConfigRef.current.flightdeckTools === 'detail';
           if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
           setMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
@@ -226,17 +249,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
               }
             } catch {}
           }
-          if (!streamingDirtyRef.current) {
-            streamingDirtyRef.current = true;
-            rafRef.current = requestAnimationFrame(() => {
-              setStreamingMessages(new Map(streamingRef.current));
-              setStreamingChunks(new Map(streamingChunksRef.current));
-              setToolCallMap(new Map(toolCallMapRef.current));
-              setAgentOutputs(new Map(agentOutputsRef.current));
-              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
-              streamingDirtyRef.current = false;
-            });
-          }
+          scheduleStreamingFlush();
           break;
         }
         case 'display:config':
@@ -263,17 +276,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
           agentOutputsRef.current.set(event.agentId, prev + event.delta);
           const prevChunks = agentStreamChunksRef.current.get(event.agentId) ?? [];
           agentStreamChunksRef.current.set(event.agentId, [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName }]);
-          if (!streamingDirtyRef.current) {
-            streamingDirtyRef.current = true;
-            rafRef.current = requestAnimationFrame(() => {
-              setStreamingMessages(new Map(streamingRef.current));
-              setStreamingChunks(new Map(streamingChunksRef.current));
-              setToolCallMap(new Map(toolCallMapRef.current));
-              setAgentOutputs(new Map(agentOutputsRef.current));
-              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
-              streamingDirtyRef.current = false;
-            });
-          }
+          scheduleStreamingFlush();
           break;
         }
         case 'tool:event': {
@@ -301,13 +304,7 @@ export function FlightdeckProvider({ projectName, children }: { projectName: str
               toolName: event.toolName,
             }]);
           }
-          if (!streamingDirtyRef.current) {
-            streamingDirtyRef.current = true;
-            rafRef.current = requestAnimationFrame(() => {
-              setAgentStreamChunks(new Map(agentStreamChunksRef.current));
-              streamingDirtyRef.current = false;
-            });
-          }
+          scheduleStreamingFlush();
           break;
         }
       }

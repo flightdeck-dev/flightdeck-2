@@ -46,6 +46,9 @@ function DependencyTree({ task, allTasks }: { task: Task; allTasks: Task[] }) {
   );
 }
 
+// M10 TODO: Extract a shared <Modal> compound component with focus trapping and aria-* attributes.
+// Currently 4 modal implementations (CreateTaskModal, CreateCronModal, CreateRoleModal, CreateProjectModal)
+// duplicate backdrop, close-on-click-outside, and layout patterns.
 function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { projectName } = useFlightdeck();
   const [title, setTitle] = useState('');

@@ -1,3 +1,8 @@
+// M12 TODO: Normalize snake_case to camelCase at the API boundary (in lib/api.ts)
+// to eliminate dual-field checks like `agent.currentTask ?? agent.current_task`.
+// Types have both camelCase and snake_case for: assignedAgent/assigned_agent,
+// dependsOn/depends_on, needsReview/needs_review, currentTask/current_task, etc.
+
 // Types matching server-side data structures
 
 export type TaskState = 'pending' | 'ready' | 'running' | 'in_review' | 'done' | 'failed' | 'cancelled' | 'paused' | 'skipped';

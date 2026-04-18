@@ -63,8 +63,10 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
     }
   };
 
-  // Auto-expand active project
-  if (isActive && !expanded) setExpanded(true);
+  // M8: Sync expanded state via useEffect instead of during render to avoid extra re-render
+  useEffect(() => {
+    if (isActive && !expanded) setExpanded(true);
+  }, [isActive]);
 
   if (collapsed) {
     return (
@@ -167,9 +169,15 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const [archivedProjects, setArchivedProjects] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
+  // M6: Debounce archived projects fetch — don't refetch on every WS state:update
+  const archivedFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    fetch('/api/projects/archived').then(r => r.json()).then(d => setArchivedProjects(d.projects ?? [])).catch(() => {});
-  }, [projects]); // re-fetch when projects change
+    if (archivedFetchRef.current) clearTimeout(archivedFetchRef.current);
+    archivedFetchRef.current = setTimeout(() => {
+      fetch('/api/projects/archived').then(r => r.json()).then(d => setArchivedProjects(d.projects ?? [])).catch(() => {});
+    }, 500);
+    return () => { if (archivedFetchRef.current) clearTimeout(archivedFetchRef.current); };
+  }, [projects]);
   const { projectName } = useParams();
   const [showCreate, setShowCreate] = useState(false);
 

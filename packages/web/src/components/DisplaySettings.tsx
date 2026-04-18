@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
 
@@ -20,9 +20,28 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
       && preset.flightdeckTools === displayConfig.flightdeckTools;
   }) ?? 'custom';
 
+  // M9: Basic focus trap — keep keyboard focus inside the dialog
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = dialog.querySelectorAll<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length) focusable[0].focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    dialog.addEventListener('keydown', handler);
+    return () => dialog.removeEventListener('keydown', handler);
+  }, [showOverrides]); // re-query focusable elements when overrides toggled
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={onClose} role="dialog" aria-modal="true" aria-label="Display Settings" onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={onClose} role="dialog" aria-modal="true" aria-label="Display Settings" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div
+        ref={dialogRef}
         className="mt-12 mr-4 w-80 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl"
         onClick={e => e.stopPropagation()}
       >

@@ -8,6 +8,9 @@ import { ThinkingBlock, ToolCallCard, groupChunks } from './Chat.tsx';
 import { shouldShow, type DisplayConfig } from '@flightdeck-ai/shared/display';
 import type { Agent } from '../lib/types.ts';
 
+// M3: Hoist empty fallback arrays to avoid new references defeating memo
+const EMPTY_CHUNKS: StreamChunk[] = [];
+
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   lead: <Crown size={20} strokeWidth={1.5} />, developer: <Code size={20} strokeWidth={1.5} />, worker: <Code size={20} strokeWidth={1.5} />, reviewer: <Search size={20} strokeWidth={1.5} />, planner: <ClipboardList size={20} strokeWidth={1.5} />,
 };
@@ -105,6 +108,7 @@ function AgentDetailPanel({
 
   // Historical output (loaded from API when no live data)
   const [historicalOutput, setHistoricalOutput] = useState('');
+  // H8: Add proper deps — refetch when agent or project changes
   useEffect(() => {
     if (!liveOutput && !liveChunks.length && projectName) {
       api.getAgentOutput(projectName, agent.id).then((data: any) => {
@@ -121,7 +125,7 @@ function AgentDetailPanel({
   const { tasks, displayConfig, toolCallMap } = useFlightdeck();
   const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
 
-  // Load available models for Info tab
+  // H8: Add projectName to deps so models refetch when project changes
   useEffect(() => {
     if (!projectName) return;
     api.getAvailableModels(projectName).then((data: Record<string, any>) => {
@@ -135,7 +139,7 @@ function AgentDetailPanel({
       }
       setAvailableModels(models);
     }).catch(() => {});
-  }, []);
+  }, [projectName]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -150,10 +154,10 @@ function AgentDetailPanel({
     autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 40;
   }, []);
 
-  // Escape to close
+  // L4: stopPropagation so Escape in panel doesn't trigger page-level handlers
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -560,7 +564,7 @@ export default function Agents() {
           agent={selectedAgent}
           projectName={projectName}
           liveOutput={agentOutputs.get(selectedAgent.id) ?? ''}
-          liveChunks={agentStreamChunks.get(selectedAgent.id) ?? []}
+          liveChunks={agentStreamChunks.get(selectedAgent.id) ?? EMPTY_CHUNKS}
           onClose={() => setSelectedAgentId(null)}
         />
       )}
