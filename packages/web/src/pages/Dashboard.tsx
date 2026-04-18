@@ -159,7 +159,7 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-tertiary)]">tasks</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: 'var(--color-status-running)' }}>
+            <p className="text-2xl font-semibold" style={{ color: '#2f80ed' }}>
               {activeAgents.length}
             </p>
             <p className="text-xs text-[var(--color-text-tertiary)]">agents</p>

@@ -128,12 +128,12 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
             )}
           </div>
           {project.agentCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-status-running)] text-white font-medium min-w-[18px] text-center">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2f80ed] text-white font-medium min-w-[18px] text-center">
               {project.agentCount}
             </span>
           )}
           {activeTasks > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-status-ready)] text-white font-medium min-w-[18px] text-center">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2f80ed] text-white font-medium min-w-[18px] text-center">
               {activeTasks}
             </span>
           )}
