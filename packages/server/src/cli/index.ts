@@ -610,17 +610,26 @@ switch (command) {
 
   case 'tui': {
     const { execFileSync } = await import('node:child_process');
+    const { resolve: resolvePath, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
     const tuiArgs: string[] = [];
     if (values.port) tuiArgs.push('--port', String(values.port));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseArgs values not fully typed
     const urlArg = (values as any).url;
     if (urlArg) tuiArgs.push('--url', urlArg);
+    // Resolve TUI entry point (source or dist)
+    const serverDir = dirname(fileURLToPath(import.meta.url));
+    const tuiSrc = resolvePath(serverDir, '..', '..', 'tui', 'src', 'index.tsx');
+    const tuiDist = resolvePath(serverDir, '..', '..', 'tui', 'dist', 'index.js');
+    const { existsSync } = await import('node:fs');
     try {
-      execFileSync('node', [new URL('../../tui/dist/index.js', import.meta.url).pathname, ...tuiArgs], { stdio: 'inherit' });
-    } catch {
-      // TUI package not found — try npx
-      execFileSync('npx', ['flightdeck-tui', ...tuiArgs], { stdio: 'inherit' });
-    }
+      if (existsSync(tuiDist)) {
+        execFileSync('node', [tuiDist, ...tuiArgs], { stdio: 'inherit' });
+      } else {
+        // Dev mode: use tsx to run TypeScript source directly
+        execFileSync('npx', ['tsx', tuiSrc, ...tuiArgs], { stdio: 'inherit' });
+      }
+    } catch { /* TUI exited */ }
     break;
   }
 
