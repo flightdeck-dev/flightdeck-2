@@ -396,10 +396,6 @@ function ProjectSettings() {
               <option value="git_worktree">Git Worktree (per-task branches)</option>
             </select>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Total Cost</span>
-            <span className="text-sm font-mono">${(status.totalCost ?? 0).toFixed(2)}</span>
-          </div>
         </Card>
       </section>
 
