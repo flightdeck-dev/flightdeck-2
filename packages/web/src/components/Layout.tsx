@@ -74,6 +74,9 @@ export function Layout() {
                       method: 'PUT', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ governance: e.target.value }),
                     });
+                    // Revalidate status to persist the change in UI
+                    const { mutate } = await import('swr');
+                    mutate((key: unknown) => Array.isArray(key) && key[0] === 'status');
                   } catch {}
                 }}
                 className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer appearance-none pr-5 focus:outline-none"
