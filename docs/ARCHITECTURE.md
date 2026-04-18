@@ -4,6 +4,62 @@
 
 Flightdeck 2.0 is a clean-slate multi-agent orchestration engine built as a library. It replaces Flightdeck 1.0 while incorporating lessons from beads, sudocode, OpenSpec, spec-kit, and BMAD-METHOD.
 
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                         User                            │
+│                          │                              │
+│                     ┌────▼────┐                         │
+│                     │  Lead   │  👑 Decisions & comms   │
+│                     └────┬────┘                         │
+│                          │                              │
+│                     ┌────▼────┐                         │
+│                     │ Planner │  📋 Task breakdown      │
+│                     └────┬────┘                         │
+│                          │                              │
+│                  ┌───────▼────────┐                     │
+│                  │  Orchestrator  │  Event-driven        │
+│                  │  (500ms dbnce) │  auto-assign/spawn   │
+│                  └──┬─────────┬──┘                      │
+│              ┌──────▼──┐  ┌──▼───────┐                  │
+│              │ Workers  │  │ Reviewers│                  │
+│              │ 💻💻💻  │  │ 🔍 (pool)│                  │
+│              └──────┬──┘  └──┬───────┘                  │
+│                     └────┬───┘                          │
+│                     ┌────▼────┐                         │
+│                     │ SQLite  │  Per-project state       │
+│                     │  (WAL)  │                         │
+│                     └─────────┘                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Role Hierarchy
+
+| Role | Icon | Responsibilities |
+|------|------|------------------|
+| **Lead** | 👑 | High-level decisions, user communication, plan approval |
+| **Planner** | 📋 | Task breakdown, conflict resolution, agent lifecycle |
+| **Orchestrator** | — | Auto-assign tasks, auto-spawn workers, event-driven reactivity |
+| **Worker** | 💻 | Write and modify code, implement features and fixes |
+| **Reviewer** | 🔍 | Code review (pool reuse, fresh reviewer on retry) |
+| **Scout** | 🔭 | Read-only analysis and improvement suggestions |
+| **QA Tester** | 🧪 | End-to-end testing and issue reporting |
+| **Tech Writer** | 📝 | Documentation, examples, API guides |
+| **Product Thinker** | 💡 | Product perspective, UX insights, strategic thinking |
+
+## Data Flow
+
+```
+User request → Lead (approves plan)
+  → Planner (breaks into tasks, creates DAG)
+    → Orchestrator (assigns tasks to agents)
+      → Worker agents (implement code)
+        → Reviewer agents (code review)
+          → Orchestrator (merge or revise)
+            → Lead (report to user)
+```
+
 ## Three-Layer Model
 
 ```
@@ -11,6 +67,47 @@ Spec Layer (WHAT) → Plan Layer (HOW) → Task DAG (execution atoms)
 ```
 
 Every layer maintains traceability to the one above. When a spec requirement changes, affected tasks are auto-marked stale.
+
+## Storage Architecture
+
+- **Per-project SQLite** — Each project has its own database file (no global state)
+- **WAL mode** — Concurrent reads, single writer
+- **JSON columns** — Flexible nested data (requirements, capabilities, file lists)
+- **Indexed** on common query patterns (state, plan_id, thread_id, type)
+- **Config:** `config.json` (project settings) + `config.yaml` (optional)
+
+## Runtime Adapters
+
+| Adapter | Protocol | Runtimes |
+|---------|----------|----------|
+| **ACP** | Agent Client Protocol (JSON-RPC over stdin/stdout) | codex, codex-acp, claude-agent, gemini, opencode, cursor, kiro, kilo-code, hermes-agent |
+| **PTY** | `--print` + `--resume` CLI mode | claude-code |
+| **Copilot SDK** | Native `@github/copilot-sdk` tool injection | copilot |
+
+## Isolation Modes
+
+| Mode | Description |
+|------|-------------|
+| `file_lock` (default) | File-level locking prevents concurrent edits to the same file |
+| `git_worktree` | Each worker gets its own git worktree for full isolation |
+
+## WebSocket Event System
+
+The gateway daemon exposes a WebSocket endpoint for real-time updates:
+- Agent state changes (spawned, idle, working, crashed)
+- Task transitions (pending → running → in_review → done)
+- Token usage updates
+- Plan approval requests
+- Error/crash notifications
+
+Priority-aware event pipeline with back-pressure: critical events (crashes, failures) are never dropped; low-priority events shed under load.
+
+## Session Persistence & Recovery
+
+- **Copilot SDK** — Sessions managed internally by the SDK
+- **Claude Code** — `--resume` flag restores conversation context across invocations
+- **ACP runtimes** — `session/load` where supported (codex, cursor)
+- **Crash recovery** — Heartbeat-based crash detection; orchestrator re-assigns failed tasks
 
 ## Module Design Decisions
 
@@ -83,25 +180,40 @@ Every layer maintains traceability to the one above. When a spec requirement cha
 - **Typed event system** with discriminated unions — exhaustive pattern matching in handlers.
 - **Async processing** with error isolation — one handler failure doesn't crash the pipeline.
 
-### 8. `facade` — High-Level API
+### 8. `orchestrator/` — Event-Driven Orchestrator
+
+The orchestrator reacts to events (task completions, agent crashes, new plans) and automatically:
+- Assigns pending tasks to idle workers
+- Spawns new workers when needed
+- Routes completed tasks to reviewers (with pool reuse)
+- Uses 500ms debounce to batch rapid state changes
+
+### 9. `isolation/` — Isolation Manager
+
+Prevents file conflicts between concurrent agents:
+- **file_lock** (default): File-level locking, lightweight
+- **git_worktree**: Full git worktree per worker, heavier but complete isolation
+
+### 10. `facade` — High-Level API
 
 The `Flightdeck` facade class wires all modules together with direct SQLite persistence. It's the single entry point for CLI and MCP server — a thin, stateless wrapper that opens the DB, executes operations, and returns results.
 
-### 9. `cli/` — Command-Line Interface
+### 11. `cli/` — Command-Line Interface
 
 A zero-dependency CLI using Node.js built-in `parseArgs`. All commands are thin wrappers over the facade. Supports human-readable and `--json` output.
 
-### 10. `mcp/` — MCP Server
+### 12. `mcp/` — MCP Server (HTTP Gateway Client)
 
-A stdio-based MCP server exposing Flightdeck operations as tools for AI agents. Uses `@modelcontextprotocol/sdk`.
+A stdio-based MCP server that acts as a **thin HTTP client** to the gateway daemon. No direct database access — all operations route through the gateway to ensure a single source of truth for state and side effects. Uses `@modelcontextprotocol/sdk`.
 
-### 11. `persistence/` — Storage Layer
+### 13. `persistence/` — Storage Layer
 
 **Key decisions:**
 - **SQLite via drizzle-orm** (same proven stack as Flightdeck 1.0).
 - **WAL mode** for concurrent reads.
 - **JSON columns** for flexible nested data (requirements, capabilities, file lists).
 - **Indexed** on common query patterns (state, plan_id, thread_id, type).
+- **Per-project** — each project is self-contained, no global state files.
 
 ## What's Different from Flightdeck 1.0
 
