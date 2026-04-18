@@ -473,7 +473,7 @@ export class SqliteStore extends EventEmitter {
       .run();
   }
 
-  private rowToAgent(row: typeof agents.$inferSelect): Agent {
+  private rowToAgent(row: typeof agents.$inferSelect): Agent & { model?: string } {
     return {
       id: row.id as AgentId,
       role: row.role as Agent['role'],
@@ -484,6 +484,7 @@ export class SqliteStore extends EventEmitter {
       currentSpecId: (row.currentSpecId ?? null) as SpecId | null,
       costAccumulated: row.costAccumulated,
       lastHeartbeat: (row.lastHeartbeat ?? null) as string | null,
+      model: (row as any).model ?? undefined,
     };
   }
 

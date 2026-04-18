@@ -670,8 +670,9 @@ export default function Agents() {
     );
   }
 
-  const active = agents.filter(a => a.status !== 'terminated' && a.status !== 'ended');
-  const terminated = agents.filter(a => a.status === 'terminated' || a.status === 'ended');
+  const active = agents.filter(a => !['terminated', 'ended', 'retired', 'offline'].includes(a.status));
+  const retired = agents.filter(a => a.status === 'retired');
+  const terminated = agents.filter(a => a.status === 'terminated' || a.status === 'ended' || a.status === 'offline');
 
   if (agents.length === 0) {
     return (
@@ -706,6 +707,17 @@ export default function Agents() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
         </div>
+      )}
+
+      {retired.length > 0 && (
+        <details className="group">
+          <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
+            {retired.length} retired agent{retired.length !== 1 ? 's' : ''}
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-50">
+            {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
+          </div>
+        </details>
       )}
 
       {terminated.length > 0 && (

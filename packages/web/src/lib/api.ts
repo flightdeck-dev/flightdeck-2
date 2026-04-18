@@ -39,7 +39,7 @@ export const api = {
   getStatus: (project: string) => get<ProjectStatus>(projectPath(project, '/status')),
   getTasks: (project: string) => get<Task[]>(projectPath(project, '/tasks')),
   getTask: (project: string, id: string) => get<Task>(projectPath(project, `/tasks/${id}`)),
-  getAgents: (project: string) => get<Agent[]>(projectPath(project, '/agents')),
+  getAgents: (project: string) => get<Agent[]>(projectPath(project, '/agents?include_retired=true')),
   getDecisions: (project: string, limit = 20) => get<Decision[]>(projectPath(project, `/decisions?limit=${limit}`)),
   getMessages: (project: string, opts?: { thread_id?: string; task_id?: string; limit?: number; author_types?: string }) => {
     const params = new URLSearchParams();
