@@ -329,7 +329,7 @@ function GlobalSettings() {
 /** Project-scoped settings — project info, heartbeat, governance */
 function ProjectSettings() {
   const { status, projectName } = useProject();
-  const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(true);
+  const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(false);
   const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
   const [saving, setSaving] = useState(false);
@@ -337,7 +337,7 @@ function ProjectSettings() {
   useEffect(() => {
     if (!status?.config) return;
     const cfg = status.config as any;
-    setHeartbeatEnabled(cfg.heartbeatEnabled !== false);
+    setHeartbeatEnabled(cfg.heartbeatEnabled === true);
     setIdleTimeoutEnabled((cfg.heartbeatIdleTimeoutDays ?? 3) > 0);
     setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
   }, [status?.config]);

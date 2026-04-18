@@ -5,7 +5,7 @@ export const ProjectConfigSchema = z.object({
   governance: z.enum(['autonomous', 'supervised', 'collaborative', 'custom']),
   isolation: z.enum(['file_lock', 'git_worktree']),
   onCompletion: z.enum(['stop', 'ask', 'explore']),
-  heartbeatEnabled: z.boolean().default(true),
+  heartbeatEnabled: z.boolean().default(false),
   heartbeatIdleTimeoutDays: z.number().min(0).max(30).default(3),
   maxConcurrentWorkers: z.number().min(1).max(100).default(30),
   planApprovalThreshold: z.number().min(1).default(3),
