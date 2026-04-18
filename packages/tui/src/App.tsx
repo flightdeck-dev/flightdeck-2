@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Box, Text, useInput, useApp } from 'ink';
+import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import { useFlightdeck } from './hooks/useFlightdeck';
 import { StatusBar } from './components/StatusBar';
 import { TaskList } from './components/TaskList';
@@ -55,43 +55,15 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [suggestions, setSuggestions] = useState<typeof COMMANDS>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
 
-  // Mouse scroll support: enable SGR mouse tracking
+  // Dynamic terminal height
+  const { stdout } = useStdout();
+  const [termRows, setTermRows] = useState(stdout?.rows || process.stdout.rows || 24);
   useEffect(() => {
-    const enable = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
-    const disable = '\x1b[?1006l\x1b[?1002l\x1b[?1000l';
-    process.stdout.write(enable);
-
-    const onData = (data: Buffer) => {
-      const str = data.toString();
-      // Parse SGR mouse sequences: \x1b[<btn;col;rowM
-      const match = str.match(/\x1b\[<(\d+);\d+;\d+[Mm]/);
-      if (!match) return;
-      const btn = parseInt(match[1], 10);
-      if (btn === 64) {
-        // wheel up
-        if (focusedPanel === 'tasks') {
-          setTaskIndex(prev => Math.max(0, prev - 1));
-        } else if (focusedPanel === 'center') {
-          if (centerTab === 'chat') setChatScroll(prev => prev + 1);
-          else setActivityScroll(prev => prev + 1);
-        }
-      } else if (btn === 65) {
-        // wheel down
-        if (focusedPanel === 'tasks') {
-          setTaskIndex(prev => Math.min(prev + 1, fd.tasks.length - 1));
-        } else if (focusedPanel === 'center') {
-          if (centerTab === 'chat') setChatScroll(prev => Math.max(0, prev - 1));
-          else setActivityScroll(prev => Math.max(0, prev - 1));
-        }
-      }
-    };
-
-    process.stdin.on('data', onData);
-    return () => {
-      process.stdout.write(disable);
-      process.stdin.removeListener('data', onData);
-    };
-  }, [focusedPanel, centerTab, fd.tasks.length]);
+    const onResize = () => setTermRows(stdout?.rows || process.stdout.rows || 24);
+    process.stdout.on('resize', onResize);
+    return () => { process.stdout.removeListener('resize', onResize); };
+  }, [stdout]);
+  const mainHeight = Math.max(5, termRows - 3); // statusbar(1) + helpbar(1) + input/cmdoutput(1)
 
   const panels: Panel[] = ['tasks', 'center', 'agents'];
 
@@ -364,13 +336,13 @@ export function App({ baseUrl, wsUrl }: AppProps) {
       />
 
       {/* Three-column layout */}
-      <Box flexGrow={1} height={20}>
+      <Box flexGrow={1} height={mainHeight}>
         <TaskList
           tasks={fd.tasks}
           selectedIndex={taskIndex}
           scrollOffset={taskScroll}
           focused={focusedPanel === 'tasks'}
-          maxHeight={20}
+          maxHeight={mainHeight}
         />
 
         {centerTab === 'chat' ? (

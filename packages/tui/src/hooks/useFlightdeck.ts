@@ -114,6 +114,9 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
   const [newMessageFlag, setNewMessageFlag] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const disconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectDelay = useRef(1000);
+  const connectingRef = useRef(false);
 
   const addActivity = useCallback((item: ActivityItem) => {
     setActivities(prev => [...prev.slice(-200), item]);
@@ -156,11 +159,15 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
   }, [baseUrl, countTasks]);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN || connectingRef.current) return;
+    connectingRef.current = true;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.on('open', () => {
+      connectingRef.current = false;
+      reconnectDelay.current = 1000;
+      clearTimeout(disconnectTimer.current);
       setStatus(prev => ({ ...prev, connected: true }));
       fetchInitial();
       addActivity({ time: timestamp(), icon: '▸', text: 'Connected to daemon', color: 'green' });
@@ -232,12 +239,22 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
     });
 
     ws.on('close', () => {
-      setStatus(prev => ({ ...prev, connected: false }));
-      addActivity({ time: timestamp(), icon: '▸', text: 'Disconnected — reconnecting...', color: 'red' });
-      reconnectTimer.current = setTimeout(connect, 3000);
+      connectingRef.current = false;
+      // Debounce disconnect status to avoid flashing
+      clearTimeout(disconnectTimer.current);
+      disconnectTimer.current = setTimeout(() => {
+        setStatus(prev => ({ ...prev, connected: false }));
+      }, 2000);
+      addActivity({ time: timestamp(), icon: '▸', text: `Disconnected — reconnecting in ${reconnectDelay.current / 1000}s...`, color: 'red' });
+      const delay = reconnectDelay.current;
+      reconnectDelay.current = Math.min(delay * 2, 30000);
+      reconnectTimer.current = setTimeout(connect, delay);
     });
 
-    ws.on('error', () => { ws.close(); });
+    ws.on('error', () => {
+      connectingRef.current = false;
+      ws.close();
+    });
   }, [wsUrl, baseUrl, fetchInitial, addActivity, countTasks, displayConfig]);
 
   const sendMessage = useCallback((text: string) => {
@@ -277,7 +294,7 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
 
   useEffect(() => {
     connect();
-    return () => { clearTimeout(reconnectTimer.current); wsRef.current?.close(); };
+    return () => { clearTimeout(reconnectTimer.current); clearTimeout(disconnectTimer.current); wsRef.current?.close(); };
   }, [connect]);
 
   return {
