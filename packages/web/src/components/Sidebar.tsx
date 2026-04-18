@@ -263,6 +263,18 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         )}
       </div>
 
+      {/* Agent status summary — above Settings for stable position */}
+      {!collapsed && activeAgents > 0 && (
+        <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
+            <span>{busyAgents} busy</span>
+            <span className="text-[var(--color-text-tertiary)]">·</span>
+            <span>{activeAgents - busyAgents} idle</span>
+          </div>
+        </div>
+      )}
+
       {/* Bottom: Settings */}
       <div className="border-t border-[var(--color-border)] py-2">
         <NavLink
@@ -280,17 +292,6 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         </NavLink>
       </div>
 
-      {/* Agent status summary */}
-      {!collapsed && activeAgents > 0 && (
-        <div className="px-3 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
-            <span>{busyAgents} busy</span>
-            <span className="text-[var(--color-text-tertiary)]">·</span>
-            <span>{activeAgents - busyAgents} idle</span>
-          </div>
-        </div>
-      )}
 
       {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={refresh} />}
     </aside>
