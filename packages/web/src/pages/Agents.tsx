@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
+import useSWR from 'swr';
+import { useProject } from '../hooks/useProject.tsx';
+import { useTasks } from '../hooks/useTasks.tsx';
+import { useAgents as useAgentsHook } from '../hooks/useAgents.tsx';
+import { useChat } from '../hooks/useChat.tsx';
+import { useDisplay } from '../hooks/useDisplay.tsx';
+import type { ToolCallState } from '../hooks/useChat.tsx';
+import type { StreamChunk } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import { Crown, Code, Search, ClipboardList, Bot, Send, Zap, X, Info, MessageSquare } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
@@ -109,37 +115,41 @@ function AgentDetailPanel({
   // Historical output (loaded from API when no live data)
   const [historicalOutput, setHistoricalOutput] = useState('');
   // H8: Add proper deps — refetch when agent or project changes
+  const { data: agentOutputData } = useSWR(
+    !liveOutput && !liveChunks.length && projectName ? ['agentOutput', projectName, agent.id] : null,
+    () => api.getAgentOutput(projectName!, agent.id)
+  );
   useEffect(() => {
-    if (!liveOutput && !liveChunks.length && projectName) {
-      api.getAgentOutput(projectName, agent.id).then((data: any) => {
-        if (data?.lines?.length) setHistoricalOutput(data.lines.join('\n'));
-      }).catch(() => {});
-    }
-  }, [agent.id, projectName, liveOutput, liveChunks.length]);
+    if (agentOutputData?.lines?.length) setHistoricalOutput(agentOutputData.lines.join('\n'));
+  }, [agentOutputData]);
 
   // Model dropdown state
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
 
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
-  const { tasks, displayConfig, toolCallMap } = useFlightdeck();
+  const { tasks } = useTasks();
+  const { displayConfig } = useDisplay();
+  const { toolCallMap } = useChat();
   const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
 
   // H8: Add projectName to deps so models refetch when project changes
+  const { data: modelsData } = useSWR(
+    projectName ? ['availableModels-agents', projectName] : null,
+    () => api.getAvailableModels(projectName!)
+  );
   useEffect(() => {
-    if (!projectName) return;
-    api.getAvailableModels(projectName).then((data: Record<string, any>) => {
-      const models: string[] = [];
-      for (const runtime of Object.keys(data)) {
-        for (const tier of Object.keys(data[runtime])) {
-          for (const m of data[runtime][tier]) {
-            if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
-          }
+    if (!modelsData) return;
+    const models: string[] = [];
+    for (const runtime of Object.keys(modelsData as Record<string, any>)) {
+      for (const tier of Object.keys((modelsData as Record<string, any>)[runtime])) {
+        for (const m of (modelsData as Record<string, any>)[runtime][tier]) {
+          if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
         }
       }
-      setAvailableModels(models);
-    }).catch(() => {});
-  }, [projectName]);
+    }
+    setAvailableModels(models);
+  }, [modelsData]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -416,7 +426,8 @@ function AgentDetailPanel({
 
 function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (id: string) => void; isSelected: boolean }) {
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
-  const { tasks, agentOutputs } = useFlightdeck();
+  const { tasks } = useTasks();
+  const { agentOutputs } = useAgentsHook();
   const currentTask = tasks.find(t => t.id === (agent.currentTask ?? agent.current_task));
   const liveOutput = agentOutputs.get(agent.id) ?? '';
 
@@ -484,7 +495,8 @@ function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (i
 }
 
 export default function Agents() {
-  const { agents, loading, projectName, agentOutputs, agentStreamChunks } = useFlightdeck();
+  const { agents, agentOutputs, agentStreamChunks } = useAgentsHook();
+  const { loading, projectName } = useProject();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) ?? null;

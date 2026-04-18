@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api.ts';
 import { useWsEventBus } from './useWsEventBus.tsx';
 import { useProject } from './useProject.tsx';
@@ -12,36 +13,27 @@ export interface TaskContextValue {
 const TaskCtx = createContext<TaskContextValue | null>(null);
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [decisions, setDecisions] = useState<Decision[]>([]);
   const { subscribe } = useWsEventBus();
   const { projectName } = useProject();
 
-  const fetchTasks = useCallback(async () => {
-    if (!projectName) return;
-    try {
-      const [t, d] = await Promise.all([
-        api.getTasks(projectName).catch(() => []),
-        api.getDecisions(projectName).catch(() => []),
-      ]);
-      setTasks(t);
-      setDecisions(d);
-    } catch { /* ignore */ }
-  }, [projectName]);
+  const { data: tasks = [], mutate: mutateTasks } = useSWR(
+    projectName ? ['tasks', projectName] : null,
+    () => api.getTasks(projectName!).catch(() => [] as Task[])
+  );
 
-  useEffect(() => {
-    setTasks([]);
-    setDecisions([]);
-    fetchTasks();
-  }, [fetchTasks]);
+  const { data: decisions = [], mutate: mutateDecisions } = useSWR(
+    projectName ? ['decisions', projectName] : null,
+    () => api.getDecisions(projectName!).catch(() => [] as Decision[])
+  );
 
   useEffect(() => {
     return subscribe((event) => {
       if (event.type === 'state:update') {
-        fetchTasks();
+        mutateTasks();
+        mutateDecisions();
       }
     });
-  }, [subscribe, fetchTasks]);
+  }, [subscribe, mutateTasks, mutateDecisions]);
 
   return (
     <TaskCtx.Provider value={{ tasks, decisions }}>

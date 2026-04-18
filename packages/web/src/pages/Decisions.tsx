@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useTasks } from '../hooks/useTasks.tsx';
+import { useProject } from '../hooks/useProject.tsx';
 import { Check, Circle, X, Landmark, Zap, Package, Palette, Pin, Scale } from 'lucide-react';
 import type { Decision, DecisionStatus } from '../lib/types.ts';
 
@@ -64,7 +65,8 @@ function DecisionCard({ decision, isExpanded, onToggle }: { decision: Decision; 
 }
 
 export default function Decisions() {
-  const { decisions, loading } = useFlightdeck();
+  const { decisions } = useTasks();
+  const { loading } = useProject();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
 

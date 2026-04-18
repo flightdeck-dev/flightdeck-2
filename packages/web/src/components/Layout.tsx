@@ -6,7 +6,7 @@ import { SectionErrorBoundary } from './ErrorBoundary.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { DisplaySettings } from './DisplaySettings.tsx';
 import { SearchDialog } from './SearchDialog.tsx';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useProject } from '../hooks/useProject.tsx';
 
 export function Layout() {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
@@ -23,7 +23,7 @@ export function Layout() {
   }, []);
   const toggleDisplaySettings = useCallback(() => setShowDisplaySettings(s => !s), []);
   const closeDisplaySettings = useCallback(() => setShowDisplaySettings(false), []);
-  const { status, connected, projectName } = useFlightdeck();
+  const { status, connected, projectName } = useProject();
 
   // Gateway health check (independent of project WebSocket)
   const [gatewayOnline, setGatewayOnline] = useState(false);

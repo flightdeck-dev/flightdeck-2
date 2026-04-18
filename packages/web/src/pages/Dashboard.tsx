@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { useProject } from '../hooks/useProject.tsx';
+import { useTasks } from '../hooks/useTasks.tsx';
+import { useAgents } from '../hooks/useAgents.tsx';
+import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { Markdown } from '../components/Markdown.tsx';
 import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot, ChevronDown, ChevronUp } from 'lucide-react';
@@ -76,15 +80,14 @@ interface TokenByAgent {
 
 function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsage: { totalIn: number; totalOut: number; totalCacheRead: number; totalCacheWrite: number; totalCost: number; requestCount: number } }) {
   const [expanded, setExpanded] = useState(false);
-  const [byAgent, setByAgent] = useState<TokenByAgent[]>([]);
 
-  useEffect(() => {
-    if (!expanded || !projectName) return;
-    fetch(`/api/projects/${projectName}/token-usage`)
+  const { data: byAgentData } = useSWR(
+    expanded && projectName ? ['token-usage-agents', projectName] : null,
+    () => fetch(`/api/projects/${projectName}/token-usage`)
       .then(r => r.json())
-      .then(data => setByAgent(data.byAgent ?? []))
-      .catch(() => {});
-  }, [expanded, projectName]);
+      .then(data => data.byAgent ?? [])
+  );
+  const byAgent: TokenByAgent[] = byAgentData ?? [];
 
   return (
     <div className="mt-2">
@@ -115,7 +118,10 @@ function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsa
 }
 
 export default function Dashboard() {
-  const { status, tasks, agents, messages, loading } = useFlightdeck();
+  const { status, loading } = useProject();
+  const { tasks } = useTasks();
+  const { agents } = useAgents();
+  const { messages } = useChat();
 
   if (loading) {
     return (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useDisplay } from '../hooks/useDisplay.tsx';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
@@ -10,7 +10,7 @@ const PRESET_DESCRIPTIONS: Record<string, string> = {
 };
 
 export function DisplaySettings({ onClose }: { onClose: () => void }) {
-  const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
+  const { displayConfig, setDisplayConfig, applyDisplayPreset } = useDisplay();
   const [showOverrides, setShowOverrides] = useState(false);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api.ts';
 import { MAX_MESSAGES } from '../lib/constants.ts';
 import { wsClient } from '../lib/ws.ts';
@@ -36,7 +37,7 @@ export interface ChatContextValue {
 const ChatCtx = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [wsMessages, setWsMessages] = useState<ChatMessage[]>([]);
   const [streamingMessages, setStreamingMessages] = useState(new Map<string, string>());
   const [streamingChunks, setStreamingChunks] = useState(new Map<string, StreamChunk[]>());
   const [toolCallMap, setToolCallMap] = useState(new Map<string, ToolCallState>());
@@ -63,24 +64,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const fetchMessages = useCallback(async () => {
-    if (!projectName) return;
-    try {
-      const m = await api.getMessages(projectName, { limit: 100, author_types: displayConfig.flightdeckTools === 'detail' ? undefined : 'user,lead,system' });
-      setMessages(m);
-    } catch { /* ignore */ }
-  }, [projectName, displayConfig.flightdeckTools]);
+  // SWR for initial message load
+  const { data: initialMessages } = useSWR(
+    projectName ? ['messages', projectName, displayConfig.flightdeckTools] : null,
+    () => api.getMessages(projectName!, { limit: 100, author_types: displayConfig.flightdeckTools === 'detail' ? undefined : 'user,lead,system' })
+  );
 
+  // Clear WS messages when project changes
   useEffect(() => {
-    setMessages([]);
+    setWsMessages([]);
     streamingRef.current.clear();
     streamingChunksRef.current.clear();
     toolCallMapRef.current.clear();
     setStreamingMessages(new Map());
     setStreamingChunks(new Map());
     setToolCallMap(new Map());
-    fetchMessages();
-  }, [fetchMessages]);
+  }, [projectName]);
+
+  // Merge initial SWR data with WS-streamed messages
+  const messages = (() => {
+    const base = initialMessages ?? [];
+    if (wsMessages.length === 0) return base;
+    const ids = new Set(base.map(m => m.id));
+    const newMsgs = wsMessages.filter(m => !ids.has(m.id));
+    return [...base, ...newMsgs].slice(-MAX_MESSAGES);
+  })();
 
   useEffect(() => {
     return subscribe((event) => {
@@ -89,7 +97,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const msg = event.message;
           const isDebugMode = displayConfigRef.current.flightdeckTools === 'detail';
           if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
-          setMessages(prev => {
+          setWsMessages(prev => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), msg];
           });
@@ -137,7 +145,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           break;
         }
         case 'task:comment':
-          setMessages(prev => {
+          setWsMessages(prev => {
             if (prev.some(m => m.id === event.message.id)) return prev;
             return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
           });

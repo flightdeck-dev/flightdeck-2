@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api.ts';
 import { useWsEventBus } from './useWsEventBus.tsx';
 import { useProject } from './useProject.tsx';
@@ -20,7 +21,6 @@ export interface AgentContextValue {
 const AgentCtx = createContext<AgentContextValue | null>(null);
 
 export function AgentProvider({ children }: { children: ReactNode }) {
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [agentOutputs, setAgentOutputs] = useState(new Map<string, string>());
   const [agentStreamChunks, setAgentStreamChunks] = useState(new Map<string, StreamChunk[]>());
   const agentOutputsRef = useRef(new Map<string, string>());
@@ -41,27 +41,23 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const fetchAgents = useCallback(async () => {
-    if (!projectName) return;
-    try {
-      const a = await api.getAgents(projectName);
-      setAgents(a);
-    } catch { /* ignore */ }
-  }, [projectName]);
+  const { data: agents = [], mutate: mutateAgents } = useSWR(
+    projectName ? ['agents', projectName] : null,
+    () => api.getAgents(projectName!)
+  );
 
+  // Clear streaming state when project changes
   useEffect(() => {
-    setAgents([]);
     agentOutputsRef.current.clear();
     agentStreamChunksRef.current.clear();
     setAgentOutputs(new Map());
     setAgentStreamChunks(new Map());
-    fetchAgents();
-  }, [fetchAgents]);
+  }, [projectName]);
 
   useEffect(() => {
     return subscribe((event) => {
       if (event.type === 'state:update') {
-        fetchAgents();
+        mutateAgents();
       } else if (event.type === 'agent:stream') {
         const prev = agentOutputsRef.current.get(event.agentId) ?? '';
         agentOutputsRef.current.set(event.agentId, prev + event.delta);
@@ -95,7 +91,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         scheduleFlush();
       }
     });
-  }, [subscribe, fetchAgents]);
+  }, [subscribe, mutateAgents]);
 
   useEffect(() => {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };

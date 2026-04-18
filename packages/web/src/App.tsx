@@ -2,7 +2,8 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Layout } from './components/Layout.tsx';
-import { FlightdeckProvider, useFlightdeck } from './hooks/useFlightdeck.tsx';
+import { FlightdeckProviders } from './hooks/FlightdeckProviders.tsx';
+import { useProject } from './hooks/useProject.tsx';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.tsx'));
 const Chat = lazy(() => import('./pages/Chat.tsx'));
@@ -18,11 +19,11 @@ function PageFallback() {
   return <div className="p-8 text-[var(--color-text-secondary)]">Loading...</div>;
 }
 
-/** Wrapper that extracts projectName from URL params and provides it to FlightdeckProvider */
+/** Wrapper that extracts projectName from URL params and provides it to FlightdeckProviders */
 function ProjectScope() {
   const { projectName } = useParams();
   return (
-    <FlightdeckProvider projectName={projectName ?? null}>
+    <FlightdeckProviders projectName={projectName ?? null}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route element={<Layout />}>
@@ -38,21 +39,21 @@ function ProjectScope() {
           </Route>
         </Routes>
       </Suspense>
-    </FlightdeckProvider>
+    </FlightdeckProviders>
   );
 }
 
 /** Redirect root to first project's dashboard */
 function RootRedirect() {
   return (
-    <FlightdeckProvider projectName={null}>
+    <FlightdeckProviders projectName={null}>
       <RootRedirectInner />
-    </FlightdeckProvider>
+    </FlightdeckProviders>
   );
 }
 
 function RootRedirectInner() {
-  const { projects, loading } = useFlightdeck();
+  const { projects, loading } = useProject();
   if (loading) return <PageFallback />;
   if (projects.length > 0) {
     return <Navigate to={`/${encodeURIComponent(projects[0].name)}`} replace />;
@@ -70,7 +71,7 @@ function RootRedirectInner() {
 
 function GlobalSettingsPage() {
   return (
-    <FlightdeckProvider projectName={null}>
+    <FlightdeckProviders projectName={null}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route element={<Layout />}>
@@ -78,7 +79,7 @@ function GlobalSettingsPage() {
           </Route>
         </Routes>
       </Suspense>
-    </FlightdeckProvider>
+    </FlightdeckProviders>
   );
 }
 

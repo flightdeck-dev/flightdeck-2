@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
 import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
-import type { StreamChunk, ToolCallState } from '../hooks/useFlightdeck.tsx';
+import { useProject } from '../hooks/useProject.tsx';
+import { useChat } from '../hooks/useChat.tsx';
+import { useAgents } from '../hooks/useAgents.tsx';
+import { useDisplay } from '../hooks/useDisplay.tsx';
+import type { StreamChunk, ToolCallState } from '../hooks/useChat.tsx';
 import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
@@ -422,7 +425,10 @@ export default function Chat() {
   // - useSearchState() for searchQuery, showSearch, searchIdx
   // - useSpeechRecognition() for isListening, speechLang, recognition
   // - useChatInput() for input, replyTo, waitingForLead
-  const { messages, streamingMessages, streamingChunks, toolCallMap, displayConfig, sendChat, interruptLead, connected, projectName, agents } = useFlightdeck();
+  const { messages, streamingMessages, streamingChunks, toolCallMap, sendChat, interruptLead } = useChat();
+  const { displayConfig } = useDisplay();
+  const { connected, projectName } = useProject();
+  const { agents } = useAgents();
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);

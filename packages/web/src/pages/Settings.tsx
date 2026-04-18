@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import useSWR from 'swr';
+import { useProject } from '../hooks/useProject.tsx';
+import { useDisplay } from '../hooks/useDisplay.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
 import { Loader2 } from 'lucide-react';
@@ -56,7 +58,7 @@ interface RuntimeInfo {
   loginInstructions?: string; installHint?: string; supportsSessionLoad?: boolean;
 }
 
-function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }: {
+function RuntimeCard({ rt, projectName: _projectName, enabled, onToggle, testResult, testing }: {
   rt: RuntimeInfo; projectName: string; enabled: boolean;
   onToggle: (id: string, enabled: boolean) => void;
   testResult: { success: boolean; installed: boolean; version?: string; message: string } | null;
@@ -144,52 +146,55 @@ function RuntimeCard({ rt, projectName, enabled, onToggle, testResult, testing }
 
 /** Global settings — display, runtimes (no project context needed) */
 function GlobalSettings() {
-  const { displayConfig, setDisplayConfig, applyDisplayPreset } = useFlightdeck();
-  const [runtimes, setRuntimes] = useState<RuntimeInfo[] | null>(null);
-  const [runtimeProject, setRuntimeProject] = useState<string>('');
-  const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
-  const [runtimeOrder, setRuntimeOrder] = useState<string[]>([]);
+  const { displayConfig, setDisplayConfig, applyDisplayPreset } = useDisplay();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [disabledLoaded, setDisabledLoaded] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
   const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
 
+  // Fetch projects to get first project name for runtime context
+  const { data: projectsData } = useSWR('projects-for-settings', () =>
+    fetch('/api/projects').then(r => r.json()).then(d => d.projects ?? [])
+  );
+  const runtimeProject = projectsData?.[0]?.name ?? '';
+
+  const { data: runtimesData, mutate: _mutateRuntimes } = useSWR(
+    runtimeProject ? ['runtimes-settings', runtimeProject] : null,
+    () => api.getRuntimes(runtimeProject) as Promise<RuntimeInfo[]>
+  );
+  const runtimes = runtimesData ?? null;
+
+  const { data: globalCfg } = useSWR('global-config', () =>
+    fetch('/api/global-config').then(r => r.json())
+  );
+  const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
+  const [runtimeOrder, setRuntimeOrder] = useState<string[]>([]);
+  const [disabledLoaded, setDisabledLoaded] = useState(false);
+
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(data => {
-      const projects = data.projects ?? [];
-      if (projects.length > 0) {
-        const pName = projects[0].name;
-        setRuntimeProject(pName);
-        api.getRuntimes(pName).then((rts: RuntimeInfo[]) => {
-          setRuntimes(rts);
-          // H7: Test all runtimes in parallel instead of serially
-          const testPromises = rts.map(rt => {
-            setTestingSet(prev => new Set(prev).add(rt.id));
-            return api.testRuntime(pName, rt.id)
-              .then(result => {
-                setTestResults(prev => ({ ...prev, [rt.id]: result }));
-              })
-              .catch(() => {
-                setTestResults(prev => ({ ...prev, [rt.id]: { success: false, installed: false, message: 'Test failed' } }));
-              })
-              .finally(() => {
-                setTestingSet(prev => { const next = new Set(prev); next.delete(rt.id); return next; });
-              });
-          });
-          Promise.all(testPromises);
-        }).catch(() => {});
-        fetch(`/api/global-config`).then(r => r.json()).then(globalCfg => {
-          if (globalCfg.disabledRuntimes) {
-            setDisabledRuntimes(globalCfg.disabledRuntimes);
-          }
-          if (globalCfg.runtimeOrder) {
-            setRuntimeOrder(globalCfg.runtimeOrder);
-          }
-          setDisabledLoaded(true);
-        }).catch(() => { setDisabledLoaded(true); });
-      }
-    }).catch(() => {});
-  }, []);
+    if (globalCfg) {
+      if (globalCfg.disabledRuntimes) setDisabledRuntimes(globalCfg.disabledRuntimes);
+      if (globalCfg.runtimeOrder) setRuntimeOrder(globalCfg.runtimeOrder);
+      setDisabledLoaded(true);
+    }
+  }, [globalCfg]);
+
+  // Test runtimes when they load
+  useEffect(() => {
+    if (!runtimes || !runtimeProject) return;
+    runtimes.forEach(rt => {
+      setTestingSet(prev => new Set(prev).add(rt.id));
+      api.testRuntime(runtimeProject, rt.id)
+        .then(result => {
+          setTestResults(prev => ({ ...prev, [rt.id]: result }));
+        })
+        .catch(() => {
+          setTestResults(prev => ({ ...prev, [rt.id]: { success: false, installed: false, message: 'Test failed' } }));
+        })
+        .finally(() => {
+          setTestingSet(prev => { const next = new Set(prev); next.delete(rt.id); return next; });
+        });
+    });
+  }, [runtimes, runtimeProject]);
 
   const toggleRuntime = useCallback(async (id: string, enabled: boolean) => {
     const newDisabled = enabled
@@ -202,23 +207,6 @@ function GlobalSettings() {
       setDisabledRuntimes(disabledRuntimes);
     }
   }, [disabledRuntimes, runtimeProject]);
-
-  const moveRuntime = useCallback(async (id: string, direction: 'up' | 'down') => {
-    if (!runtimes) return;
-    const sorted = getSortedRuntimes();
-    const idx = sorted.findIndex(rt => rt.id === id);
-    if (idx < 0) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const newOrder = sorted.map(rt => rt.id);
-    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
-    setRuntimeOrder(newOrder);
-    try {
-      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtimeOrder: newOrder }) });
-    } catch {
-      setRuntimeOrder(runtimeOrder);
-    }
-  }, [runtimes, runtimeOrder, runtimeProject]);
 
   const getSortedRuntimes = useCallback(() => {
     if (!runtimes) return [];
@@ -340,7 +328,7 @@ function GlobalSettings() {
 
 /** Project-scoped settings — project info, heartbeat, governance */
 function ProjectSettings() {
-  const { status, projectName } = useFlightdeck();
+  const { status, projectName } = useProject();
   const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(true);
   const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
@@ -459,7 +447,7 @@ function ProjectSettings() {
 }
 
 export default function Settings() {
-  const { projectName } = useFlightdeck();
+  const { projectName } = useProject();
 
   return (
     <div className="max-w-3xl space-y-8">

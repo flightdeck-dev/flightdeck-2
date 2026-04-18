@@ -1,6 +1,7 @@
 import { NavLink, useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useProject } from '../hooks/useProject.tsx';
+import { useAgents } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
 import { Folder, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown } from 'lucide-react';
@@ -165,7 +166,8 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
 }
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { projects, agents, refresh } = useFlightdeck();
+  const { projects, refresh } = useProject();
+  const { agents } = useAgents();
   const [archivedProjects, setArchivedProjects] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ListTodo, Plus, ChevronUp, ChevronDown } from 'lucide-react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useProject } from '../hooks/useProject.tsx';
+import { useTasks } from '../hooks/useTasks.tsx';
+import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { api } from '../lib/api.ts';
 import type { Task, TaskState } from '../lib/types.ts';
@@ -50,7 +52,7 @@ function DependencyTree({ task, allTasks }: { task: Task; allTasks: Task[] }) {
 // Currently 4 modal implementations (CreateTaskModal, CreateCronModal, CreateRoleModal, CreateProjectModal)
 // duplicate backdrop, close-on-click-outside, and layout patterns.
 function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const { projectName } = useFlightdeck();
+  const { projectName } = useProject();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [role, setRole] = useState('developer');
@@ -142,7 +144,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
 function TaskCard({ task, allTasks, isExpanded, onToggle }: {
   task: Task; allTasks: Task[]; isExpanded: boolean; onToggle: () => void;
 }) {
-  const { sendTaskComment, messages } = useFlightdeck();
+  const { sendTaskComment, messages } = useChat();
   const [comment, setComment] = useState('');
   const agent = task.assignedAgent ?? task.assigned_agent;
   const taskComments = messages.filter(m => m.taskId === task.id || m.task_id === task.id);
@@ -223,7 +225,8 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
 }
 
 export default function Tasks() {
-  const { tasks, loading, refresh } = useFlightdeck();
+  const { tasks } = useTasks();
+  const { loading, refresh } = useProject();
   const [filter, setFilter] = useState<TaskState | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);

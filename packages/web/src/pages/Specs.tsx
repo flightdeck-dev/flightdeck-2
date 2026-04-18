@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api.ts';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useProject } from '../hooks/useProject.tsx';
 import { Markdown } from '../components/Markdown.tsx';
 import { FileText } from 'lucide-react';
 
@@ -12,33 +13,22 @@ interface SpecFile {
 }
 
 export default function Specs() {
-  const { projectName } = useFlightdeck();
-  const [specs, setSpecs] = useState<SpecFile[]>([]);
+  const { projectName } = useProject();
   const [selected, setSelected] = useState<string | null>(null);
-  const [report, setReport] = useState<string>('');
-  const [loading, setLoading] = useState(false);
 
-  const loadSpecs = useCallback(() => {
-    if (!projectName) return;
-    setLoading(true);
-    api.getSpecs(projectName)
-      .then((data: SpecFile[]) => {
-        setSpecs(data);
-        if (data.length > 0 && !selected) setSelected(data[0].id);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [projectName]);
+  const { data: specs = [], isLoading: loading } = useSWR(
+    projectName ? ['specs', projectName] : null,
+    () => api.getSpecs(projectName!) as Promise<SpecFile[]>
+  );
 
-  useEffect(() => { loadSpecs(); }, [loadSpecs]);
+  const { data: report = '' } = useSWR(
+    projectName ? ['report', projectName] : null,
+    () => api.getReport(projectName!).catch(() => '')
+  );
 
-  useEffect(() => {
-    if (projectName) {
-      api.getReport(projectName).then(setReport).catch(() => {});
-    }
-  }, [projectName]);
-
-  const activeSpec = specs.find(s => s.id === selected);
+  // Auto-select first spec
+  const effectiveSelected = selected ?? (specs.length > 0 ? specs[0].id : null);
+  const activeSpec = specs.find(s => s.id === effectiveSelected);
 
   if (!projectName) {
     return <div className="p-8 text-[var(--color-text-secondary)]">Select a project to view specs.</div>;
@@ -73,7 +63,7 @@ export default function Specs() {
               key={s.id}
               onClick={() => setSelected(s.id)}
               className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                selected === s.id
+                effectiveSelected === s.id
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'
               }`}
@@ -93,7 +83,7 @@ export default function Specs() {
             <button
               onClick={() => setSelected('__report__')}
               className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                selected === '__report__'
+                effectiveSelected === '__report__'
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'
               }`}
@@ -108,7 +98,7 @@ export default function Specs() {
 
         {/* Detail panel */}
         <div className="flex-1 min-w-0">
-          {selected === '__report__' ? (
+          {effectiveSelected === '__report__' ? (
             <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
               <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Daily Report</h2>
               {report ? (

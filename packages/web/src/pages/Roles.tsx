@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import useSWR from 'swr';
+import { useProject } from '../hooks/useProject.tsx';
 import { api } from '../lib/api.ts';
 import { Plus, X } from 'lucide-react';
 
@@ -62,18 +63,19 @@ function RoleCard({ role, onClick, isSelected, disabledRuntimes }: { role: RoleI
 }
 
 function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: string; onUpdate: () => void }) {
-  const { status } = useFlightdeck();
-  const [availableModels, setAvailableModels] = useState<Record<string, unknown>>({});
-  const [allRuntimes, setAllRuntimes] = useState<Array<{ id: string; name: string; supportsAcp?: boolean; supportsModelDiscovery?: boolean }>>([]);
+  const { status } = useProject();
+  const { data: availableModels = {} } = useSWR(
+    ['availableModels', project],
+    () => api.getAvailableModels(project)
+  );
+  const { data: allRuntimes = [] } = useSWR<Array<{ id: string; name: string; supportsAcp?: boolean; supportsModelDiscovery?: boolean }>>(
+    ['runtimes', project],
+    () => api.getRuntimes(project)
+  );
   const [prompt, setPrompt] = useState(role.instructions);
   const [promptDirty, setPromptDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeRuntime, setActiveRuntime] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getAvailableModels(project).then(setAvailableModels).catch(() => {});
-    api.getRuntimes(project).then(setAllRuntimes).catch(() => {});
-  }, [project]);
 
   useEffect(() => {
     setPrompt(role.instructions);
@@ -333,7 +335,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
 }
 
 export default function Roles() {
-  const { projectName, status } = useFlightdeck();
+  const { projectName, status } = useProject();
   const disabledRuntimes: string[] = (status?.config as any)?.disabledRuntimes ?? [];
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
@@ -341,17 +343,24 @@ export default function Roles() {
   const [prefDirty, setPrefDirty] = useState(false);
   const [prefSaving, setPrefSaving] = useState(false);
 
-  const loadRoles = useCallback(() => {
-    if (!projectName) return;
-    api.getRoles(projectName).then(setRoles).catch(() => {});
-  }, [projectName]);
+  const { data: rolesData, mutate: mutateRoles } = useSWR(
+    projectName ? ['roles', projectName] : null,
+    () => api.getRoles(projectName!)
+  );
+  const { data: prefData, mutate: mutatePref } = useSWR(
+    projectName ? ['rolePreference', projectName] : null,
+    () => api.getRolePreference(projectName!)
+  );
 
-  const loadPreference = useCallback(() => {
-    if (!projectName) return;
-    api.getRolePreference(projectName).then(r => { setPreference(r.content); setPrefDirty(false); }).catch(() => {});
-  }, [projectName]);
+  // Sync SWR data to local state
+  useEffect(() => {
+    if (rolesData) setRoles(rolesData);
+  }, [rolesData]);
+  useEffect(() => {
+    if (prefData) { setPreference(prefData.content); setPrefDirty(false); }
+  }, [prefData]);
 
-  useEffect(() => { loadRoles(); loadPreference(); }, [loadRoles, loadPreference]);
+  const loadRoles = useCallback(() => { mutateRoles(); }, [mutateRoles]);
 
   const savePreference = async () => {
     if (!projectName) return;
@@ -359,6 +368,7 @@ export default function Roles() {
     try {
       await api.updateRolePreference(projectName, preference);
       setPrefDirty(false);
+      mutatePref();
     } catch (e) { console.error(e); }
     setPrefSaving(false);
   };

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useFlightdeck } from '../hooks/useFlightdeck.tsx';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { useProject } from '../hooks/useProject.tsx';
 import { api } from '../lib/api.ts';
 import type { CronJob } from '../lib/types.ts';
 import { Clock, Plus, Play, Trash2, X } from 'lucide-react';
@@ -42,28 +43,20 @@ function timeUntil(iso: string | null): string {
 }
 
 export default function Cron() {
-  const { projectName } = useFlightdeck();
-  const [jobs, setJobs] = useState<CronJob[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { projectName } = useProject();
   const [showCreate, setShowCreate] = useState(false);
 
-  const refresh = useCallback(async () => {
-    if (!projectName) return;
-    try {
-      const data = await api.listCron(projectName);
-      setJobs(data);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, [projectName]);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  const { data: jobs = [], isLoading: loading, mutate: refresh } = useSWR(
+    projectName ? ['cron', projectName] : null,
+    () => api.listCron(projectName!)
+  );
 
   const toggleEnabled = async (job: CronJob) => {
     if (!projectName) return;
     try {
       if (job.enabled) await api.disableCron(projectName, job.id);
       else await api.enableCron(projectName, job.id);
-      refresh();
+      await refresh();
     } catch (e) { alert(`Failed: ${e}`); }
   };
 
@@ -71,7 +64,7 @@ export default function Cron() {
     if (!projectName) return;
     try {
       await api.runCron(projectName, job.id);
-      refresh();
+      await refresh();
     } catch (e) { alert(`Failed: ${e}`); }
   };
 
@@ -80,7 +73,7 @@ export default function Cron() {
     if (!window.confirm(`Delete cron job "${job.name}"?`)) return;
     try {
       await api.deleteCron(projectName, job.id);
-      refresh();
+      await refresh();
     } catch (e) { alert(`Failed: ${e}`); }
   };
 

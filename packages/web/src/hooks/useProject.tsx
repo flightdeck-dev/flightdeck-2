@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api.ts';
 import { useWsEventBus } from './useWsEventBus.tsx';
 import type { ProjectStatus, ProjectSummary } from '../lib/types.ts';
@@ -16,49 +17,28 @@ export interface ProjectContextValue {
 const ProjectCtx = createContext<ProjectContextValue | null>(null);
 
 export function ProjectProvider({ projectName, children }: { projectName: string | null; children: ReactNode }) {
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [status, setStatus] = useState<ProjectStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const { subscribe, connected } = useWsEventBus();
 
-  const fetchProjects = useCallback(async () => {
-    try {
-      const p = await api.getProjects();
-      setProjects(p);
-    } catch { /* ignore */ }
-  }, []);
+  const { data: projects = [], mutate: mutateProjects } = useSWR('projects', () => api.getProjects());
+  const { data: status = null, isLoading: statusLoading, mutate: mutateStatus } = useSWR(
+    projectName ? ['status', projectName] : null,
+    () => api.getStatus(projectName!)
+  );
 
-  const fetchStatus = useCallback(async () => {
-    if (!projectName) return;
-    try {
-      const s = await api.getStatus(projectName);
-      if (s) setStatus(s);
-    } catch { /* ignore */ }
-  }, [projectName]);
+  const loading = projectName ? statusLoading : false;
 
-  const refresh = useCallback(() => {
-    fetchProjects();
-    fetchStatus();
-  }, [fetchProjects, fetchStatus]);
-
-  useEffect(() => { fetchProjects(); }, [fetchProjects]);
-
-  useEffect(() => {
-    setLoading(true);
-    setStatus(null);
-    if (!projectName) { setLoading(false); return; }
-    fetchStatus().then(() => setLoading(false));
-  }, [projectName, fetchStatus]);
+  const fetchProjects = async () => { await mutateProjects(); };
+  const refresh = () => { mutateProjects(); mutateStatus(); };
 
   // Listen for state:update to refetch projects/status
   useEffect(() => {
     return subscribe((event) => {
       if (event.type === 'state:update') {
-        fetchProjects();
-        fetchStatus();
+        mutateProjects();
+        mutateStatus();
       }
     });
-  }, [subscribe, fetchProjects, fetchStatus]);
+  }, [subscribe, mutateProjects, mutateStatus]);
 
   return (
     <ProjectCtx.Provider value={{ projects, projectName, status, connected, loading, fetchProjects, refresh }}>
