@@ -25,6 +25,10 @@ const BridgeDiscordSchema = z.object({
   token: z.string().default(''),
   guildId: z.string().optional(),
   channelMap: z.record(z.string()).optional(),
+  streamMode: z.enum(['off', 'partial', 'block']).default('partial'),
+  autoThread: z.boolean().default(false),
+  requireMention: z.boolean().default(true),
+  slashCommands: z.boolean().default(true),
 });
 
 const BridgeTelegramSchema = z.object({

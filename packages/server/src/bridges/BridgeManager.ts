@@ -2,7 +2,7 @@
  * BridgeManager — manages all chat bridges and routes messages between
  * external platforms and Flightdeck projects.
  */
-import type { ChatBridge, BridgeConfig, BridgeMessage } from './types.js';
+import type { ChatBridge, BridgeConfig, BridgeMessage, SendMessageOptions } from './types.js';
 
 export class BridgeManager {
   private bridges = new Map<string, ChatBridge>();
@@ -21,12 +21,17 @@ export class BridgeManager {
     if (this.config.discord?.enabled && this.config.discord.token) {
       try {
         const { DiscordBridge } = await import('./DiscordBridge.js');
+        const dc = this.config.discord;
         const bridge = new DiscordBridge(
-          this.config.discord.token,
-          this.config.discord.guildId,
-          this.config.discord.channelMap,
+          dc.token,
+          dc.guildId,
+          dc.channelMap,
+          dc.streamMode ?? 'partial',
+          dc.autoThread ?? false,
+          dc.requireMention ?? true,
+          dc.slashCommands ?? true,
         );
-        const channelMap = this.config.discord.channelMap;
+        const channelMap = dc.channelMap;
         bridge.onMessage = (msg) => {
           const projectName = Object.entries(channelMap ?? {}).find(
             ([, chId]) => chId === msg.channelId,
@@ -117,10 +122,11 @@ export class BridgeManager {
     bridgeName: string,
     channelId: string,
     text: string,
+    options?: SendMessageOptions,
   ): Promise<void> {
     const bridge = this.bridges.get(bridgeName);
     if (!bridge) return;
-    await bridge.sendMessage(channelId, text);
+    await bridge.sendMessage(channelId, text, options);
   }
 
   getBridge(name: string): ChatBridge | undefined {

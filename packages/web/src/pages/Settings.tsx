@@ -329,13 +329,62 @@ function GlobalSettings() {
   );
 }
 
+/** Visual editor for channel/chat map (project name → channel ID) */
+function ChannelMapEditor({ value, onChange, idLabel = 'Channel ID' }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void; idLabel?: string }) {
+  const entries = Object.entries(value);
+
+  const addRow = () => {
+    onChange({ ...value, '': '' });
+  };
+
+  const removeRow = (key: string) => {
+    const next = { ...value };
+    delete next[key];
+    onChange(next);
+  };
+
+  const updateRow = (oldKey: string, newKey: string, newValue: string) => {
+    const next: Record<string, string> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === oldKey) {
+        next[newKey] = newValue;
+      } else {
+        next[k] = v;
+      }
+    }
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2 text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wider px-1">
+        <span className="flex-1">Project</span>
+        <span className="flex-1">{idLabel}</span>
+        <span className="w-6" />
+      </div>
+      {entries.map(([key, val], i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <input type="text" value={key} placeholder="project-name"
+            onChange={e => updateRow(key, e.target.value, val)}
+            className="flex-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] bg-[var(--color-surface)] outline-none focus:border-[var(--color-primary)]" />
+          <input type="text" value={val} placeholder="123456789"
+            onChange={e => updateRow(key, key, e.target.value)}
+            className="flex-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] bg-[var(--color-surface)] outline-none focus:border-[var(--color-primary)]" />
+          <button onClick={() => removeRow(key)} className="w-6 h-6 flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-red-400 rounded transition-colors" title="Remove">×</button>
+        </div>
+      ))}
+      <button onClick={addRow} className="text-xs text-[var(--color-primary)] hover:underline mt-1">+ Add mapping</button>
+    </div>
+  );
+}
+
 function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
   const [bridges, setBridges] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (globalCfg?.bridges) setBridges(globalCfg.bridges);
-    else setBridges({ discord: { enabled: false, token: '', guildId: '', channelMap: {} }, telegram: { enabled: false, token: '', chatMap: {} }, signal: { enabled: false, phoneNumber: '', apiUrl: 'http://localhost:8080', chatMap: {} } });
+    else setBridges({ discord: { enabled: false, token: '', guildId: '', channelMap: {}, streamMode: 'partial', autoThread: false, requireMention: true, slashCommands: true }, telegram: { enabled: false, token: '', chatMap: {} }, signal: { enabled: false, phoneNumber: '', apiUrl: 'http://localhost:8080', chatMap: {} } });
   }, [globalCfg]);
 
   const save = useCallback(async (updated: any) => {
@@ -367,14 +416,65 @@ function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
           <Toggle value={bridges.discord?.enabled ?? false} onChange={v => updateField('discord', 'enabled', v)} />
         </div>
         {bridges.discord?.enabled && (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3 mt-2">
             <input type="password" placeholder="Bot Token" value={bridges.discord?.token ?? ''}
               onChange={e => updateField('discord', 'token', e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
             <input type="text" placeholder="Guild ID (optional)" value={bridges.discord?.guildId ?? ''}
               onChange={e => updateField('discord', 'guildId', e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
-            <p className="text-xs text-[var(--color-text-tertiary)]">Channel Map: project → channel ID (in global-config.json)</p>
+
+            {/* Stream Mode */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm">Stream Mode</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">How Lead responses are delivered</p>
+              </div>
+              <select value={bridges.discord?.streamMode ?? 'partial'}
+                onChange={e => updateField('discord', 'streamMode', e.target.value)}
+                className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+                <option value="off">Off — complete message</option>
+                <option value="partial">Partial — live edits</option>
+                <option value="block">Block — thinking → final</option>
+              </select>
+            </div>
+
+            {/* Auto Thread */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm">Auto-Thread</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Create thread per conversation</p>
+              </div>
+              <Toggle value={bridges.discord?.autoThread ?? false} onChange={v => updateField('discord', 'autoThread', v)} />
+            </div>
+
+            {/* Require Mention */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm">Require @mention</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Only respond when bot is mentioned (channels only)</p>
+              </div>
+              <Toggle value={bridges.discord?.requireMention ?? true} onChange={v => updateField('discord', 'requireMention', v)} />
+            </div>
+
+            {/* Slash Commands */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm">Slash Commands</p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">/fd status, agents, tasks, model</p>
+              </div>
+              <Toggle value={bridges.discord?.slashCommands ?? true} onChange={v => updateField('discord', 'slashCommands', v)} />
+            </div>
+
+            {/* Channel Map */}
+            <div className="pt-2 border-t border-[var(--color-border)]">
+              <p className="text-sm mb-2">Channel Map</p>
+              <ChannelMapEditor
+                value={bridges.discord?.channelMap ?? {}}
+                onChange={v => updateField('discord', 'channelMap', v)}
+                idLabel="Channel ID"
+              />
+            </div>
           </div>
         )}
       </Card>
@@ -389,11 +489,18 @@ function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
           <Toggle value={bridges.telegram?.enabled ?? false} onChange={v => updateField('telegram', 'enabled', v)} />
         </div>
         {bridges.telegram?.enabled && (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3 mt-2">
             <input type="password" placeholder="Bot Token" value={bridges.telegram?.token ?? ''}
               onChange={e => updateField('telegram', 'token', e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
-            <p className="text-xs text-[var(--color-text-tertiary)]">Chat Map: project → chat ID (in global-config.json)</p>
+            <div className="pt-2 border-t border-[var(--color-border)]">
+              <p className="text-sm mb-2">Chat Map</p>
+              <ChannelMapEditor
+                value={bridges.telegram?.chatMap ?? {}}
+                onChange={v => updateField('telegram', 'chatMap', v)}
+                idLabel="Chat ID"
+              />
+            </div>
           </div>
         )}
       </Card>
@@ -408,14 +515,21 @@ function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
           <Toggle value={bridges.signal?.enabled ?? false} onChange={v => updateField('signal', 'enabled', v)} />
         </div>
         {bridges.signal?.enabled && (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3 mt-2">
             <input type="text" placeholder="Phone Number (+1234567890)" value={bridges.signal?.phoneNumber ?? ''}
               onChange={e => updateField('signal', 'phoneNumber', e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
             <input type="text" placeholder="API URL (default: http://localhost:8080)" value={bridges.signal?.apiUrl ?? 'http://localhost:8080'}
               onChange={e => updateField('signal', 'apiUrl', e.target.value)}
               className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
-            <p className="text-xs text-[var(--color-text-tertiary)]">Chat Map: project → phone/group (in global-config.json)</p>
+            <div className="pt-2 border-t border-[var(--color-border)]">
+              <p className="text-sm mb-2">Chat Map</p>
+              <ChannelMapEditor
+                value={bridges.signal?.chatMap ?? {}}
+                onChange={v => updateField('signal', 'chatMap', v)}
+                idLabel="Phone / Group"
+              />
+            </div>
           </div>
         )}
       </Card>
