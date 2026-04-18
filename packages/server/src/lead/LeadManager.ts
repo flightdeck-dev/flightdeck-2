@@ -1,4 +1,8 @@
 
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+function formatTs(): string { try { const p = join(homedir(), ".flightdeck", "v2", "global-config.json"); if (existsSync(p)) { const tz = JSON.parse(readFileSync(p, "utf-8")).timezone; if (tz) return new Date().toLocaleString("en-US", { timeZone: tz, hour12: false }); } } catch {} return new Date().toISOString().slice(0, 19) + "Z"; }
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
@@ -322,7 +326,7 @@ export class LeadManager {
 
     switch (event.type) {
       case 'user_message': {
-        const ts = new Date().toISOString().slice(0, 19) + 'Z';
+        const ts = formatTs();
         parts.push(`[${ts}] [USER]`);
         if (event.message.id) parts.push(`message_id: ${event.message.id}`);
         parts.push(`source: web-dashboard`);
@@ -336,7 +340,7 @@ export class LeadManager {
       }
 
       case 'task_comment': {
-        const tcTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const tcTs = formatTs();
         parts.push(`[${tcTs}] [USER]`);
         if (event.message.id) parts.push(`message_id: ${event.message.id}`);
         parts.push(`task_id: ${event.taskId}`);
@@ -350,7 +354,7 @@ export class LeadManager {
       }
 
       case 'task_failure': {
-        const tfTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const tfTs = formatTs();
         parts.push(`[${tfTs}] [SYSTEM]`);
         parts.push(`task_id: ${event.taskId}`);
         parts.push(`source: task_failure`);
@@ -362,7 +366,7 @@ export class LeadManager {
       }
 
       case 'escalation': {
-        const escTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const escTs = formatTs();
         parts.push(`[${escTs}] [AGENT ${event.agentId}]`);
         parts.push(`agent_id: ${event.agentId}`);
         parts.push(`task_id: ${event.taskId}`);
@@ -373,7 +377,7 @@ export class LeadManager {
       }
 
       case 'spec_completed': {
-        const scTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const scTs = formatTs();
         parts.push(`[${scTs}] [SYSTEM]`);
         parts.push(`source: spec_completed`);
         parts.push('---');
@@ -384,7 +388,7 @@ export class LeadManager {
       }
 
       case 'budget_warning': {
-        const bwTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const bwTs = formatTs();
         parts.push(`[${bwTs}] [SYSTEM]`);
         parts.push(`source: budget_warning`);
         parts.push('---');
@@ -393,7 +397,7 @@ export class LeadManager {
       }
 
       case 'spec_changed': {
-        const schTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const schTs = formatTs();
         parts.push(`[${schTs}] [SYSTEM]`);
         parts.push(`source: spec_changed`);
         parts.push('---');
@@ -407,7 +411,7 @@ export class LeadManager {
         return this.buildHeartbeatSteer();
 
       case 'worker_recovery': {
-        const wrTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const wrTs = formatTs();
         parts.push(`[${wrTs}] [SYSTEM]`);
         parts.push(`source: worker_recovery`);
         parts.push('---');
@@ -422,7 +426,7 @@ export class LeadManager {
       }
 
       case 'scout_report': {
-        const srTs = new Date().toISOString().slice(0, 19) + 'Z';
+        const srTs = formatTs();
         parts.push(`[${srTs}] [SYSTEM]`);
         parts.push(`source: scout_report`);
         parts.push('---');

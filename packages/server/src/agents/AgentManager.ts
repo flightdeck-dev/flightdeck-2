@@ -86,7 +86,6 @@ export function buildSystemPrompt(opts: {
   permissions: Record<string, boolean>;
   cwd?: string;
   memoryDir?: string;
-  timezone?: string;
   roleConfigs?: Array<{ role: string; runtime: string; model: string; enabledModels?: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }> }>;
   rolePreference?: string;
 }): string {
@@ -97,7 +96,6 @@ export function buildSystemPrompt(opts: {
 
   let prompt = `You are a ${opts.roleName} agent in Flightdeck project "${opts.projectName}".
 Your agent ID is: ${opts.agentId}
-${opts.timezone ? `Project timezone: ${opts.timezone}` : ""}
 
 ${opts.roleInstructions}
 
@@ -221,19 +219,6 @@ export class AgentManager {
     this.store.insertAgent(agent);
 
     // 3. Build system prompt
-    // Read timezone from global config
-    let timezone: string | undefined;
-    try {
-      const { readFileSync, existsSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const { FD_HOME } = await import('../cli/constants.js');
-      const gcPath = join(FD_HOME, 'global-config.json');
-      if (existsSync(gcPath)) {
-        const gc = JSON.parse(readFileSync(gcPath, 'utf-8'));
-        timezone = gc.timezone;
-      }
-    } catch { /* fallback: no timezone */ }
-
     const systemPrompt = buildSystemPrompt({
       roleName,
       roleInstructions,
@@ -241,7 +226,6 @@ export class AgentManager {
       projectName: this.projectName,
       permissions,
       cwd: opts.cwd,
-      timezone,
     });
 
     // 4. Set up isolation if configured

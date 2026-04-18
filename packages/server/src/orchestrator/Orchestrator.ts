@@ -17,6 +17,21 @@ import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector
 import { WebhookNotifier, type NotificationsConfig, taskCompletedEvent, taskFailedEvent, specCompletedEvent, escalationEvent, agentStallEvent, budgetWarningEvent } from '../integrations/WebhookNotifier.js';
 import type { SpecStore } from '../storage/SpecStore.js';
 import { processReview } from '../verification/ReviewFlow.js';
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+/** Format timestamp using global config timezone, fallback to UTC ISO */
+function formatTs(): string {
+  try {
+    const gcPath = join(homedir(), ".flightdeck", "v2", "global-config.json");
+    if (existsSync(gcPath)) {
+      const tz = JSON.parse(readFileSync(gcPath, "utf-8")).timezone;
+      if (tz) return new Date().toLocaleString("en-US", { timeZone: tz, hour12: false });
+    }
+  } catch {}
+  return new Date().toISOString().slice(0, 19) + "Z";
+}
 
 export interface GovernanceConfig {
   costThresholdPerDay?: number;
@@ -480,7 +495,7 @@ export class Orchestrator {
           if (runningMinutes > (this.governanceConfig.stallTimeoutMinutes ?? 10)) {
             // Running too long — send a reminder to submit
             await this.adapter.steer(task.acpSessionId, {
-              content: `[${new Date().toISOString().slice(0, 19)}Z] [SYSTEM] Task "${task.title}" (${task.id}) has been running for ${Math.round(runningMinutes)} minutes. If you've completed the work, please call flightdeck_task_submit now. If blocked, call flightdeck_escalate.`,
+              content: `[${${formatTs()}] [SYSTEM] Task "${task.title}" (${task.id}) has been running for ${Math.round(runningMinutes)} minutes. If you've completed the work, please call flightdeck_task_submit now. If blocked, call flightdeck_escalate.`,
             });
             detected++;
           }
@@ -490,7 +505,7 @@ export class Orchestrator {
         if (meta.status === 'idle') {
           // Idle session, task not submitted — light ping
           await this.adapter.steer(task.acpSessionId, {
-            content: `[${new Date().toISOString().slice(0, 19)}Z] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
+            content: `[${${formatTs()}] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
           });
           detected++;
         }
@@ -599,7 +614,7 @@ export class Orchestrator {
           assigned++;
 
           if (this.agentManager && agent.acpSessionId) {
-            const ts = new Date().toISOString().slice(0, 19) + 'Z';
+            const ts = formatTs();
             const t = task as any;
             const contextParts = [
               `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})`,
