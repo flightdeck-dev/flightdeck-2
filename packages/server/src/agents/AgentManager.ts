@@ -207,7 +207,7 @@ export class AgentManager {
     const agent: Agent = {
       id: newId,
       role: opts.role,
-      runtime: this.adapter.runtime,
+      runtime: opts.runtime ?? this.adapter.runtime,
       runtimeName: opts.runtime ?? null,
       acpSessionId: null,
       status: 'idle',

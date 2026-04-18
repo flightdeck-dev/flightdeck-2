@@ -179,7 +179,7 @@ export class LeadManager {
     this.sqlite.insertAgent({
       id: meta.agentId,
       role: 'lead',
-      runtime: 'acp',
+      runtime: this.leadRuntime ?? 'acp',
       runtimeName: this.leadRuntime ?? 'copilot',
       acpSessionId: meta.sessionId,
       status: 'busy',
@@ -508,7 +508,7 @@ export class LeadManager {
     this.sqlite.insertAgent({
       id: meta.agentId,
       role: 'planner',
-      runtime: 'acp',
+      runtime: this.plannerRuntime ?? this.leadRuntime ?? 'acp',
       runtimeName: this.plannerRuntime ?? this.leadRuntime ?? 'copilot',
       acpSessionId: meta.sessionId,
       status: 'busy',
@@ -674,7 +674,7 @@ export class LeadManager {
       this.sqlite.insertAgent({
         id: meta.agentId,
         role: 'lead',
-        runtime: 'acp',
+        runtime: this.leadRuntime ?? 'acp',
       runtimeName: this.leadRuntime ?? 'copilot',
         acpSessionId: meta.sessionId,
         status: 'busy',
@@ -708,7 +708,7 @@ export class LeadManager {
       this.sqlite.insertAgent({
         id: meta.agentId,
         role: 'planner',
-        runtime: 'acp',
+        runtime: this.plannerRuntime ?? this.leadRuntime ?? 'acp',
         runtimeName: this.plannerRuntime ?? this.leadRuntime ?? 'copilot',
         acpSessionId: meta.sessionId,
         status: 'busy',
