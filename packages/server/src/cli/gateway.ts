@@ -1,13 +1,26 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 import { messageId as makeMessageId, type AgentId, type TaskId, type AgentRole, type TaskState } from '@flightdeck-ai/shared';
-import { saveGatewayState, loadGatewayState, clearGatewayState, loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents, type SavedSession } from './gatewayState.js';
+import { loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents } from './gatewayState.js';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
 import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
+
+/** Session info for recovery across gateway restarts. */
+interface SavedSession {
+  project: string;
+  agentId: string;
+  role: string;
+  acpSessionId: string;
+  localSessionId: string;
+  cwd: string;
+  model?: string;
+  runtime?: string;
+  status?: 'hibernated' | 'active';
+}
 
 /** Loosely-typed ACP session update for streaming output. */
 interface SessionUpdate {
@@ -240,39 +253,14 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
 
-  // --- Session reload: three-layer protection ---
-  // Layer 1: reload-config.json — master switch + role filter
-  // Layer 2: lastReloadFailed flag — if previous reload crashed, don't retry
-  // Layer 3: --no-recover CLI flag (existing)
+  // --- Session reload config ---
   const reloadConfig = loadReloadConfig();
-  let savedState: ReturnType<typeof loadGatewayState> = null;
-
+  const sessionReloadEnabled = !noRecover && reloadConfig.enabled;
   if (noRecover) {
     console.error('Session reload disabled (--no-recover flag).');
   } else if (!reloadConfig.enabled) {
     console.error('Session reload disabled by reload-config.json.');
-  } else {
-    const rawState = loadGatewayState();
-    if (rawState?.lastReloadFailed) {
-      console.error('Session reload skipped: previous reload failed. Clear ~/.flightdeck/gateway-state.json to retry.');
-    } else if (rawState && Array.isArray(rawState.sessions) && rawState.sessions.length > 0) {
-      // Filter sessions by allowed roles (workers are always kept for recovery/pause logic)
-      const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
-      const filtered = rawState.sessions.filter(s => allowedRoles.has(s.role) || !['lead', 'planner'].includes(s.role));
-      const skipped = rawState.sessions.length - filtered.length;
-      if (skipped > 0) {
-        console.error(`Reload: skipping ${skipped} session(s) with non-reloadable roles (allowed: ${[...allowedRoles].join(', ')}).`);
-      }
-      if (filtered.length > 0) {
-        savedState = { ...rawState, sessions: filtered };
-        console.error(`Found saved state from ${rawState.savedAt} with ${filtered.length} reloadable session(s).`);
-      } else {
-        console.error('No reloadable sessions found in saved state.');
-      }
-    }
   }
-  // Clear state file regardless — we'll save fresh on next shutdown
-  clearGatewayState();
 
   const leadManagers = new Map<string, InstanceType<typeof LeadManager>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -375,7 +363,29 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
 
     // Spawn Lead + Planner (with session recovery if available)
-    const projectSessions = savedState?.sessions.filter(s => s.project === name) ?? [];
+    let projectSessions: SavedSession[] = [];
+    if (sessionReloadEnabled) {
+      const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
+      const dbSessions = fd.sqlite.loadSessions();
+      projectSessions = dbSessions
+        .map(s => ({
+          project: name,
+          agentId: s.agentId,
+          role: s.role,
+          acpSessionId: s.sessionId,
+          localSessionId: s.localSessionId ?? s.sessionId,
+          cwd: s.cwd ?? process.cwd(),
+          model: s.model ?? undefined,
+          runtime: s.runtime ?? undefined,
+          status: (s.status === 'active' ? 'active' : 'hibernated') as 'active' | 'hibernated',
+        }))
+        .filter(s => allowedRoles.has(s.role) || !['lead', 'planner'].includes(s.role));
+      if (projectSessions.length > 0) {
+        console.error(`  [${name}] Found ${projectSessions.length} saved session(s) for recovery.`);
+      }
+      // Clear after loading — we'll save fresh on next shutdown
+      fd.sqlite.clearSessions();
+    }
     await spawnAgents(fd, leadManager, name, projectSessions);
 
     // Worker recovery
@@ -497,59 +507,51 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     });
   });
 
-  // Helper: collect active sessions for state persistence
-  const collectSessions = (): SavedSession[] => {
-    const sessions: SavedSession[] = [];
+  // Helper: save active sessions to per-project SQLite
+  const saveAllSessionsToSqlite = (): void => {
     for (const [projectName, lm] of leadManagers.entries()) {
-      // Use LeadManager's session info (works with both ACP and SDK adapters)
+      const fd = projectManager.get(projectName);
+      if (!fd) continue;
+
       const leadInfo = lm.getLeadSessionInfo();
       if (leadInfo) {
-        sessions.push({
-          project: projectName,
+        fd.sqlite.saveSession({
           agentId: leadInfo.agentId,
           role: 'lead',
-          acpSessionId: leadInfo.acpSessionId,
+          sessionId: leadInfo.acpSessionId,
           localSessionId: leadInfo.sessionId,
           runtime: leadInfo.runtime,
-          cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
+          cwd: fd.status().config.cwd ?? process.cwd(),
         });
       }
 
       const plannerInfo = lm.getPlannerSessionInfo();
       if (plannerInfo) {
-        sessions.push({
-          project: projectName,
+        fd.sqlite.saveSession({
           agentId: plannerInfo.agentId,
           role: 'planner',
-          acpSessionId: plannerInfo.acpSessionId,
+          sessionId: plannerInfo.acpSessionId,
           localSessionId: plannerInfo.sessionId,
           runtime: plannerInfo.runtime,
-          cwd: projectManager.get(projectName)?.status().config.cwd ?? process.cwd(),
+          cwd: fd.status().config.cwd ?? process.cwd(),
         });
       }
 
       // Save worker sessions
-      const fd = projectManager.get(projectName);
-      if (fd) {
-        const workerAgents = fd.listAgents().filter(a =>
-          a.status === 'busy' && a.acpSessionId && !['lead', 'planner'].includes(a.role)
-        );
-        for (const agent of workerAgents) {
-          // Workers spawned via HTTP relay have their acpSessionId in the DB.
-          // Use it directly instead of looking up via AcpAdapter (which may not track relay-spawned workers).
-          sessions.push({
-            project: projectName,
-            agentId: agent.id as string,
-            role: agent.role,
-            acpSessionId: agent.acpSessionId!,
-            localSessionId: agent.acpSessionId!,
-            cwd: process.cwd(),
-            status: 'active',
-          });
-        }
+      const workerAgents = fd.listAgents().filter(a =>
+        a.status === 'busy' && a.acpSessionId && !['lead', 'planner'].includes(a.role)
+      );
+      for (const agent of workerAgents) {
+        fd.sqlite.saveSession({
+          agentId: agent.id as string,
+          role: agent.role,
+          sessionId: agent.acpSessionId!,
+          localSessionId: agent.acpSessionId!,
+          cwd: process.cwd(),
+          status: 'active',
+        });
       }
     }
-    return sessions;
   };
 
   // Graceful shutdown
@@ -558,10 +560,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     clearInterval(stateSaveTimer);
 
     // Save session state before cleanup
-    const sessions = collectSessions();
-    if (sessions.length > 0) {
-      saveGatewayState({ savedAt: new Date().toISOString(), sessions });
-    }
+    try { saveAllSessionsToSqlite(); } catch {}
 
     for (const o of orchestrators) o.stop();
     for (const cs of cronSchedulers) cs.stop();
@@ -578,15 +577,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   // Periodic state persistence — saves sessions every 30s as a safety net.
-  // Handles cases where SIGTERM doesn't reach the process (e.g. npx/tsx wrappers,
-  // SIGKILL, OOM kills). On restart, the latest state file is used for recovery.
   const STATE_SAVE_INTERVAL = 30_000;
   const stateSaveTimer = setInterval(() => {
     try {
-      const sessions = collectSessions();
-      if (sessions.length > 0) {
-        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
-      }
+      saveAllSessionsToSqlite();
       // Also persist child PIDs for orphan detection on unclean restart
       const childPids = acpAdapter.getChildPids();
       if (childPids.length > 0) {
@@ -622,12 +616,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   process.on('uncaughtException', (err) => {
     console.error('\nFatal uncaught exception:', err);
     // Best-effort state save on crash
-    try {
-      const sessions = collectSessions();
-      if (sessions.length > 0) {
-        saveGatewayState({ savedAt: new Date().toISOString(), sessions });
-      }
-    } catch {}
+    try { saveAllSessionsToSqlite(); } catch {}
     try { acpAdapter.clear(); } catch {}
     process.exit(1);
   });

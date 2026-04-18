@@ -207,3 +207,17 @@ export const taskComments = sqliteTable('task_comments', {
   index('idx_task_comments_task').on(table.taskId),
 ]);
 
+// ── Saved Sessions (gateway restart recovery) ─────────────────────
+
+export const savedSessions = sqliteTable('saved_sessions', {
+  agentId: text('agent_id').primaryKey(),
+  role: text('role').notNull(),
+  sessionId: text('session_id').notNull(),
+  localSessionId: text('local_session_id'),
+  runtime: text('runtime'),
+  cwd: text('cwd'),
+  model: text('model'),
+  status: text('status').notNull().default('hibernated'),
+  savedAt: text('saved_at').notNull().default(utcNow),
+});
+

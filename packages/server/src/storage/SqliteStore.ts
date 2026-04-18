@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks, savedSessions } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -548,5 +548,24 @@ export class SqliteStore extends EventEmitter {
 
   clearTaskStale(id: TaskId): void {
     this._db.run(sql`UPDATE tasks SET stale = 0 WHERE id = ${id as string}`);
+  }
+
+  // ── Saved Sessions (gateway restart recovery) ──
+
+  saveSession(entry: { agentId: string; role: string; sessionId: string; localSessionId?: string; runtime?: string; cwd?: string; model?: string; status?: string }): void {
+    const now = new Date().toISOString();
+    this._db.run(sql`INSERT INTO saved_sessions (agent_id, role, session_id, local_session_id, runtime, cwd, model, status, saved_at) VALUES (${entry.agentId}, ${entry.role}, ${entry.sessionId}, ${entry.localSessionId ?? null}, ${entry.runtime ?? null}, ${entry.cwd ?? null}, ${entry.model ?? null}, ${entry.status ?? 'hibernated'}, ${now}) ON CONFLICT(agent_id) DO UPDATE SET role = ${entry.role}, session_id = ${entry.sessionId}, local_session_id = ${entry.localSessionId ?? null}, runtime = ${entry.runtime ?? null}, cwd = ${entry.cwd ?? null}, model = ${entry.model ?? null}, status = ${entry.status ?? 'hibernated'}, saved_at = ${now}`);
+  }
+
+  loadSessions(): Array<{ agentId: string; role: string; sessionId: string; localSessionId: string | null; runtime: string | null; cwd: string | null; model: string | null; status: string }> {
+    return this._db.select().from(savedSessions).all();
+  }
+
+  clearSessions(): void {
+    this._db.delete(savedSessions).run();
+  }
+
+  deleteSession(agentId: string): void {
+    this._db.delete(savedSessions).where(eq(savedSessions.agentId, agentId)).run();
   }
 }

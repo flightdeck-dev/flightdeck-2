@@ -192,15 +192,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       if (wsServers?.has(projectName)) wsServers.delete(projectName);
       modelCfgCache.delete(projectName);
       if (projectManager.delete(projectName)) {
-        // Force gateway state save to remove deleted project's sessions
-        try {
-          const { loadGatewayState, saveGatewayState } = await import('../cli/gatewayState.js');
-          const existingState = loadGatewayState();
-          if (existingState) {
-            const filtered = existingState.sessions.filter(s => s.project !== projectName);
-            saveGatewayState({ savedAt: new Date().toISOString(), sessions: filtered });
-          }
-        } catch { /* best effort */ }
+        // Sessions are stored in the project's own SQLite, which is deleted with the project.
+        // No extra cleanup needed.
         json(200, { message: `Project "${projectName}" deleted` });
       }
       else json(404, { error: `Project "${projectName}" not found` });

@@ -3,67 +3,7 @@ import * as path from 'node:path';
 import { writeJsonAtomicSync } from '../infra/json-files.js';
 import { FD_HOME } from './constants.js';
 
-export interface SavedSession {
-  project: string;
-  agentId: string;
-  role: string;
-  acpSessionId: string;
-  localSessionId: string;
-  cwd: string;
-  model?: string;
-  runtime?: string;
-  status?: 'hibernated' | 'active';
-}
-
-export interface GatewayState {
-  savedAt: string;
-  sessions: SavedSession[];
-  /** Set to true when a reload attempt failed (OOM, crash, etc.) */
-  lastReloadFailed?: boolean;
-  /** PIDs of child agent processes spawned by this gateway instance. */
-  agentPids?: number[];
-  /** PID of the gateway process that saved this state. */
-  gatewayPid?: number;
-}
-
 const STATE_DIR = FD_HOME;
-const STATE_FILE = path.join(STATE_DIR, 'gateway-state.json');
-const RELOAD_CONFIG_FILE = path.join(STATE_DIR, 'reload-config.json');
-
-/**
- * Save active gateway sessions to disk (synchronous for use in signal handlers).
- */
-export function saveGatewayState(state: GatewayState): void {
-  try {
-    writeJsonAtomicSync(STATE_FILE, state);
-    console.error(`Saved ${state.sessions.length} session(s) to ${STATE_FILE}`);
-  } catch (err) {
-    console.error('Failed to save gateway state:', err);
-  }
-}
-
-/**
- * Load saved gateway state from disk. Returns null if no state file exists.
- */
-export function loadGatewayState(): GatewayState | null {
-  try {
-    const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-    return JSON.parse(raw) as GatewayState;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Delete the gateway state file after processing.
- */
-export function clearGatewayState(): void {
-  try {
-    fs.unlinkSync(STATE_FILE);
-  } catch {
-    // file doesn't exist, that's fine
-  }
-}
 
 /**
  * Reload configuration. Controls whether gateway should reload sessions on restart.
@@ -75,6 +15,8 @@ export interface ReloadConfig {
   /** Which roles to reload. Default: ['lead'] (never reload workers) */
   roles?: string[];
 }
+
+const RELOAD_CONFIG_FILE = path.join(STATE_DIR, 'reload-config.json');
 
 const DEFAULT_RELOAD_CONFIG: ReloadConfig = {
   enabled: true,
@@ -90,37 +32,6 @@ export function loadReloadConfig(): ReloadConfig {
     return { ...DEFAULT_RELOAD_CONFIG, ...JSON.parse(raw) };
   } catch {
     return DEFAULT_RELOAD_CONFIG;
-  }
-}
-
-/**
- * Mark that a reload attempt failed. Next startup will see this and skip reload.
- */
-export function markReloadFailed(): void {
-  try {
-    const state = loadGatewayState();
-    if (state) {
-      state.lastReloadFailed = true;
-      writeJsonAtomicSync(STATE_FILE, state);
-      console.error('Marked reload as failed in gateway state.');
-    }
-  } catch (err) {
-    console.error('Failed to mark reload failure:', err);
-  }
-}
-
-/**
- * Clear the reload-failed flag (called after a successful reload).
- */
-export function clearReloadFailed(): void {
-  try {
-    const state = loadGatewayState();
-    if (state && state.lastReloadFailed) {
-      state.lastReloadFailed = false;
-      writeJsonAtomicSync(STATE_FILE, state);
-    }
-  } catch {
-    // ignore
   }
 }
 
@@ -225,4 +136,4 @@ export async function cleanupOrphanedAgents(): Promise<number> {
   return killed;
 }
 
-export { STATE_FILE, RELOAD_CONFIG_FILE, AGENT_PIDS_FILE };
+export { RELOAD_CONFIG_FILE, AGENT_PIDS_FILE };
