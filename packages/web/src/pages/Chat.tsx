@@ -9,6 +9,7 @@ import type { StreamChunk, ToolCallState } from '../hooks/useChat.tsx';
 import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
 import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
+import { ChatSidePanel } from '../components/ChatSidePanel.tsx';
 
 // L2: Hoist regex outside component to avoid re-creation per call
 const CJK_RE = /[\u4e00-\u9fff]/;
@@ -715,6 +716,7 @@ export default function Chat() {
           </div>
         </div>
       </div>
+      <ChatSidePanel />
     </div>
   );
 }
