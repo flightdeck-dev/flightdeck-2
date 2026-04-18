@@ -107,7 +107,7 @@ export class LeadManager {
     this.plannerRuntime = opts.plannerRuntime;
   }
 
-  /** Start Lead ACP session */
+  /** Spawn a new Lead agent session */
   async spawnLead(): Promise<string> {
     // Enforce single active Lead — if one exists, don't spawn another
     const existingLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
