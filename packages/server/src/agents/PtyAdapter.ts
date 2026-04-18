@@ -99,6 +99,8 @@ export class PtyAdapter extends AgentAdapter {
       args.push('--mcp-config', opts.mcpConfigPath);
     }
     args.push('--permission-mode', 'auto');
+    // Prompt goes as positional argument for --print mode
+    args.push(opts.prompt);
 
     return new Promise<{ output: string; claudeSessionId?: string }>((resolve, reject) => {
       const child = cpSpawn(runtime.command, args, {
@@ -117,8 +119,7 @@ export class PtyAdapter extends AgentAdapter {
 
       child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
-      // Send prompt on stdin and close
-      child.stdin.write(opts.prompt);
+      // stdin not used in --print mode (prompt is a CLI argument)
       child.stdin.end();
 
 
