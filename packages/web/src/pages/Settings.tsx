@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { useDisplay } from '../hooks/useDisplay.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
 import { useAgents as useAgentsHook } from '../hooks/useAgents.tsx';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X, FileText } from 'lucide-react';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
   minimal: 'Final answers only — clean and focused',
@@ -327,6 +327,163 @@ function GlobalSettings() {
   );
 }
 
+const DEFAULT_MEMORY_FILES: { filename: string; description: string }[] = [
+  { filename: 'SOUL.md', description: 'Agent personality and tone' },
+  { filename: 'USER.md', description: 'User preferences and context' },
+  { filename: 'MEMORY.md', description: 'Long-term curated memory' },
+  { filename: 'AGENTS.md', description: 'Worker instructions and conventions' },
+];
+
+interface MemoryFileInfo {
+  filename: string;
+  size: number;
+  preview: string;
+}
+
+function MemoryFileEditor({ projectName, filename, onClose }: { projectName: string; filename: string; onClose: () => void }) {
+  const [content, setContent] = useState('');
+  const [original, setOriginal] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const hasChanges = content !== original;
+
+  useEffect(() => {
+    fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`)
+      .then(r => r.ok ? r.json() : { content: '' })
+      .then(d => { setContent(d.content ?? ''); setOriginal(d.content ?? ''); })
+      .catch(() => { setContent(''); setOriginal(''); })
+      .finally(() => setLoading(false));
+  }, [projectName, filename]);
+
+  useEffect(() => {
+    if (!loading && textareaRef.current) textareaRef.current.focus();
+  }, [loading]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      setOriginal(content);
+    } catch {}
+    setSaving(false);
+  };
+
+  const handleClose = () => {
+    if (hasChanges && !window.confirm('You have unsaved changes. Discard?')) return;
+    onClose();
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); handleClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[var(--color-bg)] flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="flex items-center gap-3">
+          <FileText size={16} className="text-[var(--color-text-tertiary)]" />
+          <span className="text-sm font-mono font-medium">{filename}</span>
+          {hasChanges && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500">unsaved</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={save} disabled={saving || !hasChanges}
+            className="px-4 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 p-4 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
+        ) : (
+          <textarea ref={textareaRef} value={content} onChange={e => setContent(e.target.value)}
+            className="w-full h-full resize-none font-mono text-sm p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+            spellCheck={false} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IdentityMemorySection({ projectName }: { projectName: string }) {
+  const [files, setFiles] = useState<MemoryFileInfo[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/memory`);
+      const data = await res.json();
+      setFiles(data.files ?? []);
+    } catch {}
+  }, [projectName]);
+
+  useEffect(() => { loadFiles(); }, [loadFiles]);
+
+  // Merge default files with actual files
+  const allFiles = DEFAULT_MEMORY_FILES.map(def => {
+    const found = files.find(f => f.filename === def.filename);
+    return { ...def, size: found?.size ?? 0, preview: found?.preview ?? '' };
+  });
+  // Add extra .md files not in defaults
+  const extraFiles = files.filter(f => !DEFAULT_MEMORY_FILES.some(d => d.filename === f.filename));
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return 'empty';
+    if (bytes < 1024) return `${bytes} B`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  };
+
+  const getPreviewLines = (preview: string) => {
+    if (!preview) return 'No content yet';
+    return preview.split('\n').slice(0, 3).join('\n').slice(0, 150);
+  };
+
+  return (
+    <>
+      {editing && <MemoryFileEditor projectName={projectName} filename={editing} onClose={() => { setEditing(null); loadFiles(); }} />}
+      <section className="space-y-3">
+        <SectionHeader>Identity & Memory</SectionHeader>
+        <Card className="space-y-0 !p-0 divide-y divide-[var(--color-border)]">
+          {[...allFiles, ...extraFiles.map(f => ({ filename: f.filename, description: '', size: f.size, preview: f.preview }))].map(file => (
+            <div key={file.filename} className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-surface-hover)] transition-colors">
+              <FileText size={16} className="text-[var(--color-text-tertiary)] shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono font-medium">{file.filename}</span>
+                  <span className="text-[10px] text-[var(--color-text-tertiary)]">{formatSize(file.size)}</span>
+                </div>
+                {'description' in file && file.description && (
+                  <p className="text-xs text-[var(--color-text-tertiary)]">{file.description}</p>
+                )}
+                <p className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5 opacity-60">
+                  {getPreviewLines(file.preview)}
+                </p>
+              </div>
+              <button onClick={() => setEditing(file.filename)}
+                className="px-3 py-1 text-xs rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-secondary)] transition-colors shrink-0">
+                Edit
+              </button>
+            </div>
+          ))}
+        </Card>
+      </section>
+    </>
+  );
+}
+
 /** Project-scoped settings — project info, heartbeat, governance */
 function ProjectSettings() {
   const { status, projectName } = useProject();
@@ -515,6 +672,9 @@ function ProjectSettings() {
           )}
         </Card>
       </section>
+
+      {/* Identity & Memory */}
+      <IdentityMemorySection projectName={projectName!} />
     </>
   );
 }

@@ -1278,6 +1278,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           ? { status: 'empty', messages: [] }
           : { status: 'unread', count: unread.length, messages: unread.map(m => ({ from: m.from, content: m.content, timestamp: m.timestamp })) });
       }
+    } else if (subPath === '/memory' && method === 'GET') {
+      const files = fd.memory.list();
+      const result = files.map(f => {
+        const content = fd.memory.read(f);
+        const size = content ? Buffer.byteLength(content, 'utf-8') : 0;
+        return { filename: f, size, preview: content ? content.slice(0, 200) : '' };
+      });
+      json(200, { files: result });
     } else if (subPath.match(/^\/memory\/[^/]+$/) && method === 'GET') {
       const filename = decodeURIComponent(subPath.split('/')[2]);
       const content = fd.memory.read(filename);
