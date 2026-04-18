@@ -66,6 +66,12 @@ export const messages = sqliteTable('messages', {
   metadata: text('metadata'), // JSON
   channel: text('channel'),
   recipient: text('recipient'),
+  source: text('source').default('web'),
+  senderId: text('sender_id'),
+  senderName: text('sender_name'),
+  replyToId: text('reply_to_id'),
+  attachments: text('attachments'), // JSON array
+  channelId: text('channel_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
 }, (table) => [

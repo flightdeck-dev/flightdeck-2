@@ -133,10 +133,17 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
         )}
         <div className={`flex items-baseline gap-2 ${isUser ? 'justify-end' : ''}`}>
           <span className="text-sm font-medium" style={{ color: style.color }}>
-            {msg.authorType === 'agent' && msg.authorId
+            {msg.authorType === 'user' && msg.senderName
+              ? msg.senderName
+              : msg.authorType === 'agent' && msg.authorId
               ? msg.authorId.replace(/-[a-z0-9]+$/, '').replace(/^\w/, c => c.toUpperCase())
               : style.label}
           </span>
+          {msg.source && msg.source !== 'web' && (
+            <span className="text-xs px-1 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]" title={msg.source}>
+              {msg.source === 'discord' ? '💬' : msg.source === 'slack' ? '⚡' : msg.source === 'telegram' ? '✈️' : msg.source === 'tui' ? '🖥️' : msg.source === 'api' ? '🔌' : '🌐'}
+            </span>
+          )}
           {msg.authorId && msg.authorType !== 'user' && msg.authorType !== 'agent' && (
             <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
           )}
@@ -157,12 +164,15 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
             const textContent = msg.content.replace(/\n*\[attachments\].*?\[\/attachments\]/, '').trim();
             let parsedAtts: Array<{ url: string; filename: string; mimeType: string; size: number }> = [];
             if (attMatch) { try { parsedAtts = JSON.parse(attMatch[1]); } catch {} }
+            // Also include msg.attachments field if present
+            const msgAtts = msg.attachments ?? [];
+            const allAtts = [...parsedAtts, ...msgAtts];
             return (
               <>
                 {textContent && (isUser ? textContent : <div className="overflow-x-auto"><Markdown content={textContent} /></div>)}
-                {parsedAtts.length > 0 && (
+                {allAtts.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {parsedAtts.map((att, i) => (
+                    {allAtts.map((att, i) => (
                       att.mimeType.startsWith('image/') ? (
                         <a key={i} href={att.url} target="_blank" rel="noopener noreferrer">
                           <img src={att.url} alt={att.filename} className="max-w-[200px] max-h-[200px] rounded cursor-pointer hover:opacity-80 transition-opacity" />

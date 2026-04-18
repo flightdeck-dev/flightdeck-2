@@ -64,6 +64,12 @@ export interface ChatMessage {
   authorId: string | null;
   content: string;
   metadata: string | null;
+  source?: 'web' | 'discord' | 'slack' | 'telegram' | 'tui' | 'api' | null;
+  senderId?: string | null;
+  senderName?: string | null;
+  replyToId?: string | null;
+  attachments?: Array<{ url: string; filename: string; mimeType: string; size: number }> | null;
+  channelId?: string | null;
   createdAt: string;
   updatedAt: string | null;
 }

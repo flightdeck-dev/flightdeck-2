@@ -310,7 +310,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const isAsync = url.searchParams.get('async') === 'true' || url.searchParams.get('async') === '1';
         let userMsg = null;
         if (fd.messages) {
-          userMsg = fd.messages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'http-api', content: body.content, metadata: null });
+          userMsg = fd.messages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: body.senderId || 'http-api', content: body.content, metadata: null, source: body.source ?? null, senderId: body.senderId ?? null, senderName: body.senderName ?? null, replyToId: body.replyToId ?? null, attachments: body.attachments ?? null, channelId: body.channelId ?? null });
           if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: userMsg });
         }
         if (isAsync) {

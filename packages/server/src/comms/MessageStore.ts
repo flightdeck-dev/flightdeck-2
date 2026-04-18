@@ -15,6 +15,12 @@ export interface ChatMessage {
   metadata: string | null;
   channel: string | null;
   recipient: string | null;
+  source?: 'web' | 'discord' | 'slack' | 'telegram' | 'tui' | 'api' | null;
+  senderId?: string | null;
+  senderName?: string | null;
+  replyToId?: string | null;
+  attachments?: Array<{ url: string; filename: string; mimeType: string; size: number }> | null;
+  channelId?: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -30,7 +36,7 @@ export interface Thread {
 export class MessageStore {
   constructor(private db: FlightdeckDatabase) {}
 
-  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient'> & { id?: string; channel?: string | null; recipient?: string | null }): ChatMessage {
+  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient'> & { id?: string; channel?: string | null; recipient?: string | null; source?: string | null; senderId?: string | null; senderName?: string | null; replyToId?: string | null; attachments?: any[] | null; channelId?: string | null }): ChatMessage {
     const now = new Date().toISOString();
     const id = msg.id ?? messageId(msg.authorId ?? 'anon', now, Math.random().toString());
     const record: ChatMessage = {
@@ -45,11 +51,21 @@ export class MessageStore {
       metadata: msg.metadata ?? null,
       channel: (msg as any).channel ?? null,
       recipient: (msg as any).recipient ?? null,
+      source: (msg as any).source ?? null,
+      senderId: (msg as any).senderId ?? null,
+      senderName: (msg as any).senderName ?? null,
+      replyToId: (msg as any).replyToId ?? null,
+      attachments: (msg as any).attachments ?? null,
+      channelId: (msg as any).channelId ?? null,
       createdAt: now,
       updatedAt: null,
     };
-    // Store parentIds as JSON string for SQLite
-    const dbRecord = { ...record, parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null } as any;
+    // Store parentIds and attachments as JSON strings for SQLite
+    const dbRecord = {
+      ...record,
+      parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null,
+      attachments: record.attachments ? JSON.stringify(record.attachments) : null,
+    } as any;
     this.db.insert(messages).values(dbRecord).run();
     // Index in FTS5 for full-text search
     try {
@@ -64,11 +80,12 @@ export class MessageStore {
     return this.hydrateMessage(row as any);
   }
 
-  /** Parse parentIds from JSON string back to array */
+  /** Parse parentIds and attachments from JSON string back to array */
   private hydrateMessage(row: any): ChatMessage {
     return {
       ...row,
       parentIds: row.parentIds ? JSON.parse(row.parentIds) : null,
+      attachments: row.attachments ? JSON.parse(row.attachments) : null,
     };
   }
 

@@ -51,6 +51,12 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('agents', 'model', 'text');
     this.addColumnIfMissing('tasks', 'acceptance_criteria', 'text');
     this.addColumnIfMissing('tasks', 'context', 'text');
+    this.addColumnIfMissing('messages', 'source', "text DEFAULT 'web'");
+    this.addColumnIfMissing('messages', 'sender_id', 'text');
+    this.addColumnIfMissing('messages', 'sender_name', 'text');
+    this.addColumnIfMissing('messages', 'reply_to_id', 'text');
+    this.addColumnIfMissing('messages', 'attachments', 'text');
+    this.addColumnIfMissing('messages', 'channel_id', 'text');
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
