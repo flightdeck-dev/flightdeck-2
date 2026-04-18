@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProject } from '../hooks/useProject.tsx';
 import { Folder, FolderOpen, FileText, FileCode, Image, Music, File, ChevronRight, ChevronDown, Edit3, Save, X, Loader2, PanelLeftClose, PanelLeft } from 'lucide-react';
 
@@ -249,6 +249,19 @@ export default function Files() {
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [treeWidth, setTreeWidth] = useState(280);
+  const treeResizing = useRef(false);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!treeResizing.current) return;
+      setTreeWidth(Math.max(180, Math.min(500, e.clientX)));
+    };
+    const onMouseUp = () => { treeResizing.current = false; document.body.style.cursor = ''; };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+  }, []);
 
   useEffect(() => {
     if (!projectName) return;
@@ -270,7 +283,12 @@ export default function Files() {
   return (
     <div className="flex h-full">
       {/* Left panel: tree */}
-      <div className={`${treeCollapsed ? 'w-0 overflow-hidden' : 'w-[280px]'} shrink-0 border-r border-[var(--color-border)] overflow-y-auto py-2 transition-all duration-200`}>
+      {treeCollapsed && (
+        <button onClick={() => setTreeCollapsed(false)} className="shrink-0 w-10 flex items-start justify-center pt-3 border-r border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors" aria-label="Expand file tree">
+          <PanelLeft size={16} />
+        </button>
+      )}
+      <div className={`${treeCollapsed ? 'hidden' : ''} shrink-0 border-r border-[var(--color-border)] overflow-y-auto py-2 transition-all duration-200`} style={{ width: treeCollapsed ? 0 : treeWidth }} >
         <div className="flex items-center justify-between px-3 pb-2">
           <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Files</span>
           <button onClick={() => setTreeCollapsed(true)} className="p-0.5 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]" aria-label="Collapse file tree">
@@ -290,11 +308,7 @@ export default function Files() {
 
       {/* Right panel: preview */}
       <div className="flex-1 min-w-0">
-        {treeCollapsed && (
-          <button onClick={() => setTreeCollapsed(false)} className="absolute top-2 left-2 z-10 p-1 rounded hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]" aria-label="Expand file tree">
-            <PanelLeft size={16} />
-          </button>
-        )}
+
         {selectedPath && selectedEntry ? (
           <FilePreview projectName={projectName} path={selectedPath} entry={selectedEntry} />
         ) : (
