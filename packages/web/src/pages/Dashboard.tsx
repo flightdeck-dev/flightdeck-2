@@ -105,7 +105,7 @@ function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsa
               <span className="opacity-50">·</span>
               <span>{formatTokenCount(a.totalIn)}/{formatTokenCount(a.totalOut)}</span>
               <span className="opacity-50">·</span>
-              <span>${a.totalCost.toFixed(2)}</span>
+              <span>{a.totalCost.toFixed(2)} units</span>
             </div>
           ))}
         </div>
@@ -141,7 +141,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-xl font-semibold">{status?.config?.name ?? 'Flightdeck'}</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {status?.config?.governance ?? '—'} governance · ${(status?.totalCost ?? 0).toFixed(2)} spent
+            {status?.config?.governance ?? '—'} governance · cost: ${(status?.totalCost ?? 0).toFixed(2)} units
           </p>
           {(status as any)?.tokenUsage && (
             <TokenUsage projectName={(status?.config as any)?.name ?? ''} tokenUsage={(status as any).tokenUsage} />
