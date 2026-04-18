@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import { useFlightdeck } from './hooks/useFlightdeck';
+import { useCommandCompletion } from './hooks/useCommandCompletion';
 import { StatusBar } from './components/StatusBar';
 import { TaskList } from './components/TaskList';
 import { ChatPanel } from './components/ChatPanel';
@@ -52,8 +53,8 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [cmdOutput, setCmdOutput] = useState<string[]>([]);
   const [isInputMode, setIsInputMode] = useState(false);
   const [overlay, setOverlay] = useState<'agents' | 'tasks' | null>(null);
-  const [suggestions, setSuggestions] = useState<typeof COMMANDS>([]);
-  const [selectedSuggestion, setSelectedSuggestion] = useState(0);
+
+  const { suggestions, selectedIndex, setSelectedIndex, complete } = useCommandCompletion(input, COMMANDS);
 
   // Dynamic terminal height
   const { stdout } = useStdout();
@@ -63,71 +64,36 @@ export function App({ baseUrl, wsUrl }: AppProps) {
     process.stdout.on('resize', onResize);
     return () => { process.stdout.removeListener('resize', onResize); };
   }, [stdout]);
-  const mainHeight = Math.max(5, termRows - 3); // statusbar(1) + helpbar(1) + input/cmdoutput(1)
+  const mainHeight = Math.max(5, termRows - 3);
 
   const panels: Panel[] = ['tasks', 'center', 'agents'];
 
   useInput((ch, key) => {
-    // Overlay handles its own input
-    if (overlay) return;
+    if (overlay || isInputMode) return;
 
-    // When typing in chat input, don't intercept
-    if (isInputMode) {
-      if (key.escape) {
-        setIsInputMode(false);
-        setSuggestions([]);
-        setSelectedSuggestion(0);
-      } else if (key.tab && suggestions.length > 0) {
-        const selected = suggestions[selectedSuggestion];
-        if (selected) {
-          setInput(selected.cmd + ' ');
-          setSuggestions([]);
-          setSelectedSuggestion(0);
-        }
-      } else if (key.upArrow && suggestions.length > 0) {
-        setSelectedSuggestion(prev => Math.max(0, prev - 1));
-      } else if (key.downArrow && suggestions.length > 0) {
-        setSelectedSuggestion(prev => Math.min(suggestions.length - 1, prev + 1));
-      }
-      return;
-    }
-
-    // Tab: cycle panels
     if (key.tab) {
-      setFocusedPanel(prev => {
-        const idx = panels.indexOf(prev);
-        return panels[(idx + 1) % panels.length];
-      });
+      setFocusedPanel(prev => panels[(panels.indexOf(prev) + 1) % panels.length]);
       return;
     }
     if (key.leftArrow) {
-      setFocusedPanel(prev => {
-        const idx = panels.indexOf(prev);
-        return panels[(idx - 1 + panels.length) % panels.length];
-      });
+      setFocusedPanel(prev => panels[(panels.indexOf(prev) - 1 + panels.length) % panels.length]);
       return;
     }
     if (key.rightArrow) {
-      setFocusedPanel(prev => {
-        const idx = panels.indexOf(prev);
-        return panels[(idx + 1) % panels.length];
-      });
+      setFocusedPanel(prev => panels[(panels.indexOf(prev) + 1) % panels.length]);
       return;
     }
 
-    // Quick panel switches
     if (ch === 't') { setFocusedPanel('tasks'); return; }
     if (ch === 'c') { setFocusedPanel('center'); setCenterTab('chat'); return; }
     if (ch === 'a') { setFocusedPanel('agents'); return; }
     if (ch === 'q') { exit(); return; }
 
-    // Toggle center tab
     if (key.ctrl && ch === 't') {
       setCenterTab(prev => prev === 'chat' ? 'activity' : 'chat');
       return;
     }
 
-    // Enter input mode when / or Enter in center
     if (ch === '/' || (key.return && focusedPanel === 'center')) {
       setIsInputMode(true);
       if (ch === '/') setInput('/');
@@ -139,7 +105,6 @@ export function App({ baseUrl, wsUrl }: AppProps) {
       const delta = (ch === 'j' || key.downArrow) ? 1 : -1;
       if (focusedPanel === 'tasks') {
         setTaskIndex(prev => Math.max(0, Math.min(prev + delta, fd.tasks.length - 1)));
-        // Auto-scroll
         setTaskScroll(prev => {
           const newIdx = Math.max(0, Math.min(taskIndex + delta, fd.tasks.length - 1));
           if (newIdx < prev) return newIdx;
@@ -174,18 +139,12 @@ export function App({ baseUrl, wsUrl }: AppProps) {
             '/projects — List projects  /project <name> — Switch project',
           ]);
           return;
-        case '/tasks': {
-          setOverlay('tasks');
-          return;
-        }
-        case '/agents': {
-          setOverlay('agents');
-          return;
-        }
+        case '/tasks': { setOverlay('tasks'); return; }
+        case '/agents': { setOverlay('agents'); return; }
         case '/hibernate': case '/wake': case '/retire': {
           const agentId = args[0];
           if (!agentId) { setCmdOutput([`Usage: ${cmd} <agentId>`]); return; }
-          const action = cmd.slice(1); // hibernate, wake, retire
+          const action = cmd.slice(1);
           try {
             const res = await fetch(`${fd.baseUrl}/api/projects/${fd.project}/agents/${agentId}/${action}`, { method: 'POST' });
             setCmdOutput([res.ok ? `Agent ${agentId}: ${action} OK` : `Failed: ${res.status} ${res.statusText}`]);
@@ -285,28 +244,10 @@ export function App({ baseUrl, wsUrl }: AppProps) {
     fd.sendMessage(text);
   }, [exit, fd]);
 
-  // Update suggestions when input changes
-  const handleInputChange = useCallback((val: string) => {
-    setInput(val);
-    if (val.startsWith('/') && !val.includes(' ')) {
-      const matches = COMMANDS.filter(c => c.cmd.startsWith(val));
-      setSuggestions(matches);
-      setSelectedSuggestion(0);
-    } else {
-      setSuggestions([]);
-      setSelectedSuggestion(0);
-    }
-  }, []);
-
   if (overlay === 'agents') {
     return (
       <Box flexDirection="column" width="100%">
-        <AgentOverlay
-          agents={fd.agents}
-          baseUrl={fd.baseUrl}
-          project={fd.project}
-          onClose={() => setOverlay(null)}
-        />
+        <AgentOverlay agents={fd.agents} baseUrl={fd.baseUrl} project={fd.project} onClose={() => setOverlay(null)} />
       </Box>
     );
   }
@@ -314,10 +255,7 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   if (overlay === 'tasks') {
     return (
       <Box flexDirection="column" width="100%">
-        <TaskOverlay
-          tasks={fd.tasks}
-          onClose={() => setOverlay(null)}
-        />
+        <TaskOverlay tasks={fd.tasks} onClose={() => setOverlay(null)} />
       </Box>
     );
   }
@@ -335,7 +273,6 @@ export function App({ baseUrl, wsUrl }: AppProps) {
         }}
       />
 
-      {/* Three-column layout */}
       <Box flexGrow={1} height={mainHeight}>
         <TaskList
           tasks={fd.tasks}
@@ -352,11 +289,16 @@ export function App({ baseUrl, wsUrl }: AppProps) {
             isLeadTyping={fd.isLeadTyping}
             streamingText={fd.streamingText}
             input={input}
-            onInputChange={handleInputChange}
+            onInputChange={setInput}
             suggestions={suggestions}
-            selectedSuggestion={selectedSuggestion}
+            selectedSuggestion={selectedIndex}
+            onSelectedSuggestionChange={setSelectedIndex}
+            onTabComplete={complete}
             onSubmit={handleSubmit}
             scrollOffset={chatScroll}
+            isInputMode={isInputMode}
+            onEnterInputMode={() => setIsInputMode(true)}
+            onExitInputMode={() => setIsInputMode(false)}
           />
         ) : (
           <ActivityFeed
@@ -373,7 +315,6 @@ export function App({ baseUrl, wsUrl }: AppProps) {
         />
       </Box>
 
-      {/* Command output overlay */}
       {cmdOutput.length > 0 && (
         <Box flexDirection="column" paddingX={2} borderStyle="single" borderColor="yellow">
           {cmdOutput.map((line, i) => <Box key={i}><Text>{line}</Text></Box>)}
