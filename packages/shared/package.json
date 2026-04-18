@@ -24,6 +24,10 @@
       "types": "./src/display.ts",
       "import": "./src/display.ts",
       "default": "./src/display.ts"
+    },
+    "./config-schema": {
+      "types": "./src/config-schema.ts",
+      "import": "./src/config-schema.ts"
     }
   },
   "typesVersions": {
@@ -63,5 +67,8 @@
         "import": "./dist/display.js"
       }
     }
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   }
 }

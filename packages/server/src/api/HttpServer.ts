@@ -28,6 +28,8 @@ export interface HttpServerDeps {
   webhookNotifiers?: Map<string, WebhookNotifier>;
   /** Cron stores per project. */
   cronStores?: Map<string, CronStore>;
+  /** Called after a project is created or unarchived to set up LeadManager, WS, Orchestrator, etc. */
+  onProjectSetup?: (projectName: string) => Promise<void>;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface HttpServerDeps {
  * All project routes are scoped under /api/projects/:name/*.
  */
 export function createHttpServer(deps: HttpServerDeps): Server {
-  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers, cronStores } = deps;
+  const { projectManager, leadManagers, port, corsOrigin, wsServers, authCheck, webhookNotifiers, agentManagers, cronStores, onProjectSetup } = deps;
 
   const modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
   let presetNames: string[] = [];
@@ -121,13 +123,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     if (url.pathname === '/api/global-config' && method === 'PUT') {
       try {
         const body = await readBody();
+        const { GlobalConfigSchema } = await import('@flightdeck-ai/shared/config-schema');
+        const parsed = GlobalConfigSchema.partial().safeParse(body);
+        if (!parsed.success) { json(400, { error: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') }); return; }
         const { existsSync, readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
         const { join } = await import('node:path');
         const { FD_HOME } = await import('../cli/constants.js');
         mkdirSync(FD_HOME, { recursive: true });
         const cfgPath = join(FD_HOME, 'global-config.json');
         const existing = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf-8')) : {};
-        Object.assign(existing, body);
+        Object.assign(existing, parsed.data);
         writeFileSync(cfgPath, JSON.stringify(existing, null, 2));
         json(200, existing);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
@@ -196,11 +201,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         if (!/^[a-zA-Z0-9_-]+$/.test(name)) { json(400, { error: 'Project name must be alphanumeric (with - and _)' }); return; }
         if (projectManager.list().includes(name)) { json(409, { error: `Project "${name}" already exists` }); return; }
         projectManager.create(name);
-        // Hot-register: set up orchestrator for the new project
+        // Hot-register: set up orchestrator, LeadManager, WebSocket for the new project
         const fd = projectManager.get(name);
         if (fd) {
           fd.orchestrator.start();
-          // Note: LeadManager/WebSocket created on-demand when user first accesses project
+          if (onProjectSetup) {
+            await onProjectSetup(name);
+          }
         }
         json(201, { name, message: `Project "${name}" created` });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
@@ -245,7 +252,17 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
     // Unarchive project
     if (subPath === '/unarchive' && method === 'POST') {
-      if (projectManager.unarchive(projectName)) json(200, { message: `Project "${projectName}" unarchived` });
+      if (projectManager.unarchive(projectName)) {
+        // Re-register project runtime (LeadManager, WS, Orchestrator)
+        const unarchivedFd = projectManager.get(projectName);
+        if (unarchivedFd) {
+          unarchivedFd.orchestrator.start();
+          if (onProjectSetup) {
+            await onProjectSetup(projectName);
+          }
+        }
+        json(200, { message: `Project "${projectName}" unarchived` });
+      }
       else json(404, { error: `Project "${projectName}" not found or not archived` });
       return;
     }
@@ -1033,41 +1050,44 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath === '/config' && method === 'PUT') {
       try {
         const body = await readBody();
+        const { ProjectConfigSchema } = await import('@flightdeck-ai/shared/config-schema');
+        const parsed = ProjectConfigSchema.partial().safeParse(body);
+        if (!parsed.success) { json(400, { error: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') }); return; }
+        const validBody = parsed.data;
         const cfg = fd.project.getConfig();
-        if (body.governance !== undefined) {
-          const { GOVERNANCE_PROFILES } = await import('@flightdeck-ai/shared');
-          if (!GOVERNANCE_PROFILES.includes(body.governance)) { json(400, { error: `Invalid governance. Options: ${GOVERNANCE_PROFILES.join(', ')}` }); return; }
-          cfg.governance = body.governance;
-          // Hot-reload governance engine
-          fd.governance.setProfile(body.governance);
+        if (validBody.governance !== undefined) {
+          cfg.governance = validBody.governance;
+          fd.governance.setProfile(validBody.governance);
         }
-        if (body.heartbeatEnabled !== undefined) {
+        if (validBody.heartbeatEnabled !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
-          (cfg as any).heartbeatEnabled = !!body.heartbeatEnabled;
+          (cfg as any).heartbeatEnabled = validBody.heartbeatEnabled;
         }
-        if (body.heartbeatIdleTimeoutDays !== undefined) {
-          const days = Number(body.heartbeatIdleTimeoutDays);
-          if (isNaN(days) || days < 0 || days > 30) { json(400, { error: 'heartbeatIdleTimeoutDays must be 0-30' }); return; }
-          cfg.heartbeatIdleTimeoutDays = days;
+        if (validBody.heartbeatIdleTimeoutDays !== undefined) {
+          cfg.heartbeatIdleTimeoutDays = validBody.heartbeatIdleTimeoutDays;
         }
-        if (body.disabledRuntimes !== undefined) {
-          if (!Array.isArray(body.disabledRuntimes) || !body.disabledRuntimes.every((r: unknown) => typeof r === 'string')) {
-            json(400, { error: 'disabledRuntimes must be string[]' }); return;
-          }
+        if (validBody.isolation !== undefined) {
+          cfg.isolation = validBody.isolation;
+        }
+        if (validBody.onCompletion !== undefined) {
+          cfg.onCompletion = validBody.onCompletion;
+        }
+        if (validBody.maxConcurrentWorkers !== undefined) {
+          cfg.maxConcurrentWorkers = validBody.maxConcurrentWorkers;
+        }
+        if (validBody.planApprovalThreshold !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
-          (cfg as any).disabledRuntimes = body.disabledRuntimes;
+          (cfg as any).planApprovalThreshold = validBody.planApprovalThreshold;
         }
-        if (body.runtimeOrder !== undefined) {
-          if (!Array.isArray(body.runtimeOrder) || !body.runtimeOrder.every((r: unknown) => typeof r === 'string')) {
-            json(400, { error: 'runtimeOrder must be string[]' }); return;
-          }
+        if (validBody.costThresholdPerDay !== undefined) {
+          cfg.costThresholdPerDay = validBody.costThresholdPerDay;
+        }
+        if (validBody.cwd !== undefined) {
+          cfg.cwd = validBody.cwd;
+        }
+        if (validBody.notifications !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension
-          (cfg as any).runtimeOrder = body.runtimeOrder;
-        }
-        if (body.isolation !== undefined) {
-          const validModes = ['file_lock', 'git_worktree'];
-          if (!validModes.includes(body.isolation)) { json(400, { error: `Invalid isolation mode. Options: ${validModes.join(', ')}` }); return; }
-          cfg.isolation = body.isolation;
+          (cfg as any).notifications = validBody.notifications;
         }
         fd.project.setConfig(cfg);
         json(200, { config: cfg });
