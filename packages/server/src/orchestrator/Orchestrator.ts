@@ -56,6 +56,7 @@ export interface TickResult {
 export class Orchestrator {
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private _paused = false;
+  private _stopped = false;
   private adapter: AgentAdapter;
   private agentManager: AgentManager | null;
   private leadManager: LeadManager | null;
@@ -233,6 +234,12 @@ export class Orchestrator {
   }
 
   async tick(): Promise<TickResult> {
+    // Guard: don't tick if explicitly stopped (DB may be closed)
+    if (this._stopped) return {
+      readyTasksAssigned: 0, stallsDetected: 0, completionsProcessed: 0,
+      errorsHandled: 0, tasksCompacted: 0, retrospectivesTriggered: 0,
+      specChangesDetected: 0, tasksMarkedStale: 0,
+    };
     const result: TickResult = {
       readyTasksAssigned: 0,
       stallsDetected: 0,
@@ -902,6 +909,7 @@ export class Orchestrator {
   }
 
   stop(): void {
+    this._stopped = true;
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
       this.intervalHandle = null;
@@ -939,7 +947,7 @@ export class Orchestrator {
    * Only promotes blocked/pending → ready and assigns ready tasks to idle agents.
    */
   private async reactiveTick(): Promise<void> {
-    if (this._paused) return;
+    if (this._paused || this._stopped) return;
     let stateChanged = false;
 
     const promoted = this.promoteReadyTasks();
