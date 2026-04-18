@@ -105,7 +105,7 @@ function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsa
               <span className="opacity-50">·</span>
               <span>{formatTokenCount(a.totalIn)}/{formatTokenCount(a.totalOut)}</span>
               <span className="opacity-50">·</span>
-              <span>{a.totalCost.toFixed(2)} units</span>
+              
             </div>
           ))}
         </div>
