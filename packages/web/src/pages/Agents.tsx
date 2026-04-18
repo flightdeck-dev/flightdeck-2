@@ -216,6 +216,9 @@ function AgentDetailPanel({
     setModelLoading(true);
     try {
       await api.setAgentModel(projectName, agent.id, model);
+      // Revalidate agents list to reflect new model
+      const { mutate } = await import('swr');
+      mutate((key: unknown) => Array.isArray(key) && key[0] === 'agents');
     } catch (err) {
       console.error('Failed to set model:', err);
     }
@@ -385,7 +388,7 @@ function AgentDetailPanel({
                   ['Status', config.label],
                   ['Runtime', agent.runtimeName ?? agent.runtime ?? 'acp'],
                   ['Tokens', `${((agent as any).tokensIn ?? 0).toLocaleString()} in / ${((agent as any).tokensOut ?? 0).toLocaleString()} out`],
-                  ['Session ID', agent.acp_session_id ?? (agent as any).acpSessionId ?? '—'],
+                  ['Session ID', agent.acpSessionId ?? '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-4">
                     <span className="text-[var(--color-text-tertiary)] shrink-0">{label}</span>

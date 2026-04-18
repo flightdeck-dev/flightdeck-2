@@ -39,7 +39,7 @@ export interface Agent {
   runtimeName?: string;
   model?: string;
   cost?: number;
-  acp_session_id?: string;
+  acpSessionId?: string;
   current_task?: string;
   currentTask?: string;
   sessionStart?: string;
