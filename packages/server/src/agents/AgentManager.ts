@@ -86,6 +86,7 @@ export function buildSystemPrompt(opts: {
   permissions: Record<string, boolean>;
   cwd?: string;
   memoryDir?: string;
+  timezone?: string;
   roleConfigs?: Array<{ role: string; runtime: string; model: string; enabledModels?: Array<{ runtime: string; model: string; enabled: boolean; isDefault?: boolean }> }>;
   rolePreference?: string;
 }): string {
@@ -93,8 +94,12 @@ export function buildSystemPrompt(opts: {
     .filter(([, v]) => v)
     .map(([k]) => `flightdeck_${k}`);
 
+  const tz = opts.timezone ?? 'UTC';
+  const now = new Date().toLocaleString('en-US', { timeZone: tz, dateStyle: 'full', timeStyle: 'short' });
+
   let prompt = `You are a ${opts.roleName} agent in Flightdeck project "${opts.projectName}".
 Your agent ID is: ${opts.agentId}
+Timezone: ${tz} | Current time: ${now}
 
 ${opts.roleInstructions}
 

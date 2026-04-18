@@ -788,6 +788,18 @@ function ProjectSettings() {
             </select>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-sm">Timezone</span>
+            <select
+              value={(status.config as any)?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+              onChange={e => saveConfig({ timezone: e.target.value })}
+              className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]"
+            >
+              {['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Anchorage','Pacific/Honolulu','Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow','Asia/Tokyo','Asia/Shanghai','Asia/Kolkata','Asia/Singapore','Australia/Sydney','Pacific/Auckland'].map(tz => (
+                <option key={tz} value={tz}>{tz.replace('_',' ')}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-sm">Isolation</span>
             <select
               value={(status.config as any)?.isolation ?? 'file_lock'}
