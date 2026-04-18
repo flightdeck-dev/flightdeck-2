@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { StatusData, TaskCounts } from '../hooks/useFlightdeck';
+import { formatTokenCount } from '../hooks/useFlightdeck';
 
 interface Props {
   status: StatusData;
@@ -28,6 +29,12 @@ export function StatusBar({ status, counts, agentCount }: Props) {
         <Text>{agentCount} agents</Text>
         <Text dimColor>│</Text>
         <Text color={conn ? 'green' : 'red'}>{conn ? '● connected' : '○ disconnected'}</Text>
+        {status.tokenUsage && (
+          <>
+            <Text dimColor>│</Text>
+            <Text dimColor>Tokens: {formatTokenCount(status.tokenUsage.totalIn)} in / {formatTokenCount(status.tokenUsage.totalOut)} out | {status.tokenUsage.requestCount} calls</Text>
+          </>
+        )}
       </Box>
     </Box>
   );

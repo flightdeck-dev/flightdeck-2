@@ -5,12 +5,19 @@ import { DEFAULT_DISPLAY, DISPLAY_PRESETS, shouldShow } from '@flightdeck-ai/sha
 
 // ── Types ──────────────────────────────────────────────────────
 
+export interface TokenUsage {
+  totalIn: number;
+  totalOut: number;
+  requestCount: number;
+}
+
 export interface StatusData {
   project?: string;
   profile?: string;
   port?: number;
   connected?: boolean;
   governance?: string;
+  tokenUsage?: TokenUsage;
 }
 
 export interface TaskCounts {
@@ -81,7 +88,20 @@ export function agentStatusColor(status: string): string {
 
 // ── Hook ───────────────────────────────────────────────────────
 
-export function useFlightdeck(baseUrl: string, wsUrl: string) {
+export function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
+  const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
+  const [wsUrl, setWsUrl] = useState(initialWsUrl);
+  const [project, setProject] = useState<string>(() => {
+    // Parse project name from URL: /api/projects/{name}/...
+    const m = initialBaseUrl.match(/\/api\/projects\/([^/]+)/);
+    return m ? m[1] : '';
+  });
   const [status, setStatus] = useState<StatusData>({ connected: false });
   const [taskCounts, setTaskCounts] = useState<TaskCounts>({ done: 0, running: 0, ready: 0, blocked: 0, failed: 0, total: 0 });
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -240,6 +260,16 @@ export function useFlightdeck(baseUrl: string, wsUrl: string) {
     catch { return null; }
   }, [baseUrl]);
 
+  const switchProject = useCallback((name: string) => {
+    const newBase = baseUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${name}`);
+    const newWs = wsUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${name}`);
+    setBaseUrl(newBase);
+    setWsUrl(newWs);
+    setProject(name);
+    // Force reconnect
+    wsRef.current?.close();
+  }, [baseUrl, wsUrl]);
+
   const clearNewMessage = useCallback(() => setNewMessageFlag(false), []);
 
   useEffect(() => {
@@ -251,5 +281,6 @@ export function useFlightdeck(baseUrl: string, wsUrl: string) {
     status, taskCounts, tasks, agents, activities, chatMessages,
     isLeadTyping, newMessageFlag, clearNewMessage,
     sendMessage, fetchJson, displayConfig, sendDisplayUpdate, applyPreset,
+    project, switchProject, baseUrl,
   };
 }

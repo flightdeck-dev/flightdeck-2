@@ -104,6 +104,9 @@ export function App({ baseUrl, wsUrl }: AppProps) {
           setCmdOutput([
             '/tasks — List tasks  /agents — List agents  /report — Daily report',
             '/status — Project status  /display [preset] — Display config  /quit — Exit',
+            '/hibernate|wake|retire <id> — Agent lifecycle  /interrupt <id> [msg]',
+            '/model <id> <model> — Set model  /model list — Available models',
+            '/projects — List projects  /project <name> — Switch project',
           ]);
           return;
         case '/tasks': {
@@ -115,7 +118,73 @@ export function App({ baseUrl, wsUrl }: AppProps) {
         case '/agents': {
           const agents = await fd.fetchJson('/api/agents');
           if (!agents || !Array.isArray(agents)) { setCmdOutput(['Failed to fetch agents']); return; }
-          setCmdOutput(agents.map((a: any) => `  ${a.status.padEnd(8)} ${a.role} — ${a.model || '?'}`));
+          setCmdOutput(agents.map((a: any) =>
+            `  ${(a.id || '?').slice(0, 8).padEnd(10)} ${(a.role || '?').padEnd(10)} ${(a.status || '?').padEnd(10)} ${(a.model || '?').padEnd(20)} ${a.runtime || '?'}`
+          ));
+          return;
+        }
+        case '/hibernate': case '/wake': case '/retire': {
+          const agentId = args[0];
+          if (!agentId) { setCmdOutput([`Usage: ${cmd} <agentId>`]); return; }
+          const action = cmd.slice(1); // hibernate, wake, retire
+          try {
+            const res = await fetch(`${fd.baseUrl}/api/projects/${fd.project}/agents/${agentId}/${action}`, { method: 'POST' });
+            setCmdOutput([res.ok ? `Agent ${agentId}: ${action} OK` : `Failed: ${res.status} ${res.statusText}`]);
+          } catch (e: any) { setCmdOutput([`Error: ${e.message}`]); }
+          return;
+        }
+        case '/interrupt': {
+          const agentId = args[0];
+          if (!agentId) { setCmdOutput(['Usage: /interrupt <agentId> [message]']); return; }
+          const message = args.slice(1).join(' ') || '';
+          try {
+            const res = await fetch(`${fd.baseUrl}/api/projects/${fd.project}/agents/${agentId}/interrupt`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }),
+            });
+            setCmdOutput([res.ok ? `Interrupted ${agentId}` : `Failed: ${res.status}`]);
+          } catch (e: any) { setCmdOutput([`Error: ${e.message}`]); }
+          return;
+        }
+        case '/model': {
+          if (args[0] === 'list') {
+            const data = await fd.fetchJson(`/api/projects/${fd.project}/models/available`);
+            if (!data) { setCmdOutput(['Failed to fetch models']); return; }
+            const lines: string[] = [];
+            for (const [runtime, models] of Object.entries(data)) {
+              lines.push(`  ${runtime}:`);
+              if (Array.isArray(models)) models.forEach((m: any) => lines.push(`    ${typeof m === 'string' ? m : m.id || m.name}`));
+            }
+            setCmdOutput(lines.length ? lines : ['No models available']);
+            return;
+          }
+          const [agentId, ...modelParts] = args;
+          const model = modelParts.join(' ');
+          if (!agentId || !model) { setCmdOutput(['Usage: /model <agentId> <model> or /model list']); return; }
+          try {
+            const res = await fetch(`${fd.baseUrl}/api/projects/${fd.project}/agents/${agentId}/model`, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }),
+            });
+            setCmdOutput([res.ok ? `Agent ${agentId} model → ${model}` : `Failed: ${res.status}`]);
+          } catch (e: any) { setCmdOutput([`Error: ${e.message}`]); }
+          return;
+        }
+        case '/projects':
+        case '/project': {
+          const sub = args[0];
+          if (!sub || sub === 'list') {
+            const projects = await fd.fetchJson('/api/projects');
+            if (!projects || !Array.isArray(projects)) { setCmdOutput(['Failed to fetch projects']); return; }
+            setCmdOutput(projects.map((p: any) => {
+              const agents = p.agentCount ?? p.agents?.length ?? '?';
+              const tasks = p.taskStats ? `${p.taskStats.done || 0}/${p.taskStats.total || 0} done` : '';
+              return `  ${(p.name || p.id || '?').padEnd(20)} ${(p.governance || '').padEnd(12)} ${String(agents).padEnd(4)} agents  ${tasks}`;
+            }));
+            return;
+          }
+          const name = sub === 'switch' ? args[1] : sub;
+          if (!name) { setCmdOutput(['Usage: /project switch <name> or /project <name>']); return; }
+          fd.switchProject(name);
+          setCmdOutput([`Switched to project: ${name}`]);
           return;
         }
         case '/display': {
