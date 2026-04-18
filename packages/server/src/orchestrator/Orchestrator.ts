@@ -24,10 +24,25 @@ import { homedir } from "node:os";
 /** Format timestamp using global config timezone, fallback to UTC ISO */
 function formatTs(): string {
   try {
-    const gcPath = join(homedir(), ".flightdeck", "v2", "global-config.json");
-    if (existsSync(gcPath)) {
-      const tz = JSON.parse(readFileSync(gcPath, "utf-8")).timezone;
-      if (tz) return new Date().toLocaleString("en-US", { timeZone: tz, hour12: false });
+    const p = join(homedir(), ".flightdeck", "v2", "global-config.json");
+    if (existsSync(p)) {
+      const tz = JSON.parse(readFileSync(p, "utf-8")).timezone;
+      if (tz) {
+        // ISO format with timezone offset: 2026-04-18T15:43:00-07:00
+        const d = new Date();
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+          timeZoneName: "longOffset",
+        }).formatToParts(d);
+        const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+        const offset = get("timeZoneName").replace("GMT", "") || "+00:00";
+        return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}${offset}`;
+      }
+    }
+  } catch {}
+  return new Date().toISOString().slice(0, 19) + "Z";
+});
     }
   } catch {}
   return new Date().toISOString().slice(0, 19) + "Z";
