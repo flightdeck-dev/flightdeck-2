@@ -109,10 +109,11 @@ export class LeadManager {
 
   /** Start Lead ACP session */
   async spawnLead(): Promise<string> {
-    // Ensure only one active Lead — retire any existing ones
+    // Enforce single active Lead — if one exists, don't spawn another
     const existingLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
-    for (const old of existingLeads) {
-      try { this.sqlite.retireAgent(old.id); } catch { /* best effort */ }
+    if (existingLeads.length > 0) {
+      console.error(`  Lead already active (${existingLeads[0].id}), skipping spawn`);
+      return this.leadSessionId ?? '';
     }
 
     // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
