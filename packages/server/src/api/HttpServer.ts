@@ -1510,6 +1510,87 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       } catch (e: unknown) {
         json(400, { error: e instanceof Error ? e.message : 'Write failed' });
       }
+    } else if (subPath === '/upload' && method === 'POST') {
+      // File upload: multipart/form-data or base64 JSON
+      const { mkdirSync: mkdirSyncFs, writeFileSync: writeFileSyncFs } = await import('node:fs');
+      const { join: pjoinFs, resolve: resolvePathFs } = await import('node:path');
+      const uploadDir = pjoinFs(fd.project.subpath('.'), 'uploads');
+      mkdirSyncFs(uploadDir, { recursive: true });
+
+      const ct = req.headers['content-type'] ?? '';
+      const MAX_UPLOAD = 10 * 1024 * 1024;
+
+      if (ct.includes('multipart/form-data')) {
+        // Parse multipart manually (simple single-file)
+        const raw = await new Promise<Buffer>((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          req.on('data', (chunk: Buffer) => { size += chunk.length; if (size > MAX_UPLOAD) { req.destroy(); reject(new Error('Too large')); } chunks.push(chunk); });
+          req.on('end', () => resolve(Buffer.concat(chunks)));
+          req.on('error', reject);
+        });
+        const boundaryMatch = ct.match(/boundary=([^;]+)/);
+        if (!boundaryMatch) { json(400, { error: 'Missing boundary' }); return; }
+        const boundary = boundaryMatch[1].trim();
+        const sep = Buffer.from('--' + boundary);
+        const parts = [];
+        let start = 0;
+        while (true) {
+          const idx = raw.indexOf(sep, start);
+          if (idx === -1) break;
+          if (start > 0) parts.push(raw.subarray(start, idx));
+          start = idx + sep.length;
+          // skip CRLF
+          if (raw[start] === 0x0d && raw[start + 1] === 0x0a) start += 2;
+        }
+        if (parts.length === 0) { json(400, { error: 'No file in upload' }); return; }
+        // Parse first part
+        const part = parts[0];
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd === -1) { json(400, { error: 'Malformed multipart' }); return; }
+        const headerStr = part.subarray(0, headerEnd).toString();
+        const fileData = part.subarray(headerEnd + 4, part.length - 2); // strip trailing CRLF
+        const fnMatch = headerStr.match(/filename="([^"]+)"/);
+        const origName = fnMatch ? fnMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_') : 'file';
+        const ctMatch = headerStr.match(/Content-Type:\s*(.+)/i);
+        const mimeType = ctMatch ? ctMatch[1].trim() : 'application/octet-stream';
+        const uniqueName = `${Date.now()}-${origName}`;
+        const filePath = pjoinFs(uploadDir, uniqueName);
+        writeFileSyncFs(filePath, fileData);
+        json(200, { url: `/api/projects/${encodeURIComponent(projectName)}/uploads/${uniqueName}`, filename: origName, size: fileData.length, mimeType });
+      } else {
+        // JSON base64 body
+        try {
+          const body = await readBody();
+          if (!body.data || !body.filename) { json(400, { error: 'Missing data or filename' }); return; }
+          const base64 = body.data.replace(/^data:[^;]+;base64,/, '');
+          const buf = Buffer.from(base64, 'base64');
+          if (buf.length > MAX_UPLOAD) { json(400, { error: 'Too large' }); return; }
+          const origName = body.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const uniqueName = `${Date.now()}-${origName}`;
+          const filePath = pjoinFs(uploadDir, uniqueName);
+          writeFileSyncFs(filePath, buf);
+          json(200, { url: `/api/projects/${encodeURIComponent(projectName)}/uploads/${uniqueName}`, filename: origName, size: buf.length, mimeType: body.mimeType ?? 'application/octet-stream' });
+        } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Upload failed' }); }
+      }
+    } else if (subPath?.startsWith('/uploads/') && method === 'GET') {
+      // Serve uploaded files
+      const { readFileSync: readFileSyncFs, existsSync: existsSyncFs } = await import('node:fs');
+      const { join: pjoinFs, resolve: resolvePathFs, basename: basenameFs } = await import('node:path');
+      const mimeMap: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.webm': 'audio/webm', '.mp4': 'video/mp4', '.txt': 'text/plain', '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.pdf': 'application/pdf' };
+      const uploadDir = pjoinFs(fd.project.subpath('.'), 'uploads');
+      const reqFile = decodeURIComponent(subPath.replace('/uploads/', ''));
+      // Path traversal protection
+      const safeName = basenameFs(reqFile);
+      const filePath = resolvePathFs(uploadDir, safeName);
+      if (!filePath.startsWith(resolvePathFs(uploadDir)) || !existsSyncFs(filePath)) {
+        json(404, { error: 'File not found' }); return;
+      }
+      const data = readFileSyncFs(filePath);
+      const ext = safeName.includes('.') ? '.' + safeName.split('.').pop()!.toLowerCase() : '';
+      const contentType = mimeMap[ext] || 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': data.length.toString(), 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
     } else {
       res.writeHead(404); res.end('Not found');
     }

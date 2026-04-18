@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X, Paperclip, Loader2 } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useProject } from '../hooks/useProject.tsx';
 import { useChat } from '../hooks/useChat.tsx';
@@ -152,7 +152,37 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
             ? 'px-3 py-2 rounded-2xl bg-[var(--color-primary)] text-white rounded-br-sm whitespace-pre-wrap text-left'
             : 'px-3 py-2 rounded-2xl bg-[var(--color-surface-secondary)] rounded-bl-sm'
         }`}>
-          {isUser ? msg.content : <div className="overflow-x-auto"><Markdown content={msg.content} /></div>}
+          {(() => {
+            const attMatch = msg.content.match(/\[attachments\](.*?)\[\/attachments\]/);
+            const textContent = msg.content.replace(/\n*\[attachments\].*?\[\/attachments\]/, '').trim();
+            let parsedAtts: Array<{ url: string; filename: string; mimeType: string; size: number }> = [];
+            if (attMatch) { try { parsedAtts = JSON.parse(attMatch[1]); } catch {} }
+            return (
+              <>
+                {textContent && (isUser ? textContent : <div className="overflow-x-auto"><Markdown content={textContent} /></div>)}
+                {parsedAtts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {parsedAtts.map((att, i) => (
+                      att.mimeType.startsWith('image/') ? (
+                        <a key={i} href={att.url} target="_blank" rel="noopener noreferrer">
+                          <img src={att.url} alt={att.filename} className="max-w-[200px] max-h-[200px] rounded cursor-pointer hover:opacity-80 transition-opacity" />
+                        </a>
+                      ) : att.mimeType.startsWith('audio/') ? (
+                        <div key={i}>
+                          <div className="text-xs opacity-70 mb-1">{att.filename}</div>
+                          <audio controls src={att.url} className="max-w-[250px]" />
+                        </div>
+                      ) : (
+                        <a key={i} href={att.url} download={att.filename} className="flex items-center gap-1 px-2 py-1 rounded bg-black/10 hover:bg-black/20 text-xs">
+                          📄 {att.filename}
+                        </a>
+                      )
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
         {replies && replies.length > 0 && (
           <button
@@ -439,9 +469,50 @@ export default function Chat() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchIdx, setSearchIdx] = useState(0);
+  const [attachments, setAttachments] = useState<Array<{
+    file: File;
+    preview?: string;
+    uploading: boolean;
+    url?: string;
+  }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadFile = useCallback(async (file: File) => {
+    const entry: typeof attachments[number] = { file, uploading: true };
+    if (file.type.startsWith('image/')) {
+      entry.preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+    }
+    setAttachments(prev => [...prev, entry]);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/projects/${encodeURIComponent(projectName!)}/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        setAttachments(prev => prev.map((a, i) => i === prev.length - 1 && a.file === file ? { ...a, uploading: false, url: data.url } : a));
+      } else {
+        setAttachments(prev => prev.filter(a => a.file !== file));
+      }
+    } catch {
+      setAttachments(prev => prev.filter(a => a.file !== file));
+    }
+  }, [projectName]);
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    Array.from(files).forEach(f => uploadFile(f));
+  }, [uploadFile]);
+
+  const removeAttachment = useCallback((idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  }, []);
 
   // Cmd+F to open chat search
   useEffect(() => {
@@ -510,9 +581,16 @@ export default function Chat() {
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text) return;
-    sendChat(text, replyTo?.id, activeThread ?? undefined);
+    if (!text && attachments.length === 0) return;
+    const readyAttachments = attachments.filter(a => a.url);
+    let msgContent = text;
+    if (readyAttachments.length > 0) {
+      const attJson = readyAttachments.map(a => ({ url: a.url!, filename: a.file.name, mimeType: a.file.type, size: a.file.size }));
+      msgContent = text + '\n\n[attachments]' + JSON.stringify(attJson) + '[/attachments]';
+    }
+    sendChat(msgContent, replyTo?.id, activeThread ?? undefined);
     setInput('');
+    setAttachments([]);
     setReplyTo(null);
     setWaitingForLead(true);
     // Stop recording if active
@@ -671,11 +749,55 @@ export default function Chat() {
             </div>
           )}
           <div className="flex gap-2 items-stretch">
-            <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
-              placeholder={connected ? 'Message Lead... (Enter to send)' : 'Connecting...'}
-              disabled={!connected} rows={1}
-              className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)] disabled:opacity-50 max-h-32 overflow-y-auto"
-            />
+            <div className={`flex-1 flex flex-col bg-[var(--color-surface-secondary)] border rounded-xl overflow-hidden transition-colors ${isDragging ? 'border-[var(--color-primary)] border-2 bg-[color-mix(in_srgb,var(--color-primary)_5%,transparent)]' : 'border-[var(--color-border)]'}`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+              onDrop={e => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}>
+              {attachments.length > 0 && (
+                <div className="flex gap-2 px-3 py-2 border-b border-[var(--color-border)] overflow-x-auto">
+                  {attachments.map((att, i) => (
+                    <div key={i} className="relative group shrink-0">
+                      {att.file.type.startsWith('image/') && att.preview ? (
+                        <img src={att.preview} className="w-16 h-16 object-cover rounded" alt={att.file.name} />
+                      ) : att.file.type.startsWith('audio/') ? (
+                        <div className="w-16 h-16 rounded bg-[var(--color-surface)] flex items-center justify-center text-xl" title={att.file.name}>🎵</div>
+                      ) : (
+                        <div className="w-16 h-16 rounded bg-[var(--color-surface)] flex items-center justify-center text-xl" title={att.file.name}>📄</div>
+                      )}
+                      <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-text-tertiary)] text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--color-status-failed)]">✕</button>
+                      {att.uploading && <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded"><Loader2 size={16} className="animate-spin text-white" /></div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <textarea ref={inputRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
+                onPaste={e => {
+                  const files = e.clipboardData?.files;
+                  if (files && files.length > 0) {
+                    e.preventDefault();
+                    addFiles(files);
+                    return;
+                  }
+                  // Check items for images
+                  const items = e.clipboardData?.items;
+                  if (items) {
+                    for (const item of Array.from(items)) {
+                      if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) { e.preventDefault(); addFiles([file]); return; }
+                      }
+                    }
+                  }
+                }}
+                placeholder={connected ? (isDragging ? 'Drop files here...' : 'Message Lead... (Enter to send)') : 'Connecting...'}
+                disabled={!connected} rows={1}
+                className="flex-1 resize-none bg-transparent px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none disabled:opacity-50 max-h-32 overflow-y-auto"
+              />
+              <input ref={fileInputRef} type="file" multiple accept="image/*,text/*,audio/*,.pdf" className="hidden" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
+            </div>
+            <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors" title="Attach files">
+              <Paperclip size={16} strokeWidth={1.5} />
+            </button>
             {speechSupported && (
               <div className="flex items-stretch">
                 <button onClick={toggleListening}
