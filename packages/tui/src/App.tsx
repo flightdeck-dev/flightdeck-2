@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { useFlightdeck } from './hooks/useFlightdeck';
 import { StatusBar } from './components/StatusBar';
@@ -31,6 +31,44 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [activityScroll, setActivityScroll] = useState(0);
   const [cmdOutput, setCmdOutput] = useState<string[]>([]);
   const [isInputMode, setIsInputMode] = useState(false);
+
+  // Mouse scroll support: enable SGR mouse tracking
+  useEffect(() => {
+    const enable = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
+    const disable = '\x1b[?1006l\x1b[?1002l\x1b[?1000l';
+    process.stdout.write(enable);
+
+    const onData = (data: Buffer) => {
+      const str = data.toString();
+      // Parse SGR mouse sequences: \x1b[<btn;col;rowM
+      const match = str.match(/\x1b\[<(\d+);\d+;\d+[Mm]/);
+      if (!match) return;
+      const btn = parseInt(match[1], 10);
+      if (btn === 64) {
+        // wheel up
+        if (focusedPanel === 'tasks') {
+          setTaskIndex(prev => Math.max(0, prev - 1));
+        } else if (focusedPanel === 'center') {
+          if (centerTab === 'chat') setChatScroll(prev => prev + 1);
+          else setActivityScroll(prev => prev + 1);
+        }
+      } else if (btn === 65) {
+        // wheel down
+        if (focusedPanel === 'tasks') {
+          setTaskIndex(prev => Math.min(prev + 1, fd.tasks.length - 1));
+        } else if (focusedPanel === 'center') {
+          if (centerTab === 'chat') setChatScroll(prev => Math.max(0, prev - 1));
+          else setActivityScroll(prev => Math.max(0, prev - 1));
+        }
+      }
+    };
+
+    process.stdin.on('data', onData);
+    return () => {
+      process.stdout.write(disable);
+      process.stdin.removeListener('data', onData);
+    };
+  }, [focusedPanel, centerTab, fd.tasks.length]);
 
   const panels: Panel[] = ['tasks', 'center', 'agents'];
 
@@ -245,6 +283,7 @@ export function App({ baseUrl, wsUrl }: AppProps) {
             messages={fd.chatMessages}
             focused={focusedPanel === 'center'}
             isLeadTyping={fd.isLeadTyping}
+            streamingText={fd.streamingText}
             input={input}
             onInputChange={setInput}
             onSubmit={handleSubmit}

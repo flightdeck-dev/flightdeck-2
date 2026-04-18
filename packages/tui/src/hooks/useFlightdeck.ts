@@ -109,6 +109,7 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLeadTyping, setIsLeadTyping] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const [displayConfig, setDisplayConfig] = useState<DisplayConfig>({ ...DEFAULT_DISPLAY });
   const [newMessageFlag, setNewMessageFlag] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -191,6 +192,7 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
           case 'chat:message':
           case 'message': {
             setIsLeadTyping(false);
+            setStreamingText('');
             const cm: ChatMessage = {
               sender: msg.data?.role || msg.data?.sender || 'lead',
               text: msg.data?.content || msg.data?.text || '',
@@ -205,6 +207,7 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
           }
           case 'chat:stream': {
             setIsLeadTyping(true);
+            if (msg.delta) setStreamingText(prev => prev + msg.delta);
             const ct = msg.content_type || 'text';
             if (shouldShow(displayConfig, ct as ContentType, msg.tool_name)) {
               addActivity({ time: timestamp(), icon: '…', text: `${(msg.delta || '').slice(0, 80)}`, color: 'gray' });
@@ -279,7 +282,7 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
 
   return {
     status, taskCounts, tasks, agents, activities, chatMessages,
-    isLeadTyping, newMessageFlag, clearNewMessage,
+    isLeadTyping, streamingText, newMessageFlag, clearNewMessage,
     sendMessage, fetchJson, displayConfig, sendDisplayUpdate, applyPreset,
     project, switchProject, baseUrl,
   };

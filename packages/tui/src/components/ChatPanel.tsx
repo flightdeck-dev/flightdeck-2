@@ -1,19 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
 import type { ChatMessage } from '../hooks/useFlightdeck';
+
+const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 
 interface Props {
   messages: ChatMessage[];
   focused: boolean;
   isLeadTyping: boolean;
+  streamingText: string;
   input: string;
   onInputChange: (val: string) => void;
   onSubmit: (val: string) => void;
   scrollOffset: number;
 }
 
-export function ChatPanel({ messages, focused, isLeadTyping, input, onInputChange, onSubmit, scrollOffset }: Props) {
+export function ChatPanel({ messages, focused, isLeadTyping, streamingText, input, onInputChange, onSubmit, scrollOffset }: Props) {
+  const [spinIdx, setSpinIdx] = useState(0);
+
+  useEffect(() => {
+    if (!isLeadTyping || !streamingText) return;
+    const timer = setInterval(() => setSpinIdx(i => (i + 1) % SPINNER.length), 80);
+    return () => clearInterval(timer);
+  }, [isLeadTyping, streamingText]);
+
   const maxVisible = 12;
   const end = messages.length - scrollOffset;
   const start = Math.max(0, end - maxVisible);
@@ -28,7 +39,7 @@ export function ChatPanel({ messages, focused, isLeadTyping, input, onInputChang
     >
       <Box paddingX={1}>
         <Text bold color={focused ? 'cyan' : 'white'}>Chat</Text>
-        {isLeadTyping && <Text color="yellow"> (Lead typing…)</Text>}
+{isLeadTyping && !streamingText && <Text color="yellow"> (Lead typing…)</Text>}
       </Box>
       <Box flexDirection="column" flexGrow={1} paddingX={1}>
         {visible.length === 0 ? (
@@ -43,6 +54,11 @@ export function ChatPanel({ messages, focused, isLeadTyping, input, onInputChang
               <Text> {msg.text.slice(0, 80)}</Text>
             </Box>
           ))
+        )}
+        {isLeadTyping && streamingText && (
+          <Box>
+            <Text dimColor italic color="yellow">{SPINNER[spinIdx]} {streamingText.slice(-120)}</Text>
+          </Box>
         )}
       </Box>
       <Box borderStyle="single" borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} paddingX={1}>
