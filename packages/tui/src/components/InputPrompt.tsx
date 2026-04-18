@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useInputHistory } from '../hooks/useInputHistory';
 import { SuggestionsDisplay } from './SuggestionsDisplay';
@@ -30,8 +30,17 @@ export function InputPrompt({
   onEnterInputMode,
   onExitInputMode,
 }: InputPromptProps) {
-  const [cursorPos, setCursorPos] = useState(0);
+  const [cursorPos, setCursorPos] = useState(value.length);
   const history = useInputHistory(50);
+  const prevActiveRef = useRef(isActive);
+
+  // Sync cursor to end of value when entering input mode or when value changes externally
+  useEffect(() => {
+    if (isActive && !prevActiveRef.current) {
+      setCursorPos(value.length);
+    }
+    prevActiveRef.current = isActive;
+  }, [isActive, value.length]);
 
   const updateValue = useCallback((newVal: string, newCursor?: number) => {
     onChange(newVal);
