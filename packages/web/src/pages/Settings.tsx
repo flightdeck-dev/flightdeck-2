@@ -168,6 +168,7 @@ function GlobalSettings() {
     fetch('/api/global-config').then(r => r.json())
   );
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
+  const [globalConfig, setGlobalConfig] = useState<any>({});
   const [runtimeOrder, setRuntimeOrder] = useState<string[]>([]);
   const [disabledLoaded, setDisabledLoaded] = useState(false);
 
@@ -175,6 +176,7 @@ function GlobalSettings() {
     if (globalCfg) {
       if (globalCfg.disabledRuntimes) setDisabledRuntimes(globalCfg.disabledRuntimes);
       if (globalCfg.runtimeOrder) setRuntimeOrder(globalCfg.runtimeOrder);
+      setGlobalConfig(globalCfg);
       setDisabledLoaded(true);
     }
   }, [globalCfg]);
@@ -297,6 +299,30 @@ function GlobalSettings() {
       {runtimes && runtimes.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
+      {/* Timezone */}
+      <section className="space-y-3">
+        <SectionHeader>Timezone</SectionHeader>
+        <Card>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Project Timezone</span>
+            <select
+              value={globalConfig?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+              onChange={async e => {
+                await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: e.target.value }) });
+                setGlobalConfig((prev: any) => ({ ...prev, timezone: e.target.value }));
+              }}
+              className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]"
+            >
+              {['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Anchorage','Pacific/Honolulu','Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow','Asia/Tokyo','Asia/Shanghai','Asia/Kolkata','Asia/Singapore','Australia/Sydney','Pacific/Auckland'].map(tz => (
+                <option key={tz} value={tz}>{tz.replace(/_/g,' ')}</option>
+              ))}
+            </select>
+          </div>
+        </Card>
+      </section>
+
+      {/* Runtimes */}
+      <section className="space-y-3">
             <SectionHeader>Runtimes</SectionHeader>
             <span className="text-[10px] text-[var(--color-text-tertiary)]">
               {Object.values(testResults).filter(r => r.success).length}/{runtimes.length} installed
@@ -785,18 +811,6 @@ function ProjectSettings() {
               <option value="collaborative">collaborative</option>
               <option value="supervised">supervised</option>
               <option value="custom">custom</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Timezone</span>
-            <select
-              value={(status.config as any)?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
-              onChange={e => saveConfig({ timezone: e.target.value })}
-              className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]"
-            >
-              {['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Anchorage','Pacific/Honolulu','Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow','Asia/Tokyo','Asia/Shanghai','Asia/Kolkata','Asia/Singapore','Australia/Sydney','Pacific/Auckland'].map(tz => (
-                <option key={tz} value={tz}>{tz.replace('_',' ')}</option>
-              ))}
             </select>
           </div>
           <div className="flex items-center justify-between">
