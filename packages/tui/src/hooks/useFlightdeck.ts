@@ -136,11 +136,27 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
 
   const fetchInitial = useCallback(async () => {
     try {
+      // If no project set, resolve from API
+      let projectBase = baseUrl;
+      if (!project) {
+        try {
+          const projRes = await fetch(`${baseUrl}/api/projects`).then(r => r.json());
+          const projects = projRes?.projects ?? projRes ?? [];
+          const firstName = typeof projects[0] === 'string' ? projects[0] : projects[0]?.name;
+          if (firstName) {
+            setProject(firstName);
+            projectBase = `${baseUrl}/api/projects/${encodeURIComponent(firstName)}`;
+            setWsUrl(`${baseUrl.replace('http', 'ws')}/ws/${encodeURIComponent(firstName)}`);
+          }
+        } catch {}
+      } else {
+        projectBase = `${baseUrl}/api/projects/${encodeURIComponent(project)}`;
+      }
       const [statusRes, tasksRes, agentsRes, messagesRes] = await Promise.all([
-        fetch(`${baseUrl}/api/status`).then(r => r.json()).catch(() => ({})),
-        fetch(`${baseUrl}/api/tasks`).then(r => r.json()).catch(() => []),
-        fetch(`${baseUrl}/api/agents`).then(r => r.json()).catch(() => []),
-        fetch(`${baseUrl}/api/messages`).then(r => r.json()).catch(() => []),
+        fetch(`${projectBase}/status`).then(r => r.json()).catch(() => ({})),
+        fetch(`${projectBase}/tasks`).then(r => r.json()).catch(() => []),
+        fetch(`${projectBase}/agents?include_retired=true`).then(r => r.json()).catch(() => []),
+        fetch(`${projectBase}/messages`).then(r => r.json()).catch(() => []),
       ]);
       setStatus({ ...statusRes, connected: true });
       if (Array.isArray(tasksRes)) {
@@ -276,9 +292,10 @@ export function useFlightdeck(initialBaseUrl: string, initialWsUrl: string) {
   }, [sendDisplayUpdate]);
 
   const fetchJson = useCallback(async (path: string) => {
-    try { return await fetch(`${baseUrl}${path}`).then(r => r.json()); }
+    const projBase = project ? `${baseUrl}/api/projects/${encodeURIComponent(project)}` : baseUrl;
+    try { return await fetch(`${projBase}${path}`).then(r => r.json()); }
     catch { return null; }
-  }, [baseUrl]);
+  }, [baseUrl, project]);
 
   const switchProject = useCallback((name: string) => {
     const newBase = baseUrl.replace(/\/api\/projects\/[^/]+/, `/api/projects/${name}`);
