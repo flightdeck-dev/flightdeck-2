@@ -159,14 +159,6 @@ export class LeadManager {
           roleContext += `- **${rc.role}**: ${modelList || `${rc.runtime}:${rc.model}`}\n`;
         }
       }
-      // Read role-preference.md
-      const { readFileSync, existsSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const prefPath = join(this.project.subpath('.'), 'role-preference.md');
-      if (existsSync(prefPath)) {
-        const pref = readFileSync(prefPath, 'utf-8');
-        roleContext += `\n## Selection Preference\n${pref}\n`;
-      }
     } catch { /* best effort */ }
 
     const systemPrompt = [memoryContext, roleContext].filter(Boolean).join('\n') || undefined;
@@ -504,11 +496,24 @@ export class LeadManager {
 
   /** Spawn Planner as a persistent ACP session */
   async spawnPlanner(): Promise<string> {
+    // Read role-preference.md for Planner's system prompt
+    let systemPrompt: string | undefined;
+    try {
+      const { readFileSync, existsSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const prefPath = join(this.project.subpath('.'), 'role-preference.md');
+      if (existsSync(prefPath)) {
+        const pref = readFileSync(prefPath, 'utf-8');
+        systemPrompt = `## Task Planning Preference\n${pref}`;
+      }
+    } catch { /* best effort */ }
+
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.plannerRuntime,
+      ...(systemPrompt ? { systemPrompt } : {}),
     });
     this.plannerSessionId = meta.sessionId;
     this.plannerAgentId = meta.agentId;

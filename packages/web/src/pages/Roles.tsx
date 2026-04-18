@@ -339,62 +339,21 @@ export default function Roles() {
   const disabledRuntimes: string[] = (status?.config as any)?.disabledRuntimes ?? [];
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [preference, setPreference] = useState('');
-  const [prefDirty, setPrefDirty] = useState(false);
-  const [prefSaving, setPrefSaving] = useState(false);
+
 
   const { data: rolesData, mutate: mutateRoles } = useSWR(
     projectName ? ['roles', projectName] : null,
     () => api.getRoles(projectName!)
   );
-  const { data: prefData, mutate: mutatePref } = useSWR(
-    projectName ? ['rolePreference', projectName] : null,
-    () => api.getRolePreference(projectName!)
-  );
+
 
   // Sync SWR data to local state
   useEffect(() => {
     if (rolesData) setRoles(rolesData);
   }, [rolesData]);
-  useEffect(() => {
-    if (prefData) { setPreference(prefData.content); setPrefDirty(false); }
-  }, [prefData]);
 
   const loadRoles = useCallback(() => { mutateRoles(); }, [mutateRoles]);
 
-  const savePreference = async () => {
-    if (!projectName) return;
-    setPrefSaving(true);
-    try {
-      await api.updateRolePreference(projectName, preference);
-      setPrefDirty(false);
-      mutatePref();
-    } catch (e) { console.error(e); }
-    setPrefSaving(false);
-  };
-
-  const resetPreference = async () => {
-    const defaultPref = `# Role & Model Selection Preference
-
-## Role Assignment
-- Use **worker** for implementation tasks
-- Use **reviewer** for code review after worker submits
-- Use **qa-tester** only for user-facing features
-- Skip **tech-writer** unless explicitly requested
-
-## Model Selection
-- Complex architecture/refactoring → high-performance model
-- Routine bug fixes, small changes → budget model
-- Code review → mid-tier is fine
-- If a task fails once, retry with a higher-tier model
-
-## Runtime Preference
-- Prefer the default runtime for general work
-- Use alternative runtimes when the default is unavailable
-`;
-    setPreference(defaultPref);
-    setPrefDirty(true);
-  };
 
   const selected = roles.find(r => r.id === selectedRole) ?? null;
 
@@ -445,36 +404,6 @@ export default function Roles() {
           )}
         </div>
       </div>
-
-      {/* Role Selection Preference */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Role Selection Preference</h2>
-          <button
-            onClick={resetPreference}
-            className="text-xs px-2 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-          >
-            Reset to Default
-          </button>
-        </div>
-        <textarea
-          value={preference}
-          onChange={e => { setPreference(e.target.value); setPrefDirty(true); }}
-          className="w-full h-48 p-3 text-sm font-mono rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] resize-y focus:outline-none focus:border-[var(--color-primary)]"
-          placeholder="Define how Lead should select roles and models..."
-        />
-        {prefDirty && (
-          <div className="flex justify-end">
-            <button
-              onClick={savePreference}
-              disabled={prefSaving}
-              className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
-            >
-              {prefSaving ? 'Saving...' : 'Save Preference'}
-            </button>
-          </div>
-        )}
-      </section>
 
       {showCreate && <CreateRoleModal project={projectName} onClose={() => setShowCreate(false)} onCreated={() => { loadRoles(); setShowCreate(false); }} />}
     </div>

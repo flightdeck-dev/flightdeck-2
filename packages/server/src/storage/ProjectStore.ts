@@ -8,23 +8,26 @@ import { FD_HOME } from '../cli/constants.js';
 const FLIGHTDECK_HOME = FD_HOME;
 const SUBDIRS = ['specs', 'decisions', 'memory', 'agents', 'messages', 'reports'];
 
-const ROLE_PREFERENCE_TEMPLATE = `# Role & Model Selection Preference
+const ROLE_PREFERENCE_TEMPLATE = `# Task Planning Preference
 
 ## Role Assignment
 - Use **worker** for implementation tasks
-- Use **reviewer** for code review after worker submits
-- Use **qa-tester** only for user-facing features
-- Skip **tech-writer** unless explicitly requested
+- Use **reviewer** — auto-assigned by Orchestrator after worker submits
+- Use **qa-tester** only for user-facing features requiring manual verification
+- Use **tech-writer** only when explicitly requested
+- Use **product-thinker** for UX/scope decisions before implementation
 
 ## Model Selection
 - Complex architecture/refactoring → high-performance model
 - Routine bug fixes, small changes → budget model
-- Code review → mid-tier is fine
+- Code review → mid-tier is sufficient
 - If a task fails once, retry with a higher-tier model
 
-## Runtime Preference
-- Prefer the default runtime for general work
-- Use alternative runtimes when the default is unavailable
+## Execution Strategy
+- Parallelize independent tasks (no unnecessary dependencies)
+- Keep tasks atomic (one worker, one session)
+- Use file_lock isolation by default
+- Use git_worktree for projects with many concurrent workers
 `;
 
 const HEARTBEAT_TEMPLATE = `# Heartbeat Instructions
