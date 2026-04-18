@@ -336,6 +336,9 @@ function ProjectSettings() {
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
   const [saving, setSaving] = useState(false);
   const [restartingLead, setRestartingLead] = useState(false);
+  const [leadRuntime, setLeadRuntime] = useState<string>("copilot");
+  const [leadModel, setLeadModel] = useState<string>("high");
+  const [leadModelOptions, setLeadModelOptions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!status?.config) return;
@@ -345,6 +348,24 @@ function ProjectSettings() {
     setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
   }, [status?.config]);
 
+  // Load lead runtime/model from model config
+  useEffect(() => {
+    if (!projectName) return;
+    fetch(`/api/projects/${encodeURIComponent(projectName)}/models`).then(r => r.json()).then(data => {
+      const lead = data.roles?.find((r: any) => r.role === "lead");
+      if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? "high"); }
+    }).catch(() => {});
+    // Fetch available models for dropdown
+    fetch(`/api/projects/${encodeURIComponent(projectName)}/models/available`).then(r => r.json()).then(data => {
+      const all: string[] = [];
+      for (const tiers of Object.values(data)) {
+        for (const models of Object.values(tiers as any)) {
+          for (const m of models as any[]) { if (m.modelId && !all.includes(m.modelId)) all.push(m.modelId); }
+        }
+      }
+      setLeadModelOptions(all);
+    }).catch(() => {});
+  }, [projectName]);
   const saveConfig = async (update: Record<string, unknown>) => {
     if (!projectName) return;
     setSaving(true);
@@ -401,6 +422,25 @@ function ProjectSettings() {
             >
               <option value="file_lock">File Lock (shared directory)</option>
               <option value="git_worktree">Git Worktree (per-task branches)</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Lead Runtime</span>
+            <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(\`/api/projects/\${encodeURIComponent(projectName)}/models/lead\`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel || 'high' }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+              <option value="copilot">Copilot (SDK)</option>
+              <option value="codex">Codex</option>
+              <option value="claude-code">Claude Code</option>
+              <option value="claude-agent">Claude Agent (ACP)</option>
+              <option value="opencode">OpenCode</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Lead Model</span>
+            <select value={leadModel} onChange={async e => { setLeadModel(e.target.value); if (projectName) { await fetch(\`/api/projects/\${encodeURIComponent(projectName)}/models/lead\`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: leadRuntime, model: e.target.value }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
+              <option value="high">High tier</option>
+              <option value="medium">Medium tier</option>
+              {leadModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           {activeLeads.length > 0 && (

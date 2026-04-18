@@ -632,7 +632,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const am = agentManagers?.get(projectName) ?? fd.agentManager;
       if (!am) { json(500, { error: 'No AgentManager available' }); return; }
       try {
+        const agent = fd.sqlite.getAgent(agentId as any);
         await am.terminateAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        // If Lead was terminated, reset LeadManager so next message spawns fresh
+        if (agent?.role === 'lead') {
+          const lm = leadManagers?.get(projectName);
+          if (lm) { (lm as any).leadSessionId = null; (lm as any).leadAgentId = null; }
+        }
         json(200, { success: true });
       } catch (e: unknown) { json(500, { error: `Failed to terminate agent: ${e instanceof Error ? e.message : String(e)}` }); }
     } else if (subPath.match(/^\/agents\/[^/]+\/restart$/) && method === 'POST') {
@@ -692,7 +698,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const am = agentManagers?.get(projectName) ?? fd.agentManager;
       if (!am) { json(500, { error: 'No AgentManager available' }); return; }
       try {
+        const agent = fd.sqlite.getAgent(agentId as any);
         await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
+        // If Lead/Planner was retired, reset LeadManager so next message spawns fresh
+        if (agent?.role === 'lead' || agent?.role === 'planner') {
+          const lm = leadManagers?.get(projectName);
+          if (lm) {
+            (lm as any).leadSessionId = null;
+            (lm as any).leadAgentId = null;
+          }
+        }
         json(200, { success: true });
       } catch (e: unknown) { json(500, { error: `Failed to retire agent: ${e instanceof Error ? e.message : String(e)}` }); }
     } else if (subPath.match(/^\/agents\/[^/]+\/unretire$/) && method === 'POST') {
