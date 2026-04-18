@@ -437,7 +437,6 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
                 <option key={m.modelId} value={m.modelId}>{m.displayName ?? m.modelId}</option>
               ))}
             </select>
-            />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">
