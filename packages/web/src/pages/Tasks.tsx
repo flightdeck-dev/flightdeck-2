@@ -14,7 +14,7 @@ function Badge({ state }: { state: TaskState }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium"
           style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+      <span className={`w-1.5 h-1.5 rounded-full ${state === 'running' ? 'animate-pulse' : ''}`} style={{ backgroundColor: color }} />
       {state.replace('_', ' ')}
     </span>
   );
