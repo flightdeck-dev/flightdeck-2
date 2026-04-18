@@ -20,9 +20,36 @@ export const ProjectConfigSchema = z.object({
   }).optional(),
 });
 
+const BridgeDiscordSchema = z.object({
+  enabled: z.boolean().default(false),
+  token: z.string().default(''),
+  guildId: z.string().optional(),
+  channelMap: z.record(z.string()).optional(),
+});
+
+const BridgeTelegramSchema = z.object({
+  enabled: z.boolean().default(false),
+  token: z.string().default(''),
+  chatMap: z.record(z.string()).optional(),
+});
+
+const BridgeSignalSchema = z.object({
+  enabled: z.boolean().default(false),
+  phoneNumber: z.string().default(''),
+  apiUrl: z.string().optional(),
+  chatMap: z.record(z.string()).optional(),
+});
+
+const BridgesSchema = z.object({
+  discord: BridgeDiscordSchema.optional(),
+  telegram: BridgeTelegramSchema.optional(),
+  signal: BridgeSignalSchema.optional(),
+});
+
 export const GlobalConfigSchema = z.object({
   disabledRuntimes: z.array(z.string()).default([]),
   runtimeOrder: z.array(z.string()).default([]),
+  bridges: BridgesSchema.optional(),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;

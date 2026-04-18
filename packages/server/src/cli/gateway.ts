@@ -2,12 +2,26 @@ import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 import { messageId as makeMessageId, type AgentId, type TaskId, type AgentRole, type TaskState } from '@flightdeck-ai/shared';
 import { loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents } from './gatewayState.js';
-import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
 import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
+import type { BridgeConfig } from '../bridges/types.js';
+
+/** Load bridge config from global-config.json */
+async function loadBridgeConfig(): Promise<BridgeConfig | null> {
+  try {
+    const cfgPath = join(FD_HOME, 'global-config.json');
+    if (!existsSync(cfgPath)) return null;
+    const raw = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+    if (!raw.bridges) return null;
+    return raw.bridges as BridgeConfig;
+  } catch {
+    return null;
+  }
+}
 
 /** Session info for recovery across gateway restarts. */
 interface SavedSession {
@@ -431,6 +445,35 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   }
 
+  // ── Chat Bridges ──
+  let bridgeManager: InstanceType<typeof import('../bridges/BridgeManager.js').BridgeManager> | null = null;
+  try {
+    const { BridgeManager } = await import('../bridges/BridgeManager.js');
+    const bridgeConfig = await loadBridgeConfig();
+    if (bridgeConfig) {
+      bridgeManager = new BridgeManager(bridgeConfig, (bridge, msg, projectName) => {
+        const lm = leadManagers.get(projectName);
+        if (lm) {
+          lm.steerLead({
+            type: 'user_message',
+            message: {
+              id: msg.messageId ?? '',
+              content: msg.text,
+              authorType: 'user',
+              authorId: msg.userId,
+              metadata: JSON.stringify({ bridge, channelId: msg.channelId, userName: msg.userName }),
+              threadId: null, parentId: null, taskId: null, channel: bridge,
+              createdAt: new Date().toISOString(),
+            } as any,
+          }).catch(() => {});
+        }
+      });
+      await bridgeManager.startAll();
+    }
+  } catch (err: any) {
+    console.error(`[bridges] Init failed: ${err.message}`);
+  }
+
   // Start HTTP server
   const { createHttpServer } = await import('../api/HttpServer.js');
 
@@ -695,6 +738,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     for (const o of orchestrators) o.stop();
     for (const cs of cronSchedulers) cs.stop();
     for (const lm of leadManagers.values()) lm.stop();
+    if (bridgeManager) bridgeManager.stopAll().catch(() => {});
     acpAdapter.clear();
     // Clean up PID tracking — graceful shutdown means no orphans
     clearAgentPids();

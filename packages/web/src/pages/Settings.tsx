@@ -322,7 +322,104 @@ function GlobalSettings() {
           </Card>
         </section>
       )}
+
+      {/* Chat Bridges */}
+      <ChatBridgesSection globalCfg={globalCfg} />
     </>
+  );
+}
+
+function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
+  const [bridges, setBridges] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (globalCfg?.bridges) setBridges(globalCfg.bridges);
+    else setBridges({ discord: { enabled: false, token: '', guildId: '', channelMap: {} }, telegram: { enabled: false, token: '', chatMap: {} }, signal: { enabled: false, phoneNumber: '', apiUrl: 'http://localhost:8080', chatMap: {} } });
+  }, [globalCfg]);
+
+  const save = useCallback(async (updated: any) => {
+    setBridges(updated);
+    setSaving(true);
+    try {
+      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bridges: updated }) });
+    } catch {} finally { setSaving(false); }
+  }, []);
+
+  const updateField = (platform: string, field: string, value: any) => {
+    const updated = { ...bridges, [platform]: { ...bridges[platform], [field]: value } };
+    save(updated);
+  };
+
+  if (!bridges) return null;
+
+  return (
+    <section className="space-y-3">
+      <SectionHeader>Chat Bridges {saving && <Loader2 className="inline w-3 h-3 animate-spin ml-1" />}</SectionHeader>
+
+      {/* Discord */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Discord</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Connect a Discord bot to relay messages</p>
+          </div>
+          <Toggle value={bridges.discord?.enabled ?? false} onChange={v => updateField('discord', 'enabled', v)} />
+        </div>
+        {bridges.discord?.enabled && (
+          <div className="space-y-2 mt-2">
+            <input type="password" placeholder="Bot Token" value={bridges.discord?.token ?? ''}
+              onChange={e => updateField('discord', 'token', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
+            <input type="text" placeholder="Guild ID (optional)" value={bridges.discord?.guildId ?? ''}
+              onChange={e => updateField('discord', 'guildId', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
+            <p className="text-xs text-[var(--color-text-tertiary)]">Channel Map: project → channel ID (in global-config.json)</p>
+          </div>
+        )}
+      </Card>
+
+      {/* Telegram */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Telegram</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Connect a Telegram bot</p>
+          </div>
+          <Toggle value={bridges.telegram?.enabled ?? false} onChange={v => updateField('telegram', 'enabled', v)} />
+        </div>
+        {bridges.telegram?.enabled && (
+          <div className="space-y-2 mt-2">
+            <input type="password" placeholder="Bot Token" value={bridges.telegram?.token ?? ''}
+              onChange={e => updateField('telegram', 'token', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
+            <p className="text-xs text-[var(--color-text-tertiary)]">Chat Map: project → chat ID (in global-config.json)</p>
+          </div>
+        )}
+      </Card>
+
+      {/* Signal */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Signal</p>
+            <p className="text-xs text-[var(--color-text-tertiary)]">Connect via signal-cli REST API</p>
+          </div>
+          <Toggle value={bridges.signal?.enabled ?? false} onChange={v => updateField('signal', 'enabled', v)} />
+        </div>
+        {bridges.signal?.enabled && (
+          <div className="space-y-2 mt-2">
+            <input type="text" placeholder="Phone Number (+1234567890)" value={bridges.signal?.phoneNumber ?? ''}
+              onChange={e => updateField('signal', 'phoneNumber', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
+            <input type="text" placeholder="API URL (default: http://localhost:8080)" value={bridges.signal?.apiUrl ?? 'http://localhost:8080'}
+              onChange={e => updateField('signal', 'apiUrl', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] outline-none" />
+            <p className="text-xs text-[var(--color-text-tertiary)]">Chat Map: project → phone/group (in global-config.json)</p>
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
 
