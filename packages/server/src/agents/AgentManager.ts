@@ -287,9 +287,10 @@ export class AgentManager {
         ...(isClaudeCode ? { systemPromptMeta: { append: roleInstructions } } : {}),
       });
 
-      // 6a. Update SQLite with session ID
+      // 6a. Update SQLite with session ID and model
       this.store.updateAgentAcpSession(newId, meta.sessionId);
       this.store.updateAgentStatus(newId, 'busy');
+      if (resolvedModel) this.store.updateAgentModel(newId, resolvedModel);
       agent.acpSessionId = meta.sessionId;
       agent.status = 'busy';
 

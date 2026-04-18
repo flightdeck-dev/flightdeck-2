@@ -188,6 +188,8 @@ export class LeadManager {
       lastHeartbeat: null,
     });
 
+    // Save the configured model to DB so UI can display it
+    try { const mc = await import("../agents/ModelConfig.js").then(m => new m.ModelConfig(this.project.subpath("."))); const cfg = mc.getRoleConfig("lead"); if (cfg.model) this.sqlite.updateAgentModel(meta.agentId as any, cfg.model); } catch {}
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
     }
