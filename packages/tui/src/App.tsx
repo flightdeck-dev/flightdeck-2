@@ -54,7 +54,24 @@ export function App({ baseUrl, wsUrl }: AppProps) {
   const [isInputMode, setIsInputMode] = useState(false);
   const [overlay, setOverlay] = useState<'agents' | 'tasks' | null>(null);
 
-  const { suggestions, selectedIndex, setSelectedIndex, complete } = useCommandCompletion(input, COMMANDS);
+  const fetchSubcommands = useCallback(async (cmd: string) => {
+    if (cmd === '/project' || cmd === '/projects') {
+      try {
+        const data = await fd.fetchJson('/api/projects');
+        const projects = Array.isArray(data) ? data : (data?.projects ?? []);
+        return projects.map((p: any) => ({ cmd: typeof p === 'string' ? p : p.name, desc: 'Switch to project' }));
+      } catch { return []; }
+    }
+    if (cmd === '/model') {
+      // Suggest agent IDs
+      return fd.agents.map(a => ({ cmd: a.id, desc: `${a.role} (${a.status})` }));
+    }
+    if (cmd === '/hibernate' || cmd === '/wake' || cmd === '/retire' || cmd === '/interrupt') {
+      return fd.agents.map(a => ({ cmd: a.id, desc: `${a.role} (${a.status})` }));
+    }
+    return [];
+  }, [fd]);
+  const { suggestions, selectedIndex, setSelectedIndex, complete } = useCommandCompletion(input, COMMANDS, fetchSubcommands);
 
   // Dynamic terminal height
   const { stdout } = useStdout();
