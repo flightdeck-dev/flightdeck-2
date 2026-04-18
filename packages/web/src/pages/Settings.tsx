@@ -295,10 +295,6 @@ function GlobalSettings() {
         </Card>
       </section>
 
-      {/* Runtimes */}
-      {runtimes && runtimes.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
       {/* Timezone */}
       <section className="space-y-3">
         <SectionHeader>Timezone</SectionHeader>
@@ -322,7 +318,9 @@ function GlobalSettings() {
       </section>
 
       {/* Runtimes */}
-      <section className="space-y-3">
+      {runtimes && runtimes.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
             <SectionHeader>Runtimes</SectionHeader>
             <span className="text-[10px] text-[var(--color-text-tertiary)]">
               {Object.values(testResults).filter(r => r.success).length}/{runtimes.length} installed
