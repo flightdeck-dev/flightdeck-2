@@ -1,28 +1,4 @@
 
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-function formatTs(): string {
-  try {
-    const p = join(homedir(), ".flightdeck", "v2", "global-config.json");
-    if (existsSync(p)) {
-      const tz = JSON.parse(readFileSync(p, "utf-8")).timezone;
-      if (tz) {
-        // ISO format with timezone offset: 2026-04-18T15:43:00-07:00
-        const d = new Date();
-        const parts = new Intl.DateTimeFormat("en-CA", {
-          timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-          timeZoneName: "longOffset",
-        }).formatToParts(d);
-        const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-        const offset = get("timeZoneName").replace("GMT", "") || "+00:00";
-        return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}${offset}`;
-      }
-    }
-  } catch {}
-  return new Date().toISOString().slice(0, 19) + "Z";
-}); } } catch {} return new Date().toISOString().slice(0, 19) + "Z"; }
 import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
@@ -30,6 +6,31 @@ import type { AgentAdapter } from '../agents/AgentAdapter.js';
 import type { AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
 import { SessionStore } from '../acp/SessionStore.js';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
+/** Format timestamp in user's timezone as ISO with offset */
+function formatTs(): string {
+  try {
+    const gcPath = join(homedir(), '.flightdeck', 'v2', 'global-config.json');
+    if (existsSync(gcPath)) {
+      const tz = JSON.parse(readFileSync(gcPath, 'utf-8')).timezone;
+      if (tz) {
+        const d = new Date();
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+          timeZoneName: 'longOffset',
+        }).formatToParts(d);
+        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+        const offset = get('timeZoneName').replace('GMT', '') || '+00:00';
+        return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}${offset}`;
+      }
+    }
+  } catch {}
+  return new Date().toISOString().slice(0, 19) + 'Z';
+}
 
 /**
  * Events that can trigger a Lead steer.
