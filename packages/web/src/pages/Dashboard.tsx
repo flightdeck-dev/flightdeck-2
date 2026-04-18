@@ -146,24 +146,8 @@ export default function Dashboard() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">{status?.config?.name ?? 'Flightdeck'}</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1 flex items-center gap-2">
-            <select
-              value={status?.config?.governance ?? 'autonomous'}
-              onChange={async (e) => {
-                try {
-                  await fetch(`/api/projects/${encodeURIComponent(status?.config?.name ?? '')}/config`, {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ governance: e.target.value }),
-                  });
-                } catch {}
-              }}
-              className="text-sm px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] cursor-pointer focus:outline-none"
-            >
-              <option value="autonomous">autonomous</option>
-              <option value="supervised">supervised</option>
-              <option value="collaborative">collaborative</option>
-            </select>
-            governance
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            {status?.config?.governance ?? '—'} governance
           </p>
           {(status as any)?.tokenUsage && (
             <TokenUsage projectName={(status?.config as any)?.name ?? ''} tokenUsage={(status as any).tokenUsage} />

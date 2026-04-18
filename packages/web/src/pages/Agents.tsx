@@ -382,7 +382,7 @@ function AgentDetailPanel({
                   ['Role', agent.role],
                   ['Status', config.label],
                   ['Runtime', agent.runtimeName ?? agent.runtime ?? 'acp'],
-                  ['Cost', `$${(agent.cost ?? 0).toFixed(2)}`],
+                  ['Tokens', `${((agent as any).tokensIn ?? 0).toLocaleString()} in / ${((agent as any).tokensOut ?? 0).toLocaleString()} out`],
                   ['Session ID', agent.acp_session_id ?? '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-4">
@@ -471,15 +471,15 @@ function AgentCard({ agent, onSelect, isSelected }: { agent: Agent; onSelect: (i
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div>
           <p className="text-[var(--color-text-tertiary)]">Model</p>
-          <p className="font-mono mt-0.5 truncate">{agent.model ?? '—'}</p>
+          <p className="font-mono mt-0.5 truncate">{agent.model ?? agent.runtimeName ?? '—'}</p>
         </div>
         <div>
           <p className="text-[var(--color-text-tertiary)]">Runtime</p>
           <p className="font-mono mt-0.5">{agent.runtimeName ?? agent.runtime ?? 'acp'}</p>
         </div>
         <div>
-          <p className="text-[var(--color-text-tertiary)]">Cost</p>
-          <p className="mt-0.5 font-medium">${(agent.cost ?? 0).toFixed(2)}</p>
+          <p className="text-[var(--color-text-tertiary)]">Tokens</p>
+          <p className="mt-0.5 font-medium">{((agent as any).tokensIn ?? 0).toLocaleString()} in / {((agent as any).tokensOut ?? 0).toLocaleString()} out</p>
         </div>
       </div>
 

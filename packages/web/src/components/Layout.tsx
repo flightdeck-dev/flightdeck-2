@@ -65,9 +65,25 @@ export function Layout() {
             </>
           )}
           {status && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
-              {status.config.governance}
-            </span>
+            <div className="relative">
+              <select
+                value={status.config.governance}
+                onChange={async (e) => {
+                  try {
+                    await fetch(`/api/projects/${encodeURIComponent(projectName ?? '')}/config`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ governance: e.target.value }),
+                    });
+                  } catch {}
+                }}
+                className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer appearance-none pr-5 focus:outline-none"
+              >
+                <option value="autonomous">autonomous</option>
+                <option value="supervised">supervised</option>
+                <option value="collaborative">collaborative</option>
+              </select>
+              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-[var(--color-text-tertiary)] pointer-events-none">▾</span>
+            </div>
           )}
           {projectName && (
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}
