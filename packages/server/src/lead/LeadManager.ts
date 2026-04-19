@@ -189,7 +189,17 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
-    const systemPrompt = [memoryContext, roleContext].filter(Boolean).join('\n') || undefined;
+    // Inject current project status into Lead's system prompt
+    let statusContext = '';
+    try {
+      const taskStats = this.sqlite.getTaskStats();
+      const agentList = this.sqlite.listAgents().filter(a => ['busy', 'idle'].includes(a.status));
+      const busyCount = agentList.filter(a => a.status === 'busy').length;
+      const idleCount = agentList.filter(a => a.status === 'idle').length;
+      statusContext = `\n## Current Project Status\nTasks: ${taskStats.running ?? 0} running, ${taskStats.ready ?? 0} ready, ${taskStats.done ?? 0} done, ${taskStats.failed ?? 0} failed\nAgents: ${busyCount} busy, ${idleCount} idle\n${agentList.length > 0 ? 'Active agents: ' + agentList.map(a => `${a.id} (${a.role}, ${a.status})`).join(', ') : 'No active agents'}`;
+    } catch { /* best effort */ }
+
+    const systemPrompt = [memoryContext, roleContext, statusContext].filter(Boolean).join('\n') || undefined;
 
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
@@ -356,7 +366,7 @@ export class LeadManager {
         parts.push('---');
         parts.push(event.message.content);
         parts.push('');
-        parts.push(`For project status: read .flightdeck/status.md`);
+        parts.push(`For project status: use flightdeck_status tool`);
         break;
       }
 

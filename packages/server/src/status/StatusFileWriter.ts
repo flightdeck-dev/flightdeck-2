@@ -22,8 +22,12 @@ export class StatusFileWriter {
   /** Minimum interval between writes (ms). */
   private debounceMs: number;
 
-  constructor(debounceMs = 1000) {
+  /** Optional state directory to also write status.md to. */
+  private stateDir: string | undefined;
+
+  constructor(debounceMs = 1000, stateDir?: string) {
     this.debounceMs = debounceMs;
+    this.stateDir = stateDir;
   }
 
   /**
@@ -62,6 +66,11 @@ export class StatusFileWriter {
     mkdirSync(dir, { recursive: true });
     const md = StatusFileWriter.generateMarkdown(data);
     writeFileSync(join(dir, 'status.md'), md);
+    // Also write to state directory if different from project dir
+    if (this.stateDir && this.stateDir !== dir) {
+      mkdirSync(this.stateDir, { recursive: true });
+      writeFileSync(join(this.stateDir, 'status.md'), md);
+    }
     this.lastWriteTime = Date.now();
   }
 

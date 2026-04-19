@@ -30,4 +30,4 @@ You are an agent managed by Flightdeck. All communication with Flightdeck happen
 - Always include your `agentId` when calling tools
 - Submit work via `flightdeck_task_submit` — don't just say you're done
 - If stuck for more than a few minutes, escalate
-- Read `.flightdeck/status.md` for current project state
+- Use `flightdeck_status()` for current project state

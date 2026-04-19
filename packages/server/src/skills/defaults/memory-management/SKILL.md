@@ -19,7 +19,7 @@ memory/
 
 - `flightdeck_memory_search(query)` — Full-text search across all memory files
 - Read files directly: `memory/PROJECT.md`, `memory/learnings.md`, etc.
-- Check `.flightdeck/status.md` for current project state
+- Use `flightdeck_status()` for current project state
 
 ## Writing Memory
 
