@@ -58,6 +58,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
   private gatewayUrl: string;
   private defaultModel?: string;
   private usageCallback: CopilotSdkAdapterOptions['onUsage'];
+  onModelResolved: ((agentId: string, model: string) => void) | null = null;
   private contextWindowCallback: CopilotSdkAdapterOptions['onContextWindow'];
 
   /** Callback fired when a session ends. */
@@ -937,6 +938,9 @@ export class CopilotSdkAdapter extends AgentAdapter {
       // Capture resolved model from session.created event
       if ((event.type as string) === 'session.created' && (event as any).data?.selectedModel) {
         agentSession.model = (event as any).data.selectedModel;
+        if (this.onModelResolved) {
+          try { this.onModelResolved(agentSession.agentId, (event as any).data.selectedModel); } catch { /* */ }
+        }
       }
 
       if (event.type === 'assistant.message') {

@@ -244,6 +244,21 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Wire the same turn-end handler for CopilotSdkAdapter
   copilotSdkAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
 
+  // When Copilot SDK resolves the actual model name, update SQLite
+  copilotSdkAdapter.onModelResolved = (agentId, model) => {
+    for (const name of projectManager.list()) {
+      const fd = projectManager.get(name);
+      if (!fd) continue;
+      const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+      if (agent) {
+        fd.sqlite.updateAgentModel(agentId as AgentId, model);
+        const ws = wsServers.get(name);
+        if (ws) ws.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+        break;
+      }
+    }
+  };
+
   // Broadcast all agent streaming output to WebSocket clients
   acpAdapter.onAnySessionOutput = (agentId, update) => {
     // Broadcast to all project WS servers

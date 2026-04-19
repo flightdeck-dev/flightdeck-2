@@ -121,7 +121,8 @@ function AgentDetailPanel({
   // H8: Add proper deps — refetch when agent or project changes
   const { data: agentOutputData } = useSWR(
     !liveOutput && !liveChunks.length && projectName ? ['agentOutput', projectName, agent.id] : null,
-    () => api.getAgentOutput(projectName!, agent.id)
+    () => api.getAgentOutput(projectName!, agent.id),
+    { refreshInterval: 3000 }
   );
   useEffect(() => {
     if (agentOutputData?.lines?.length) setHistoricalOutput(agentOutputData.lines.join('\n'));
@@ -241,14 +242,9 @@ function AgentDetailPanel({
   const hasChunks = liveChunks.length > 0;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-
-      {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed top-0 right-0 h-full z-50 flex animate-slide-in-right"
+        className="h-full flex flex-shrink-0 transition-[width] duration-200 ease-in-out"
         style={{
           width: `${width}px`,
           userSelect: dragging ? 'none' : undefined,
@@ -455,7 +451,6 @@ function AgentDetailPanel({
           </div>
         </div>
       </div>
-    </>
   );
 }
 
@@ -723,8 +718,15 @@ export default function Agents() {
     );
   }
 
+  const handleAgentSelect = useCallback((id: string) => {
+    // Toggle: clicking the same agent deselects it
+    setSelectedAgentId(prev => prev === id ? null : id);
+  }, []);
+
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="flex h-full">
+    <div className="flex-1 overflow-y-auto min-w-0">
+    <div className="max-w-5xl space-y-6 p-0">
       {/* Toast */}
       {pageToast && (
         <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl bg-red-500/90 text-white text-sm shadow-lg backdrop-blur-sm animate-in slide-in-from-top-2 flex items-center gap-2">
@@ -747,8 +749,8 @@ export default function Agents() {
       </div>
 
       {active.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={handleAgentSelect} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
         </div>
       )}
 
@@ -757,8 +759,8 @@ export default function Agents() {
           <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
             💤 {hibernated.length} hibernated agent{hibernated.length !== 1 ? 's' : ''}
           </summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
-            {hibernated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 opacity-60">
+            {hibernated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={handleAgentSelect} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
@@ -768,8 +770,8 @@ export default function Agents() {
           <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
             ⚠️ {errored.length} errored agent{errored.length !== 1 ? 's' : ''}
           </summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
-            {errored.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 opacity-60">
+            {errored.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={handleAgentSelect} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
@@ -779,15 +781,19 @@ export default function Agents() {
           <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
             {retired.length} retired agent{retired.length !== 1 ? 's' : ''}
           </summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-50">
-            {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 opacity-50">
+            {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={handleAgentSelect} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
 
-      {/* Slide-over detail panel */}
+    </div>
+    </div>
+
+      {/* Sidebar detail panel */}
       {selectedAgent && projectName && (
         <AgentDetailPanel
+          key={selectedAgent.id}
           agent={selectedAgent}
           projectName={projectName}
           liveOutput={agentOutputs.get(selectedAgent.id) ?? ''}
