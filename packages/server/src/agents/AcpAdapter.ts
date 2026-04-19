@@ -564,6 +564,11 @@ export class AcpAdapter extends AgentAdapter {
         modelRegistry.registerModels(session.runtimeName, result.models.availableModels);
       }
 
+      // Store model from session response if not already set
+      if (!session.model && result.models?.currentModelId) {
+        session.model = result.models.currentModelId;
+      }
+
       // Set model if specified and different from default
       if (session.model && result.models?.currentModelId !== session.model) {
         // Use configOptions for model setting

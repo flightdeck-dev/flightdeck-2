@@ -293,6 +293,7 @@ export class AgentManager {
       this.store.updateAgentAcpSession(newId, meta.sessionId);
       this.store.updateAgentStatus(newId, 'busy');
       if (resolvedModel) this.store.updateAgentModel(newId, resolvedModel);
+      else if (meta.model) this.store.updateAgentModel(newId, meta.model);
       agent.acpSessionId = meta.sessionId;
       agent.status = 'busy';
 

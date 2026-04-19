@@ -33,6 +33,7 @@ export interface AgentMetadata {
   agentId: AgentId;
   sessionId: string;
   status: 'running' | 'idle' | 'ended';
+  model?: string;
   tokensIn?: number;
   tokensOut?: number;
   model?: string;
