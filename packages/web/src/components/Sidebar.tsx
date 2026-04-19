@@ -459,7 +459,6 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
               <option value="">Default</option>
               <option value="copilot">copilot</option>
               <option value="codex">codex</option>
-              <option value="claude-code">claude-code</option>
               <option value="gemini">gemini</option>
               <option value="opencode">opencode</option>
             </select>

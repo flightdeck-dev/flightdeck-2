@@ -293,7 +293,7 @@ export class AgentManager {
     // 6. Spawn via adapter
     // For Claude Code runtime, inject role instructions via _meta.systemPrompt (append mode)
     // This provides stronger guidance than AGENTS.md alone
-    const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-code';
+    const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-agent';
     try {
       const meta = await this.adapter.spawn({
         agentId: newId,

@@ -854,7 +854,6 @@ function ProjectSettings() {
             <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
               <option value="copilot">Copilot (SDK)</option>
               <option value="codex">Codex</option>
-              <option value="claude-code">Claude Code</option>
               <option value="claude-agent">Claude Agent (ACP)</option>
               <option value="opencode">OpenCode</option>
               <option value="gemini">Gemini</option>

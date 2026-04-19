@@ -105,28 +105,6 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     notes: 'Third-party ACP wrapper for Claude Code. Uses Anthropic API billing (more expensive).',
   },
 
-  'claude-code': {
-    name: 'Claude Code',
-    command: 'claude',
-    args: [],
-    systemPromptMethod: 'both',
-    supportsAcp: true,
-    supportsSessionLoad: false,
-    adapter: 'acp',
-    icon: '🟣',
-    docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
-    setupLinks: [{ label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' }],
-    installHint: 'npm install -g @anthropic-ai/claude-code',
-    loginInstructions: 'Run claude auth in your terminal or set ANTHROPIC_API_KEY',
-    supportsModelDiscovery: false,
-    disabledByDefault: true,
-    notes: [
-      'Claude Code CLI via --print mode with session persistence (--resume).',
-      'Uses Claude Code subscription (not API billing). Cheapest Claude option.',
-      '--permission-mode auto skips permission prompts.',
-    ],
-  },
-
   gemini: {
     name: 'Gemini CLI (Google)',
     command: 'gemini',

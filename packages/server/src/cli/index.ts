@@ -478,7 +478,7 @@ switch (command) {
         console.error('Usage: flightdeck models set <role> <runtime:model>');
         console.error('Examples:');
         console.error('  flightdeck models set lead copilot:claude-sonnet-4-6');
-        console.error('  flightdeck models set worker claude-code:claude-opus-4-6');
+        console.error('  flightdeck models set worker claude-agent:claude-opus-4-6');
         console.error('  flightdeck models set reviewer copilot:claude-opus-4-6');
         process.exit(1);
       }

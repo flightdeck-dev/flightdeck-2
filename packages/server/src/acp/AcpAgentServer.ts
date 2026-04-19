@@ -111,7 +111,7 @@ export class AcpAgentServer implements Agent {
         id: 'runtime',
         name: 'Agent Runtime',
         type: 'select' as const,
-        description: 'The ACP runtime used for the Lead agent (e.g. copilot, claude-code, codex)',
+        description: 'The ACP runtime used for the Lead agent (e.g. copilot, claude-agent, codex)',
         currentValue: this.currentRuntime,
         options: runtimeNames.map(r => ({ value: r, name: r })),
       },
