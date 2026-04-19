@@ -144,10 +144,14 @@ function EscalationsPanel({ projectName }: { projectName: string }) {
 
   const handleResolve = async (id: number) => {
     if (!resolution.trim()) return;
-    await api.resolveEscalation(projectName, id, resolution.trim());
-    setRespondingId(null);
-    setResolution('');
-    mutate();
+    try {
+      await api.resolveEscalation(projectName, id, resolution.trim());
+      setRespondingId(null);
+      setResolution('');
+      mutate();
+    } catch (err) {
+      alert(`Failed to resolve: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   return (
@@ -185,7 +189,7 @@ function EscalationsPanel({ projectName }: { projectName: string }) {
             ) : (
               <div className="mt-2 flex gap-2">
                 <button onClick={() => setRespondingId(esc.id)} className="px-3 py-1 text-xs rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">Respond</button>
-                <button onClick={async () => { await api.resolveEscalation(projectName, esc.id, 'Dismissed'); mutate(); }} className="px-3 py-1 text-xs rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] transition-colors">Dismiss</button>
+                <button onClick={async () => { try { await api.resolveEscalation(projectName, esc.id, 'Dismissed'); mutate(); } catch (err) { alert(`Failed: ${err instanceof Error ? err.message : String(err)}`); } }} className="px-3 py-1 text-xs rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] transition-colors">Dismiss</button>
               </div>
             )}
           </div>

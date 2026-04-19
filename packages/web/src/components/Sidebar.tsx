@@ -141,7 +141,7 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
           {(project.agentCount > 0 || (project as any).hibernatedCount > 0) && (
             <span
               className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors"
-              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate('/agents'); }}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`/${encodeURIComponent(project.name)}/agents`); }}
               title="View agents"
             >
               {project.agentCount > 0 && (

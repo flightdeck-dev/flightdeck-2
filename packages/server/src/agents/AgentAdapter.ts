@@ -36,7 +36,6 @@ export interface AgentMetadata {
   model?: string;
   tokensIn?: number;
   tokensOut?: number;
-  model?: string;
   turnCount?: number;
 }
 

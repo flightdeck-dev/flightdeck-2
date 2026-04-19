@@ -78,7 +78,7 @@ describe('Sidebar', () => {
     // Find the agent count badge
     const badge = screen.getByText('3');
     fireEvent.click(badge);
-    expect(mockNavigate).toHaveBeenCalledWith('/agents');
+    expect(mockNavigate).toHaveBeenCalledWith('/test-project/agents');
   });
 
   it('shows green pulsing dot when busyAgentCount > 0', () => {

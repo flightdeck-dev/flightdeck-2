@@ -69,8 +69,11 @@ describe('Tasks page', () => {
       { id: 't2', title: 'Done Task', state: 'done', priority: 3, role: 'dev', description: '' },
     ];
     render(<Tasks />);
-    // Click "done" filter
-    fireEvent.click(screen.getByText(/^done/));
+    // Click "done" filter button (the one in the filter bar, not the badge)
+    const doneButtons = screen.getAllByText(/^done/);
+    // The filter button is the one without inline style (badge has style)
+    const filterBtn = doneButtons.find(el => el.tagName === 'BUTTON') ?? doneButtons[0];
+    fireEvent.click(filterBtn);
     expect(screen.getByText('Done Task')).toBeInTheDocument();
     expect(screen.queryByText('Running Task')).not.toBeInTheDocument();
   });
@@ -85,7 +88,9 @@ describe('Tasks page', () => {
       { id: 't1', title: 'Task', state: 'running', priority: 3, role: 'dev', description: '' },
     ];
     render(<Tasks />);
-    fireEvent.click(screen.getByText(/^done/));
+    const doneButtons2 = screen.getAllByText(/^done/);
+    const filterBtn2 = doneButtons2.find(el => el.tagName === 'BUTTON') ?? doneButtons2[0];
+    fireEvent.click(filterBtn2);
     expect(screen.getByText(/No tasks with state "done"/)).toBeInTheDocument();
   });
 
