@@ -223,6 +223,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   };
   acpAdapter.onSessionTurnStart = turnStartHandler;
   copilotSdkAdapter.onSessionTurnStart = turnStartHandler;
+  ptyAdapter.onSessionTurnStart = turnStartHandler;
 
   // When an agent's prompt turn ends, mark idle in SQLite
   acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
@@ -254,6 +255,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // Wire the same turn-end handler for CopilotSdkAdapter
   copilotSdkAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
+  ptyAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
 
   // Broadcast all agent streaming output to WebSocket clients
   acpAdapter.onAnySessionOutput = (agentId, update) => {

@@ -25,6 +25,8 @@ export class PtyAdapter extends AgentAdapter {
   private sessionManager: SessionManager;
   private runtimeName: string;
   private mcpConfigPaths = new Map<string, string>();
+  onSessionTurnStart: ((sessionId: string, agentId: string) => void) | null = null;
+  onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
   /** Tracks session state for --print mode agents (process exits after each turn) */
   private printSessions = new Map<string, {
     agentId: string;
@@ -209,6 +211,9 @@ export class PtyAdapter extends AgentAdapter {
     if (!session || session.status === 'ended') return '';
 
     session.status = 'running';
+    if (this.onSessionTurnStart) {
+      try { this.onSessionTurnStart(sessionId, session.agentId); } catch { /* */ }
+    }
     try {
       const result = await this.runClaude({
         cwd: session.cwd,
@@ -222,9 +227,15 @@ export class PtyAdapter extends AgentAdapter {
       // Update session ID if claude returned one
       if (result.claudeSessionId) session.claudeSessionId = result.claudeSessionId;
       session.status = 'idle';
+      if (this.onSessionTurnEnd) {
+        try { this.onSessionTurnEnd(sessionId, session.agentId); } catch { /* */ }
+      }
       return result.output;
     } catch (err) {
       session.status = 'idle';
+      if (this.onSessionTurnEnd) {
+        try { this.onSessionTurnEnd(sessionId, session.agentId); } catch { /* */ }
+      }
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`[PtyAdapter] steer failed for ${sessionId}: ${errMsg}`);
       return `Error: ${errMsg}`;
