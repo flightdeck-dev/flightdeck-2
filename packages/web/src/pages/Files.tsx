@@ -307,6 +307,12 @@ export default function Files() {
       </div>
 
       {/* Right panel: preview */}
+      {!treeCollapsed && (
+        <div
+          className="w-1.5 shrink-0 cursor-col-resize hover:bg-[var(--color-primary)] active:bg-[var(--color-primary)] transition-colors"
+          onMouseDown={() => { treeResizing.current = true; document.body.style.cursor = "col-resize"; }}
+        />
+      )}
       <div className="flex-1 min-w-0">
 
         {selectedPath && selectedEntry ? (
