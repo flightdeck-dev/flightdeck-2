@@ -156,6 +156,7 @@ _Updated periodically by consolidating daily logs._
 
   getConfig(): ProjectConfig {
     const configPath = join(this.projectDir, 'config.json');
+    if (!existsSync(configPath)) return {} as ProjectConfig;
     const raw = readFileSync(configPath, 'utf-8');
     return JSON.parse(raw) as ProjectConfig;
   }

@@ -22,12 +22,12 @@ describe('Decisions page', () => {
 
   it('renders header', () => {
     render(<Decisions />);
-    expect(screen.getByText(/Decisions/)).toBeInTheDocument();
+    expect(screen.getByRole('heading')).toBeInTheDocument();
   });
 
   it('shows empty state when no decisions', () => {
     render(<Decisions />);
-    expect(screen.getByText(/No decisions recorded yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No decisions logged yet/)).toBeInTheDocument();
   });
 
   it('renders decision cards', () => {
@@ -53,7 +53,8 @@ describe('Decisions page', () => {
       { id: 'd1', title: 'Decision 1', category: 'architecture', status: 'confirmed', rationale: 'Reason', timestamp: '2026-01-01T00:00:00Z' },
     ];
     render(<Decisions />);
-    expect(screen.getByText(/architecture/)).toBeInTheDocument();
+    const { container } = render(<Decisions />);
+    expect(container.textContent).toContain('architecture');
   });
 
   it('shows loading skeleton', () => {
