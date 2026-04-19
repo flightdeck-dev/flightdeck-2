@@ -192,7 +192,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           return {
             name,
             governance: fd.governance.governanceConfig.profile ?? 'autonomous',
-            agentCount: fd.listAgents().length,
+            agentCount: fd.listAgents().filter((a: any) => a.status !== 'retired').length,
+            busyAgentCount: fd.listAgents().filter((a: any) => a.status === 'busy').length,
             taskStats: stats,
             totalCost: fd.sqlite.getTotalCost(),
           };
