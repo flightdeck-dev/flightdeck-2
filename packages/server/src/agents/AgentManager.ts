@@ -189,8 +189,8 @@ export class AgentManager {
         const agent = this.store.getAgent(agentId);
         // Only mark offline if not already in a terminal state
         if (agent && !['terminated', 'retired', 'hibernated'].includes(agent.status)) {
-          this.store.updateAgentStatus(agentId, 'offline');
-          console.error(`[AgentManager] Agent ${agentId} session ${sessionId} ended, marked offline`);
+          this.store.updateAgentStatus(agentId, 'hibernated');
+          console.error(`[AgentManager] Agent ${agentId} session ${sessionId} ended, marked hibernated`);
         }
         this.sessionToAgent.delete(sessionId);
         this.agentToSession.delete(agentId);
@@ -380,7 +380,7 @@ export class AgentManager {
       this.store.updateAgentStatus(agentId, 'hibernated');
       console.error(`[terminate] Agent ${agentId} hibernated (session: ${sessionId})`);
     } else {
-      this.store.updateAgentStatus(agentId, 'offline');
+      this.store.updateAgentStatus(agentId, 'hibernated');
     }
   }
 
@@ -608,6 +608,14 @@ export class AgentManager {
     this.store.updateAgentStatus(agentId, 'retired');
     this.store.updateAgentAcpSession(agentId, null);
     console.error(`[retire] Agent ${agentId} retired`);
+  }
+
+  async unretireAgent(agentId: AgentId): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    if (agent.status !== 'retired') throw new Error(`Agent ${agentId} is not retired (status: ${agent.status})`);
+    this.store.updateAgentStatus(agentId, 'hibernated');
+    console.error(`[unretire] Agent ${agentId} unretired → hibernated`);
   }
 
   async getAgentMetadata(agentId: AgentId): Promise<AgentMetadata | null> {

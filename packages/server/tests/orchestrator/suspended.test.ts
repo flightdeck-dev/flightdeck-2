@@ -79,23 +79,23 @@ describe('Orchestrator suspended agents', () => {
     expect(suspended[0].status).toBe('hibernated');
   });
 
-  it('purgeOfflineAgents does not purge suspended agents', () => {
+  it('purgeOfflineAgents purges hibernated agents but not retired', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
       role: 'planner', runtime: 'acp', acpSessionId: null,
-      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'retired', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
     store.insertAgent({
       id: 'agent-off1' as AgentId,
       role: 'worker', runtime: 'acp', acpSessionId: null,
-      status: 'offline', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
     const purged = store.purgeOfflineAgents();
     expect(purged).toBe(1);
     
-    const remaining = store.listAgents();
+    const remaining = store.listAgents(true);
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].status).toBe('hibernated');
+    expect(remaining[0].status).toBe('retired');
   });
 });

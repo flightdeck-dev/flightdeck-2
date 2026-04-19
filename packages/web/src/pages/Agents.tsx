@@ -693,10 +693,10 @@ export default function Agents() {
     );
   }
 
-  const active = agents.filter(a => !['terminated', 'ended', 'retired', 'offline', 'hibernated'].includes(a.status));
+  const active = agents.filter(a => !['retired', 'hibernated', 'errored'].includes(a.status));
   const hibernated = agents.filter(a => a.status === 'hibernated');
   const retired = agents.filter(a => a.status === 'retired');
-  const terminated = agents.filter(a => a.status === 'terminated' || a.status === 'ended' || a.status === 'offline');
+  const terminated = agents.filter(a => a.status === 'retired' || a.status === 'hibernated');
 
   if (agents.length === 0) {
     return (

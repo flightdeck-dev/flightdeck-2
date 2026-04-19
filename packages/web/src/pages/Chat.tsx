@@ -470,7 +470,7 @@ export default function Chat() {
   const { displayConfig } = useDisplay();
   const { connected, projectName } = useProject();
   const { agents } = useAgents();
-  const leadAgent = agents.find(a => a.role === 'lead' && a.status !== 'retired' && a.status !== 'offline');
+  const leadAgent = agents.find(a => a.role === 'lead' && a.status !== 'retired' && a.status !== 'hibernated');
   const isLeadSpawning = !leadAgent && agents.length === 0 && messages.length > 0;
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);

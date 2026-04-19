@@ -105,7 +105,7 @@ function createMockStore() {
     purgeOfflineAgents(): number {
       let count = 0;
       for (const [id, a] of agents) {
-        if (a.status === 'offline') { agents.delete(id); count++; }
+        if (a.status === 'hibernated') { agents.delete(id); count++; }
       }
       return count;
     },
@@ -426,7 +426,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
       await agentManager.terminateAgent(agent.id);
 
       const stored = store.getAgent(agent.id);
-      expect(stored!.status).toBe('offline');
+      expect(stored!.status).toBe('hibernated');
       expect(stored!.acpSessionId).toBeNull();
       expect(adapter.killLog).toHaveLength(1);
     });

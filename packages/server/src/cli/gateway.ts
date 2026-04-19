@@ -176,7 +176,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       if (agent) {
         const exitInfo = session.exitCode !== null ? ` (exit ${session.exitCode})` : '';
         console.error(`  [${name}] Agent ${agent.id} (${agent.role}) session ended${exitInfo}`);
-        fd.sqlite.updateAgentStatus(agent.id, 'offline');
+        fd.sqlite.updateAgentStatus(agent.id, 'hibernated');
         // Broadcast state change so UI updates immediately
         const ws = wsServers.get(name);
         if (ws) {
@@ -352,16 +352,16 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Clean up stale agents
     const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
     if (noRecover && activeAgents.length > 0) {
-      console.error(`  Marking ${activeAgents.length} existing agents offline (--no-recover).`);
+      console.error(`  Marking ${activeAgents.length} existing agents hibernated (--no-recover).`);
       for (const agent of activeAgents) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'offline');
+        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
       }
     } else if (activeAgents.length > 0) {
-      console.error(`  Marking ${activeAgents.length} stale agent(s) offline (will attempt session recovery).`);
+      console.error(`  Marking ${activeAgents.length} stale agent(s) hibernated (will attempt session recovery).`);
       for (const agent of activeAgents) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'offline');
+        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
       }
     }
 

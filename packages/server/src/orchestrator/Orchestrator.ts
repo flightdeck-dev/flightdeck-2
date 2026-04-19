@@ -568,7 +568,7 @@ export class Orchestrator {
             );
           }
 
-          this.store.updateAgentStatus(task.assignedAgent, 'offline');
+          this.store.updateAgentStatus(task.assignedAgent, 'hibernated');
           this.webhookNotifier?.notify(
             agentStallEvent(this.config.name, task.assignedAgent as string, task.title),
           );
@@ -592,7 +592,7 @@ export class Orchestrator {
             try {
               this.dag.failTask(staleTask.id);
               this.dag.retryTask(staleTask.id);
-              this.store.updateAgentStatus(staleTask.assignedAgent, 'offline');
+              this.store.updateAgentStatus(staleTask.assignedAgent, 'hibernated');
               detected++;
             } catch { /* already handled */ }
           }
@@ -913,7 +913,7 @@ export class Orchestrator {
         }
         if (task.assignedAgent) {
           const agentRecord = this.store.getAgent(task.assignedAgent);
-          const newStatus = agentRecord?.acpSessionId ? 'hibernated' : 'offline';
+          const newStatus = 'hibernated';
           this.store.updateAgentStatus(task.assignedAgent, newStatus);
         }
         recovered++;
@@ -927,7 +927,7 @@ export class Orchestrator {
         const hasLiveSession = agent.acpSessionId && this.sessionManager?.getSession(agent.acpSessionId);
         if (!hasLiveSession) {
           // If agent has a saved session ID, hibernate (can resume later); otherwise offline
-          const newStatus = agent.acpSessionId ? 'hibernated' : 'offline';
+          const newStatus = 'hibernated';
           this.store.updateAgentStatus(agent.id, newStatus);
           recovered++;
         }

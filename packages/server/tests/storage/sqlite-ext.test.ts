@@ -30,7 +30,7 @@ describe('SqliteStore agent CRUD and cost', () => {
   it('counts active agents', () => {
     fd.sqlite.insertAgent({ id: 'a1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null });
     fd.sqlite.insertAgent({ id: 'a2' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'busy', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null });
-    fd.sqlite.insertAgent({ id: 'a3' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'offline', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null });
+    fd.sqlite.insertAgent({ id: 'a3' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null });
     expect(fd.sqlite.getActiveAgentCount()).toBe(2);
   });
 

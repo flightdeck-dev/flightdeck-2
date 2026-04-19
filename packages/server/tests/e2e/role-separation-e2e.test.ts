@@ -97,7 +97,7 @@ function createMockStore() {
     purgeOfflineAgents(): number {
       let count = 0;
       for (const [id, a] of agents) {
-        if (a.status === 'offline') { agents.delete(id); count++; }
+        if (a.status === 'hibernated') { agents.delete(id); count++; }
       }
       return count;
     },

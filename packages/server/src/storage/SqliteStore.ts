@@ -328,9 +328,9 @@ export class SqliteStore extends EventEmitter {
     return result.changes > 0;
   }
 
-  /** Remove all agents with status 'offline'. Returns count deleted. */
+  /** Remove all agents with status 'hibernated'. Returns count deleted. */
   purgeOfflineAgents(): number {
-    const result = this._db.delete(agents).where(eq(agents.status, 'offline')).run();
+    const result = this._db.delete(agents).where(eq(agents.status, 'hibernated')).run();
     return result.changes;
   }
 

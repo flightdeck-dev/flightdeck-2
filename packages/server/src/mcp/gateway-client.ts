@@ -216,6 +216,10 @@ export class GatewayClient {
     await this.request('POST', `/agents/${agentId}/retire`);
   }
 
+  async unretireAgent(agentId: string): Promise<void> {
+    await this.request('POST', `/agents/${agentId}/unretire`);
+  }
+
   async getAgentOutput(agentId: string, tail = 50): Promise<unknown> {
     return this.get(`/agents/${agentId}/output`, { tail: String(tail) });
   }

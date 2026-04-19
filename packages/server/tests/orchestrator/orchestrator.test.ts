@@ -138,7 +138,7 @@ describe('Orchestrator', () => {
 
     // Agent should be offline
     const agent = store.getAgent('agent-w1' as AgentId);
-    expect(agent!.status).toBe('offline');
+    expect(agent!.status).toBe('hibernated');
   });
 
   it('promotes pending tasks when deps are done', async () => {

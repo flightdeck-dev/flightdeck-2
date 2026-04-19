@@ -218,7 +218,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { projectName } = useParams();
   const [showCreate, setShowCreate] = useState(false);
 
-  const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'hibernated', 'retired'].includes(a.status)).length;
+  const activeAgents = agents.filter(a => !['hibernated', 'retired', 'errored'].includes(a.status)).length;
   const busyAgents = agents.filter(a => a.status === 'busy' || a.status === 'working').length;
   const hibernatedAgents = agents.filter(a => a.status === 'hibernated').length;
 

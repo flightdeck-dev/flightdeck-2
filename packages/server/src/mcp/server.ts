@@ -593,6 +593,19 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_agent_unretire', 'Un-retire a previously retired agent — moves it to hibernated state', {
+    targetAgentId: z.string(),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      await client.unretireAgent(params.targetAgentId);
+      return jsonResponse({ status: 'hibernated', agentId: params.targetAgentId });
+    } catch (err) {
+      return errorResponse(`Error un-retiring agent: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_agent_restart', 'Restart an agent', {
     targetAgentId: z.string(),
   }, async (params) => {

@@ -128,7 +128,7 @@ export class StatusFileWriter {
     }
 
     // Active agents
-    const activeAgents = agents.filter(a => a.status !== 'offline');
+    const activeAgents = agents.filter(a => !['hibernated', 'retired', 'errored'].includes(a.status));
     if (activeAgents.length > 0) {
       lines.push('## Active Agents');
       lines.push('| Agent | Role | Status | Current Task |');

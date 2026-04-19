@@ -6,10 +6,14 @@
 |-------|-------------|
 | `idle` | Agent is alive and waiting for work |
 | `busy` | Agent is actively processing (prompt turn in progress) |
-| `offline` | Agent process has exited or been terminated |
-| `errored` | Agent spawn failed |
-| `hibernated` | Agent session saved to disk, process killed to free resources |
-| `retired` | Agent permanently deactivated (won't be reused) |
+| `hibernated` | Agent session saved/stopped, process killed — resumable |
+| `errored` | Agent spawn failed or crashed unexpectedly |
+| `retired` | Agent permanently deactivated (can be un-retired) |
+
+### Categories
+
+- **Active:** `idle`, `busy` — agent has a live process
+- **Inactive:** `hibernated`, `errored`, `retired` — no live process
 
 ## State Transitions
 
@@ -20,12 +24,12 @@
         │           │          │               ▼
         │           └────┬─────┘          ┌─────────┐
         │                │                │ errored  │
-   ┌────┴────┐    turn   │                └─────────┘
-   │  (new)  │    ends   │
-   └─────────┘           ▼
-                    ┌──────────┐
-                    │          │◄──── steer / claim task / wake
-                    │   idle   │
+   ┌────┴────┐    turn   │                └────┬────┘
+   │  (new)  │    ends   │                     │ retry/wake
+   └─────────┘           ▼                     ▼
+                    ┌──────────┐          ┌──────────┐
+                    │          │◄─────────│   busy   │
+                    │   idle   │          └──────────┘
                     │          │───── steer / claim task
                     └────┬──┬──┘         │
                          │  │            ▼
@@ -35,16 +39,17 @@
               end        │  │
                          │  │ hibernate
                          ▼  ▼
-                    ┌──────────┐    ┌─────────────┐
-                    │ offline  │    │ hibernated   │
-                    └──────────┘    └──────┬──────┘
-                                          │ wake
-                                          ▼
-                                    ┌──────────┐
-                                    │   busy   │
-                                    └──────────┘
+                    ┌─────────────┐
+                    │ hibernated   │
+                    └──────┬──────┘
+                           │ wake
+                           ▼
+                    ┌──────────┐
+                    │   busy   │
+                    └──────────┘
 
    Any state ──── retire ────► retired
+   retired ──── unretire ────► hibernated
 ```
 
 ## Design Principle
@@ -69,18 +74,18 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 | `idle` | `busy` | Orchestrator pre-marks on task claim | `Orchestrator` (reservation) |
 | `busy` | `idle` | `onSessionTurnEnd` (prompt turn completes) | All adapters → `gateway.ts` |
 | `busy` | `hibernated` | `hibernateAgent()` called | `AgentManager.hibernateAgent` |
-| `busy` | `offline` | ACP session ends (process exit/error/EOF) | `AcpAdapter.onSessionEnd` → `gateway.ts` |
+| `busy` | `hibernated` | ACP session ends (process exit/error/EOF) | `AcpAdapter.onSessionEnd` → `gateway.ts` |
 | `busy` | `hibernated` | Agent terminated | `AgentManager.terminateAgent` |
-| `busy` | `offline` | Orchestrator detects stale agent | `Orchestrator` (stale cleanup) |
+| `busy` | `hibernated` | Orchestrator detects stale agent | `Orchestrator` (stale cleanup) |
 | `idle` | `hibernated` | Agent terminated | `AgentManager.terminateAgent` |
-| `idle` | `offline` | Gateway startup (`--no-recover`) | `gateway.ts` (startup cleanup) |
+| `idle` | `hibernated` | Gateway startup (`--no-recover`) | `gateway.ts` (startup cleanup) |
 | `idle` | `hibernated` | `hibernateAgent()` called | `AgentManager.hibernateAgent` |
 | `idle` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
 | `hibernated` | `busy` | `wakeAgent()` called | `AgentManager.wakeAgent` |
 | `hibernated` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
-| `errored` | *(new agent)* | Respawn with new agent ID | `AgentManager.spawnAgent` |
+| `errored` | `busy` | Retry/wake (respawn) | `AgentManager.wakeAgent` |
+| `retired` | `hibernated` | `unretireAgent()` called | `AgentManager.unretireAgent` |
 | *any* | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
-| *any* | `offline` | Gateway shutdown cleanup | `gateway.ts` |
 
 ## Callback Locations
 
@@ -96,9 +101,9 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 2. **`busy → idle` always goes through `onSessionTurnEnd`** — no other code path sets idle
 3. **`idle → busy` always goes through `onSessionTurnStart`** (+ Orchestrator reservation)
 4. **`hibernated` agents have their session saved** — waking resumes the session
-5. **`retired` is terminal** — no transitions out of `retired`
-6. **`errored` is terminal for that agent ID** — a new agent must be spawned
-7. **`offline` means the process is gone** — the agent ID persists in SQLite for history
+5. **`retired` can be un-retired** → moves to `hibernated`, then can be woken
+6. **`errored` agents can be retried** — wake/retry spawns a fresh session
+7. **No `offline` state** — use `hibernated` (recoverable) or `errored` (failure)
 
 ## Known Gaps (TODO)
 

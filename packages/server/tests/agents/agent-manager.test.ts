@@ -105,7 +105,7 @@ describe('AgentManager', () => {
     expect(adapter.killCalls[0]).toBe('mock-session-1');
 
     const dbAgent = store.getAgent(agent.id);
-    expect(dbAgent!.status).toBe('offline');
+    expect(dbAgent!.status).toBe('hibernated');
     expect(dbAgent!.acpSessionId).toBeNull();
   });
 

@@ -81,7 +81,7 @@ export function agentStatusColor(status: string): string {
   switch (status) {
     case 'active': case 'busy': return 'blue';
     case 'idle': return 'green';
-    case 'offline': return 'gray';
+    case 'hibernated': return 'gray';
     default: return 'white';
   }
 }

@@ -192,9 +192,9 @@ export async function processReview(
           await adapter.steer(idleReviewer.acpSessionId!, { content: prompt });
         } catch {
           // Steer failed — reviewer session may be dead. Fall through to spawn.
-          sqlite.updateAgentStatus(idleReviewer.id, 'offline');
+          sqlite.updateAgentStatus(idleReviewer.id, 'hibernated');
         }
-        if (idleReviewer.status !== 'offline') {
+        if (idleReviewer.status !== 'hibernated') {
           meta = {
             agentId: idleReviewer.id as string as import('@flightdeck-ai/shared').AgentId,
             sessionId: idleReviewer.acpSessionId!,
