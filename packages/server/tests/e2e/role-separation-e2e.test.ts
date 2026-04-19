@@ -132,10 +132,10 @@ describe('Role Separation E2E', () => {
         expect(leadTools).not.toContain('flightdeck_task_claim');
       });
 
-      it('DOES have status, task_list, task_add, plan_review, escalate, spec_create', () => {
+      it('DOES have status, task_list, plan_review, escalate, spec_create', () => {
         expect(leadTools).toContain('flightdeck_status');
         expect(leadTools).toContain('flightdeck_task_list');
-        expect(leadTools).toContain('flightdeck_task_add');
+        expect(leadTools).not.toContain('flightdeck_task_add');
         expect(leadTools).toContain('flightdeck_plan_review');
         expect(leadTools).toContain('flightdeck_escalate');
         expect(leadTools).toContain('flightdeck_plan_review');

@@ -35,7 +35,7 @@ vi.mock('../lib/api.ts', () => ({
 }));
 
 vi.mock('swr', () => ({
-  default: (key: any, fetcher: any) => {
+  default: (key: any, _fetcher: any) => {
     // For escalations, return mock data
     if (key && Array.isArray(key) && key[0] === 'escalations-pending') {
       return { data: mockEscalations, error: null };

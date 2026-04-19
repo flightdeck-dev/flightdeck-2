@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 // Mock all hooks that Dashboard depends on
 let mockTasks: any[] = [];
@@ -36,7 +36,7 @@ vi.mock('../lib/api.ts', () => ({
 }));
 
 vi.mock('swr', () => ({
-  default: (key: any, fetcher: any) => {
+  default: (key: any, _fetcher: any) => {
     // For escalations SWR
     if (Array.isArray(key) && key[0] === 'escalations') {
       return { data: [], mutate: vi.fn() };

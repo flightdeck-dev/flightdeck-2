@@ -3,6 +3,7 @@ import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
+import type { AgentRuntime } from '../core/types.js';
 import type { AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
 import { SessionStore } from '../acp/SessionStore.js';
@@ -91,9 +92,9 @@ export interface LeadManagerOptions {
   /** Working directory for spawned agents. Defaults to process.cwd(). */
   cwd?: string;
   /** Runtime name for Lead (e.g. 'copilot', 'opencode'). Falls back to adapter default. */
-  leadRuntime?: string;
+  leadRuntime?: AgentRuntime;
   /** Runtime name for Planner. Falls back to leadRuntime, then adapter default. */
-  plannerRuntime?: string;
+  plannerRuntime?: AgentRuntime;
 }
 
 export class LeadManager {
@@ -111,8 +112,8 @@ export class LeadManager {
   private lastUserInteractionAt: number = Date.now();
   private projectName: string | undefined;
   private agentCwd: string;
-  private leadRuntime: string | undefined;
-  private plannerRuntime: string | undefined;
+  private leadRuntime: AgentRuntime | undefined;
+  private plannerRuntime: AgentRuntime | undefined;
   /** Optional callback invoked during heartbeat when scout should run */
   public onScoutHeartbeat: (() => Promise<void>) | null = null;
 
@@ -184,7 +185,7 @@ export class LeadManager {
       const leadConfig = mc.getRoleConfig('lead');
       if (leadConfig.runtime && leadConfig.runtime !== this.leadRuntime) {
         console.error(`  Lead runtime changed: ${this.leadRuntime} → ${leadConfig.runtime}`);
-        this.leadRuntime = leadConfig.runtime;
+        this.leadRuntime = leadConfig.runtime as AgentRuntime;
       }
     } catch { /* fallback to existing runtime */ }
 

@@ -928,7 +928,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       agentSession.lastActivityAt = new Date();
 
       // Capture resolved model from session.created event
-      if (event.type === 'session.created' && (event as any).data?.selectedModel) {
+      if ((event.type as string) === 'session.created' && (event as any).data?.selectedModel) {
         agentSession.model = (event as any).data.selectedModel;
       }
 

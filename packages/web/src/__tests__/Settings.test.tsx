@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 
 vi.mock('../hooks/useProject.tsx', () => ({
   useProject: () => ({ projectName: 'test-project', status: { config: { name: 'test', governance: 'autonomous' } }, connected: true, loading: false }),

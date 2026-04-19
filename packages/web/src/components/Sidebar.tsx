@@ -147,7 +147,7 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
               {project.agentCount > 0 && (
                 <span className="flex items-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${
-                    (project.busyAgentCount ?? 0) > 0
+                    (project as any).busyAgentCount > 0
                       ? 'bg-emerald-400 animate-pulse'
                       : 'bg-[var(--color-text-tertiary)] opacity-50'
                   }`} />

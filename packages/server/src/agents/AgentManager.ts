@@ -184,6 +184,7 @@ export class AgentManager {
 
     // Register session-end callback for stall detection
     this.adapter.onSessionEnd = (sessionId: string) => {
+      try {
       const agentId = this.sessionToAgent.get(sessionId);
       if (agentId) {
         const agent = this.store.getAgent(agentId);
@@ -195,6 +196,7 @@ export class AgentManager {
         this.sessionToAgent.delete(sessionId);
         this.agentToSession.delete(agentId);
       }
+      } catch { /* DB may be closed during shutdown */ }
     };
   }
 

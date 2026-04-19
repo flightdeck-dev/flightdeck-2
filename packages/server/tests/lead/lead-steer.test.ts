@@ -261,11 +261,11 @@ describe('LeadManager steer messages', () => {
 
   describe('status injection at spawn', () => {
     it('includes task counts and agents in spawn system prompt', async () => {
-      let capturedSystemPrompt = '';
+      const capturedSystemPrompts: string[] = [];
       const mockAdapter = {
         spawn: async (opts: any) => {
-          capturedSystemPrompt = opts.systemPrompt ?? '';
-          return { agentId: 'lead-spawn', sessionId: 'sess-spawn', status: 'running' };
+          capturedSystemPrompts.push(opts.systemPrompt ?? '');
+          return { agentId: `agent-${capturedSystemPrompts.length}`, sessionId: `sess-${capturedSystemPrompts.length}`, status: 'running' };
         },
         steer: async () => '',
         getSession: () => null,
@@ -279,13 +279,15 @@ describe('LeadManager steer messages', () => {
 
       await spawnLm.spawnLead();
 
-      expect(capturedSystemPrompt).toContain('## Current Project Status');
-      expect(capturedSystemPrompt).toContain('Tasks:');
-      expect(capturedSystemPrompt).toMatch(/\d+ running/);
-      expect(capturedSystemPrompt).toMatch(/\d+ ready/);
-      expect(capturedSystemPrompt).toMatch(/\d+ done/);
-      expect(capturedSystemPrompt).toMatch(/\d+ failed/);
-      expect(capturedSystemPrompt).toMatch(/Agents:/);
+      // First spawn is Lead, which gets the status prompt
+      const leadPrompt = capturedSystemPrompts[0];
+      expect(leadPrompt).toContain('## Current Project Status');
+      expect(leadPrompt).toContain('Tasks:');
+      expect(leadPrompt).toMatch(/\d+ running/);
+      expect(leadPrompt).toMatch(/\d+ ready/);
+      expect(leadPrompt).toMatch(/\d+ done/);
+      expect(leadPrompt).toMatch(/\d+ failed/);
+      expect(leadPrompt).toMatch(/Agents:/);
     });
   });
 });

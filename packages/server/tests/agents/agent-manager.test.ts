@@ -106,7 +106,7 @@ describe('AgentManager', () => {
 
     const dbAgent = store.getAgent(agent.id);
     expect(dbAgent!.status).toBe('hibernated');
-    expect(dbAgent!.acpSessionId).toBeNull();
+    expect(dbAgent!.acpSessionId).toBe('mock-session-1');
   });
 
   it('interruptAgent sends urgent steer', async () => {

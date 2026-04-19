@@ -1,11 +1,11 @@
 import { lazy, Suspense, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Layout } from './components/Layout.tsx';
 import { FlightdeckProviders } from './hooks/FlightdeckProviders.tsx';
 import { useProject } from './hooks/useProject.tsx';
 import { Rocket, Plus, AlertTriangle, FolderOpen, ChevronRight } from 'lucide-react';
-import { Sidebar, CreateProjectModal } from './components/Sidebar.tsx';
+import { CreateProjectModal } from './components/Sidebar.tsx';
 import useSWR from 'swr';
 import { api } from './lib/api.ts';
 import type { ProjectSummary } from './lib/types.ts';

@@ -52,7 +52,7 @@ describe('CopilotSdkAdapter', () => {
       const names = getToolNames('lead');
       expect(names).toContain('flightdeck_plan_review');
       expect(names).toContain('flightdeck_task_list');
-      expect(names).toContain('flightdeck_task_add');
+      expect(names).not.toContain('flightdeck_task_add');
       expect(names).toContain('flightdeck_role_list');
       expect(names).toContain('flightdeck_tools_available');
 

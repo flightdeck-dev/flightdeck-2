@@ -108,32 +108,27 @@ agents:
       expect(PRESET_NAMES).toContain('performance');
     });
 
-    it('budget preset sets all to fast', () => {
+    it('budget preset sets all to empty (no-op)', () => {
       mc.applyPreset('budget');
       const configs = mc.getRoleConfigs();
       for (const c of configs) {
-        expect(c.model).toBe('fast');
+        expect(c.model).toBe('');
       }
     });
 
-    it('balanced preset: worker/reviewer/qa-tester=high, rest=medium', () => {
+    it('balanced preset sets all to empty (no-op)', () => {
       mc.applyPreset('balanced');
       const configs = mc.getRoleConfigs();
-      const byRole = Object.fromEntries(configs.map(c => [c.role, c]));
-      expect(byRole.worker.model).toBe('high');
-      expect(byRole.reviewer.model).toBe('high');
-      expect(byRole['qa-tester'].model).toBe('high');
-      expect(byRole.lead.model).toBe('medium');
-      expect(byRole.planner.model).toBe('medium');
-      expect(byRole['product-thinker'].model).toBe('medium');
-      expect(byRole['tech-writer'].model).toBe('medium');
+      for (const c of configs) {
+        expect(c.model).toBe('');
+      }
     });
 
-    it('performance preset sets all to high', () => {
+    it('performance preset sets all to empty (no-op)', () => {
       mc.applyPreset('performance');
       const configs = mc.getRoleConfigs();
       for (const c of configs) {
-        expect(c.model).toBe('high');
+        expect(c.model).toBe('');
       }
     });
 
@@ -145,7 +140,7 @@ agents:
       mc.setRole('my-role', 'copilot:medium');
       mc.applyPreset('budget');
       const cfg = mc.getRoleConfig('my-role');
-      expect(cfg.model).toBe('fast');
+      expect(cfg.model).toBe('');
     });
   });
 
@@ -166,7 +161,7 @@ agents:
     expect(configs.length).toBeGreaterThanOrEqual(7);
     // Should use defaults
     expect(configs[0].runtime).toBe('copilot');
-    expect(configs[0].model).toBe('high');
+    expect(configs[0].model).toBe('');
     rmSync(emptyDir, { recursive: true, force: true });
   });
 });

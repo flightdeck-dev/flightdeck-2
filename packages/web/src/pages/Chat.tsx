@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, Component, type ReactNode, type ErrorInfo } from 'react';
-import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, ChevronLeft, ChevronRight, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X, Paperclip, Loader2 } from 'lucide-react';
+import { Bot, Crown, User, Settings as SettingsIcon, Send, MessageSquare, Brain, Wrench, AlertTriangle, Terminal, FileText, Search, Copy, Check, Reply, Volume2, VolumeX, Mic, MicOff, Square, X, Paperclip, Loader2 } from 'lucide-react';
 import { Markdown } from '../components/Markdown.tsx';
 import { useProject } from '../hooks/useProject.tsx';
 import { useChat } from '../hooks/useChat.tsx';
@@ -119,7 +119,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
         {parentMsgs.length > 1 ? (
           <div className={`text-xs text-[var(--color-text-tertiary)] mb-1 px-2 py-1 rounded border-l-2 border-[var(--color-border)] bg-[var(--color-surface-secondary)] max-w-[85%] cursor-pointer hover:bg-[var(--color-surface-hover)] ${isUser ? 'ml-auto' : ''}`}
             onClick={() => parentMsgs[0] && scrollToMessage(parentMsgs[0].id)}>
-            {parentMsgs.map((pm, i) => (
+            {parentMsgs.map((pm, _i) => (
               <div key={pm.id} className="truncate">
                 ↩ replying to {AUTHOR_STYLES[pm.authorType]?.label ?? pm.authorType}: {pm.content.slice(0, 60)}{pm.content.length > 60 ? '...' : ''}
               </div>
@@ -401,7 +401,8 @@ export function ToolResultBlock({ content, toolName, level }: { content: string;
   );
 }
 
-function ThreadSidebar({ threads, activeThread, onSelect }: {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function ThreadSidebar({ threads, activeThread, onSelect }: {
   threads: Thread[];
   activeThread: string | null;
   onSelect: (id: string | null) => void;
@@ -475,9 +476,9 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
-  const [activeThread, setActiveThread] = useState<string | null>(null);
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [showThreads, setShowThreads] = useState(false);
+  const [activeThread, _setActiveThread] = useState<string | null>(null);
+  const [, setThreads] = useState<Thread[]>([]);
+  const [_showThreads, _setShowThreads] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchIdx, setSearchIdx] = useState(0);

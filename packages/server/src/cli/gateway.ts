@@ -381,8 +381,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       acpAdapter: multiAdapter,
       projectName: name,
       cwd: projectCwd,
-      leadRuntime: leadRoleConfig.runtime,
-      plannerRuntime: plannerRoleConfig.runtime,
+      leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+      plannerRuntime: plannerRoleConfig.runtime as import('../core/types.js').AgentRuntime,
       heartbeat: {
         enabled: projectConfig.heartbeatEnabled === true,
         interval: 30 * 60 * 1000,
@@ -550,8 +550,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         acpAdapter: multiAdapter,
         projectName: name,
         cwd: projectCwd,
-        leadRuntime: leadRoleConfig.runtime,
-        plannerRuntime: plannerRoleConfig.runtime,
+        leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+        plannerRuntime: plannerRoleConfig.runtime as import('../core/types.js').AgentRuntime,
         heartbeat: {
           enabled: projectConfig.heartbeatEnabled === true,
           interval: 30 * 60 * 1000,

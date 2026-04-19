@@ -23,7 +23,7 @@ function makeFd(agentManager: AgentManager | null) {
     status: () => ({ config: { name: 'test', governance: 'standard' } }),
     chatMessages: null,
     orchestrator: { pause: () => {}, resume: () => {}, paused: false, isRunning: () => false, getWebhookNotifier: () => null },
-    sqlite: { listAgents: () => [] },
+    sqlite: { listAgents: () => [], getAgent: () => ({ role: 'worker' }) },
     listTasks: () => [],
     decisions: { readAll: () => [] },
     addTask: () => ({}),

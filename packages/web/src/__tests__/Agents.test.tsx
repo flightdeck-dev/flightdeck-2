@@ -136,19 +136,7 @@ describe('Agents page', () => {
     mockAgents = [hibernatedAgent];
     render(<Agents />);
     // Open action menu on the card
-    const menuBtn = screen.getByRole('button', { name: '' });
-    // The MoreHorizontal button doesn't have a label, find it by the menu pattern
-    const moreButtons = document.querySelectorAll('button');
-    // Find the menu trigger (MoreHorizontal icon button)
-    let menuTrigger: HTMLElement | null = null;
-    moreButtons.forEach(btn => {
-      if (btn.querySelector('svg') && btn.closest('.group')) {
-        const svgUse = btn.querySelector('svg');
-        if (svgUse && !btn.getAttribute('aria-label')) {
-          menuTrigger = btn;
-        }
-      }
-    });
+    screen.getByRole('button', { name: '' });
     // Simpler: just find by the opacity-0 group-hover pattern - click the card first to hover
     // Actually let's just query all buttons without aria-label in the card
     const card = screen.getByText('worker-def456').closest('.group')!;
