@@ -108,6 +108,7 @@ function AgentDetailPanel({
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<{ text: string; ts: number }[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
   const [width, setWidth] = useState(getStoredWidth);
   const [dragging, setDragging] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -208,7 +209,8 @@ function AgentDetailPanel({
       setSentMessages(prev => [...prev, { text, ts: Date.now() }]);
       setMessage('');
     } catch (err) {
-      console.error('Failed to send message:', err);
+      setToast({ message: `Failed to send: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+      setTimeout(() => setToast(null), 4000);
     }
     setSending(false);
   };
@@ -301,6 +303,13 @@ function AgentDetailPanel({
           <div className="flex-1 overflow-hidden flex flex-col">
             {tab === 'chat' && (
               <>
+                {/* Toast */}
+                {toast && (
+                  <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-500/90 text-white text-xs flex items-center justify-between">
+                    <span>{toast.message}</span>
+                    <button onClick={() => setToast(null)} className="text-white/70 hover:text-white ml-2">✕</button>
+                  </div>
+                )}
                 {/* Chat messages area */}
                 <div
                   ref={chatRef}
@@ -350,7 +359,11 @@ function AgentDetailPanel({
                       className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)] max-h-32 overflow-y-auto"
                       rows={1}
                       onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          // ⌘+Enter = newline
+                          return;
+                        }
+                        if (e.key === 'Enter') {
                           e.preventDefault();
                           handleSend();
                         }
@@ -431,7 +444,7 @@ function AgentDetailPanel({
   );
 }
 
-function AgentActionMenu({ agent, projectName, onAction }: { agent: Agent; projectName: string; onAction: () => void }) {
+function AgentActionMenu({ agent, projectName, onAction, onError }: { agent: Agent; projectName: string; onAction: () => void; onError?: (msg: string) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -457,7 +470,7 @@ function AgentActionMenu({ agent, projectName, onAction }: { agent: Agent; proje
 
   const run = async (fn: () => Promise<unknown>) => {
     setLoading(true);
-    try { await fn(); onAction(); } catch (err) { console.error(err); }
+    try { await fn(); onAction(); } catch (err) { onError?.(err instanceof Error ? err.message : String(err)); }
     setLoading(false);
     setOpen(false);
   };
@@ -564,7 +577,7 @@ function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; p
   );
 }
 
-function AgentCard({ agent, projectName, onSelect, isSelected, onMutate }: { agent: Agent; projectName: string; onSelect: (id: string) => void; isSelected: boolean; onMutate: () => void }) {
+function AgentCard({ agent, projectName, onSelect, isSelected, onMutate, onError }: { agent: Agent; projectName: string; onSelect: (id: string) => void; isSelected: boolean; onMutate: () => void; onError?: (msg: string) => void }) {
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
   const { tasks } = useTasks();
   const { agentOutputs } = useAgentsHook();
@@ -593,7 +606,7 @@ function AgentCard({ agent, projectName, onSelect, isSelected, onMutate }: { age
         </div>
         <div className="flex items-center gap-2">
           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-            {projectName && <AgentActionMenu agent={agent} projectName={projectName} onAction={onMutate} />}
+            {projectName && <AgentActionMenu agent={agent} projectName={projectName} onAction={onMutate} onError={onError} />}
           </div>
           <span className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
                 style={{ backgroundColor: `color-mix(in srgb, ${config.color} 15%, transparent)`, color: config.color }}>
@@ -647,6 +660,7 @@ export default function Agents() {
   const { agents, agentOutputs, agentStreamChunks } = useAgentsHook();
   const { loading, projectName } = useProject();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [pageToast, setPageToast] = useState<string | null>(null);
   const { mutate } = useSWR(projectName ? ['agents', projectName] : null);
   const handleMutate = useCallback(() => { mutate(); }, [mutate]);
 
@@ -691,6 +705,13 @@ export default function Agents() {
 
   return (
     <div className="max-w-5xl space-y-6">
+      {/* Toast */}
+      {pageToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl bg-red-500/90 text-white text-sm shadow-lg backdrop-blur-sm animate-in slide-in-from-top-2 flex items-center gap-2">
+          <span>⚠️ {pageToast}</span>
+          <button onClick={() => setPageToast(null)} className="text-white/70 hover:text-white">✕</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Agents ({agents.length})</h1>
         <div className="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
@@ -707,7 +728,7 @@ export default function Agents() {
 
       {active.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
+          {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
         </div>
       )}
 
@@ -717,7 +738,7 @@ export default function Agents() {
             {retired.length} retired agent{retired.length !== 1 ? 's' : ''}
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-50">
-            {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
+            {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
@@ -728,7 +749,7 @@ export default function Agents() {
             {terminated.length} terminated agent{terminated.length !== 1 ? 's' : ''}
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
-            {terminated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} />)}
+            {terminated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
