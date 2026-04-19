@@ -268,7 +268,7 @@ export class LeadManager {
         try {
           console.error(`  Spawning fresh Lead...`);
           await this.spawnLead();
-          console.error(`  Lead spawned fresh (session: ${this.leadSessionId})`);
+          console.error(`  Lead spawned fresh (runtime: ${this.leadRuntime}, session: ${this.leadSessionId})`);
         } catch (err2) {
           console.error(`  Failed to spawn Lead: ${err2 instanceof Error ? err2.message : String(err2)}`);
           return '';
@@ -278,9 +278,9 @@ export class LeadManager {
     // If still no Lead (no saved session, first-ever boot) — spawn fresh
     if (!this.leadSessionId && !this.isLeadSuspended()) {
       try {
-        console.error(`  Spawning Lead on-demand...`);
+        console.error(`  Spawning Lead on-demand (runtime: ${this.leadRuntime})...`);
         await this.spawnLead();
-        console.error(`  Lead spawned on-demand (session: ${this.leadSessionId})`);
+        console.error(`  Lead spawned on-demand (runtime: ${this.leadRuntime}, session: ${this.leadSessionId})`);
       } catch (err) {
         console.error(`  Failed to spawn Lead on-demand: ${err instanceof Error ? err.message : String(err)}`);
         return '';

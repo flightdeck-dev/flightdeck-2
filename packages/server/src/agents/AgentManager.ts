@@ -305,6 +305,7 @@ export class AgentManager {
       });
 
       // 6a. Update SQLite with session ID and model
+      console.error(`  [${opts.projectName ?? this.projectName}] Agent ${newId} spawned (role: ${opts.role}, runtime: ${resolvedRuntime ?? 'default'}, model: ${resolvedModel ?? meta.model ?? 'auto'}, session: ${meta.sessionId})`);
       this.store.updateAgentAcpSession(newId, meta.sessionId);
       this.store.updateAgentStatus(newId, 'busy');
       if (resolvedModel) this.store.updateAgentModel(newId, resolvedModel);
