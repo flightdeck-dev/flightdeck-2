@@ -112,8 +112,7 @@ function resolveBindAddress(bind?: BindMode): string {
 export interface GatewaySubcommandOpts {
   port?: number;
   corsOrigin?: string;
-  noRecover?: boolean;
-  continueWorkers?: boolean;
+  continueAgents?: boolean;
   projectFilter?: string;
   force?: boolean;
   bind?: BindMode;
@@ -191,7 +190,7 @@ export async function gatewayStart(opts: GatewaySubcommandOpts): Promise<void> {
 
   const args = [entryPoint, 'gateway', 'run', '--port', String(port)];
   if (opts.corsOrigin) args.push('--cors-origin', opts.corsOrigin);
-  if (opts.noRecover) args.push('--no-recover');
+  if (opts.continueAgents) args.push('--continue');
   if (opts.projectFilter) args.push('--project', opts.projectFilter);
   if (opts.bind) args.push('--bind', opts.bind);
   if (opts.auth) args.push('--auth', opts.auth);
@@ -360,8 +359,7 @@ export async function gatewayRun(opts: GatewaySubcommandOpts): Promise<void> {
   await startGateway({
     port,
     corsOrigin: opts.corsOrigin ?? '*',
-    noRecover: opts.noRecover ?? false,
-    continueWorkers: opts.continueWorkers ?? false,
+    continueAgents: opts.continueAgents ?? false,
     projectFilter: opts.projectFilter,
     bindAddress,
     authMode,

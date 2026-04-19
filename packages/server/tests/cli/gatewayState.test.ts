@@ -1,41 +1,16 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import * as fs from 'node:fs';
+import { existsSync } from 'node:fs';
 import {
-  loadReloadConfig,
   saveAgentPids,
   loadAgentPids,
   clearAgentPids,
   cleanupOrphanedAgents,
-  RELOAD_CONFIG_FILE,
   AGENT_PIDS_FILE,
 } from '../../src/cli/gatewayState.js';
 
 describe('gatewayState', () => {
   afterEach(() => {
     clearAgentPids();
-    try { fs.unlinkSync(RELOAD_CONFIG_FILE); } catch { /* ignore */ }
-  });
-
-  // --- Reload config tests ---
-
-  it('should return default reload config when file missing', () => {
-    const config = loadReloadConfig();
-    expect(config.enabled).toBe(true);
-    expect(config.roles).toEqual(['lead']);
-  });
-
-  it('should load custom reload config', () => {
-    fs.writeFileSync(RELOAD_CONFIG_FILE, JSON.stringify({ enabled: false, roles: [] }), 'utf-8');
-    const config = loadReloadConfig();
-    expect(config.enabled).toBe(false);
-    expect(config.roles).toEqual([]);
-  });
-
-  it('should merge partial reload config with defaults', () => {
-    fs.writeFileSync(RELOAD_CONFIG_FILE, JSON.stringify({ roles: ['lead', 'planner'] }), 'utf-8');
-    const config = loadReloadConfig();
-    expect(config.enabled).toBe(true); // default
-    expect(config.roles).toEqual(['lead', 'planner']);
   });
 
   // --- Agent PID tracking tests ---
@@ -55,9 +30,9 @@ describe('gatewayState', () => {
 
   it('should clear agent PIDs file', () => {
     saveAgentPids(12345, [100]);
-    expect(fs.existsSync(AGENT_PIDS_FILE)).toBe(true);
+    expect(existsSync(AGENT_PIDS_FILE)).toBe(true);
     clearAgentPids();
-    expect(fs.existsSync(AGENT_PIDS_FILE)).toBe(false);
+    expect(existsSync(AGENT_PIDS_FILE)).toBe(false);
   });
 
   it('should not kill agents if gateway is still alive', async () => {

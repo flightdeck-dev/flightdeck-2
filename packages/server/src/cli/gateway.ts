@@ -1,7 +1,7 @@
 import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 import { messageId as makeMessageId, type AgentId, type TaskId, type AgentRole, type TaskState } from '@flightdeck-ai/shared';
-import { loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents } from './gatewayState.js';
+import { saveAgentPids, clearAgentPids, cleanupOrphanedAgents } from './gatewayState.js';
 import { existsSync, mkdirSync, renameSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -24,18 +24,6 @@ async function loadBridgeConfig(): Promise<BridgeConfig | null> {
   }
 }
 
-/** Session info for recovery across gateway restarts. */
-interface SavedSession {
-  project: string;
-  agentId: string;
-  role: string;
-  acpSessionId: string;
-  localSessionId: string;
-  cwd: string;
-  model?: string;
-  runtime?: string;
-  status?: 'hibernated' | 'active';
-}
 
 /** Loosely-typed ACP session update for streaming output. */
 interface SessionUpdate {
@@ -51,9 +39,8 @@ interface SessionUpdate {
 export interface GatewayDeps {
   port: number;
   corsOrigin: string;
-  noRecover: boolean;
-  /** If true, aggressively resume all workers on restart. */
-  continueWorkers?: boolean;
+  /** If true, keep active agents as-is instead of hibernating them on restart. */
+  continueAgents?: boolean;
   /** If set, only serve this project. Otherwise serve all. */
   projectFilter?: string;
   /** Bind address: '127.0.0.1' (default), '0.0.0.0', or specific IP. */
@@ -69,7 +56,7 @@ export interface GatewayDeps {
  * spawns Lead/Planner per project, starts HTTP+WS server.
  */
 export async function startGateway(deps: GatewayDeps): Promise<void> {
-  const { port, corsOrigin, noRecover, continueWorkers = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
+  const { port, corsOrigin, continueAgents = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
 
@@ -92,7 +79,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     console.error('Migrating v2 data to ~/.flightdeck/v2/...');
     mkdirSync(FD_HOME, { recursive: true });
     renameSync(oldProjectsDir, newProjectsDir);
-    for (const f of ['gateway-state.json', 'agent-pids.json', 'reload-config.json']) {
+    for (const f of ['gateway-state.json', 'agent-pids.json']) {
       const old = join(homedir(), '.flightdeck', f);
       if (existsSync(old)) renameSync(old, join(FD_HOME, f));
     }
@@ -322,14 +309,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
   }
 
-  // --- Session reload config ---
-  const reloadConfig = loadReloadConfig();
-  const sessionReloadEnabled = !noRecover && reloadConfig.enabled;
-  if (noRecover) {
-    console.error('Session reload disabled (--no-recover flag).');
-  } else if (!reloadConfig.enabled) {
-    console.error('Session reload disabled by reload-config.json.');
-  }
 
   const leadManagers = new Map<string, InstanceType<typeof LeadManager>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,20 +330,15 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const profile = fd.status().config.governance;
     console.error(`\n── Project: ${name} (profile: ${profile}) ──`);
 
-    // Clean up stale agents
+    // Clean up stale agents on restart
     const activeAgents = fd.listAgents().filter(a => a.status === 'busy' || a.status === 'idle');
-    if (noRecover && activeAgents.length > 0) {
-      console.error(`  Marking ${activeAgents.length} existing agents hibernated (--no-recover).`);
+    if (!continueAgents && activeAgents.length > 0) {
+      console.error(`  Marking ${activeAgents.length} agent(s) hibernated.`);
       for (const agent of activeAgents) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
       }
-    } else if (activeAgents.length > 0) {
-      console.error(`  Marking ${activeAgents.length} stale agent(s) hibernated (will attempt session recovery).`);
-      for (const agent of activeAgents) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
-      }
+    } else if (continueAgents && activeAgents.length > 0) {
+      console.error(`  --continue: keeping ${activeAgents.length} agent(s) in current state.`);
     }
 
     // Read per-role runtime config from .flightdeck/config.yaml
@@ -444,37 +418,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     console.error(`  Orchestrator running.`);
 
 
-    // Spawn Lead + Planner (with session recovery if available)
-    let projectSessions: SavedSession[] = [];
-    if (sessionReloadEnabled) {
-      const allowedRoles = new Set(reloadConfig.roles ?? ['lead']);
-      const dbSessions = fd.sqlite.loadSessions();
-      projectSessions = dbSessions
-        .map(s => ({
-          project: name,
-          agentId: s.agentId,
-          role: s.role,
-          acpSessionId: s.sessionId,
-          localSessionId: s.localSessionId ?? s.sessionId,
-          cwd: s.cwd ?? process.cwd(),
-          model: s.model ?? undefined,
-          runtime: s.runtime ?? undefined,
-          status: (s.status === 'active' ? 'active' : 'hibernated') as 'active' | 'hibernated',
-        }))
-        .filter(s => allowedRoles.has(s.role) || !['lead', 'planner'].includes(s.role));
-      if (projectSessions.length > 0) {
-        console.error(`  [${name}] Found ${projectSessions.length} saved session(s) for recovery.`);
-      }
-      // Clear after loading — we'll save fresh on next shutdown
-      fd.sqlite.clearSessions();
-    }
-    await spawnAgents(fd, leadManager, name, projectSessions);
-
-    // Worker recovery
-    const workerSessions = projectSessions.filter(s => !['lead', 'planner'].includes(s.role));
-    if (workerSessions.length > 0 && !noRecover) {
-      await recoverWorkers(fd, leadManager, acpAdapter, name, workerSessions, continueWorkers);
-    }
+    await spawnAgents(fd, leadManager, name);
 
     // Wire WS user messages to Lead
     if (wsServer) {
@@ -877,201 +821,24 @@ async function spawnAgents(
     setSuspendedLead(info: { acpSessionId: string; cwd: string; model?: string }): void;
   },
   projectName: string,
-  savedSessions: SavedSession[] = [],
 ): Promise<void> {
   const agents = fd.listAgents();
   const hasLead = agents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
   const hasPlanner = agents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
 
-  const savedLead = savedSessions.find(s => s.role === 'lead');
-  const savedPlanner = savedSessions.find(s => s.role === 'planner');
-
-  // On restart, all agents hibernate by default. They wake on-demand when
-  // there's actual work (user message, task event, etc.). This avoids
-  // spawning many processes simultaneously on gateway start.
+  // On restart, Lead and Planner will be spawned fresh on-demand via
+  // spawnLead()/spawnPlanner() which internally check for hibernated agents to wake.
 
   if (!hasLead) {
-    if (savedLead) {
-      // Hibernate Lead — will auto-wake on first steerLead() call
-      console.error(`  [${projectName}] Lead → hibernated (will wake on-demand from session ${savedLead.acpSessionId})`);
-      leadManager.setSuspendedLead({
-        acpSessionId: savedLead.acpSessionId,
-        cwd: savedLead.cwd,
-        model: savedLead.model,
-      });
-      // Register a hibernated agent record in SQLite so it shows in status
-      const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
-      const suspendedId = makeAgentId('lead', Date.now().toString());
-      fd.sqlite.insertAgent({
-        id: suspendedId,
-        role: 'lead',
-        runtime: 'acp',
-        acpSessionId: null,
-        status: 'hibernated',
-        currentSpecId: null,
-        costAccumulated: 0,
-        lastHeartbeat: null,
-      });
-    } else {
-      // No saved session — Lead will be spawned fresh on first steerLead() call
-      console.error(`  [${projectName}] Lead — no saved session (will spawn on-demand).`);
-    }
+    console.error(`  [${projectName}] Lead — will spawn on-demand.`);
   } else {
     console.error(`  [${projectName}] Lead already active.`);
   }
 
   if (!hasPlanner) {
-    if (savedPlanner) {
-      // Lazy resume: mark Planner as suspended, resume on-demand when Lead needs it
-      console.error(`  [${projectName}] Planner → hibernated (will resume on-demand from session ${savedPlanner.acpSessionId})`);
-      leadManager.setSuspendedPlanner({
-        acpSessionId: savedPlanner.acpSessionId,
-        cwd: savedPlanner.cwd,
-        model: savedPlanner.model,
-      });
-      // Register a hibernated agent record in SQLite so it shows in status
-      const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
-      const suspendedId = makeAgentId('planner', Date.now().toString());
-      fd.sqlite.insertAgent({
-        id: suspendedId,
-        role: 'planner',
-        runtime: 'acp',
-        acpSessionId: null,
-        status: 'hibernated',
-        currentSpecId: null,
-        costAccumulated: 0,
-        lastHeartbeat: null,
-      });
-    } else {
-      // No saved session — Planner will be spawned fresh on-demand
-      console.error(`  [${projectName}] Planner — no saved session (will spawn on-demand).`);
-    }
+    console.error(`  [${projectName}] Planner — will spawn on-demand.`);
   } else {
     console.error(`  [${projectName}] Planner already active.`);
-  }
-}
-
-/**
- * Recover worker sessions from a previous gateway run.
- * - Default mode: pause worker tasks, mark agents hibernated, notify Lead
- * - --continue mode: aggressively resume all worker sessions
- */
-async function recoverWorkers(
-  fd: Flightdeck,
-  leadManager: { steerLead(event: { type: 'worker_recovery'; message: string }): Promise<string> },
-  acpAdapter: { resumeSession(opts: { previousSessionId: string; cwd: string; role: string; model?: string; projectName?: string }): Promise<{ agentId: string; sessionId: string }> },
-  projectName: string,
-  workerSessions: SavedSession[],
-  continueWorkers: boolean,
-): Promise<void> {
-  const { agentId: makeAgentId } = await import('@flightdeck-ai/shared');
-  const pausedTasks: Array<{ id: string; title: string }> = [];
-  const resumedCount = { success: 0, failed: 0 };
-
-  for (const ws of workerSessions) {
-    // Find the task assigned to this worker
-    const tasks = fd.listTasks();
-    const assignedTask = tasks.find(t => t.assignedAgent === ws.agentId && t.state === 'running');
-
-    if (continueWorkers) {
-      // --continue: try to resume the worker session
-      try {
-        console.error(`  [${projectName}] Resuming worker ${ws.agentId} (${ws.role}) from session ${ws.acpSessionId}...`);
-        const result = await acpAdapter.resumeSession({
-          previousSessionId: ws.acpSessionId,
-          cwd: ws.cwd,
-          role: ws.role,
-          model: ws.model,
-          projectName,
-        });
-
-        // Re-register agent as busy
-        fd.sqlite.insertAgent({
-          id: result.agentId as AgentId,
-          role: ws.role as AgentRole,
-          runtime: 'acp',
-          acpSessionId: ws.acpSessionId,
-          status: 'busy',
-          currentSpecId: null,
-          costAccumulated: 0,
-          lastHeartbeat: null,
-        });
-
-        // Update task's assignedAgent to the new agent ID if it changed
-        if (assignedTask && result.agentId !== ws.agentId) {
-          fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'running' as TaskState, result.agentId as AgentId);
-        }
-
-        resumedCount.success++;
-        console.error(`  [${projectName}] Worker resumed: ${result.agentId} (session: ${result.sessionId})`);
-      } catch (err: unknown) {
-        console.error(`  [${projectName}] Failed to resume worker ${ws.agentId}: ${err instanceof Error ? err.message : String(err)}`);
-        resumedCount.failed++;
-        // Graceful degradation: pause the task
-        if (assignedTask) {
-          try {
-            fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'paused' as TaskState);
-            pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
-            console.error(`  [${projectName}] Paused task ${assignedTask.id} (${assignedTask.title})`);
-          } catch (e) {
-            console.error(`  [${projectName}] Failed to pause task ${assignedTask.id}: ${e instanceof Error ? e.message : String(e)}`);
-          }
-        }
-        // Register hibernated agent (preserving session for potential manual wake)
-        const hibernatedId = makeAgentId(ws.role, Date.now().toString());
-        fd.sqlite.insertAgent({
-          id: hibernatedId,
-          role: ws.role as AgentRole,
-          runtime: 'acp',
-          acpSessionId: ws.acpSessionId,
-          status: 'hibernated',
-          currentSpecId: null,
-          costAccumulated: 0,
-          lastHeartbeat: null,
-        });
-      }
-    } else {
-      // Default mode: pause task, mark agent hibernated (preserve session for potential wake)
-      if (assignedTask) {
-        try {
-          fd.sqlite.updateTaskState(assignedTask.id as TaskId, 'paused' as TaskState);
-          pausedTasks.push({ id: assignedTask.id, title: assignedTask.title });
-          console.error(`  [${projectName}] Paused worker task ${assignedTask.id} (${assignedTask.title})`);
-        } catch (e) {
-          console.error(`  [${projectName}] Failed to pause task ${assignedTask.id}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      // Register hibernated agent with saved session ID
-      const hibernatedId = makeAgentId(ws.role, Date.now().toString());
-      fd.sqlite.insertAgent({
-        id: hibernatedId,
-        role: ws.role as AgentRole,
-        runtime: 'acp',
-        acpSessionId: ws.acpSessionId,
-        status: 'hibernated',
-        currentSpecId: null,
-        costAccumulated: 0,
-        lastHeartbeat: null,
-      });
-      console.error(`  [${projectName}] Worker ${ws.agentId} → hibernated (session: ${ws.acpSessionId}).`);
-    }
-  }
-
-  // Notify Lead about worker recovery status (non-blocking — don't hold up gateway startup)
-  if (pausedTasks.length > 0) {
-    const summary = pausedTasks.map(t => `- ${t.title} (${t.id})`).join('\n');
-    leadManager.steerLead({
-      type: 'worker_recovery',
-      message: `Session reloaded. ${pausedTasks.length} worker task(s) paused from previous session:\n${summary}\n\nUse flightdeck_agent_wake to resume hibernated workers, flightdeck_agent_retire to dismiss ones you don't need, or spawn new workers.`,
-    }).then(() => {
-      console.error(`  [${projectName}] Notified Lead about ${pausedTasks.length} paused worker task(s).`);
-    }).catch((err: unknown) => {
-      console.error(`  [${projectName}] Failed to notify Lead about paused workers: ${err instanceof Error ? err.message : String(err)}`);
-    });
-  }
-
-  if (continueWorkers) {
-    console.error(`  [${projectName}] Worker recovery: ${resumedCount.success} resumed, ${resumedCount.failed} failed.`);
   }
 }
 

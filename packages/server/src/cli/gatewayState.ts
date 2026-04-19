@@ -5,35 +5,7 @@ import { FD_HOME } from './constants.js';
 
 const STATE_DIR = FD_HOME;
 
-/**
- * Reload configuration. Controls whether gateway should reload sessions on restart.
- * File: ~/.flightdeck/reload-config.json
- */
-export interface ReloadConfig {
-  /** Master switch: if false, skip ALL session reloads on restart. Default: true */
-  enabled?: boolean;
-  /** Which roles to reload. Default: ['lead'] (never reload workers) */
-  roles?: string[];
-}
 
-const RELOAD_CONFIG_FILE = path.join(STATE_DIR, 'reload-config.json');
-
-const DEFAULT_RELOAD_CONFIG: ReloadConfig = {
-  enabled: true,
-  roles: ['lead'],
-};
-
-/**
- * Load reload configuration from disk. Returns defaults if file doesn't exist.
- */
-export function loadReloadConfig(): ReloadConfig {
-  try {
-    const raw = fs.readFileSync(RELOAD_CONFIG_FILE, 'utf-8');
-    return { ...DEFAULT_RELOAD_CONFIG, ...JSON.parse(raw) };
-  } catch {
-    return DEFAULT_RELOAD_CONFIG;
-  }
-}
 
 // ── Agent PID tracking ──
 
@@ -136,4 +108,4 @@ export async function cleanupOrphanedAgents(): Promise<number> {
   return killed;
 }
 
-export { RELOAD_CONFIG_FILE, AGENT_PIDS_FILE };
+export { AGENT_PIDS_FILE };
