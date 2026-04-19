@@ -373,7 +373,6 @@ export class LeadManager {
         parts.push('---');
         parts.push(event.message.content);
         parts.push('');
-        parts.push(`For project status: use flightdeck_status tool`);
         break;
       }
 
