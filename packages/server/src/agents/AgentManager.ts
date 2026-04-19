@@ -181,6 +181,21 @@ export class AgentManager {
   ) {
     this.adapter = adapter;
     this.skillManager = skillManager ?? null;
+
+    // Register session-end callback for stall detection
+    this.adapter.onSessionEnd = (sessionId: string) => {
+      const agentId = this.sessionToAgent.get(sessionId);
+      if (agentId) {
+        const agent = this.store.getAgent(agentId);
+        // Only mark offline if not already in a terminal state
+        if (agent && !['terminated', 'retired', 'hibernated'].includes(agent.status)) {
+          this.store.updateAgentStatus(agentId, 'offline');
+          console.error(`[AgentManager] Agent ${agentId} session ${sessionId} ended, marked offline`);
+        }
+        this.sessionToAgent.delete(sessionId);
+        this.agentToSession.delete(agentId);
+      }
+    };
   }
 
   /**

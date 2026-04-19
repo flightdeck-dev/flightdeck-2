@@ -9,6 +9,7 @@ import type { ToolCallState } from '../hooks/useChat.tsx';
 import type { StreamChunk } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import { Crown, Code, Search, ClipboardList, Bot, Send, Zap, X, Info, MessageSquare, MoreHorizontal, Pause, Play, LogOut, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Markdown } from '../components/Markdown.tsx';
 import { ThinkingBlock, ToolCallCard, groupChunks } from './Chat.tsx';
 import { shouldShow, type DisplayConfig } from '@flightdeck-ai/shared/display';
@@ -24,10 +25,10 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: boolean }> = {
   busy: { color: 'var(--color-status-running)', label: 'Busy', animate: true },
   working: { color: 'var(--color-status-running)', label: 'Working', animate: true },
-  idle: { color: 'var(--color-status-ready)', label: 'Idle' },
+  idle: { color: 'var(--color-text-tertiary)', label: 'Idle' },
   terminated: { color: 'var(--color-status-cancelled)', label: 'Offline' },
   ended: { color: 'var(--color-status-cancelled)', label: 'Ended' },
-  hibernated: { color: 'var(--color-status-pending)', label: 'Hibernated' },
+  hibernated: { color: 'var(--color-text-tertiary)', label: '💤 Hibernated' },
   retired: { color: 'var(--color-status-cancelled)', label: 'Retired' },
 };
 
@@ -301,6 +302,12 @@ function AgentDetailPanel({
 
           {/* Tab content */}
           <div className="flex-1 overflow-hidden flex flex-col">
+            {/* Lead chat link */}
+            {agent.role === 'lead' && (
+              <div className="px-4 py-3 text-sm text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
+                <Link to={`/${projectName}/chat`} className="hover:text-[var(--color-text)] transition-colors">View Lead conversations in Chat →</Link>
+              </div>
+            )}
             {tab === 'chat' && (
               <>
                 {/* Toast */}
@@ -686,7 +693,8 @@ export default function Agents() {
     );
   }
 
-  const active = agents.filter(a => !['terminated', 'ended', 'retired', 'offline'].includes(a.status));
+  const active = agents.filter(a => !['terminated', 'ended', 'retired', 'offline', 'hibernated'].includes(a.status));
+  const hibernated = agents.filter(a => a.status === 'hibernated');
   const retired = agents.filter(a => a.status === 'retired');
   const terminated = agents.filter(a => a.status === 'terminated' || a.status === 'ended' || a.status === 'offline');
 
@@ -713,7 +721,7 @@ export default function Agents() {
         </div>
       )}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Agents ({agents.length})</h1>
+        <h1 className="text-xl font-semibold">Agents ({active.length})</h1>
         <div className="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--color-status-running)] animate-pulse" />
@@ -730,6 +738,17 @@ export default function Agents() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {active.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
         </div>
+      )}
+
+      {hibernated.length > 0 && (
+        <details className="group">
+          <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
+            💤 {hibernated.length} hibernated agent{hibernated.length !== 1 ? 's' : ''}
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
+            {hibernated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+          </div>
+        </details>
       )}
 
       {retired.length > 0 && (

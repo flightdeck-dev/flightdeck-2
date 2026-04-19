@@ -45,6 +45,8 @@ export interface AgentMetadata {
  */
 export abstract class AgentAdapter {
   abstract readonly runtime: AgentRuntime;
+  /** Callback fired when a session ends (process exit, crash, etc.) */
+  onSessionEnd: ((sessionId: string, session: any) => void) | null = null;
 
   abstract spawn(opts: SpawnOptions): Promise<AgentMetadata>;
   abstract steer(sessionId: string, message: SteerMessage): Promise<string>;

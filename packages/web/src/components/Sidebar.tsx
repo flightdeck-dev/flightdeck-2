@@ -304,7 +304,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
           <div className="flex items-center gap-2">
             {activeAgents > 0 && (<>
-              <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
+              <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-text-tertiary)]'}`} />
               <span>{busyAgents} busy</span>
               <span className="text-[var(--color-text-tertiary)]">·</span>
               <span>{activeAgents - busyAgents} idle</span>
