@@ -249,13 +249,16 @@ export default function Files() {
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [treeWidth, setTreeWidth] = useState(280);
   const treeResizing = useRef(false);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!treeResizing.current) return;
-      setTreeWidth(Math.max(180, Math.min(500, e.clientX)));
+      const rect = containerRef.current?.getBoundingClientRect();
+      const x = e.clientX - (rect?.left ?? 0);
+      setTreeWidth(Math.max(180, Math.min(500, x)));
     };
     const onMouseUp = () => { treeResizing.current = false; document.body.style.cursor = ''; };
     document.addEventListener('mousemove', onMouseMove);
@@ -281,7 +284,7 @@ export default function Files() {
   if (!projectName) return <div className="p-8 text-[var(--color-text-secondary)]">No project selected</div>;
 
   return (
-    <div className="flex h-full">
+    <div ref={containerRef} className="flex h-full">
       {/* Left panel: tree */}
       {treeCollapsed && (
         <button onClick={() => setTreeCollapsed(false)} className="shrink-0 w-10 flex items-start justify-center pt-3 border-r border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors" aria-label="Expand file tree">
