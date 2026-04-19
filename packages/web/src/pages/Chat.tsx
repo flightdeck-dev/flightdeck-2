@@ -605,7 +605,8 @@ export default function Chat() {
     setAttachments([]);
     setReplyTo(null);
     setWaitingForLead(true);
-    // Stop recording if active
+    // Stop recording if active — set sentRef to ignore final transcript
+    sentRef.current = true;
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
@@ -645,6 +646,7 @@ export default function Chat() {
     try { return localStorage.getItem('flightdeck:speech-lang') ?? (navigator.language?.startsWith('zh') ? 'zh-CN' : 'en-US'); } catch { return 'en-US'; }
   });
   const recognitionRef = useRef<any>(null);
+  const sentRef = useRef(false);
   // #12: SpeechRecognition types — non-standard API, accessed via (window as any)
   const speechSupported = useMemo(() => {
     return typeof window !== 'undefined' && !!(
@@ -665,6 +667,7 @@ export default function Chat() {
     recognition.interimResults = true;
     recognition.lang = speechLang;
     recognition.onresult = (event: any) => {
+      if (sentRef.current) return; // Ignore results after send
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
@@ -678,6 +681,7 @@ export default function Chat() {
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognitionRef.current = recognition;
+    sentRef.current = false;
     recognition.start();
     setIsListening(true);
   }, [isListening]);

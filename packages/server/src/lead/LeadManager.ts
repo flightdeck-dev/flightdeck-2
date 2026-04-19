@@ -63,7 +63,8 @@ export type LeadEvent =
   | { type: 'worker_recovery'; message: string }
   | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } }
   | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> }
-  | { type: 'task_completed_notify'; taskId: string; title: string; claim?: string };
+  | { type: 'task_completed_notify'; taskId: string; title: string; claim?: string }
+  | { type: 'system_notice'; message: string };
 
 export interface HeartbeatCondition {
   type: 'tasks_completed' | 'idle_duration' | 'time_window' | 'spec_completed' | 'cost_threshold' | 'custom';
@@ -139,10 +140,41 @@ export class LeadManager {
   /** Spawn a new Lead agent session */
   async spawnLead(): Promise<string> {
     // Enforce single active Lead — if one exists, don't spawn another
-    const existingLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
-    if (existingLeads.length > 0) {
-      console.error(`  Lead already active (${existingLeads[0].id}), skipping spawn`);
+    const activeLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
+    if (activeLeads.length > 0) {
+      console.error(`  Lead already active (${activeLeads[0].id}), skipping spawn`);
       return this.leadSessionId ?? '';
+    }
+
+    // Try to wake a hibernated lead
+    const hibernatedLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && a.status === 'hibernated' && a.acpSessionId);
+    if (hibernatedLeads.length > 0) {
+      const lead = hibernatedLeads[0];
+      console.error(`  Waking hibernated Lead ${lead.id} (session: ${lead.acpSessionId})...`);
+      try {
+        const meta = await this.acpAdapter.resumeSession({
+          previousSessionId: lead.acpSessionId!,
+          cwd: this.agentCwd,
+          role: 'lead',
+          agentId: lead.id,
+          projectName: this.projectName,
+          runtime: this.leadRuntime,
+        });
+        this.leadSessionId = meta.sessionId;
+        this.leadAgentId = lead.id;
+        this.sqlite.updateAgentStatus(lead.id as any, 'busy');
+        this.sqlite.updateAgentAcpSession(lead.id as any, meta.sessionId);
+        this.wireStreamHandler();
+        console.error(`  Lead ${lead.id} woken (session: ${meta.sessionId})`);
+        // Still spawn planner alongside
+        if (!this.plannerSessionId) {
+          try { await this.spawnPlanner(); } catch { /* non-fatal */ }
+        }
+        return meta.sessionId;
+      } catch (err) {
+        console.error(`  Failed to wake Lead ${lead.id}: ${err instanceof Error ? err.message : String(err)}, spawning fresh...`);
+        this.sqlite.updateAgentStatus(lead.id as any, 'errored');
+      }
     }
 
     // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
@@ -498,6 +530,13 @@ export class LeadManager {
         parts.push(`Review with flightdeck_task_context("${event.taskId}") if needed.`);
         break;
       }
+
+      case 'system_notice': {
+        const snTs = formatTs();
+        parts.push(`[${snTs}] [SYSTEM NOTICE]`);
+        parts.push(event.message);
+        break;
+      }
     }
 
     return parts.join('\n');
@@ -577,6 +616,32 @@ export class LeadManager {
 
   /** Spawn Planner as a persistent ACP session */
   async spawnPlanner(): Promise<string> {
+    // Try to wake a hibernated planner first
+    const hibernatedPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.status === 'hibernated' && a.acpSessionId);
+    if (hibernatedPlanners.length > 0) {
+      const planner = hibernatedPlanners[0];
+      console.error(`  Waking hibernated Planner ${planner.id} (session: ${planner.acpSessionId})...`);
+      try {
+        const meta = await this.acpAdapter.resumeSession({
+          previousSessionId: planner.acpSessionId!,
+          cwd: this.agentCwd,
+          role: 'planner',
+          agentId: planner.id,
+          projectName: this.projectName,
+          runtime: this.plannerRuntime,
+        });
+        this.plannerSessionId = meta.sessionId;
+        this.plannerAgentId = planner.id;
+        this.sqlite.updateAgentStatus(planner.id as any, 'busy');
+        this.sqlite.updateAgentAcpSession(planner.id as any, meta.sessionId);
+        console.error(`  Planner ${planner.id} woken (session: ${meta.sessionId})`);
+        return meta.sessionId;
+      } catch (err) {
+        console.error(`  Failed to wake Planner ${planner.id}: ${err instanceof Error ? err.message : String(err)}, spawning fresh...`);
+        this.sqlite.updateAgentStatus(planner.id as any, 'errored');
+      }
+    }
+
     // Read role-preference.md for Planner's system prompt
     let systemPrompt: string | undefined;
     try {
@@ -589,12 +654,34 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
+    // Build task context for fresh planner
+    let taskContext = '';
+    try {
+      const tasks = this.sqlite.listTasks();
+      const taskStats = this.sqlite.getTaskStats();
+      const agents = this.sqlite.listAgents().filter(a => ['busy', 'idle'].includes(a.status));
+
+      taskContext = `\n## Current Project State\n`;
+      taskContext += `Tasks: ${taskStats.running ?? 0} running, ${taskStats.ready ?? 0} ready, ${taskStats.done ?? 0} done, ${taskStats.failed ?? 0} failed\n`;
+      taskContext += `Active agents: ${agents.length}\n`;
+
+      const activeTasks = tasks.filter(t => !['done', 'cancelled'].includes(t.state));
+      if (activeTasks.length > 0) {
+        taskContext += `\n### Active Tasks\n`;
+        for (const t of activeTasks.slice(0, 20)) {
+          taskContext += `- [${t.state}] "${t.title}" (${t.id})${t.assignedAgent ? ` → ${t.assignedAgent}` : ''}\n`;
+        }
+      }
+    } catch { /* best effort */ }
+
+    const fullSystemPrompt = [systemPrompt, taskContext].filter(Boolean).join('\n') || undefined;
+
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.plannerRuntime,
-      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
     });
     this.plannerSessionId = meta.sessionId;
     this.plannerAgentId = meta.agentId;
@@ -611,6 +698,14 @@ export class LeadManager {
       costAccumulated: 0,
       lastHeartbeat: null,
     });
+
+    // Notify Lead about new Planner
+    if (this.leadSessionId && this.plannerAgentId) {
+      this.steerLead({
+        type: 'system_notice',
+        message: `A new Planner (${this.plannerAgentId}) has been started. Previous conversation context with the old Planner is not carried over. You may need to re-communicate any outstanding directives.`,
+      }).catch(() => {});
+    }
 
     return meta.sessionId;
   }
