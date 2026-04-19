@@ -228,56 +228,56 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { parse as parseYaml } from 'yaml';
+import { loadGlobalConfig } from '../config/GlobalConfig.js';
 
-interface CustomRuntimeConfig {
-  name: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  icon?: string;
-  supportsSessionLoad?: boolean;
-}
-
-/** Load custom runtimes from YAML config and merge into RUNTIME_REGISTRY */
+/** Load custom runtimes from global config.yaml and optional project config */
 export function loadCustomRuntimes(projectDir?: string): void {
-  const files = [
-    join(homedir(), '.flightdeck', 'v2', 'custom-runtimes.yaml'),
-    ...(projectDir ? [join(projectDir, '.flightdeck', 'custom-runtimes.yaml')] : []),
-  ];
+  // Load from global config.yaml
+  const globalConfig = loadGlobalConfig();
+  if (globalConfig.customRuntimes) {
+    registerCustomRuntimes(globalConfig.customRuntimes);
+  }
 
-  for (const file of files) {
-    if (!existsSync(file)) continue;
+  // Load from project-level .flightdeck/config.yaml customRuntimes section
+  if (projectDir) {
     try {
-      const raw = readFileSync(file, 'utf-8');
-      const configs = parseYaml(raw) as Record<string, CustomRuntimeConfig>;
-      if (!configs || typeof configs !== 'object') continue;
-
-      for (const [id, cfg] of Object.entries(configs)) {
-        if (!cfg.name || !cfg.command) continue;
-        if (RUNTIME_REGISTRY[id]) continue; // Don't override built-in
-
-        RUNTIME_REGISTRY[id] = {
-          name: cfg.name,
-          command: cfg.command,
-          args: cfg.args ?? [],
-          systemPromptMethod: 'both',
-          supportsAcp: true,
-          supportsSessionLoad: cfg.supportsSessionLoad ?? false,
-          adapter: 'acp',
-          icon: cfg.icon ?? '🔌',
-          docsUrl: undefined,
-          setupLinks: [],
-          installHint: `Ensure "${cfg.command}" is on PATH`,
-          loginInstructions: undefined,
-          supportsModelDiscovery: false,
-          disabledByDefault: false,
-          notes: ['Custom ACP runtime'],
-          customEnv: cfg.env,
-        };
-        console.error(`  Loaded custom runtime: ${id} (${cfg.name})`);
+      const projectConfigPath = join(projectDir, '.flightdeck', 'config.yaml');
+      if (existsSync(projectConfigPath)) {
+        const raw = readFileSync(projectConfigPath, 'utf-8');
+        const projectConfig = parseYaml(raw);
+        if (projectConfig?.customRuntimes) {
+          registerCustomRuntimes(projectConfig.customRuntimes);
+        }
       }
-    } catch (err) {
-      console.error(`  Failed to load custom runtimes from ${file}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    } catch { /* best effort */ }
   }
 }
+
+function registerCustomRuntimes(runtimes: Record<string, any>): void {
+  for (const [id, cfg] of Object.entries(runtimes)) {
+    if (!cfg.name || !cfg.command) continue;
+    if (RUNTIME_REGISTRY[id]) continue; // Don't override built-in
+
+    RUNTIME_REGISTRY[id] = {
+      name: cfg.name,
+      command: cfg.command,
+      args: cfg.args ?? [],
+      systemPromptMethod: 'both',
+      supportsAcp: true,
+      supportsSessionLoad: cfg.supportsSessionLoad ?? false,
+      adapter: 'acp',
+      icon: cfg.icon ?? '🔌',
+      docsUrl: undefined,
+      setupLinks: [],
+      installHint: `Ensure "${cfg.command}" is on PATH`,
+      loginInstructions: undefined,
+      supportsModelDiscovery: false,
+      disabledByDefault: false,
+      notes: ['Custom ACP runtime'],
+      customEnv: cfg.env,
+    };
+    console.error(`  Loaded custom runtime: ${id} (${cfg.name})`);
+  }
+}
+
+

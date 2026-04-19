@@ -872,34 +872,45 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModels(rt);
       json(200, result);
     } else if (subPath === '/custom-runtimes' && method === 'GET') {
-      const { existsSync, readFileSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const { homedir } = await import('node:os');
-      const configPath = join(homedir(), '.flightdeck', 'v2', 'custom-runtimes.yaml');
-      if (!existsSync(configPath)) { json(200, {}); return; }
       try {
-        const { parse: parseYaml } = await import('yaml');
-        const raw = readFileSync(configPath, 'utf-8');
-        json(200, parseYaml(raw) ?? {});
+        const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
+        const config = loadGlobalConfig();
+        json(200, config.customRuntimes ?? {});
       } catch (err) {
         json(500, { error: `Failed to read custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
       }
     } else if (subPath === '/custom-runtimes' && method === 'PUT') {
-      const { mkdirSync, writeFileSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const { homedir } = await import('node:os');
-      const { stringify: stringifyYaml } = await import('yaml');
-      const { loadCustomRuntimes } = await import('../agents/runtimes.js');
-      const configDir = join(homedir(), '.flightdeck', 'v2');
-      const configPath = join(configDir, 'custom-runtimes.yaml');
       try {
+        const { loadGlobalConfig, saveGlobalConfig } = await import('../config/GlobalConfig.js');
+        const { loadCustomRuntimes } = await import('../agents/runtimes.js');
         const body = await readBody();
-        mkdirSync(configDir, { recursive: true });
-        writeFileSync(configPath, stringifyYaml(body), 'utf-8');
+        const config = loadGlobalConfig();
+        config.customRuntimes = body as any;
+        saveGlobalConfig(config);
         loadCustomRuntimes(); // Reload into registry
         json(200, { ok: true });
       } catch (err) {
         json(500, { error: `Failed to save custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    } else if (subPath === '/config' && method === 'GET') {
+      try {
+        const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
+        const config = loadGlobalConfig();
+        // Redact sensitive fields
+        const safe = { ...config, auth: config.auth ? { mode: config.auth.mode } : undefined };
+        json(200, safe);
+      } catch (err) {
+        json(500, { error: `Failed to read config: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    } else if (subPath === '/config/schema' && method === 'GET') {
+      try {
+        const { readFileSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const schemaPath = join(import.meta.dirname ?? new URL('.', import.meta.url).pathname, '..', 'config', 'global-config.schema.json');
+        const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
+        json(200, schema);
+      } catch (err) {
+        json(500, { error: `Failed to read schema: ${err instanceof Error ? err.message : String(err)}` });
       }
     } else if (subPath === '/runtimes' && method === 'GET') {
       const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
