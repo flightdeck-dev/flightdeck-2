@@ -66,7 +66,19 @@ export class MessageStore {
       parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null,
       attachments: record.attachments ? JSON.stringify(record.attachments) : null,
     } as any;
-    this.db.insert(messages).values(dbRecord).run();
+    try {
+      this.db.insert(messages).values(dbRecord).run();
+    } catch (err: unknown) {
+      // Retry once with a fresh ID on unique constraint collision
+      if (err && typeof err === 'object' && 'code' in err && (err as any).code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+        const freshId = messageId(msg.authorId ?? 'anon', now, Math.random().toString(), Math.random().toString());
+        record.id = freshId;
+        dbRecord.id = freshId;
+        this.db.insert(messages).values(dbRecord).run();
+      } else {
+        throw err;
+      }
+    }
     // Index in FTS5 for full-text search
     try {
       this.db.run(sql`INSERT INTO messages_fts (id, author_type, author_id, content) VALUES (${id}, ${record.authorType}, ${record.authorId}, ${record.content})`);

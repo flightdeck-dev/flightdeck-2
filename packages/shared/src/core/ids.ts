@@ -13,9 +13,9 @@ function hashId(prefix: string, ...parts: string[]): string {
 /** Unique hash — includes random nonce to prevent collisions. */
 function uniqueId(prefix: string, ...parts: string[]): string {
   const hash = createHash('sha256')
-    .update(parts.join(':') + ':' + randomBytes(4).toString('hex'))
+    .update(parts.join(':') + ':' + randomBytes(8).toString('hex'))
     .digest('hex')
-    .slice(0, 6);
+    .slice(0, 12);  // 12 hex chars = 48 bits, collision-safe for millions of messages
   return `${prefix}-${hash}`;
 }
 
