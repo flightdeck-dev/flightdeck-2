@@ -670,6 +670,9 @@ export class LeadManager {
         taskContext += `\n### Active Tasks\n`;
         for (const t of activeTasks.slice(0, 20)) {
           taskContext += `- [${t.state}] "${t.title}" (${t.id})${t.assignedAgent ? ` → ${t.assignedAgent}` : ''}\n`;
+          if (t.description) taskContext += `  Description: ${t.description}\n`;
+          if ((t as any).acceptanceCriteria) taskContext += `  Acceptance Criteria: ${(t as any).acceptanceCriteria}\n`;
+          if ((t as any).context) taskContext += `  Context: ${(t as any).context}\n`;
         }
       }
     } catch { /* best effort */ }
