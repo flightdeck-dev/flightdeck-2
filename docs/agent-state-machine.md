@@ -68,10 +68,13 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 | `idle` | `busy` | `onSessionTurnStart` (steer/prompt begins) | All adapters → `gateway.ts` |
 | `idle` | `busy` | Orchestrator pre-marks on task claim | `Orchestrator` (reservation) |
 | `busy` | `idle` | `onSessionTurnEnd` (prompt turn completes) | All adapters → `gateway.ts` |
+| `busy` | `hibernated` | `hibernateAgent()` called | `AgentManager.hibernateAgent` |
 | `busy` | `offline` | ACP session ends (process exit/error/EOF) | `AcpAdapter.onSessionEnd` → `gateway.ts` |
-| `busy` | `offline` | Agent terminated | `AgentManager.terminateAgent` |
+| `busy` | `offline` | Agent terminated (non-resumable runtime) | `AgentManager.terminateAgent` |
+| `busy` | `hibernated` | Agent terminated (resumable runtime) | `AgentManager.terminateAgent` |
 | `busy` | `offline` | Orchestrator detects stale agent | `Orchestrator` (stale cleanup) |
-| `idle` | `offline` | Agent terminated | `AgentManager.terminateAgent` |
+| `idle` | `offline` | Agent terminated (non-resumable runtime) | `AgentManager.terminateAgent` |
+| `idle` | `hibernated` | Agent terminated (resumable runtime) | `AgentManager.terminateAgent` |
 | `idle` | `offline` | Gateway startup (`--no-recover`) | `gateway.ts` (startup cleanup) |
 | `idle` | `hibernated` | `hibernateAgent()` called | `AgentManager.hibernateAgent` |
 | `idle` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
