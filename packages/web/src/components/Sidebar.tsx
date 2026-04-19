@@ -139,7 +139,11 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
             )}
           </div>
           {project.agentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-secondary)]">
+            <span
+              className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate('/agents'); }}
+              title="View agents"
+            >
               <span className={`w-1.5 h-1.5 rounded-full ${
                 (project.busyAgentCount ?? 0) > 0
                   ? 'bg-emerald-400 animate-pulse'
@@ -340,7 +344,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
       await api.createProject(name.trim(), cwd.trim(), governance, leadRuntime || undefined, leadModel || undefined);
       onCreated();
       onClose();
-      navigate(`/${encodeURIComponent(name.trim())}`);
+      navigate(`/${encodeURIComponent(name.trim())}/chat`);
     } catch (err) {
       alert(`Failed to create project: ${err}`);
     } finally {

@@ -470,6 +470,8 @@ export default function Chat() {
   const { displayConfig } = useDisplay();
   const { connected, projectName } = useProject();
   const { agents } = useAgents();
+  const leadAgent = agents.find(a => a.role === 'lead' && a.status !== 'retired' && a.status !== 'offline');
+  const isLeadSpawning = !leadAgent && agents.length === 0 && messages.length === 0;
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -741,6 +743,12 @@ export default function Chat() {
                 chunks={streamingChunks.get(id) ?? EMPTY_CHUNKS} toolCallMap={toolCallMap} displayConfig={displayConfig} />
             ))}
 
+            {isLeadSpawning && (
+              <div className="flex items-center gap-2 px-4 py-3 mx-4 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Lead is starting up…
+              </div>
+            )}
             {waitingForLead && !isStreaming && <TypingIndicator />}
             <div ref={bottomRef} />
             </div>
