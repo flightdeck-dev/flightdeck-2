@@ -432,6 +432,16 @@ export class AgentManager {
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
 
+    // Store the outgoing steer message
+    if (this.messageStore) {
+      this.messageStore.createMessage({
+        threadId: null, parentId: null, taskId: null,
+        authorType: 'system', authorId: null,
+        content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
+        metadata: null, channel: `dm:${agentId}`,
+      });
+    }
+
     await this.adapter.steer(sessionId, { content: message, urgent: true });
   }
 
@@ -444,6 +454,17 @@ export class AgentManager {
     }
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
+
+    // Store the outgoing steer message
+    if (this.messageStore) {
+      this.messageStore.createMessage({
+        threadId: null, parentId: null, taskId: null,
+        authorType: 'system', authorId: null,
+        content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
+        metadata: null, channel: `dm:${agentId}`,
+      });
+    }
+
     await this.adapter.steer(sessionId, { content: message, urgent: false });
   }
 

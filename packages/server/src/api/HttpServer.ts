@@ -308,6 +308,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     if (subPath === '/status' && method === 'GET') {
       json(200, fd.status());
     } else if (subPath === '/messages' && method === 'GET') {
+      const channelParam = url.searchParams.get('channel') ?? undefined;
+      if (channelParam && fd.messages) {
+        // Channel-filtered messages (e.g. dm:agent-1)
+        const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
+        json(200, fd.messages.listChannelMessages(channelParam, undefined, limit));
+        return;
+      }
       const threadId = url.searchParams.get('thread_id') ?? undefined;
       const taskId = url.searchParams.get('task_id') ?? undefined;
       const authorTypesParam = url.searchParams.get('author_types');
@@ -1304,7 +1311,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             json(500, { error: 'MessageStore not available' });
           }
         } else if (body.to) {
-          // DM path
+          // DM path — store in MessageStore and deliver
+          if (fd.messages) {
+            fd.messages.createMessage({
+              threadId: null, parentId: body.parentId ?? null, taskId: null,
+              authorType: 'agent', authorId: agentId,
+              content: (body.content as string).length > 4000 ? (body.content as string).slice(0, 4000) + '\n\u2026[truncated]' : body.content,
+              metadata: null, channel: `dm:${body.to}`,
+            });
+          }
           const msg = {
             id: mkMsgId(agentId, body.to, Date.now().toString()),
             from: agentId as import('@flightdeck-ai/shared').AgentId,

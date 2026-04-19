@@ -241,6 +241,13 @@ function AgentDetailPanel({
   const effectiveOutput = liveOutput || historicalOutput;
   const hasChunks = liveChunks.length > 0;
 
+  // Fetch persisted DM history for this agent
+  const { data: dmMessages } = useSWR(
+    projectName && agent.id ? ['agent-dms', projectName, agent.id] : null,
+    () => api.getMessages(projectName!, { channel: `dm:${agent.id}`, limit: 50 }),
+    { refreshInterval: 5000 }
+  );
+
   return (
       <div
         ref={panelRef}
@@ -327,6 +334,24 @@ function AgentDetailPanel({
                   onScroll={handleScroll}
                   className="flex-1 overflow-y-auto px-4 py-4 space-y-2"
                 >
+                  {/* Persisted DM history */}
+                  {dmMessages && dmMessages.length > 0 && (
+                    <div className="space-y-2 mb-4 pb-4 border-b border-[var(--color-border)]">
+                      {dmMessages.map((m) => (
+                        <div key={m.id} className={`flex ${m.authorType === 'agent' && m.authorId === agent.id ? 'justify-start' : 'justify-end'}`}>
+                          <div className={`inline-block px-3 py-2 rounded-2xl text-sm max-w-[85%] whitespace-pre-wrap break-words ${
+                            m.authorType === 'agent' && m.authorId === agent.id
+                              ? 'rounded-bl-sm bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)]'
+                              : 'rounded-br-sm bg-[var(--color-primary)] text-white'
+                          }`}>
+                            {m.authorType === 'system' && <span className="text-xs opacity-60 block mb-0.5">system</span>}
+                            {m.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Agent output */}
                   {hasChunks ? (
                     <div className="space-y-1">
