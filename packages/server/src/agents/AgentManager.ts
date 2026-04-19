@@ -335,6 +335,18 @@ export class AgentManager {
       // Spawn failed — mark agent as errored
       this.store.updateAgentStatus(newId, 'errored');
       agent.status = 'errored';
+      if (this.messageStore) {
+        const errMsg = err instanceof Error ? `${err.message}\n\n${err.stack}` : String(err);
+        this.messageStore.createMessage({
+          threadId: null,
+          parentId: null,
+          taskId: agent.currentTask ?? null,
+          authorType: 'system',
+          authorId: null,
+          content: `⚠️ Failed to spawn agent **${newId}** (role: ${opts.role}):\n\n\`\`\`\n${errMsg}\n\`\`\``,
+          metadata: null,
+        });
+      }
       throw err;
     }
   }
