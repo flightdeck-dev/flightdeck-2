@@ -84,7 +84,7 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 | `hibernated` | `busy` | `wakeAgent()` called | `AgentManager.wakeAgent` |
 | `hibernated` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
 | `errored` | `busy` | Retry/wake (respawn) | `AgentManager.wakeAgent` |
-| `retired` | `hibernated` | `unretireAgent()` called | `AgentManager.unretireAgent` |
+| `retired` | `hibernated` | `unretireAgent()` called (user-only, via HTTP API) | `AgentManager.unretireAgent` |
 | *any* | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
 
 ## Callback Locations
@@ -101,7 +101,7 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 2. **`busy → idle` always goes through `onSessionTurnEnd`** — no other code path sets idle
 3. **`idle → busy` always goes through `onSessionTurnStart`** (+ Orchestrator reservation)
 4. **`hibernated` agents have their session saved** — waking resumes the session
-5. **`retired` can be un-retired** → moves to `hibernated`, then can be woken
+5. **`retired` can be un-retired** → moves to `hibernated`, then can be woken. **User-only operation** (HTTP API `POST /agents/:id/unretire`) — agents cannot un-retire other agents via MCP tools
 6. **`errored` agents can be retried** — wake/retry spawns a fresh session
 7. **No `offline` state** — use `hibernated` (recoverable) or `errored` (failure)
 
