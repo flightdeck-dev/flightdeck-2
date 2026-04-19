@@ -171,6 +171,7 @@ export class LeadManager {
         if (!this.plannerSessionId) {
           try { await this.spawnPlanner(); } catch { /* non-fatal */ }
         }
+        this.retireOtherAgents('lead', lead.id);
         return meta.sessionId;
       } catch (err) {
         console.error(`  Failed to wake Lead ${lead.id}: ${err instanceof Error ? err.message : String(err)}, spawning fresh...`);
@@ -273,6 +274,9 @@ export class LeadManager {
       } catch { /* Planner spawn failure is non-fatal */ }
     }
 
+    // Retire all other leads (one project = one active lead)
+    this.retireOtherAgents('lead', meta.agentId);
+
     return meta.sessionId;
   }
 
@@ -365,6 +369,17 @@ export class LeadManager {
   }
 
   /** Wire the stream handler onto the current lead session's onOutputChunk */
+  /** Retire all agents of a given role except the active one. One project = one active lead/planner. */
+  private retireOtherAgents(role: string, activeId: string): void {
+    const others = this.sqlite.listAgents().filter(
+      a => a.role === role && a.id !== activeId && a.status !== 'retired'
+    );
+    for (const agent of others) {
+      this.sqlite.updateAgentStatus(agent.id as any, 'retired');
+      console.error(`  Retired old ${role}: ${agent.id}`);
+    }
+  }
+
   private wireStreamHandler(): void {
     if (!this.leadSessionId || !this.streamHandler) return;
     const session = this.acpAdapter.getSession(this.leadSessionId);
@@ -637,6 +652,7 @@ export class LeadManager {
         this.sqlite.updateAgentStatus(planner.id as any, 'busy');
         this.sqlite.updateAgentAcpSession(planner.id as any, meta.sessionId);
         console.error(`  Planner ${planner.id} woken (session: ${meta.sessionId})`);
+        this.retireOtherAgents('planner', planner.id);
         return meta.sessionId;
       } catch (err) {
         console.error(`  Failed to wake Planner ${planner.id}: ${err instanceof Error ? err.message : String(err)}, spawning fresh...`);
@@ -698,6 +714,9 @@ export class LeadManager {
         message: `A new Planner (${this.plannerAgentId}) has been started. ${reason} Previous conversation context is not carried over. You may need to re-communicate any outstanding directives.`,
       }).catch(() => {});
     }
+
+    // Retire all other planners (one project = one active planner)
+    this.retireOtherAgents('planner', meta.agentId);
 
     return meta.sessionId;
   }
