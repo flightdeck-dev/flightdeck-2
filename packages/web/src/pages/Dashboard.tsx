@@ -6,7 +6,8 @@ import { useAgents } from '../hooks/useAgents.tsx';
 import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { Markdown } from '../components/Markdown.tsx';
-import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot, ChevronDown, ChevronUp } from 'lucide-react';
+import { api } from '../lib/api.ts';
+import { Circle, Disc, CircleDot, CheckCircle2, Crown, Code, Search, ClipboardList, Bot, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const PIPELINE_COLUMNS: { state: TaskState; label: string; icon: React.ReactNode }[] = [
@@ -117,6 +118,83 @@ function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsa
   );
 }
 
+const PRIORITY_COLORS: Record<string, string> = {
+  urgent: 'var(--color-status-failed)',
+  high: 'var(--color-status-failed)',
+  normal: '#eab308',
+  low: 'var(--color-text-tertiary)',
+};
+
+const PRIORITY_ICONS: Record<string, string> = {
+  urgent: '🔴',
+  high: '🔴',
+  normal: '🟡',
+  low: '⚪',
+};
+
+function EscalationsPanel({ projectName }: { projectName: string }) {
+  const { data: escalations = [], mutate } = useSWR(
+    projectName ? ['escalations', projectName] : null,
+    () => api.getEscalations(projectName, 'pending')
+  );
+  const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [resolution, setResolution] = useState('');
+
+  if (escalations.length === 0) return null;
+
+  const handleResolve = async (id: number) => {
+    if (!resolution.trim()) return;
+    await api.resolveEscalation(projectName, id, resolution.trim());
+    setRespondingId(null);
+    setResolution('');
+    mutate();
+  };
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle size={16} className="text-[#eab308]" />
+        <h2 className="text-sm font-medium text-[#eab308]">Pending Escalations ({escalations.length})</h2>
+      </div>
+      <div className="space-y-2">
+        {escalations.map(esc => (
+          <div key={esc.id} className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <div className="flex items-start gap-2">
+              <span>{PRIORITY_ICONS[esc.priority] ?? '🟡'}</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium" style={{ color: PRIORITY_COLORS[esc.priority] }}>
+                  {esc.priority.charAt(0).toUpperCase() + esc.priority.slice(1)}: {esc.title}
+                </p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">{esc.description}</p>
+                <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">from {esc.agentId} · {new Date(esc.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+            {respondingId === esc.id ? (
+              <div className="mt-3 flex gap-2">
+                <input
+                  autoFocus
+                  value={resolution}
+                  onChange={e => setResolution(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleResolve(esc.id); }}
+                  placeholder="Your response..."
+                  className="flex-1 px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
+                />
+                <button onClick={() => handleResolve(esc.id)} className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-primary)] text-white font-medium hover:opacity-90">Send</button>
+                <button onClick={() => { setRespondingId(null); setResolution(''); }} className="px-3 py-1.5 text-xs rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">Cancel</button>
+              </div>
+            ) : (
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => setRespondingId(esc.id)} className="px-3 py-1 text-xs rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors">Respond</button>
+                <button onClick={async () => { await api.resolveEscalation(projectName, esc.id, 'Dismissed'); mutate(); }} className="px-3 py-1 text-xs rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] transition-colors">Dismiss</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { status, loading } = useProject();
   const { tasks } = useTasks();
@@ -166,6 +244,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Escalations */}
+      {status?.config?.name && <EscalationsPanel projectName={status.config.name} />}
 
       {/* Task Pipeline */}
       <div>

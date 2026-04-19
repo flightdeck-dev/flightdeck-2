@@ -2,7 +2,7 @@ import { ProjectManager } from '../projects/ProjectManager.js';
 import type { Flightdeck } from '../facade.js';
 import { messageId as makeMessageId, type AgentId, type TaskId, type AgentRole, type TaskState } from '@flightdeck-ai/shared';
 import { loadReloadConfig, saveAgentPids, clearAgentPids, cleanupOrphanedAgents } from './gatewayState.js';
-import { existsSync, mkdirSync, renameSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
@@ -765,6 +765,34 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     } catch { /* best effort — don't crash the gateway */ }
   }, STATE_SAVE_INTERVAL);
   stateSaveTimer.unref(); // Don't prevent process exit
+
+  // Periodic upload cleanup — delete files older than 7 days
+  const UPLOAD_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+  const uploadCleanupTimer = setInterval(() => {
+    try {
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      for (const pName of projectNames) {
+        const fd = projectManager.get(pName);
+        if (!fd) continue;
+        const uploadsDir = join(fd.project.subpath('.'), 'uploads');
+        if (!existsSync(uploadsDir)) continue;
+        let cleaned = 0;
+        for (const file of readdirSync(uploadsDir)) {
+          const filePath = join(uploadsDir, file);
+          try {
+            const st = statSync(filePath);
+            if (st.isFile() && now - st.mtimeMs > SEVEN_DAYS_MS) {
+              unlinkSync(filePath);
+              cleaned++;
+            }
+          } catch { /* skip */ }
+        }
+        if (cleaned > 0) console.error(`[upload-cleanup] Cleaned ${cleaned} old file(s) from ${pName}/uploads`);
+      }
+    } catch { /* best effort */ }
+  }, UPLOAD_CLEANUP_INTERVAL);
+  uploadCleanupTimer.unref();
 
   // SIGUSR1: hot reload — re-scan projects, restart orchestrators, keep agent processes alive
   process.on('SIGUSR1', () => {

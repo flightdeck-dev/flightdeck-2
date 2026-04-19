@@ -96,9 +96,6 @@ export class ProjectStore {
       writeFileSync(rolePrefPath, ROLE_PREFERENCE_TEMPLATE);
     }
 
-    // Create new memory subdirectories
-    mkdirSync(join(this.projectDir, 'memory', 'discoveries'), { recursive: true });
-
     // Write empty memory files
     const memoryFiles: Record<string, string> = {
       'memory/PROJECT.md': '# Project Overview\n\n_Describe the project architecture, key decisions, and conventions here._\n',

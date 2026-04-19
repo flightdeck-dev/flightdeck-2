@@ -748,7 +748,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Learnings tools ──
 
   server.tool('flightdeck_learning_add', 'Add a learning', {
-    category: z.enum(['pattern', 'gotcha', 'decision', 'performance', 'security']),
     content: z.string(),
     tags: z.array(z.string()).optional(),
   }, async (params) => {
@@ -958,6 +957,20 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_escalate_to_human', 'Escalate an issue to the human user for decision/action. Creates a visible notification in the dashboard.', {
+    title: z.string().describe('Short title for the escalation'),
+    description: z.string().describe('Detailed description of what needs human input'),
+    priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().describe('Priority level'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      return jsonResponse(await client.escalateToHuman(params.title, params.description, params.priority));
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_discuss', 'Create a group discussion', {
     topic: z.string(),
     invitees: z.array(z.string()).optional(),
@@ -1096,7 +1109,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_suggestion_list', 'List scout suggestions', {
     specId: z.string().optional().describe('Filter by spec ID'),
-    status: z.enum(['pending', 'approved', 'rejected']).optional().describe('Filter by status'),
+    status: z.enum(['pending', 'approved', 'rejected', 'implemented']).optional().describe('Filter by status'),
   }, async (params) => {
     try {
       return jsonResponse(await client.listSuggestions({ spec_id: params.specId, status: params.status }));

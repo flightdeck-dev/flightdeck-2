@@ -1,10 +1,11 @@
 import { NavLink, useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
+import useSWR from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { useAgents } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
-import { Folder, FolderOpen, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown } from 'lucide-react';
+import { Folder, FolderOpen, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown, AlertTriangle } from 'lucide-react';
 import { FolderPicker } from './FolderPicker.tsx';
 
 import type { LucideIcon } from 'lucide-react';
@@ -33,6 +34,14 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const activeTasks = (project.taskStats?.running ?? 0) + (project.taskStats?.ready ?? 0) + (project.taskStats?.in_review ?? 0);
+
+  // Fetch pending escalation count
+  const { data: pendingEscalations = [] } = useSWR(
+    isActive ? ['escalations-pending', project.name] : null,
+    () => api.getEscalations(project.name, 'pending'),
+    { refreshInterval: 30000 }
+  );
+  const escalationCount = pendingEscalations.length;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -158,7 +167,13 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
               }
             >
               <item.icon size={14} strokeWidth={1.5} />
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.path === '' && escalationCount > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-[#eab308] text-black font-medium min-w-[18px] text-center">
+                  <AlertTriangle size={10} />
+                  {escalationCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

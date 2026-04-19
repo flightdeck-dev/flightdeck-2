@@ -1218,12 +1218,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         const agentId = req.headers['x-agent-id'] as string || 'http-api';
-        if (!body.category || !body.content) { json(400, { error: 'Missing category or content' }); return; }
+        if (!body.content) { json(400, { error: 'Missing content' }); return; }
         const learning = fd.learnings.append({
           agentId,
-          category: body.category,
           content: body.content,
           tags: body.tags ?? [],
+          category: body.category,
         });
         json(201, learning);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
@@ -1357,10 +1357,32 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/spec-changes' && method === 'GET') {
       json(200, fd.orchestrator.getRecentSpecChanges());
+    } else if (subPath === '/escalations' && method === 'GET') {
+      const status = url.searchParams.get('status') as 'pending' | 'resolved' | undefined;
+      json(200, fd.sqlite.listEscalations(status || undefined));
+    } else if (subPath === '/escalations' && method === 'POST') {
+      try {
+        const body = await readBody();
+        const agentId = req.headers['x-agent-id'] as string || 'lead';
+        if (!body.title || !body.description) { json(400, { error: 'Missing title or description' }); return; }
+        const esc = fd.sqlite.createEscalation(agentId, body.title, body.description, body.priority);
+        if (wsServer) wsServer.broadcast({ type: 'escalation:created', project: projectName, escalation: esc });
+        json(201, esc);
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath.match(/^\/escalations\/\d+\/resolve$/) && method === 'POST') {
+      try {
+        const id = parseInt(subPath.split('/')[2], 10);
+        const body = await readBody();
+        if (!body.resolution) { json(400, { error: 'Missing resolution' }); return; }
+        const esc = fd.sqlite.resolveEscalation(id, body.resolution);
+        if (!esc) { json(404, { error: 'Escalation not found' }); return; }
+        if (wsServer) wsServer.broadcast({ type: 'escalation:resolved', project: projectName, escalation: esc });
+        json(200, { success: true, escalation: esc });
+      } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/suggestions' && method === 'GET') {
       const specId = url.searchParams.get('spec_id') ?? undefined;
       const status = url.searchParams.get('status') ?? undefined;
-      json(200, fd.suggestions.list({ specId, status: status as 'pending' | 'approved' | 'rejected' | undefined }));
+      json(200, fd.suggestions.list({ specId, status: status as 'pending' | 'approved' | 'rejected' | 'implemented' | undefined }));
     } else if (subPath.match(/^\/suggestions\/[^/]+\/approve$/) && method === 'POST') {
       const id = subPath.split('/')[2];
       const s = fd.suggestions.updateStatus(id, 'approved');

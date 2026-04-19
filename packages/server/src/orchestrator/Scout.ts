@@ -8,7 +8,7 @@ import type { AgentAdapter, SpawnOptions, AgentMetadata } from '../agents/AgentA
 export type SuggestionCategory = 'quality' | 'docs' | 'feature' | 'debt' | 'performance' | 'security';
 export type SuggestionEffort = 'small' | 'medium' | 'large';
 export type SuggestionImpact = 'low' | 'medium' | 'high';
-export type SuggestionStatus = 'pending' | 'approved' | 'rejected';
+export type SuggestionStatus = 'pending' | 'approved' | 'rejected' | 'implemented';
 
 export interface Suggestion {
   id: string;

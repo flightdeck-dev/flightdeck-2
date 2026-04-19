@@ -22,6 +22,10 @@ export class SuggestionStore {
     });
   }
 
+  listPending(): Suggestion[] {
+    return this.list({ status: 'pending' });
+  }
+
   get(id: string): Suggestion | null {
     return this.readAll().find(s => s.id === id) ?? null;
   }

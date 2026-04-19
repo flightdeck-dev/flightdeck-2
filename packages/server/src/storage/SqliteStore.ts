@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks, savedSessions } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks, savedSessions, escalations } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -574,5 +574,39 @@ export class SqliteStore extends EventEmitter {
 
   deleteSession(agentId: string): void {
     this._db.delete(savedSessions).where(eq(savedSessions.agentId, agentId)).run();
+  }
+
+  // ── Escalations ──
+
+  createEscalation(agentId: string, title: string, description: string, priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal'): { id: number; agentId: string; title: string; description: string; priority: string; status: string; createdAt: string } {
+    const result = this._db.insert(escalations).values({
+      agentId,
+      title,
+      description,
+      priority,
+    }).run();
+    const id = Number(result.lastInsertRowid);
+    return this._db.select().from(escalations).where(eq(escalations.id, id)).get() as any;
+  }
+
+  listEscalations(status?: 'pending' | 'resolved'): Array<typeof escalations.$inferSelect> {
+    if (status) {
+      return this._db.select().from(escalations).where(eq(escalations.status, status)).orderBy(sql`created_at DESC`).all();
+    }
+    return this._db.select().from(escalations).orderBy(sql`created_at DESC`).all();
+  }
+
+  resolveEscalation(id: number, resolution: string): typeof escalations.$inferSelect | null {
+    const now = new Date().toISOString();
+    this._db.update(escalations)
+      .set({ status: 'resolved', resolution, resolvedAt: now })
+      .where(eq(escalations.id, id))
+      .run();
+    return this._db.select().from(escalations).where(eq(escalations.id, id)).get() ?? null;
+  }
+
+  countPendingEscalations(): number {
+    const row = this._db.select({ count: count() }).from(escalations).where(eq(escalations.status, 'pending')).get();
+    return row?.count ?? 0;
   }
 }

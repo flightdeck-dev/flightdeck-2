@@ -308,7 +308,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       name: 'flightdeck_learning_add',
       description: 'Record a reusable learning or pattern.',
       parameters: { type: 'object', properties: { content: { type: 'string', description: 'The learning to record' }, tags: { type: 'string', description: 'Comma-separated tags' } }, required: ['content'] },
-      handler: async (args: { content: string; tags?: string }) => JSON.stringify(await httpPost('/learnings', args)),
+      handler: async (args: { content: string; tags?: string }) => JSON.stringify(await httpPost('/learnings', { content: args.content, tags: args.tags?.split(',').map((t: string) => t.trim()) })),
       skipPermission: true,
     });
 

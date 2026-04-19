@@ -26,6 +26,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_role_list', 'flightdeck_role_info',
     'flightdeck_learning_search', 'flightdeck_learning_add',
     'flightdeck_suggestion_list', 'flightdeck_suggestion_approve', 'flightdeck_suggestion_reject',
+    'flightdeck_escalate_to_human',
     'flightdeck_tools_available',
   ],
   planner: [

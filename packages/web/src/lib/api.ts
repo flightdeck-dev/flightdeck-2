@@ -155,4 +155,12 @@ export const api = {
 
   // Runtimes
   getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string; supportsModelDiscovery?: boolean }>>(projectPath(project, '/runtimes')),
+
+  // Escalations
+  getEscalations: (project: string, status?: string) => {
+    const params = status ? `?status=${status}` : '';
+    return get<Array<{ id: number; agentId: string; title: string; description: string; priority: string; status: string; resolution: string | null; createdAt: string; resolvedAt: string | null }>>(projectPath(project, `/escalations${params}`));
+  },
+  resolveEscalation: (project: string, id: number, resolution: string) =>
+    post<{ success: boolean }>(projectPath(project, `/escalations/${id}/resolve`), { resolution }),
 };

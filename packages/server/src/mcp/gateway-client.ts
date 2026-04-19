@@ -266,6 +266,10 @@ export class GatewayClient {
     return this.request('POST', '/escalate', { taskId, reason });
   }
 
+  async escalateToHuman(title: string, description: string, priority?: string): Promise<unknown> {
+    return this.request('POST', '/escalations', { title, description, priority });
+  }
+
   // ── Discussion ──
 
   async discuss(topic: string, invitees?: string[]): Promise<unknown> {
@@ -274,7 +278,7 @@ export class GatewayClient {
 
   // ── Learnings ──
 
-  async addLearning(params: { category: string; content: string; tags?: string[] }): Promise<unknown> {
+  async addLearning(params: { content: string; tags?: string[]; category?: string }): Promise<unknown> {
     return this.request('POST', '/learnings', params);
   }
 

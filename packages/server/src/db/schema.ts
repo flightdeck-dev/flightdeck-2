@@ -227,3 +227,19 @@ export const savedSessions = sqliteTable('saved_sessions', {
   savedAt: text('saved_at').notNull().default(utcNow),
 });
 
+// ── Escalations (lead-to-human queue) ─────────────────────────────
+
+export const escalations = sqliteTable('escalations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  agentId: text('agent_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  priority: text('priority').notNull().default('normal'),
+  status: text('status').notNull().default('pending'),
+  resolution: text('resolution'),
+  createdAt: text('created_at').notNull().default(utcNow),
+  resolvedAt: text('resolved_at'),
+}, (table) => [
+  index('idx_escalations_status').on(table.status),
+]);
+
