@@ -63,6 +63,8 @@ export class Flightdeck {
     this.reports = new ReportStore(this.project.subpath('reports'));
     this.dag = new TaskDAG(this.sqlite);
     const config = this.project.getConfig();
+    // Ensure config.name is set (may be missing in old/empty config.json)
+    if (!config.name) config.name = projectName;
     this.governance = new GovernanceEngine(config);
     // Use a shared AcpAdapter instance; standalone MCP creates a lightweight one
     const sharedAdapter = adapter ?? new AcpAdapter(undefined, 'copilot');

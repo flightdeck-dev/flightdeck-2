@@ -133,7 +133,7 @@ export class Orchestrator {
     this.wsServer = opts?.wsServer ?? null;
     this.governanceConfig = opts?.governanceConfig ?? {};
     this.decisionLog = opts?.decisionLog ?? null;
-    this.statusWriter = new StatusFileWriter(1000, join(homedir(), '.flightdeck', 'v2', 'projects', config.name));
+    this.statusWriter = new StatusFileWriter(1000, join(homedir(), '.flightdeck', 'v2', 'projects', config.name ?? 'unknown'));
     this.workflowEngine = opts?.workflowEngine ?? null;
     this.suggestionStore = opts?.suggestionStore ?? null;
     this.specChangeDetector = opts?.specStore ? new SpecChangeDetector(opts.specStore, store) : null;
