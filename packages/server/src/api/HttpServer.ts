@@ -871,6 +871,36 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const result: Record<string, unknown> = {};
       for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModels(rt);
       json(200, result);
+    } else if (subPath === '/custom-runtimes' && method === 'GET') {
+      const { existsSync, readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const { homedir } = await import('node:os');
+      const configPath = join(homedir(), '.flightdeck', 'v2', 'custom-runtimes.yaml');
+      if (!existsSync(configPath)) { json(200, {}); return; }
+      try {
+        const { parse: parseYaml } = await import('yaml');
+        const raw = readFileSync(configPath, 'utf-8');
+        json(200, parseYaml(raw) ?? {});
+      } catch (err) {
+        json(500, { error: `Failed to read custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    } else if (subPath === '/custom-runtimes' && method === 'PUT') {
+      const { mkdirSync, writeFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const { homedir } = await import('node:os');
+      const { stringify: stringifyYaml } = await import('yaml');
+      const { loadCustomRuntimes } = await import('../agents/runtimes.js');
+      const configDir = join(homedir(), '.flightdeck', 'v2');
+      const configPath = join(configDir, 'custom-runtimes.yaml');
+      try {
+        const body = await readBody();
+        mkdirSync(configDir, { recursive: true });
+        writeFileSync(configPath, stringifyYaml(body), 'utf-8');
+        loadCustomRuntimes(); // Reload into registry
+        json(200, { ok: true });
+      } catch (err) {
+        json(500, { error: `Failed to save custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
+      }
     } else if (subPath === '/runtimes' && method === 'GET') {
       const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
       const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({

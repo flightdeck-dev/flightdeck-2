@@ -38,6 +38,8 @@ export interface RuntimeDefinition {
   disabledByDefault?: boolean;
   /** Whether model discovery (probe via session/new) works cleanly. Defaults to true for ACP runtimes. */
   supportsModelDiscovery?: boolean;
+  /** Custom environment variables (for custom runtimes) */
+  customEnv?: Record<string, string>;
 }
 
 /**
@@ -220,4 +222,62 @@ export function toRuntimeConfigs(): Record<string, { command: string; args: stri
       { command: r.command, args: r.args, adapter: r.adapter },
     ]),
   );
+}
+
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { parse as parseYaml } from 'yaml';
+
+interface CustomRuntimeConfig {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  icon?: string;
+  supportsSessionLoad?: boolean;
+}
+
+/** Load custom runtimes from YAML config and merge into RUNTIME_REGISTRY */
+export function loadCustomRuntimes(projectDir?: string): void {
+  const files = [
+    join(homedir(), '.flightdeck', 'v2', 'custom-runtimes.yaml'),
+    ...(projectDir ? [join(projectDir, '.flightdeck', 'custom-runtimes.yaml')] : []),
+  ];
+
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+    try {
+      const raw = readFileSync(file, 'utf-8');
+      const configs = parseYaml(raw) as Record<string, CustomRuntimeConfig>;
+      if (!configs || typeof configs !== 'object') continue;
+
+      for (const [id, cfg] of Object.entries(configs)) {
+        if (!cfg.name || !cfg.command) continue;
+        if (RUNTIME_REGISTRY[id]) continue; // Don't override built-in
+
+        RUNTIME_REGISTRY[id] = {
+          name: cfg.name,
+          command: cfg.command,
+          args: cfg.args ?? [],
+          systemPromptMethod: 'both',
+          supportsAcp: true,
+          supportsSessionLoad: cfg.supportsSessionLoad ?? false,
+          adapter: 'acp',
+          icon: cfg.icon ?? '🔌',
+          docsUrl: undefined,
+          setupLinks: [],
+          installHint: `Ensure "${cfg.command}" is on PATH`,
+          loginInstructions: undefined,
+          supportsModelDiscovery: false,
+          disabledByDefault: false,
+          notes: ['Custom ACP runtime'],
+          customEnv: cfg.env,
+        };
+        console.error(`  Loaded custom runtime: ${id} (${cfg.name})`);
+      }
+    } catch (err) {
+      console.error(`  Failed to load custom runtimes from ${file}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }

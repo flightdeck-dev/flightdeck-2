@@ -76,6 +76,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Load cached model info from disk (so models are available before any project connects)
   modelRegistry.loadFromDisk();
 
+  // Load custom runtimes from global config
+  const { loadCustomRuntimes } = await import('../agents/runtimes.js');
+  loadCustomRuntimes();
+
   const { MultiAdapter: MultiAdapterClass } = await import('../agents/MultiAdapter.js');
   const { CopilotSdkAdapter } = await import('../agents/CopilotSdkAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
@@ -342,6 +346,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   for (const name of projectNames) {
     const fd = projectManager.get(name)!;
+    // Load per-project custom runtimes
+    loadCustomRuntimes(fd.project.subpath('.'));
     const profile = fd.status().config.governance;
     console.error(`\n── Project: ${name} (profile: ${profile}) ──`);
 

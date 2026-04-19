@@ -348,9 +348,16 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
   const [leadRuntime, setLeadRuntime] = useState('');
   const [leadModel, setLeadModel] = useState('');
   const [availableModels, setAvailableModels] = useState<Array<{ modelId: string; displayName?: string }>>([]);
+  const [availableRuntimes, setAvailableRuntimes] = useState<Array<{ id: string; name: string; icon?: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch('/api/runtimes').then(r => r.json()).then((rts: Array<{ id: string; name: string; icon?: string; supportsAcp: boolean }>) => {
+      setAvailableRuntimes(rts.filter(r => r.supportsAcp));
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -457,10 +464,9 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
               className="w-full px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]"
             >
               <option value="">Default</option>
-              <option value="copilot">copilot</option>
-              <option value="codex">codex</option>
-              <option value="gemini">gemini</option>
-              <option value="opencode">opencode</option>
+              {availableRuntimes.map(rt => (
+                <option key={rt.id} value={rt.id}>{rt.icon ? `${rt.icon} ` : ''}{rt.id}</option>
+              ))}
             </select>
           </div>
           <div>

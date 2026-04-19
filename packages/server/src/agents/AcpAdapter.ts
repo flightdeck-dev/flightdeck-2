@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RUNTIME_REGISTRY } from './runtimes.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -411,6 +412,7 @@ export class AcpAdapter extends AgentAdapter {
       FLIGHTDECK_AGENT_ID: aid,
       FLIGHTDECK_AGENT_ROLE: opts.role,
       ...(opts.projectName ? { FLIGHTDECK_PROJECT: opts.projectName } : {}),
+      ...(RUNTIME_REGISTRY[runtimeName]?.customEnv ?? {}),
     };
 
     // Spawn the agent process (detached: false ensures children die with parent)
@@ -674,7 +676,7 @@ export class AcpAdapter extends AgentAdapter {
     const child = cpSpawn(runtime.command, runtime.args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: { ...process.env, ...(RUNTIME_REGISTRY[runtimeName]?.customEnv ?? {}) },
       detached: false,
     });
 
@@ -1106,7 +1108,7 @@ export async function discoverRuntimeModels(
   const child = cpSpawn(runtime.command, args, {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
+    env: { ...process.env, ...(runtime as any).customEnv },
     detached: true,  // Create new process group for clean cleanup
   });
 
