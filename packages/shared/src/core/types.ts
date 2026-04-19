@@ -74,6 +74,7 @@ export interface Task {
   stale: boolean;
   compactedAt: string | null;
   needsReview?: boolean; // Default: true. If false, skip review and go straight to done.
+  notifyLead?: boolean; // Default: false. If true, notify Lead when task completes.
   acceptanceCriteria?: string; // What "done" looks like — shown to worker and reviewer
   context?: string; // Additional context, references, code snippets
   createdAt: string; // ISO timestamp
@@ -235,7 +236,8 @@ export type SideEffect =
   | { type: 'set_timestamp'; taskId: TaskId }
   | { type: 'escalate'; taskId: TaskId; reason: string }
   | { type: 'update_dag'; taskId: TaskId }
-  | { type: 'log_decision'; decision: Decision };
+  | { type: 'log_decision'; decision: Decision }
+  | { type: 'notify_lead_completed'; taskId: TaskId; title: string; claim?: string };
 
 export interface TransitionResult {
   newState: TaskState;

@@ -109,3 +109,11 @@ Keep the Lead informed of key milestones:
 
 Use `flightdeck_send` with `to: lead` for updates.
 Do NOT report every individual task completion — only milestones.
+
+## notifyLead
+
+When creating tasks, you can set `notifyLead: true` on tasks whose results Lead specifically wants to see. When such a task completes, Lead is automatically notified with the result.
+
+- Set `notifyLead: true` when Lead explicitly says they want to see a result
+- Default is `false` — Lead doesn't get notified for routine tasks
+- Lead can always check results manually via `flightdeck_task_context`

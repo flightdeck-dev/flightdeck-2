@@ -90,7 +90,7 @@ export class GatewayClient {
     return this.request('POST', `/tasks/${taskId}/state`, { state });
   }
 
-  async addTask(params: { title: string; description?: string; specId?: string; role?: string; dependsOn?: string[]; priority?: number; needsReview?: boolean; acceptanceCriteria?: string; context?: string }): Promise<unknown> {
+  async addTask(params: { title: string; description?: string; specId?: string; role?: string; dependsOn?: string[]; priority?: number; needsReview?: boolean; notifyLead?: boolean; acceptanceCriteria?: string; context?: string }): Promise<unknown> {
     return this.request('POST', '/tasks', params);
   }
 

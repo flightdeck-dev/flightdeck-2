@@ -62,7 +62,8 @@ export type LeadEvent =
   | { type: 'heartbeat' }
   | { type: 'worker_recovery'; message: string }
   | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } }
-  | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> };
+  | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> }
+  | { type: 'task_completed_notify'; taskId: string; title: string; claim?: string };
 
 export interface HeartbeatCondition {
   type: 'tasks_completed' | 'idle_duration' | 'time_window' | 'spec_completed' | 'cost_threshold' | 'custom';
@@ -485,6 +486,19 @@ export class LeadManager {
         }
         parts.push('');
         parts.push('Evaluate these suggestions. Delegate worthwhile items to Planner.');
+        break;
+      }
+
+      case 'task_completed_notify': {
+        const tcnTs = formatTs();
+        parts.push(`[${tcnTs}] [SYSTEM]`);
+        parts.push(`source: task_completed_notify`);
+        parts.push(`task_id: ${event.taskId}`);
+        parts.push('---');
+        parts.push(`Task "${event.title}" has completed (notifyLead was set).`);
+        if (event.claim) parts.push(`Result: ${event.claim}`);
+        parts.push('');
+        parts.push(`Review with flightdeck_task_context("${event.taskId}") if needed.`);
         break;
       }
     }

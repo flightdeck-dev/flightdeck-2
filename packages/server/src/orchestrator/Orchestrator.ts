@@ -228,6 +228,15 @@ export class Orchestrator {
         }
         break;
       }
+      case 'notify_lead_completed': {
+        this.leadManager?.steerLead({
+          type: 'task_completed_notify',
+          taskId: effect.taskId as string,
+          title: effect.title,
+          claim: effect.claim,
+        });
+        break;
+      }
     }
   }
 

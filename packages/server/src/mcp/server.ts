@@ -226,6 +226,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     dependsOn: z.array(z.string()).optional(),
     priority: z.number().optional(),
     needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
   }, async (params) => {
@@ -409,6 +410,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
     })),
@@ -432,6 +434,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
+      notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
     })),

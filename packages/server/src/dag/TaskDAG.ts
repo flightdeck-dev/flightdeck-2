@@ -45,6 +45,7 @@ export class TaskDAG {
     source?: Task['source'];
     parentTaskId?: TaskId;
     needsReview?: boolean;
+    notifyLead?: boolean;
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -63,6 +64,7 @@ export class TaskDAG {
       acpSessionId: null,
       source: opts.source ?? 'planned',
       stale: false,
+      notifyLead: opts.notifyLead === true,
       needsReview: opts.needsReview !== false,
       compactedAt: null,
       createdAt: now,
@@ -106,6 +108,9 @@ export class TaskDAG {
     this.processEffects(result.effects);
     if (targetState === 'done') {
       this.propagateEpicState(taskId);
+      if (task.notifyLead) {
+        this.processEffects([{ type: 'notify_lead_completed', taskId, title: task.title, claim }]);
+      }
     }
     return { ...task, state: targetState };
   }
@@ -118,6 +123,9 @@ export class TaskDAG {
     this.processEffects(result.effects);
     // Auto-propagate epic state
     this.propagateEpicState(id);
+    if (task.notifyLead) {
+      this.processEffects([{ type: 'notify_lead_completed', taskId: id, title: task.title, claim: task.claim ?? undefined }]);
+    }
     return { ...task, state: 'done' };
   }
 
@@ -195,6 +203,7 @@ export class TaskDAG {
     dependsOn?: string[];
     priority?: number;
     needsReview?: boolean;
+    notifyLead?: boolean;
   }>): Task[] {
     // First pass: create all tasks, mapping temp keys to real IDs
     const idMap = new Map<string, TaskId>();
@@ -207,6 +216,7 @@ export class TaskDAG {
         role: t.role,
         priority: t.priority,
         needsReview: t.needsReview,
+        notifyLead: t.notifyLead,
       });
       idMap.set(t.title, task.id);
       results.push(task);
@@ -432,6 +442,7 @@ export class TaskDAG {
     dependsOn?: string[];
     priority?: number;
     needsReview?: boolean;
+    notifyLead?: boolean;
   }>): Task[] {
     const parent = this.store.getTask(parentId);
     if (!parent) throw new Error(`Parent task not found: ${parentId}`);
@@ -448,6 +459,7 @@ export class TaskDAG {
         role: st.role,
         priority: st.priority,
         needsReview: st.needsReview,
+        notifyLead: st.notifyLead,
         parentTaskId: parentId,
       });
       idMap.set(st.title, task.id);

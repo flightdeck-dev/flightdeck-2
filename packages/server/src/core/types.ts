@@ -186,7 +186,8 @@ export type SideEffect =
   | { type: 'set_timestamp'; taskId: TaskId }
   | { type: 'escalate'; taskId: TaskId; reason: string }
   | { type: 'update_dag'; taskId: TaskId }
-  | { type: 'log_decision'; decision: Decision };
+  | { type: 'log_decision'; decision: Decision }
+  | { type: 'notify_lead_completed'; taskId: TaskId; title: string; claim?: string };
 
 export interface TransitionResult {
   newState: TaskState;
