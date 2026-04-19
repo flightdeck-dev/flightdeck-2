@@ -230,6 +230,15 @@ export class LeadManager {
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
     }
+
+    // Auto-spawn Planner alongside Lead
+    if (!this.plannerSessionId) {
+      try {
+        await this.spawnPlanner();
+        console.error('  Planner auto-spawned alongside Lead');
+      } catch { /* Planner spawn failure is non-fatal */ }
+    }
+
     return meta.sessionId;
   }
 

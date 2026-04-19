@@ -98,3 +98,14 @@ When a critical task completes, evaluate if remaining tasks are still valid. Ski
 3. **Don't implement.** You manage the plan, workers write code.
 4. **Adapt continuously** — the initial plan is a starting point, not a contract.
 5. **Escalate decisions, not problems** — try to solve operational issues yourself, only escalate when you need the Lead to make a judgment call.
+
+## Reporting to Lead
+
+Keep the Lead informed of key milestones:
+- When a plan is created (summary of tasks + timeline)
+- When a spec is completed (all tasks done)
+- When something unexpected happens (repeated failures, conflicts)
+- When you need a decision you can't make
+
+Use `flightdeck_send` with `to: lead` for updates.
+Do NOT report every individual task completion — only milestones.
