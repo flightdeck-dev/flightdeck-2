@@ -78,6 +78,7 @@ export const TOOL_NAMES = {
   // Specs
   SPEC_LIST: 'flightdeck_spec_list',
   SPEC_CREATE: 'flightdeck_spec_create',
+  SPEC_CANCEL: 'flightdeck_spec_cancel',
   SPEC_CHANGES: 'flightdeck_spec_changes',
 
   // Skills

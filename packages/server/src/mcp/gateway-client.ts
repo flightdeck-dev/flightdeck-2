@@ -372,6 +372,10 @@ export class GatewayClient {
     return this.request('POST', '/specs', { title, content });
   }
 
+  async cancelSpec(specId: string): Promise<unknown> {
+    return this.request('POST', `/specs/${encodeURIComponent(specId)}/cancel`, {});
+  }
+
   async getSpecChanges(): Promise<unknown[]> {
     return this.get('/spec-changes');
   }

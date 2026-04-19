@@ -76,6 +76,11 @@ export const api = {
     if (!res.ok) return [];
     return res.json();
   },
+  cancelSpec: async (project: string, specId: string) => {
+    const res = await fetch(`${BASE}${projectPath(project, `/specs/${encodeURIComponent(specId)}/cancel`)}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to cancel spec');
+    return res.json();
+  },
   getDisplayConfig: () => get<DisplayConfig>('/api/display'),
   updateDisplayConfig: (config: Partial<DisplayConfig>) => put<DisplayConfig>('/api/display', config),
   applyDisplayPreset: (preset: string) => post<DisplayConfig>(`/api/display/preset/${preset}`),

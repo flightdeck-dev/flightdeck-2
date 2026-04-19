@@ -1366,6 +1366,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const spec = fd.createSpec(body.title, body.content);
         json(201, spec);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } else if (subPath.match(/^\/specs\/[^/]+\/cancel$/) && method === 'POST') {
+      const specId = decodeURIComponent(subPath.split('/')[2]);
+      const cancelled = fd.sqlite.cancelTasksBySpec(specId as any);
+      json(200, { specId, cancelledTasks: cancelled });
     } else if (subPath === '/spec-changes' && method === 'GET') {
       json(200, fd.orchestrator.getRecentSpecChanges());
     } else if (subPath === '/escalations' && method === 'GET') {

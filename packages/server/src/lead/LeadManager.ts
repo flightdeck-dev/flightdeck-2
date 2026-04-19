@@ -332,7 +332,8 @@ export class LeadManager {
       // busy→idle handled by onSessionTurnEnd callback
 
       // Log to SessionStore for session transcript search
-      this.logSessionEvent('user', steer);
+      const logRole = event.type === 'user_message' || event.type === 'task_comment' ? 'user' : 'system';
+      this.logSessionEvent(logRole, steer);
       if (response) this.logSessionEvent('agent', response);
 
       return response;
@@ -381,7 +382,7 @@ export class LeadManager {
   }
 
   /** Log a conversation event to SessionStore for transcript search. */
-  private logSessionEvent(role: 'user' | 'agent', content: string): void {
+  private logSessionEvent(role: 'user' | 'agent' | 'system', content: string): void {
     try {
       if (!this.transcriptSessionId) {
         const entry = this.sessionStore.createSession(this.projectName ?? 'default', this.agentCwd);
@@ -655,37 +656,12 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
-    // Build task context for fresh planner
-    let taskContext = '';
-    try {
-      const tasks = this.sqlite.listTasks();
-      const taskStats = this.sqlite.getTaskStats();
-      const agents = this.sqlite.listAgents().filter(a => ['busy', 'idle'].includes(a.status));
-
-      taskContext = `\n## Current Project State\n`;
-      taskContext += `Tasks: ${taskStats.running ?? 0} running, ${taskStats.ready ?? 0} ready, ${taskStats.done ?? 0} done, ${taskStats.failed ?? 0} failed\n`;
-      taskContext += `Active agents: ${agents.length}\n`;
-
-      const activeTasks = tasks.filter(t => !['done', 'cancelled'].includes(t.state));
-      if (activeTasks.length > 0) {
-        taskContext += `\n### Active Tasks\n`;
-        for (const t of activeTasks.slice(0, 20)) {
-          taskContext += `- [${t.state}] "${t.title}" (${t.id})${t.assignedAgent ? ` → ${t.assignedAgent}` : ''}\n`;
-          if (t.description) taskContext += `  Description: ${t.description}\n`;
-          if ((t as any).acceptanceCriteria) taskContext += `  Acceptance Criteria: ${(t as any).acceptanceCriteria}\n`;
-          if ((t as any).context) taskContext += `  Context: ${(t as any).context}\n`;
-        }
-      }
-    } catch { /* best effort */ }
-
-    const fullSystemPrompt = [systemPrompt, taskContext].filter(Boolean).join('\n') || undefined;
-
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.plannerRuntime,
-      ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
+      ...(systemPrompt ? { systemPrompt } : {}),
     });
     this.plannerSessionId = meta.sessionId;
     this.plannerAgentId = meta.agentId;

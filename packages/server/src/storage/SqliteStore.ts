@@ -550,6 +550,19 @@ export class SqliteStore extends EventEmitter {
 
   // ── Task Staleness (FR-008) ──
 
+  cancelTasksBySpec(specId: SpecId): number {
+    const now = new Date().toISOString();
+    // Log state transitions for each affected task
+    const affectedTasks = this._db.select().from(tasks).where(
+      sql`${tasks.specId} = ${specId as string} AND ${tasks.state} NOT IN ('done', 'skipped', 'cancelled')`
+    ).all();
+    for (const t of affectedTasks) {
+      this.logTaskEvent(t.id as any, t.state, 'cancelled', t.assignedAgent as any);
+    }
+    const result = this._db.run(sql`UPDATE tasks SET state = 'cancelled', updated_at = ${now} WHERE spec_id = ${specId as string} AND state NOT IN ('done', 'skipped', 'cancelled')`);
+    return result.changes;
+  }
+
   markTasksStaleBySpec(specId: SpecId): number {
     const now = new Date().toISOString();
     const result = this._db.run(sql`UPDATE tasks SET stale = 1, updated_at = ${now} WHERE spec_id = ${specId as string} AND state NOT IN ('done', 'skipped', 'cancelled')`);

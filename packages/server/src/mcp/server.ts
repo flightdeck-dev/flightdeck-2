@@ -927,6 +927,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_spec_cancel', 'Cancel a spec and all its incomplete tasks', {
+    specId: z.string().describe('Spec ID to cancel'),
+  }, async (params) => {
+    try {
+      const cancelled = client.cancelSpec(params.specId);
+      return jsonResponse(cancelled);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   server.tool('flightdeck_spec_changes', 'List recent spec changes detected by the system', {}, async () => {
     try {
       return jsonResponse(await client.getSpecChanges());

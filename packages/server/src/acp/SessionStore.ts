@@ -15,7 +15,7 @@ export interface SessionEntry {
 }
 
 export interface SessionEvent {
-  role: 'user' | 'agent';
+  role: 'user' | 'agent' | 'system';
   content: string;
   ts: number;
 }

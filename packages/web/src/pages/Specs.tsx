@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { api } from '../lib/api.ts';
 import { useProject } from '../hooks/useProject.tsx';
 import { Markdown } from '../components/Markdown.tsx';
-import { FileText } from 'lucide-react';
+import { FileText, XCircle } from 'lucide-react';
 
 interface SpecFile {
   id: string;
@@ -15,6 +15,8 @@ interface SpecFile {
 export default function Specs() {
   const { projectName } = useProject();
   const [selected, setSelected] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const { mutate } = useSWRConfig();
 
   const { data: specs = [], isLoading: loading } = useSWR(
     projectName ? ['specs', projectName] : null,
@@ -113,7 +115,26 @@ export default function Specs() {
             </div>
           ) : activeSpec ? (
             <div className="p-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">{activeSpec.title}</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">{activeSpec.title}</h2>
+                <button
+                  disabled={cancelling === activeSpec.id}
+                  onClick={async () => {
+                    if (!projectName || !activeSpec) return;
+                    if (!confirm(`Cancel spec "${activeSpec.title}" and all its incomplete tasks?`)) return;
+                    setCancelling(activeSpec.id);
+                    try {
+                      await api.cancelSpec(projectName, activeSpec.id);
+                      mutate(['specs', projectName]);
+                    } catch { /* ignore */ }
+                    setCancelling(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                >
+                  <XCircle size={14} />
+                  {cancelling === activeSpec.id ? 'Cancelling...' : 'Cancel Spec'}
+                </button>
+              </div>
               <div className="prose prose-sm max-w-none">
                 <Markdown content={activeSpec.content} />
               </div>

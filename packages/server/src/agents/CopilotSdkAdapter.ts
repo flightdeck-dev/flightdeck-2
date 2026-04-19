@@ -717,6 +717,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
+      name: 'flightdeck_spec_cancel',
+      description: 'Cancel a spec and all its incomplete tasks.',
+      parameters: { type: 'object', properties: { specId: { type: 'string', description: 'Spec ID to cancel' } }, required: ['specId'] },
+      handler: async (args: { specId: string }) => JSON.stringify(await httpPost(`/specs/${encodeURIComponent(args.specId)}/cancel`, {})),
+    });
+
+    tools.push({
       name: 'flightdeck_spec_changes',
       description: 'List recent spec changes.',
       parameters: { type: 'object', properties: {} },
