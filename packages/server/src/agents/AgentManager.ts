@@ -305,10 +305,17 @@ export class AgentManager {
       });
 
       // 6a. Update SQLite with session ID and model
-      console.error(`  [${opts.projectName ?? this.projectName}] Agent ${newId} spawned (role: ${opts.role}, runtime: ${resolvedRuntime ?? 'default'}, model: ${resolvedModel ?? meta.model ?? 'auto'}, session: ${meta.sessionId})`);
+      // Resolve tier names (high/medium/fast) to concrete model IDs
+      let displayModel = resolvedModel ?? meta.model;
+      if (displayModel && ['high', 'medium', 'fast'].includes(displayModel)) {
+        const { modelRegistry } = await import('./ModelTiers.js');
+        const concrete = modelRegistry.resolveModel(resolvedRuntime ?? 'copilot', displayModel);
+        if (concrete && concrete !== displayModel) displayModel = concrete;
+      }
+      console.error(`  [${opts.projectName ?? this.projectName}] Agent ${newId} spawned (role: ${opts.role}, runtime: ${resolvedRuntime ?? 'default'}, model: ${displayModel ?? 'auto'}, session: ${meta.sessionId})`);
       this.store.updateAgentAcpSession(newId, meta.sessionId);
       this.store.updateAgentStatus(newId, 'busy');
-      if (resolvedModel) this.store.updateAgentModel(newId, resolvedModel);
+      if (displayModel) this.store.updateAgentModel(newId, displayModel);
       else if (meta.model) this.store.updateAgentModel(newId, meta.model);
       agent.acpSessionId = meta.sessionId;
       agent.status = 'busy';
