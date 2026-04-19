@@ -927,6 +927,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
     session.on((event: SessionEvent) => {
       agentSession.lastActivityAt = new Date();
 
+      // Capture resolved model from session.created event
+      if (event.type === 'session.created' && (event as any).data?.selectedModel) {
+        agentSession.model = (event as any).data.selectedModel;
+      }
+
       if (event.type === 'assistant.message') {
         agentSession.output += event.data.content;
         agentSession.status = 'active';
@@ -983,11 +988,10 @@ export class CopilotSdkAdapter extends AgentAdapter {
       }
     });
 
-    return { agentId: aid, sessionId: sessionId, status: 'running' as const };
+    return { agentId: aid, sessionId: sessionId, status: 'running' as const, model: agentSession.model ?? opts.model };
   }
 
   /**
-   * Send a prompt to an existing session (steer).
    */
   async steer(sessionId: string, message: SteerMessage): Promise<string> {
     const agentSession = this.sessions.get(sessionId);
