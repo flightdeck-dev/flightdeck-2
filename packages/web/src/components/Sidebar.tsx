@@ -138,18 +138,27 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
               </div>
             )}
           </div>
-          {project.agentCount > 0 && (
+          {(project.agentCount > 0 || (project as any).hibernatedCount > 0) && (
             <span
-              className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors"
+              className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)] transition-colors"
               onClick={e => { e.preventDefault(); e.stopPropagation(); navigate('/agents'); }}
               title="View agents"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                (project.busyAgentCount ?? 0) > 0
-                  ? 'bg-emerald-400 animate-pulse'
-                  : 'bg-[var(--color-text-tertiary)] opacity-50'
-              }`} />
-              {project.agentCount}
+              {project.agentCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    (project.busyAgentCount ?? 0) > 0
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-[var(--color-text-tertiary)] opacity-50'
+                  }`} />
+                  {project.agentCount}
+                </span>
+              )}
+              {(project as any).hibernatedCount > 0 && (
+                <span className="flex items-center gap-0.5 text-[var(--color-text-tertiary)]">
+                  💤 {(project as any).hibernatedCount}
+                </span>
+              )}
             </span>
           )}
           {activeTasks > 0 && (
@@ -211,6 +220,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
   const activeAgents = agents.filter(a => !['terminated', 'ended', 'offline', 'hibernated', 'retired'].includes(a.status)).length;
   const busyAgents = agents.filter(a => a.status === 'busy' || a.status === 'working').length;
+  const hibernatedAgents = agents.filter(a => a.status === 'hibernated').length;
 
   return (
     <aside
@@ -290,13 +300,19 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       </div>
 
       {/* Agent status summary — above Settings for stable position */}
-      {!collapsed && activeAgents > 0 && (
+      {!collapsed && (activeAgents > 0 || hibernatedAgents > 0) && (
         <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
-            <span>{busyAgents} busy</span>
-            <span className="text-[var(--color-text-tertiary)]">·</span>
-            <span>{activeAgents - busyAgents} idle</span>
+            {activeAgents > 0 && (<>
+              <span className={`w-2 h-2 rounded-full ${busyAgents > 0 ? 'bg-[var(--color-status-running)] animate-pulse' : 'bg-[var(--color-status-ready)]'}`} />
+              <span>{busyAgents} busy</span>
+              <span className="text-[var(--color-text-tertiary)]">·</span>
+              <span>{activeAgents - busyAgents} idle</span>
+            </>)}
+            {hibernatedAgents > 0 && (<>
+              {activeAgents > 0 && <span className="text-[var(--color-text-tertiary)]">·</span>}
+              <span className="text-[var(--color-text-tertiary)]">💤 {hibernatedAgents}</span>
+            </>)}
           </div>
         </div>
       )}
