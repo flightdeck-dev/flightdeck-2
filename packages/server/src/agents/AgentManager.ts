@@ -374,16 +374,13 @@ export class AgentManager {
       this.store.emit('merge-conflict', mergeConflict);
     }
 
-    // If runtime supports session resume, hibernate instead of marking offline
-    const runtimeName = agent.runtimeName ?? '';
-    const rtDef = runtimeName ? RUNTIME_REGISTRY[runtimeName] : null;
-    if (rtDef?.supportsSessionLoad && sessionId) {
+    // Hibernate instead of marking offline — session may be resumable
+    if (sessionId) {
       // Keep acpSessionId so we can resume later
       this.store.updateAgentStatus(agentId, 'hibernated');
-      console.error(`[terminate] Agent ${agentId} hibernated (session resumable: ${sessionId})`);
+      console.error(`[terminate] Agent ${agentId} hibernated (session: ${sessionId})`);
     } else {
       this.store.updateAgentStatus(agentId, 'offline');
-      this.store.updateAgentAcpSession(agentId, null);
     }
   }
 
