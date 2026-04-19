@@ -281,11 +281,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   }
 
   if (projectNames.length === 0) {
-    console.error('No projects found in ~/.flightdeck/projects/. Create one with `flightdeck init <name>`.');
-    process.exit(1);
+    console.error('No projects found. Gateway will start and wait for projects to be created via the web UI or CLI.');
+  } else {
+    console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
   }
-
-  console.error(`Starting Flightdeck gateway for ${projectNames.length} project(s): ${projectNames.join(', ')}`);
 
   // --- Session reload config ---
   const reloadConfig = loadReloadConfig();
