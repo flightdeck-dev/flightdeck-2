@@ -363,6 +363,13 @@ export class LeadManager {
         parts.push(`source: web-dashboard`);
         if (event.message.parentId) parts.push(`reply_to: ${event.message.parentId}`);
         if (event.message.taskId) parts.push(`task_id: ${event.message.taskId}`);
+        // Include quoted message content for reply context
+        if (event.message.parentId && this.messageStore) {
+          try {
+            const pm = this.messageStore.getMessage(event.message.parentId);
+            if (pm) parts.push(`quoted_message: ${pm.content.slice(0, 200)}${pm.content.length > 200 ? '...' : ''}`);
+          } catch {}
+        }
         parts.push('---');
         parts.push(event.message.content);
         parts.push('');
@@ -377,6 +384,7 @@ export class LeadManager {
         parts.push(`task_id: ${event.taskId}`);
         parts.push(`source: task_comment`);
         if (event.message.parentId) parts.push(`reply_to: ${event.message.parentId}`);
+        if (event.message.parentId && this.messageStore) { try { const pm = this.messageStore.getMessage(event.message.parentId); if (pm) parts.push(`quoted_message: ${pm.content.slice(0, 200)}${pm.content.length > 200 ? "..." : ""}`); } catch {} }
         parts.push('---');
         parts.push(event.message.content);
         parts.push('');

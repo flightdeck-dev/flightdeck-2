@@ -219,7 +219,14 @@ _Updated periodically by consolidating daily logs._
   }
 
   /**
-   * Write AGENTS.md to a target directory (typically the working directory).
+   * Generate agent config output without writing to disk.
+   */
+  static generateAgentConfigs(role: AgentRole): AgentConfigOutput {
+    return generateAgentConfigs(role);
+  }
+
+  /**
+   * Write AGENTS.md to a target directory (typically an isolated worktree, not main cwd).
    */
   static writeAgentFiles(dir: string, role: AgentRole): AgentConfigOutput {
     const configs = generateAgentConfigs(role);

@@ -117,18 +117,18 @@ switch (command) {
     cfg.cwd = process.cwd();
     store.setConfig(cfg);
     ProjectStore.writeFlightdeckJson(process.cwd(), name);
-    // Generate default AGENTS.md (worker role)
-    ProjectStore.writeAgentFiles(process.cwd(), 'worker');
-    // Copy built-in skills and generate default config
-    SkillManager.copyDefaults(process.cwd());
+    // Copy built-in skills and config to state dir (not cwd)
+    SkillManager.copyDefaults(store.path);
     const { writeFileSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const configPath = join(process.cwd(), '.flightdeck', 'config.yaml');
+    const configDir = join(store.path, 'config');
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(configDir, { recursive: true });
+    const configPath = join(configDir, 'config.yaml');
     writeFileSync(configPath, SkillManager.generateDefaultConfig());
     console.log(`Project "${name}" initialized.`);
     console.log(`Created .flightdeck.json in ${process.cwd()}`);
-    console.log(`Created AGENTS.md (worker role)`);
-    console.log(`Project data at ~/.flightdeck/projects/${name}/`);
+    console.log(`Project data at ~/.flightdeck/v2/projects/${name}/`);
     console.log();
     console.log('Setup for other runtimes:');
     console.log('  Codex:   Add to .codex/config.toml — [mcp_servers.flightdeck] command = "npx" args = ["flightdeck-mcp"]');
@@ -146,10 +146,10 @@ switch (command) {
       console.error('Usage: flightdeck agent-config <lead|worker|reviewer|planner>');
       process.exit(1);
     }
-    const configs = ProjectStore.writeAgentFiles(process.cwd(), role);
+    const configs = ProjectStore.generateAgentConfigs(role);
     console.log(configs.agentsMd);
     console.log('---');
-    console.log('Written: AGENTS.md');
+    console.log('Generated AGENTS.md content (not written to disk).');
     console.log();
     console.log('Codex config snippet:');
     console.log(configs.codexConfig);

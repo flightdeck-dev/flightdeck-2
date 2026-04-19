@@ -1,33 +1,17 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Task, Agent } from '@flightdeck-ai/shared';
 
 /**
- * Writes per-task context files to `.flightdeck/tasks/{taskId}.md`.
- * These give agents quick context about individual tasks.
+ * TaskContextWriter is now a no-op.
+ * Task context is served via the `task_context` MCP tool instead of files.
+ * Kept as a stub for API compatibility.
  */
 export class TaskContextWriter {
-  /**
-   * Write a single task context file.
-   */
-  static writeTask(projectDir: string, task: Task, agents: Agent[]): void {
-    const dir = join(projectDir, '.flightdeck', 'tasks');
-    mkdirSync(dir, { recursive: true });
-    const md = TaskContextWriter.generateMarkdown(task, agents);
-    writeFileSync(join(dir, `${task.id}.md`), md);
+  static writeTask(_projectDir: string, _task: Task, _agents: Agent[]): void {
+    // no-op: task context is now served via MCP tool
   }
 
-  /**
-   * Write context files for all provided tasks.
-   */
-  static writeAll(projectDir: string, tasks: Task[], agents: Agent[]): void {
-    if (tasks.length === 0) return;
-    const dir = join(projectDir, '.flightdeck', 'tasks');
-    mkdirSync(dir, { recursive: true });
-    for (const task of tasks) {
-      const md = TaskContextWriter.generateMarkdown(task, agents);
-      writeFileSync(join(dir, `${task.id}.md`), md);
-    }
+  static writeAll(_projectDir: string, _tasks: Task[], _agents: Agent[]): void {
+    // no-op: task context is now served via MCP tool
   }
 
   static generateMarkdown(task: Task, agents: Agent[]): string {
@@ -45,7 +29,6 @@ export class TaskContextWriter {
     lines.push(`**Updated:** ${task.updatedAt}`);
     lines.push('');
 
-    // Assigned agent
     if (task.assignedAgent) {
       const agent = agents.find(a => a.id === task.assignedAgent);
       lines.push(`**Assigned Agent:** ${task.assignedAgent}`);
@@ -56,7 +39,6 @@ export class TaskContextWriter {
       lines.push('');
     }
 
-    // Dependencies
     if (task.dependsOn.length > 0) {
       lines.push('## Dependencies');
       for (const dep of task.dependsOn) {
@@ -65,7 +47,6 @@ export class TaskContextWriter {
       lines.push('');
     }
 
-    // Description
     if (task.description) {
       lines.push('## Description');
       lines.push('');

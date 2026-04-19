@@ -8,22 +8,25 @@ const TEST_DIR = join(tmpdir(), `flightdeck-skill-test-${Date.now()}`);
 
 function setupProject(config?: string): string {
   const dir = join(TEST_DIR, `proj-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(join(dir, '.flightdeck', 'skills', 'flightdeck-basics'), { recursive: true });
-  mkdirSync(join(dir, '.flightdeck', 'skills', 'task-workflow'), { recursive: true });
-  mkdirSync(join(dir, '.flightdeck', 'skills', 'memory-management'), { recursive: true });
-  mkdirSync(join(dir, '.flightdeck', 'skills', 'deploy-aws'), { recursive: true });
+  // Skills now live directly under the state dir (not .flightdeck/skills/)
+  mkdirSync(join(dir, 'skills', 'flightdeck-basics'), { recursive: true });
+  mkdirSync(join(dir, 'skills', 'task-workflow'), { recursive: true });
+  mkdirSync(join(dir, 'skills', 'memory-management'), { recursive: true });
+  mkdirSync(join(dir, 'skills', 'deploy-aws'), { recursive: true });
 
-  writeFileSync(join(dir, '.flightdeck', 'skills', 'flightdeck-basics', 'SKILL.md'),
+  writeFileSync(join(dir, 'skills', 'flightdeck-basics', 'SKILL.md'),
     '---\nname: flightdeck-basics\ndescription: How to use Flightdeck MCP tools\n---\nContent here.');
-  writeFileSync(join(dir, '.flightdeck', 'skills', 'task-workflow', 'SKILL.md'),
+  writeFileSync(join(dir, 'skills', 'task-workflow', 'SKILL.md'),
     '---\nname: task-workflow\ndescription: The claim → execute → submit workflow\n---\nContent.');
-  writeFileSync(join(dir, '.flightdeck', 'skills', 'memory-management', 'SKILL.md'),
+  writeFileSync(join(dir, 'skills', 'memory-management', 'SKILL.md'),
     '---\nname: memory-management\ndescription: How to manage project memory\n---\nContent.');
-  writeFileSync(join(dir, '.flightdeck', 'skills', 'deploy-aws', 'SKILL.md'),
+  writeFileSync(join(dir, 'skills', 'deploy-aws', 'SKILL.md'),
     '---\nname: deploy-aws\ndescription: AWS deployment procedures\n---\nContent.');
 
   if (config) {
-    writeFileSync(join(dir, '.flightdeck', 'config.yaml'), config);
+    // Config now lives at {stateDir}/config/config.yaml
+    mkdirSync(join(dir, 'config'), { recursive: true });
+    writeFileSync(join(dir, 'config', 'config.yaml'), config);
   }
 
   return dir;
@@ -143,7 +146,7 @@ mcp:
   });
 
   describe('listInstalledSkills', () => {
-    it('lists all skills in .flightdeck/skills/', () => {
+    it('lists all skills in skills/ directory', () => {
       const dir = setupProject();
       const sm = new SkillManager(dir);
       const skills = sm.listInstalledSkills();
@@ -176,7 +179,7 @@ skills:
       expect(md).toContain('How to use Flightdeck MCP tools');
       expect(md).toContain('**deploy-aws**');
       expect(md).toContain('AWS deployment procedures');
-      expect(md).toContain('.flightdeck/skills/flightdeck-basics/SKILL.md');
+      expect(md).toContain('skills/flightdeck-basics/SKILL.md');
     });
 
     it('includes task context when provided', () => {
@@ -202,13 +205,13 @@ skills:
   });
 
   describe('copyDefaults', () => {
-    it('copies built-in skills to project', () => {
+    it('copies built-in skills to state dir', () => {
       const dir = join(TEST_DIR, `copy-test-${Date.now()}`);
       mkdirSync(dir, { recursive: true });
       SkillManager.copyDefaults(dir);
-      expect(existsSync(join(dir, '.flightdeck', 'skills', 'flightdeck-basics', 'SKILL.md'))).toBe(true);
-      expect(existsSync(join(dir, '.flightdeck', 'skills', 'task-workflow', 'SKILL.md'))).toBe(true);
-      expect(existsSync(join(dir, '.flightdeck', 'skills', 'memory-management', 'SKILL.md'))).toBe(true);
+      expect(existsSync(join(dir, 'skills', 'flightdeck-basics', 'SKILL.md'))).toBe(true);
+      expect(existsSync(join(dir, 'skills', 'task-workflow', 'SKILL.md'))).toBe(true);
+      expect(existsSync(join(dir, 'skills', 'memory-management', 'SKILL.md'))).toBe(true);
     });
   });
 
@@ -235,7 +238,7 @@ skills:
       const result = sm.installSkill(sourceDir);
       expect(result).not.toBeNull();
       expect(result!.name).toBe('docker-deploy');
-      expect(existsSync(join(dir, '.flightdeck', 'skills', 'docker-deploy', 'SKILL.md'))).toBe(true);
+      expect(existsSync(join(dir, 'skills', 'docker-deploy', 'SKILL.md'))).toBe(true);
     });
 
     it('returns null for missing source', () => {

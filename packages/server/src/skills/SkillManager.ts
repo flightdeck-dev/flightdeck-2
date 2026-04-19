@@ -69,23 +69,27 @@ export class SkillManager {
   }
 
   /**
-   * Load .flightdeck/config.yaml from the project directory.
+   * Load config.yaml from the project's state directory.
    */
   loadProjectConfig(projectDir?: string): ProjectConfig {
     const dir = projectDir ?? this.projectDir;
-    const configPath = join(dir, '.flightdeck', 'config.yaml');
-    if (!existsSync(configPath)) {
-      this.config = {};
-      return this.config;
+    // Look in state dir's config/ subfolder first, then root
+    const configPaths = [
+      join(dir, 'config', 'config.yaml'),
+      join(dir, 'config.yaml'),
+    ];
+    for (const configPath of configPaths) {
+      if (!existsSync(configPath)) continue;
+      try {
+        const raw = readFileSync(configPath, 'utf-8');
+        this.config = (parseYaml(raw) as ProjectConfig) || {};
+        return this.config;
+      } catch {
+        // fall through
+      }
     }
-    try {
-      const raw = readFileSync(configPath, 'utf-8');
-      this.config = (parseYaml(raw) as ProjectConfig) || {};
-      return this.config;
-    } catch {
-      this.config = {};
-      return this.config;
-    }
+    this.config = {};
+    return this.config;
   }
 
   private getConfig(): ProjectConfig {
@@ -115,10 +119,10 @@ export class SkillManager {
   }
 
   /**
-   * List all installed skills in .flightdeck/skills/.
+   * List all installed skills in the project's skills/ directory (state dir).
    */
   listInstalledSkills(): SkillInfo[] {
-    const skillsDir = join(this.projectDir, '.flightdeck', 'skills');
+    const skillsDir = join(this.projectDir, 'skills');
     if (!existsSync(skillsDir)) return [];
 
     const skills: SkillInfo[] = [];
@@ -133,7 +137,7 @@ export class SkillManager {
         skills.push({
           name: name || entry.name,
           description,
-          path: `.flightdeck/skills/${entry.name}/SKILL.md`,
+          path: `skills/${entry.name}/SKILL.md`,
         });
       }
     } catch { /* ignore */ }
@@ -262,10 +266,10 @@ export class SkillManager {
   }
 
   /**
-   * Install a skill to .flightdeck/skills/ from a source directory.
+   * Install a skill to the state directory's skills/ folder.
    */
   installSkill(source: string): SkillInfo | null {
-    const skillsDir = join(this.projectDir, '.flightdeck', 'skills');
+    const skillsDir = join(this.projectDir, 'skills');
     mkdirSync(skillsDir, { recursive: true });
 
     if (!existsSync(source)) return null;
@@ -284,15 +288,15 @@ export class SkillManager {
     return {
       name: skillName,
       description,
-      path: `.flightdeck/skills/${skillName}/SKILL.md`,
+      path: `skills/${skillName}/SKILL.md`,
     };
   }
 
   /**
-   * Copy built-in default skills to .flightdeck/skills/.
+   * Copy built-in default skills to the state directory's skills/ folder.
    */
-  static copyDefaults(projectDir: string): void {
-    const skillsDir = join(projectDir, '.flightdeck', 'skills');
+  static copyDefaults(stateDir: string): void {
+    const skillsDir = join(stateDir, 'skills');
     mkdirSync(skillsDir, { recursive: true });
 
     if (!existsSync(DEFAULTS_DIR)) return;

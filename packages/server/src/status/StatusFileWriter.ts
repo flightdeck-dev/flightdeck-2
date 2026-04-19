@@ -61,16 +61,15 @@ export class StatusFileWriter {
     this.doWrite(projectDir, data);
   }
 
-  private doWrite(projectDir: string, data: StatusData): void {
-    const dir = join(projectDir, '.flightdeck');
-    mkdirSync(dir, { recursive: true });
-    const md = StatusFileWriter.generateMarkdown(data);
-    writeFileSync(join(dir, 'status.md'), md);
-    // Also write to state directory if different from project dir
-    if (this.stateDir && this.stateDir !== dir) {
-      mkdirSync(this.stateDir, { recursive: true });
-      writeFileSync(join(this.stateDir, 'status.md'), md);
+  private doWrite(_projectDir: string, data: StatusData): void {
+    // Only write to state directory — never write to project cwd
+    if (!this.stateDir) {
+      this.lastWriteTime = Date.now();
+      return;
     }
+    const md = StatusFileWriter.generateMarkdown(data);
+    mkdirSync(this.stateDir, { recursive: true });
+    writeFileSync(join(this.stateDir, 'status.md'), md);
     this.lastWriteTime = Date.now();
   }
 

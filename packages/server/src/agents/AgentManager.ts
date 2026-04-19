@@ -246,8 +246,8 @@ export class AgentManager {
       }
     }
 
-    // 5. Write skill-based AGENTS.md if SkillManager available
-    if (this.skillManager) {
+    // 5. Write skill-based AGENTS.md only to isolated worktree directories (not main cwd)
+    if (this.skillManager && effectiveCwd !== opts.cwd) {
       try {
         const agentsMd = this.skillManager.generateAgentsMd(opts.role, opts.taskContext);
         writeFileSync(`${effectiveCwd}/AGENTS.md`, agentsMd);

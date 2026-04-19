@@ -50,8 +50,9 @@ describe('StatusFileWriter', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('writes status.md to .flightdeck directory', () => {
-    const writer = new StatusFileWriter(0);
+  it('writes status.md to state directory (not cwd)', () => {
+    const stateDir = join(tmpDir, 'state');
+    const writer = new StatusFileWriter(0, stateDir);
     const data: StatusData = {
       projectName: 'test-project',
       governance: 'autonomous',
@@ -62,7 +63,10 @@ describe('StatusFileWriter', () => {
 
     writer.writeStatusImmediate(tmpDir, data);
 
-    const filePath = join(tmpDir, '.flightdeck', 'status.md');
+    // Should NOT write to cwd/.flightdeck/
+    expect(existsSync(join(tmpDir, '.flightdeck', 'status.md'))).toBe(false);
+    // Should write to state dir
+    const filePath = join(stateDir, 'status.md');
     expect(existsSync(filePath)).toBe(true);
 
     const content = readFileSync(filePath, 'utf-8');
@@ -100,7 +104,7 @@ describe('StatusFileWriter', () => {
     expect(md).toContain('$0.50');
   });
 
-  it('creates .flightdeck directory if it does not exist', () => {
+  it('is a no-op when no stateDir is provided', () => {
     const writer = new StatusFileWriter(0);
     const nested = join(tmpDir, 'deep', 'project');
     const data: StatusData = {
@@ -112,7 +116,7 @@ describe('StatusFileWriter', () => {
     };
 
     writer.writeStatusImmediate(nested, data);
-    expect(existsSync(join(nested, '.flightdeck', 'status.md'))).toBe(true);
+    expect(existsSync(join(nested, '.flightdeck', 'status.md'))).toBe(false);
   });
 
   it('shows epics with progress in status markdown', () => {
@@ -144,7 +148,7 @@ describe('TaskContextWriter', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('writes per-task markdown files', () => {
+  it('writeAll is a no-op (context served via MCP tool)', () => {
     const tasks = [
       makeTask(),
       makeTask({ id: 'task-002' as any, title: 'Add tests', state: 'ready', assignedAgent: null }),
@@ -153,22 +157,11 @@ describe('TaskContextWriter', () => {
 
     TaskContextWriter.writeAll(tmpDir, tasks, agents);
 
+    // Should NOT write any files
     const file1 = join(tmpDir, '.flightdeck', 'tasks', 'task-001.md');
     const file2 = join(tmpDir, '.flightdeck', 'tasks', 'task-002.md');
-    expect(existsSync(file1)).toBe(true);
-    expect(existsSync(file2)).toBe(true);
-
-    const content1 = readFileSync(file1, 'utf-8');
-    expect(content1).toContain('# Implement auth');
-    expect(content1).toContain('**State:** running');
-    expect(content1).toContain('**Assigned Agent:** agent-001');
-    expect(content1).toContain('## Description');
-    expect(content1).toContain('Add JWT authentication');
-
-    const content2 = readFileSync(file2, 'utf-8');
-    expect(content2).toContain('# Add tests');
-    expect(content2).toContain('**State:** ready');
-    expect(content2).not.toContain('**Assigned Agent:**');
+    expect(existsSync(file1)).toBe(false);
+    expect(existsSync(file2)).toBe(false);
   });
 
   it('includes dependencies in task context', () => {

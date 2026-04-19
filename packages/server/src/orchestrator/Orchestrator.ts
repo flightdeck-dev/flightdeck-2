@@ -12,7 +12,6 @@ import type { WebSocketServer } from '../api/WebSocketServer.js';
 import type { SessionManager } from '../agents/SessionManager.js';
 import type { DecisionLog } from '../storage/DecisionLog.js';
 import { StatusFileWriter, type StatusData } from '../status/StatusFileWriter.js';
-import { TaskContextWriter } from '../status/TaskContextWriter.js';
 import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector.js';
 import { WebhookNotifier, type NotificationsConfig, taskCompletedEvent, taskFailedEvent, specCompletedEvent, escalationEvent, agentStallEvent, budgetWarningEvent } from '../integrations/WebhookNotifier.js';
 import type { SpecStore } from '../storage/SpecStore.js';
@@ -134,7 +133,7 @@ export class Orchestrator {
     this.wsServer = opts?.wsServer ?? null;
     this.governanceConfig = opts?.governanceConfig ?? {};
     this.decisionLog = opts?.decisionLog ?? null;
-    this.statusWriter = new StatusFileWriter();
+    this.statusWriter = new StatusFileWriter(1000, join(homedir(), '.flightdeck', 'v2', 'projects', config.name));
     this.workflowEngine = opts?.workflowEngine ?? null;
     this.suggestionStore = opts?.suggestionStore ?? null;
     this.specChangeDetector = opts?.specStore ? new SpecChangeDetector(opts.specStore, store) : null;
@@ -840,7 +839,7 @@ export class Orchestrator {
   }
 
   /**
-   * Write .flightdeck/status.md and per-task context files to the project cwd.
+   * Write status.md to the state directory (not project cwd).
    */
   private writeStatusFiles(): void {
     const cwd = this.config.cwd;
@@ -860,9 +859,7 @@ export class Orchestrator {
       };
 
       this.statusWriter.writeStatus(cwd, data);
-
-      // Write per-task context files for tasks that changed recently
-      TaskContextWriter.writeAll(cwd, tasks, agents);
+      // TaskContextWriter is now a no-op — context served via MCP tool
     } catch {
       // Status file writing is best-effort — don't crash the orchestrator
     }

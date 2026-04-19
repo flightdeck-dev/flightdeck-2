@@ -209,42 +209,27 @@ function checkDiskUsage(projectName: string | null): CheckResult {
 }
 
 function checkConfigValidation(cwd: string): CheckResult {
-  const configDir = join(cwd, '.flightdeck');
+  // Config now lives in state dir, not cwd/.flightdeck/
+  const projectName = getProjectName(cwd);
+  if (!projectName) {
+    return { name: 'Config validation', status: 'warn', message: 'No project — skipping config check' };
+  }
+  const stateDir = join(FD_DIR, 'projects', projectName);
+  if (!existsSync(stateDir)) {
+    return { name: 'Config validation', status: 'warn', message: `State directory not found: ${stateDir}` };
+  }
+
   const issues: string[] = [];
-
-  // Check governance.yaml
-  const govPath = join(configDir, 'governance.yaml');
-  if (existsSync(govPath)) {
-    try {
-      readFileSync(govPath, 'utf-8');
-      // Basic YAML parse check — we just verify it's readable
-    } catch (e) {
-      issues.push(`governance.yaml unreadable: ${e}`);
+  // Check config files in state dir
+  for (const rel of ['config/config.yaml', 'config.yaml']) {
+    const p = join(stateDir, rel);
+    if (existsSync(p)) {
+      try {
+        readFileSync(p, 'utf-8');
+      } catch (e) {
+        issues.push(`${rel} unreadable: ${e}`);
+      }
     }
-  }
-
-  // Check workflow.yaml
-  const wfPath = join(configDir, 'workflow.yaml');
-  if (existsSync(wfPath)) {
-    try {
-      readFileSync(wfPath, 'utf-8');
-    } catch (e) {
-      issues.push(`workflow.yaml unreadable: ${e}`);
-    }
-  }
-
-  // Check config.yaml
-  const cfgPath = join(configDir, 'config.yaml');
-  if (existsSync(cfgPath)) {
-    try {
-      readFileSync(cfgPath, 'utf-8');
-    } catch (e) {
-      issues.push(`config.yaml unreadable: ${e}`);
-    }
-  }
-
-  if (!existsSync(configDir)) {
-    return { name: 'Config validation', status: 'warn', message: 'No .flightdeck/ config directory found' };
   }
 
   if (issues.length > 0) {
