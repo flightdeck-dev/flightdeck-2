@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Flightdeck } from '../facade.js';
-import type { SpecId, Task } from '@flightdeck-ai/shared';
+import type { SpecId } from '@flightdeck-ai/shared';
 import type { AgentAdapter, SpawnOptions, AgentMetadata } from '../agents/AgentAdapter.js';
 
 // ── Suggestion types ──
