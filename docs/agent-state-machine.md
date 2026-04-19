@@ -49,9 +49,11 @@
 
 ## Design Principle
 
-**`onSessionTurnEnd` is the single source of truth for `busy → idle`.** All adapters (ACP, CopilotSdk) fire this callback when a prompt turn completes. No other code path should set idle — this avoids race conditions and duplicate transitions.
+**`onSessionTurnEnd` is the single source of truth for `busy → idle`.** All adapters (ACP, CopilotSdk) fire this callback when a prompt turn completes.
 
-**`idle → busy` is set by the caller** before initiating a steer/claim. This is a best-effort UI hint — even if it’s missed, `onSessionTurnEnd` will correct the state.
+**`onSessionTurnStart` is the single source of truth for `idle → busy`.** All adapters fire this callback when a prompt/steer begins. Both are wired in `gateway.ts` to update SQLite and broadcast WS.
+
+Orchestrator also pre-marks `busy` on task claim to prevent double-assignment races. This is a reservation, not a duplicate — `onSessionTurnStart` confirms it.
 
 ## Transition Table
 

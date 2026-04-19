@@ -627,7 +627,7 @@ export class Orchestrator {
         // Assign to idle agent
         try {
           this.dag.claimTask(task.id, agent.id);
-          this.store.updateAgentStatus(agent.id, 'busy');
+          this.store.updateAgentStatus(agent.id, 'busy'); // Pre-mark to prevent double-assignment before steer fires
           usedAgentIds.add(agent.id);
           assigned++;
 

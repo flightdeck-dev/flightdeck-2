@@ -127,6 +127,9 @@ export class AcpAdapter extends AgentAdapter {
   /** Callback for token usage tracking (called on usage_update events) */
   onUsage: ((agentId: string, usage: { inputTokens: number; outputTokens: number }) => void) | null = null;
 
+  /** Callback fired when any session's prompt turn starts (agent goes busy). */
+  onSessionTurnStart: ((sessionId: string, agentId: string) => void) | null = null;
+
   /** Callback fired when any session's prompt turn completes (agent goes idle). */
   onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
 
@@ -868,6 +871,11 @@ export class AcpAdapter extends AgentAdapter {
     session.turnCount++;
     session.status = 'prompting';
     session.isPrompting = true;
+
+    // Notify turn start
+    if (this.onSessionTurnStart) {
+      try { this.onSessionTurnStart(session.id, session.agentId); } catch { /* non-fatal */ }
+    }
 
     const outputBefore = session.output.length;
 

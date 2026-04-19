@@ -63,6 +63,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
   /** Callback fired when a session ends. */
   onSessionEnd: ((sessionId: string, session: CopilotAgentSession) => void) | null = null;
   /** Callback fired when a session's prompt turn completes. */
+  onSessionTurnStart: ((sessionId: string, agentId: string) => void) | null = null;
   onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
   /** Callback fired on any output. */
   onOutput: ((agentId: string, event: SessionEvent) => void) | null = null;
@@ -995,6 +996,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const outputBefore = agentSession.output.length;
     agentSession.status = 'active';
+
+    // Notify turn start
+    if (this.onSessionTurnStart) {
+      try { this.onSessionTurnStart(sessionId, agentSession.agentId); } catch { /* */ }
+    }
 
     await agentSession.session.send({ prompt: message.content });
 

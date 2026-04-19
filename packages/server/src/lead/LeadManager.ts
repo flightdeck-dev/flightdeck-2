@@ -288,8 +288,6 @@ export class LeadManager {
       }
     }
     if (!this.leadSessionId) return '';
-    // Mark busy — onSessionTurnEnd will mark idle when done
-    if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'busy');
     if (event.type === 'user_message') {
       this.lastUserInteractionAt = Date.now();
     }

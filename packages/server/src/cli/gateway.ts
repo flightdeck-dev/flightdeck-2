@@ -207,7 +207,24 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
-  // When an agent's prompt turn ends, check for unsubmitted tasks and nudge
+  // When an agent's prompt turn starts, mark busy in SQLite
+  const turnStartHandler = (_sessionId: string, agentId: string) => {
+    for (const name of projectManager.list()) {
+      const fd = projectManager.get(name);
+      if (!fd) continue;
+      const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+      if (agent && agent.status !== 'busy') {
+        fd.sqlite.updateAgentStatus(agentId as any, 'busy');
+        const ws = wsServers.get(name);
+        if (ws) ws.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+        break;
+      }
+    }
+  };
+  acpAdapter.onSessionTurnStart = turnStartHandler;
+  copilotSdkAdapter.onSessionTurnStart = turnStartHandler;
+
+  // When an agent's prompt turn ends, mark idle in SQLite
   acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
     // Mark agent as idle in SQLite
     for (const name of projectManager.list()) {
