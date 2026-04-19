@@ -338,7 +338,30 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
       }
     } else if (continueAgents && activeAgents.length > 0) {
-      console.error(`  --continue: keeping ${activeAgents.length} agent(s) in current state.`);
+      console.error(`  --continue: resuming ${activeAgents.length} agent(s)...`);
+      for (const agent of activeAgents) {
+        if (!agent.acpSessionId) {
+          console.error(`    ${agent.id} (${agent.role}): no session ID, marking hibernated`);
+          fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
+          continue;
+        }
+        try {
+          const meta = await multiAdapter.resumeSession({
+            previousSessionId: agent.acpSessionId,
+            cwd: fd.status().config.cwd ?? process.cwd(),
+            role: agent.role,
+            agentId: agent.id,
+            projectName: name,
+            runtime: agent.runtimeName ?? undefined,
+          });
+          fd.sqlite.updateAgentAcpSession(agent.id as AgentId, meta.sessionId);
+          fd.sqlite.updateAgentStatus(agent.id as AgentId, 'idle');
+          console.error(`    ${agent.id} (${agent.role}): resumed (session: ${meta.sessionId})`);
+        } catch (err) {
+          console.error(`    ${agent.id} (${agent.role}): resume failed, marking hibernated — ${err instanceof Error ? err.message : String(err)}`);
+          fd.sqlite.updateAgentStatus(agent.id as AgentId, 'hibernated');
+        }
+      }
     }
 
     // Read per-role runtime config from .flightdeck/config.yaml
