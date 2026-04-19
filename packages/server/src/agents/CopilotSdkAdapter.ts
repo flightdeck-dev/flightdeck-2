@@ -538,6 +538,330 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
+    // Agent lifecycle tools (missing from original SDK)
+    tools.push({
+      name: 'flightdeck_agent_output',
+      description: 'Get the accumulated output of a running agent.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' }, tail: { type: 'number' } }, required: ['targetAgentId'] },
+      handler: async (args: { targetAgentId: string; tail?: number }) => JSON.stringify(await httpGet(`/agents/${encodeURIComponent(args.targetAgentId)}/output`, { tail: String(args.tail ?? 50) })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_agent_hibernate',
+      description: 'Hibernate a worker — saves session, kills process, pauses assigned task.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },
+      handler: async (args: { targetAgentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/hibernate`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_agent_wake',
+      description: 'Wake a hibernated worker — resumes session, resumes task.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },
+      handler: async (args: { targetAgentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/wake`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_agent_retire',
+      description: 'Permanently dismiss a worker.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },
+      handler: async (args: { targetAgentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/retire`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_agent_restart',
+      description: 'Restart an agent.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },
+      handler: async (args: { targetAgentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/restart`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_agent_interrupt',
+      description: 'Send urgent message to an agent.',
+      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' }, message: { type: 'string' } }, required: ['targetAgentId', 'message'] },
+      handler: async (args: { targetAgentId: string; message: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/interrupt`, { message: args.message })),
+      skipPermission: true,
+    });
+
+    // Task tools (missing from original SDK)
+    tools.push({
+      name: 'flightdeck_task_retry',
+      description: 'Retry a failed task.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+      handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/retry`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_task_compact',
+      description: 'Compact a completed task to save context.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, summary: { type: 'string' } }, required: ['taskId'] },
+      handler: async (args: { taskId: string; summary?: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/compact`, { summary: args.summary })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_task_clear_stale',
+      description: 'Clear stale flag on a task after re-planning.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+      handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/clear-stale`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_declare_subtasks',
+      description: 'Declare sub-tasks under a parent task.',
+      parameters: { type: 'object', properties: { parentTaskId: { type: 'string' }, tasks: { type: 'array', items: { type: 'object' } } }, required: ['parentTaskId', 'tasks'] },
+      handler: async (args: { parentTaskId: string; tasks: any[] }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.parentTaskId)}/subtasks`, { tasks: args.tasks })),
+      skipPermission: true,
+    });
+
+    // Communication tools (missing)
+    tools.push({
+      name: 'flightdeck_msg_list',
+      description: 'List chat messages.',
+      parameters: { type: 'object', properties: { threadId: { type: 'string' }, taskId: { type: 'string' }, limit: { type: 'number' } } },
+      handler: async (args: { threadId?: string; taskId?: string; limit?: number }) => JSON.stringify(await httpGet('/messages', { thread_id: args.threadId ?? '', task_id: args.taskId ?? '', limit: String(args.limit ?? 20) })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_thread_create',
+      description: 'Create a chat thread from a message.',
+      parameters: { type: 'object', properties: { originId: { type: 'string' }, title: { type: 'string' } }, required: ['originId'] },
+      handler: async (args: { originId: string; title?: string }) => JSON.stringify(await httpPost('/threads', { originId: args.originId, title: args.title })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_thread_list',
+      description: 'List chat threads.',
+      parameters: { type: 'object', properties: { archived: { type: 'boolean' }, limit: { type: 'number' } } },
+      handler: async (args: { archived?: boolean; limit?: number }) => JSON.stringify(await httpGet('/threads', { archived: String(args.archived ?? false), limit: String(args.limit ?? 20) })),
+      skipPermission: true,
+    });
+
+    // Memory tools (missing)
+    tools.push({
+      name: 'flightdeck_memory_log',
+      description: "Append an entry to today's daily log (append-only).",
+      parameters: { type: 'object', properties: { entry: { type: 'string' } }, required: ['entry'] },
+      handler: async (args: { entry: string }) => JSON.stringify(await httpPost('/memory/daily-log', { entry: args.entry })),
+      skipPermission: true,
+    });
+
+    // Decision tools (missing)
+    tools.push({
+      name: 'flightdeck_decision_list',
+      description: 'List recent decisions.',
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, type: { type: 'string' }, limit: { type: 'number' } } },
+      handler: async (args: { taskId?: string; type?: string; limit?: number }) => JSON.stringify(await httpGet('/decisions', { taskId: args.taskId ?? '', type: args.type ?? '', limit: String(args.limit ?? 20) })),
+      skipPermission: true,
+    });
+
+    // Report tool (missing)
+    tools.push({
+      name: 'flightdeck_report',
+      description: 'Generate daily report.',
+      parameters: { type: 'object', properties: { since: { type: 'string' } } },
+      handler: async (args: { since?: string }) => JSON.stringify(await httpGet('/report', { since: args.since ?? '' })),
+      skipPermission: true,
+    });
+
+    // Escalate to human (missing)
+    tools.push({
+      name: 'flightdeck_escalate_to_human',
+      description: 'Escalate an issue to the human user.',
+      parameters: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string' } }, required: ['title', 'description'] },
+      handler: async (args: { title: string; description: string; priority?: string }) => JSON.stringify(await httpPost('/escalate', { ...args, toHuman: true })),
+      skipPermission: true,
+    });
+
+    // Model tools (missing)
+    tools.push({
+      name: 'flightdeck_model_list',
+      description: 'List available models and runtimes.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/models/available')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_model_set',
+      description: "Change a running agent's model.",
+      parameters: { type: 'object', properties: { agentId: { type: 'string' }, model: { type: 'string' }, reason: { type: 'string' } }, required: ['agentId', 'model'] },
+      handler: async (args: { agentId: string; model: string; reason?: string }) => JSON.stringify(await httpPut(`/agents/${encodeURIComponent(args.agentId)}/model`, { model: args.model, reason: args.reason })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_model_config',
+      description: 'Get current model configuration per role.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/models')),
+      skipPermission: true,
+    });
+
+    // Spec tools (missing)
+    tools.push({
+      name: 'flightdeck_spec_list',
+      description: 'List specs.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/specs')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_spec_changes',
+      description: 'List recent spec changes.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/spec-changes')),
+      skipPermission: true,
+    });
+
+    // Skill tools (missing)
+    tools.push({
+      name: 'flightdeck_skill_list',
+      description: 'List available skills.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/skills')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_skill_install',
+      description: 'Install a skill from a source directory.',
+      parameters: { type: 'object', properties: { source: { type: 'string' } }, required: ['source'] },
+      handler: async (args: { source: string }) => JSON.stringify(await httpPost('/skills/install', { source: args.source })),
+      skipPermission: true,
+    });
+
+    // Suggestion tools (missing)
+    tools.push({
+      name: 'flightdeck_suggestion_list',
+      description: 'List scout suggestions.',
+      parameters: { type: 'object', properties: { specId: { type: 'string' }, status: { type: 'string' } } },
+      handler: async (args: { specId?: string; status?: string }) => JSON.stringify(await httpGet('/suggestions', { spec_id: args.specId ?? '', status: args.status ?? '' })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_suggestion_approve',
+      description: 'Approve a scout suggestion.',
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      handler: async (args: { id: string }) => JSON.stringify(await httpPost(`/suggestions/${encodeURIComponent(args.id)}/approve`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_suggestion_reject',
+      description: 'Reject a scout suggestion.',
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      handler: async (args: { id: string }) => JSON.stringify(await httpPost(`/suggestions/${encodeURIComponent(args.id)}/reject`)),
+      skipPermission: true,
+    });
+
+    // Timer tools (missing)
+    tools.push({
+      name: 'flightdeck_timer_set',
+      description: 'Set a timer.',
+      parameters: { type: 'object', properties: { label: { type: 'string' }, delayMs: { type: 'number' }, message: { type: 'string' }, repeat: { type: 'boolean' } }, required: ['label', 'delayMs', 'message'] },
+      handler: async (args: any) => JSON.stringify(await httpPost('/timers', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_timer_cancel',
+      description: 'Cancel a timer.',
+      parameters: { type: 'object', properties: { label: { type: 'string' } }, required: ['label'] },
+      handler: async (args: { label: string }) => {
+        const res = await fetch(`${baseUrl}/timers/${encodeURIComponent(args.label)}`, { method: 'DELETE', headers });
+        return JSON.stringify(await res.json());
+      },
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_timer_list',
+      description: 'List timers.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/timers')),
+      skipPermission: true,
+    });
+
+    // Cron tools (missing)
+    tools.push({
+      name: 'flightdeck_cron_list',
+      description: 'List all cron jobs.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/cron')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_cron_add',
+      description: 'Add a new cron job.',
+      parameters: { type: 'object', properties: { name: { type: 'string' }, schedule: { type: 'string' }, prompt: { type: 'string' }, tz: { type: 'string' }, enabled: { type: 'boolean' } }, required: ['name', 'schedule', 'prompt'] },
+      handler: async (args: any) => JSON.stringify(await httpPost('/cron', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_cron_enable',
+      description: 'Enable a cron job.',
+      parameters: { type: 'object', properties: { jobId: { type: 'string' } }, required: ['jobId'] },
+      handler: async (args: { jobId: string }) => JSON.stringify(await httpPut(`/cron/${encodeURIComponent(args.jobId)}/enable`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_cron_disable',
+      description: 'Disable a cron job.',
+      parameters: { type: 'object', properties: { jobId: { type: 'string' } }, required: ['jobId'] },
+      handler: async (args: { jobId: string }) => JSON.stringify(await httpPut(`/cron/${encodeURIComponent(args.jobId)}/disable`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_cron_remove',
+      description: 'Remove a cron job.',
+      parameters: { type: 'object', properties: { jobId: { type: 'string' } }, required: ['jobId'] },
+      handler: async (args: { jobId: string }) => {
+        const res = await fetch(`${baseUrl}/cron/${encodeURIComponent(args.jobId)}`, { method: 'DELETE', headers });
+        return JSON.stringify(await res.json());
+      },
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_cron_run',
+      description: 'Manually trigger a cron job now.',
+      parameters: { type: 'object', properties: { jobId: { type: 'string' } }, required: ['jobId'] },
+      handler: async (args: { jobId: string }) => JSON.stringify(await httpPost(`/cron/${encodeURIComponent(args.jobId)}/run`)),
+      skipPermission: true,
+    });
+
+    // Misc tools (missing)
+    tools.push({
+      name: 'flightdeck_isolation_status',
+      description: 'Show current isolation mode and active worktrees/workdirs.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/isolation/status')),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_webhook_test',
+      description: 'Send a test message to all configured webhooks.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpPost('/webhook/test')),
+      skipPermission: true,
+    });
+
     // Tools available (self-report)
     tools.push({
       name: 'flightdeck_tools_available',
