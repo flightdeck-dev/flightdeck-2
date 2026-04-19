@@ -47,6 +47,12 @@
    Any state ──── retire ────► retired
 ```
 
+## Design Principle
+
+**`onSessionTurnEnd` is the single source of truth for `busy → idle`.** All adapters (ACP, CopilotSdk) fire this callback when a prompt turn completes. No other code path should set idle — this avoids race conditions and duplicate transitions.
+
+**`idle → busy` is set by the caller** before initiating a steer/claim. This is a best-effort UI hint — even if it’s missed, `onSessionTurnEnd` will correct the state.
+
 ## Transition Table
 
 | From | To | Trigger | Location |
@@ -86,6 +92,4 @@
 
 ## Known Gaps (TODO)
 
-- [ ] `busy → idle` for non-Lead agents steered via `steerAgent()` — currently relies on `onSessionTurnEnd` callback
-- [ ] No `busy` timeout — if `onSessionTurnEnd` never fires, agent stays busy forever
-- [ ] ReviewFlow marks reviewer `offline` on spawn failure but doesn't retry
+- [ ] ReviewFlow: retry reviewer spawn up to 2 times, then escalate to Lead → user

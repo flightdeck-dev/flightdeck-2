@@ -1109,9 +1109,6 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
   wsServer.on('user:message', (msg: any) => {
     // Generate fresh ID for this response
     msgIdRef.current = makeMessageId('lead', Date.now().toString());
-    // Mark Lead as busy while processing
-    const leadAgent = fd.sqlite.listAgents().find(a => a.role === 'lead' && a.status === 'idle');
-    if (leadAgent) fd.sqlite.updateAgentStatus(leadAgent.id as any, 'busy');
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });

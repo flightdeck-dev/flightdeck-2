@@ -288,7 +288,7 @@ export class LeadManager {
       }
     }
     if (!this.leadSessionId) return '';
-    // Mark Lead as busy during steer
+    // Mark busy — onSessionTurnEnd will mark idle when done
     if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'busy');
     if (event.type === 'user_message') {
       this.lastUserInteractionAt = Date.now();
@@ -298,8 +298,7 @@ export class LeadManager {
     try {
       const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
       this.lastSteerAt = new Date().toISOString();
-      // Mark Lead as idle after response
-      if (this.leadAgentId) this.sqlite.updateAgentStatus(this.leadAgentId as any, 'idle');
+      // busy→idle handled by onSessionTurnEnd callback
 
       // Log to SessionStore for session transcript search
       this.logSessionEvent('user', steer);
