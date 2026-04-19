@@ -695,8 +695,8 @@ export default function Agents() {
 
   const active = agents.filter(a => !['retired', 'hibernated', 'errored'].includes(a.status));
   const hibernated = agents.filter(a => a.status === 'hibernated');
+  const errored = agents.filter(a => a.status === 'errored');
   const retired = agents.filter(a => a.status === 'retired');
-  const terminated = agents.filter(a => a.status === 'retired' || a.status === 'hibernated');
 
   if (agents.length === 0) {
     return (
@@ -751,6 +751,17 @@ export default function Agents() {
         </details>
       )}
 
+      {errored.length > 0 && (
+        <details className="group">
+          <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
+            ⚠️ {errored.length} errored agent{errored.length !== 1 ? 's' : ''}
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
+            {errored.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
+          </div>
+        </details>
+      )}
+
       {retired.length > 0 && (
         <details className="group">
           <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
@@ -758,17 +769,6 @@ export default function Agents() {
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-50">
             {retired.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
-          </div>
-        </details>
-      )}
-
-      {terminated.length > 0 && (
-        <details className="group">
-          <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none">
-            {terminated.length} terminated agent{terminated.length !== 1 ? 's' : ''}
-          </summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 opacity-60">
-            {terminated.map(a => <AgentCard key={a.id} agent={a} projectName={projectName!} onSelect={setSelectedAgentId} isSelected={a.id === selectedAgentId} onMutate={handleMutate} onError={msg => { setPageToast(msg); setTimeout(() => setPageToast(null), 4000); }} />)}
           </div>
         </details>
       )}
