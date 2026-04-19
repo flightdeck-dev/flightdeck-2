@@ -1,3 +1,7 @@
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
 // Model tiers: high (best quality), medium (balanced), fast (cheap/fast)
 export type ModelTier = 'high' | 'medium' | 'fast';
 
@@ -33,6 +37,32 @@ const FAST_PATTERNS = [
  */
 export class ModelRegistry {
   private cache = new Map<string, ModelInfo[]>();
+  private cacheFile = join(homedir(), '.flightdeck', 'v2', 'model-cache.json');
+
+  /** Load cached models from disk (call on startup) */
+  loadFromDisk(): void {
+    try {
+      if (existsSync(this.cacheFile)) {
+        const data = JSON.parse(readFileSync(this.cacheFile, 'utf-8'));
+        for (const [runtime, models] of Object.entries(data)) {
+          if (!this.cache.has(runtime)) {
+            this.cache.set(runtime, models as ModelInfo[]);
+          }
+        }
+      }
+    } catch { /* best effort */ }
+  }
+
+  /** Save current cache to disk */
+  saveToDisk(): void {
+    try {
+      const dir = join(homedir(), '.flightdeck', 'v2');
+      mkdirSync(dir, { recursive: true });
+      const data: Record<string, ModelInfo[]> = {};
+      for (const [k, v] of this.cache) data[k] = v;
+      writeFileSync(this.cacheFile, JSON.stringify(data, null, 2));
+    } catch { /* best effort */ }
+  }
 
   /**
    * Called after session/new returns availableModels.
@@ -47,6 +77,7 @@ export class ModelRegistry {
       displayName: m.name,
     }));
     this.cache.set(runtimeName, infos);
+    this.saveToDisk();
   }
 
   /**

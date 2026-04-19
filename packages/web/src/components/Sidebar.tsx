@@ -444,17 +444,12 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
                 setLeadModel('');
                 setAvailableModels([]);
                 if (e.target.value) {
-                  // Fetch available models for this runtime from any existing project (or wait until project created)
-                  fetch('/api/projects').then(r => r.json()).then(data => {
-                    const p = data.projects?.[0]?.name;
-                    if (p) {
-                      fetch(`/api/projects/${p}/models/available`).then(r => r.json()).then(models => {
-                        const rtModels = models[e.target.value];
-                        if (rtModels) {
-                          const all = [...(rtModels.high ?? []), ...(rtModels.medium ?? []), ...(rtModels.fast ?? [])];
-                          setAvailableModels(all);
-                        }
-                      }).catch(() => {});
+                  // Fetch available models for this runtime from global endpoint
+                  fetch('/api/models/available').then(r => r.json()).then(models => {
+                    const rtModels = models[e.target.value];
+                    if (rtModels) {
+                      const all = [...(rtModels.high ?? []), ...(rtModels.medium ?? []), ...(rtModels.fast ?? [])];
+                      setAvailableModels(all);
                     }
                   }).catch(() => {});
                 }

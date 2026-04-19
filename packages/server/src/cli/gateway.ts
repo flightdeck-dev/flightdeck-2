@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
 import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
+import { modelRegistry } from '../agents/ModelTiers.js';
 import type { BridgeConfig } from '../bridges/types.js';
 
 /** Load bridge config from global-config.json */
@@ -71,6 +72,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { port, corsOrigin, noRecover, continueWorkers = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
+
+  // Load cached model info from disk (so models are available before any project connects)
+  modelRegistry.loadFromDisk();
+
   const { PtyAdapter: PtyAdapterClass } = await import('../agents/PtyAdapter.js');
   const { MultiAdapter: MultiAdapterClass } = await import('../agents/MultiAdapter.js');
   const { CopilotSdkAdapter } = await import('../agents/CopilotSdkAdapter.js');

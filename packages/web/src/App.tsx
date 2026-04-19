@@ -4,8 +4,11 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Layout } from './components/Layout.tsx';
 import { FlightdeckProviders } from './hooks/FlightdeckProviders.tsx';
 import { useProject } from './hooks/useProject.tsx';
-import { Rocket, Plus } from 'lucide-react';
+import { Rocket, Plus, AlertTriangle, FolderOpen, ChevronRight } from 'lucide-react';
 import { Sidebar, CreateProjectModal } from './components/Sidebar.tsx';
+import useSWR from 'swr';
+import { api } from './lib/api.ts';
+import type { ProjectSummary } from './lib/types.ts';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.tsx'));
 const Chat = lazy(() => import('./pages/Chat.tsx'));
@@ -105,17 +108,187 @@ function EmptyState() {
 
 function RootRedirectInner() {
   const { projects, loading } = useProject();
-  const navigate = useNavigate();
 
   if (loading) return <PageFallback />;
+  if (projects.length === 0) return <EmptyState />;
+  return <GlobalOverview projects={projects} />;
+}
 
-  // If projects exist, redirect to the first one
-  if (projects.length > 0) {
-    return <Navigate to={`/${encodeURIComponent(projects[0].name)}`} replace />;
-  }
+function GlobalOverview({ projects }: { projects: ProjectSummary[] }) {
+  const navigate = useNavigate();
+  const [showCreate, setShowCreate] = useState(false);
 
-  // No projects: render Layout with sidebar + empty state
-  return <EmptyState />;
+  // Fetch escalations for all projects
+  const { data: allEscalations } = useSWR(
+    projects.length > 0 ? ['all-escalations', projects.map(p => p.name)] : null,
+    async () => {
+      const results = await Promise.all(
+        projects.map(async (p) => {
+          try {
+            const escalations = await api.getEscalations(p.name, 'pending');
+            return escalations.map((e: any) => ({ ...e, projectName: p.name }));
+          } catch {
+            return [];
+          }
+        })
+      );
+      return results.flat();
+    },
+    { refreshInterval: 10000 }
+  );
+
+  const escalations = allEscalations ?? [];
+
+  const priorityIcon = (priority: string) => {
+    switch (priority) {
+      case 'critical': return <AlertTriangle size={14} className="text-red-500" />;
+      case 'high': return <AlertTriangle size={14} className="text-orange-500" />;
+      default: return <AlertTriangle size={14} className="text-yellow-500" />;
+    }
+  };
+
+  const handleResolve = async (projectName: string, id: number, resolution: string) => {
+    try {
+      await api.resolveEscalation(projectName, id, resolution);
+      const { mutate } = await import('swr');
+      mutate((key: unknown) => Array.isArray(key) && key[0] === 'all-escalations');
+    } catch {}
+  };
+
+  const governanceBadgeColor = (gov: string) => {
+    switch (gov) {
+      case 'autonomous': return 'bg-green-500/15 text-green-400';
+      case 'supervised': return 'bg-yellow-500/15 text-yellow-400';
+      case 'collaborative': return 'bg-blue-500/15 text-blue-400';
+      default: return 'bg-gray-500/15 text-gray-400';
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      {/* Escalations Section */}
+      {escalations.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={18} className="text-red-500" />
+            Needs Attention
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>({escalations.length})</span>
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {escalations.map((esc: any) => (
+              <div key={`${esc.projectName}-${esc.id}`}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-surface-secondary)',
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  {priorityIcon(esc.priority)}
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>{esc.title}</span>
+                  <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                    — from {esc.agentId} in {esc.projectName}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>
+                    {new Date(esc.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                {esc.description && (
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '4px 0 8px 22px' }}>{esc.description}</p>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginLeft: 22 }}>
+                  <button
+                    onClick={() => handleResolve(esc.projectName, esc.id, 'acknowledged')}
+                    style={{
+                      fontSize: 12, padding: '4px 12px', borderRadius: 6,
+                      border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text-secondary)', cursor: 'pointer',
+                    }}
+                  >Respond</button>
+                  <button
+                    onClick={() => handleResolve(esc.projectName, esc.id, 'dismissed')}
+                    style={{
+                      fontSize: 12, padding: '4px 12px', borderRadius: 6,
+                      border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text-tertiary)', cursor: 'pointer',
+                    }}
+                  >Dismiss</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Projects Section */}
+      <section>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FolderOpen size={18} style={{ color: 'var(--color-text-tertiary)' }} />
+          Projects
+          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>({projects.length})</span>
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          {projects.map((p) => (
+            <div
+              key={p.name}
+              onClick={() => navigate(`/${encodeURIComponent(p.name)}`)}
+              style={{
+                padding: 16, borderRadius: 10,
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-surface-secondary)',
+                cursor: 'pointer',
+                transition: 'border-color 0.15s, background-color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent, #6366f1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono, monospace)' }}>{p.name}</span>
+                <ChevronRight size={16} style={{ color: 'var(--color-text-tertiary)' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span className={`${governanceBadgeColor(p.governance)} text-xs px-2 py-0.5 rounded-full`}>
+                  {p.governance}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                  {p.agentCount} agent{p.agentCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {p.taskStats && (
+                <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  <span>{p.taskStats.ready ?? 0} ready</span>
+                  <span>{p.taskStats.running ?? 0} running</span>
+                  <span>{p.taskStats.done ?? 0} done</span>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* New Project Card */}
+          <div
+            onClick={() => setShowCreate(true)}
+            style={{
+              padding: 16, borderRadius: 10,
+              border: '2px dashed var(--color-border)',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, minHeight: 100,
+              color: 'var(--color-text-tertiary)',
+              transition: 'border-color 0.15s, color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent, #6366f1)'; e.currentTarget.style.color = 'var(--color-accent, #6366f1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+          >
+            <Plus size={20} />
+            <span style={{ fontSize: 14, fontWeight: 500 }}>New Project</span>
+          </div>
+        </div>
+      </section>
+
+      {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={() => window.location.reload()} />}
+    </div>
+  );
 }
 
 

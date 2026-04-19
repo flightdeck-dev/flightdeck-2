@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { Sidebar } from './Sidebar.tsx';
 import { SectionErrorBoundary } from './ErrorBoundary.tsx';
@@ -53,9 +53,9 @@ export function Layout() {
     <div className="h-screen flex flex-col">
       <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="flex items-center gap-2">
-          <span className="text-[var(--color-text-primary)] text-sm font-mono font-semibold">
+          <Link to="/" className="text-[var(--color-text-primary)] text-sm font-mono font-semibold hover:opacity-80 transition-opacity no-underline">
             Flightdeck <span className="text-[var(--color-text-tertiary)] opacity-60 font-normal">v2.0.0-alpha</span>
-          </span>
+          </Link>
           {projectName && (
             <>
               <span className="text-[var(--color-border)]">·</span>

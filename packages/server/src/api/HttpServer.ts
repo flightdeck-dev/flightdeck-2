@@ -109,6 +109,15 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
 
+    // ── Global models (works even with zero projects) ──
+    if (url.pathname === '/api/models/available' && method === 'GET') {
+      await ensureModules();
+      const result: Record<string, unknown> = {};
+      for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModelsGrouped(rt);
+      json(200, result);
+      return;
+    }
+
     // ── Global config (runtime toggles, display prefs shared across projects) ──
     if (url.pathname === '/api/global-config' && method === 'GET') {
       const { existsSync, readFileSync } = await import('node:fs');
