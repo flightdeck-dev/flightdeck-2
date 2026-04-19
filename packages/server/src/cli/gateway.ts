@@ -209,9 +209,16 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // When an agent's prompt turn ends, check for unsubmitted tasks and nudge
   acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
+    // Mark agent as idle in SQLite
     for (const name of projectManager.list()) {
       const fd = projectManager.get(name);
       if (!fd) continue;
+      const agent = fd.sqlite.listAgents().find(a => a.id === agentId);
+      if (agent && agent.status === 'busy') {
+        fd.sqlite.updateAgentStatus(agentId as any, 'idle');
+        const ws = wsServers.get(name);
+        if (ws) ws.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      }
       const tasks = fd.dag.listTasks().filter(
         t => t.state === 'running' && t.assignedAgent === agentId
       );
@@ -221,10 +228,15 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         acpAdapter.steer(sessionId, {
           content: `[SYSTEM] Your turn ended but you have unsubmitted tasks: ${taskList}. Please call flightdeck_task_submit for each completed task now.`,
         }).catch(() => { /* best effort */ });
+        // Mark busy again since we're nudging
+        if (agent) fd.sqlite.updateAgentStatus(agentId as any, 'busy');
         break;
       }
     }
   };
+
+  // Wire the same turn-end handler for CopilotSdkAdapter
+  copilotSdkAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
 
   // Broadcast all agent streaming output to WebSocket clients
   acpAdapter.onAnySessionOutput = (agentId, update) => {
@@ -1097,6 +1109,9 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
   wsServer.on('user:message', (msg: any) => {
     // Generate fresh ID for this response
     msgIdRef.current = makeMessageId('lead', Date.now().toString());
+    // Mark Lead as busy while processing
+    const leadAgent = fd.sqlite.listAgents().find(a => a.role === 'lead' && a.status === 'idle');
+    if (leadAgent) fd.sqlite.updateAgentStatus(leadAgent.id as any, 'busy');
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });

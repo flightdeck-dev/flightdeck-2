@@ -76,6 +76,7 @@ export interface Task {
   needsReview?: boolean; // Default: true. If false, skip review and go straight to done.
   notifyLead?: boolean; // Default: false. If true, notify Lead when task completes.
   acceptanceCriteria?: string; // What "done" looks like — shown to worker and reviewer
+  claim?: string | null; // Submission content from worker
   context?: string; // Additional context, references, code snippets
   createdAt: string; // ISO timestamp
   updatedAt: string;

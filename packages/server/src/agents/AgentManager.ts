@@ -341,7 +341,7 @@ export class AgentManager {
         this.messageStore.createMessage({
           threadId: null,
           parentId: null,
-          taskId: agent.currentTask ?? null,
+          taskId: (agent as any).currentTask ?? null,
           authorType: 'system',
           authorId: null,
           content: `⚠️ Failed to spawn agent **${newId}** (role: ${opts.role}):\n\n\`\`\`\n${errMsg}\n\`\`\``,
