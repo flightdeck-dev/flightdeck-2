@@ -140,13 +140,13 @@ export interface EnabledModel {
 
 export interface RoleModelConfig {
   runtime?: string;     // keep for backward compat (legacy single-model)
-  model?: string;       // tier name or specific model ID
+  model?: string;       // model ID
   enabledModels?: EnabledModel[];  // model pool for role
 }
 
 export interface AgentsConfig {
   default_runtime?: string;
-  default_model?: string;    // fallback tier/model for any role not specified
+  default_model?: string;    // fallback model for any role not specified
   roles?: Record<string, RoleModelConfig>;  // AgentRole or custom role names
 }
 

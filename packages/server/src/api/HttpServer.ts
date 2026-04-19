@@ -113,7 +113,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     if (url.pathname === '/api/models/available' && method === 'GET') {
       await ensureModules();
       const result: Record<string, unknown> = {};
-      for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModelsGrouped(rt);
+      for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModels(rt);
       json(200, result);
       return;
     }
@@ -869,7 +869,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       json(200, { roles: mc.getRoleConfigs(), presets: presetNames });
     } else if (subPath === '/models/available' && method === 'GET') {
       const result: Record<string, unknown> = {};
-      for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModelsGrouped(rt);
+      for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModels(rt);
       json(200, result);
     } else if (subPath === '/runtimes' && method === 'GET') {
       const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
@@ -1043,7 +1043,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         const mc = await getModelConfig(fd, projectName);
-        if (body.runtime) mc.setRole(role, `${body.runtime}:${body.model ?? 'medium'}`);
+        if (body.runtime) mc.setRole(role, `${body.runtime}:${body.model ?? ''}`);
         else if (body.model) mc.setRole(role, body.model);
         else { json(400, { error: 'Provide runtime and/or model' }); return; }
         // Invalidate cache so next read picks up changes

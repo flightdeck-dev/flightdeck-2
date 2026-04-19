@@ -47,8 +47,8 @@ Commands:
   agent list              List agents
   chat <message>          Send a message to the Lead agent
   models                  Show current model config per role
-  models list             List available models grouped by tier
-  models set <role> <m>   Set model for a role (tier or model ID)
+  models list             List available models
+  models set <role> <m>   Set model for a role (model ID)
   log                     View decision log
   cron list|add|enable|disable|remove   Manage cron jobs
   report                  View latest report
@@ -445,12 +445,11 @@ switch (command) {
     if (!subcommand || subcommand === 'show' || subcommand === 'status') {
       const configs = mc.getRoleConfigs();
       console.log('\nFlightdeck Model Configuration\n');
-      console.log('Role              Runtime      Model              Tier');
-      console.log('────────────────  ──────────   ────────────────   ──────');
+      console.log('Role              Runtime      Model');
+      console.log('────────────────  ──────────   ────────────────');
       for (const rc of configs) {
-        const tier = ['high', 'medium', 'fast'].includes(rc.model) ? rc.model : '';
         console.log(
-          `${rc.role.padEnd(18)}${rc.runtime.padEnd(13)}${rc.model.padEnd(19)}${tier}`
+          `${rc.role.padEnd(18)}${rc.runtime.padEnd(13)}${rc.model}`
         );
       }
       console.log(`\nPresets: ${PRESET_NAMES.join(' | ')}`);
@@ -464,14 +463,12 @@ switch (command) {
         break;
       }
       for (const rt of runtimes) {
-        const grouped = registry.getModelsGrouped(rt);
+        const models = registry.getModels(rt);
         console.log(`\nAvailable Models (${rt})\n`);
-        console.log('Tier     Model ID              Display Name');
-        console.log('──────   ───────────────────   ─────────────────────');
-        for (const tier of ['high', 'medium', 'fast'] as const) {
-          for (const m of grouped[tier]) {
-            console.log(`${tier.padEnd(9)}${m.modelId.padEnd(22)}${m.displayName}`);
-          }
+        console.log('Model ID              Display Name');
+        console.log('───────────────────   ─────────────────────');
+        for (const m of models) {
+          console.log(`${m.modelId.padEnd(22)}${m.displayName}`);
         }
       }
     } else if (subcommand === 'set') {
@@ -480,8 +477,8 @@ switch (command) {
       if (!role || !spec) {
         console.error('Usage: flightdeck models set <role> <runtime:model>');
         console.error('Examples:');
-        console.error('  flightdeck models set lead copilot:medium');
-        console.error('  flightdeck models set worker claude-code:high');
+        console.error('  flightdeck models set lead copilot:claude-sonnet-4-6');
+        console.error('  flightdeck models set worker claude-code:claude-opus-4-6');
         console.error('  flightdeck models set reviewer copilot:claude-opus-4-6');
         process.exit(1);
       }

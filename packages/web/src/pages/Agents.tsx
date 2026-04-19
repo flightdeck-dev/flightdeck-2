@@ -147,9 +147,17 @@ function AgentDetailPanel({
     if (!modelsData) return;
     const models: string[] = [];
     for (const runtime of Object.keys(modelsData as Record<string, any>)) {
-      for (const tier of Object.keys((modelsData as Record<string, any>)[runtime])) {
-        for (const m of (modelsData as Record<string, any>)[runtime][tier]) {
+      const runtimeModels = (modelsData as Record<string, any>)[runtime];
+      // Support both flat array and legacy grouped object
+      if (Array.isArray(runtimeModels)) {
+        for (const m of runtimeModels) {
           if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
+        }
+      } else {
+        for (const group of Object.values(runtimeModels as Record<string, any>)) {
+          for (const m of group as any[]) {
+            if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
+          }
         }
       }
     }
@@ -528,10 +536,14 @@ function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; p
     if (!modelsData) return [];
     const result: { runtime: string; models: string[] }[] = [];
     const agentRuntime = agent.runtimeName ?? agent.runtime ?? '';
-    for (const [runtime, tiers] of Object.entries(modelsData as Record<string, Record<string, Array<{ modelId: string }>>>)) {
+    for (const [runtime, runtimeModels] of Object.entries(modelsData as Record<string, any>)) {
       const models: string[] = [];
-      for (const tier of Object.values(tiers)) {
-        for (const m of tier) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
+      if (Array.isArray(runtimeModels)) {
+        for (const m of runtimeModels) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
+      } else {
+        for (const group of Object.values(runtimeModels as Record<string, any>)) {
+          for (const m of group as any[]) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
+        }
       }
       if (models.length) result.push({ runtime, models });
     }

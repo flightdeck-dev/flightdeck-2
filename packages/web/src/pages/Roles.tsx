@@ -83,7 +83,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   }, [role.id, role.instructions]);
 
   // Build models grouped by runtime — show ALL discovered models
-  const modelsByRuntime: Record<string, { modelId: string; displayName?: string; tier?: string; configured: boolean }[]> = {};
+  const modelsByRuntime: Record<string, { modelId: string; displayName?: string; configured: boolean }[]> = {};
   const seen = new Set<string>();
 
   for (const [runtime, groups] of Object.entries(availableModels)) {
@@ -92,7 +92,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         if (Array.isArray(models)) {
           for (const m of models) {
             if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
-              const mo = m as { id?: string; modelId?: string; displayName?: string; tier?: string };
+              const mo = m as { id?: string; modelId?: string; displayName?: string };
               const modelId = mo.modelId ?? mo.id!;
               const key = `${runtime}:${modelId}`;
               if (!seen.has(key)) {
@@ -101,7 +101,6 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                 (modelsByRuntime[runtime] ??= []).push({
                   modelId,
                   displayName: mo.displayName,
-                  tier: mo.tier,
                   configured: isConfigured,
                 });
               }
@@ -266,7 +265,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                   </p>
                 );
               })()}
-              {currentModels.map(({ modelId, displayName, tier, configured }) => (
+              {currentModels.map(({ modelId, displayName, configured }) => (
                 <div key={modelId} className="flex items-center gap-3 py-1">
                   <input
                     type="checkbox"
@@ -282,10 +281,7 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                       <span className="text-[10px] text-[var(--color-text-tertiary)] font-mono">{modelId}</span>
                     )}
                   </div>
-                  {tier && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">{tier}</span>
-                  )}
-                  {configured && !tier && (
+                  {configured && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">configured</span>
                   )}
                   <button

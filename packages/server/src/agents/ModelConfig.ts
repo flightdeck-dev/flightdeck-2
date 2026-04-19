@@ -8,18 +8,14 @@ import { AGENT_ROLES } from '@flightdeck-ai/shared';
 export interface ResolvedRoleConfig {
   role: string;
   runtime: string;
-  model: string;       // raw value from config (tier or model ID)
-  resolvedModel?: string; // after tier resolution
-  tier?: string;
+  model: string;       // concrete model ID
   enabledModels?: EnabledModel[];
 }
 
-const BALANCED_HIGH_ROLES = new Set(['worker', 'reviewer', 'qa-tester']);
-
 const PRESETS: Record<string, (role: string) => string> = {
-  budget: () => 'fast',
-  balanced: (role) => BALANCED_HIGH_ROLES.has(role) ? 'high' : 'medium',
-  performance: () => 'high',
+  budget: () => '',
+  balanced: () => '',
+  performance: () => '',
 };
 
 export const PRESET_NAMES = Object.keys(PRESETS);
@@ -61,7 +57,7 @@ export class ModelConfig {
   getRoleConfigs(): ResolvedRoleConfig[] {
     const agents = this.getAgentsConfig();
     const defaultRuntime = agents.default_runtime ?? 'copilot';
-    const defaultModel = agents.default_model ?? 'high';
+    const defaultModel = agents.default_model ?? '';
 
     // Collect all roles: built-in + any custom ones in config
     const allRoles = new Set<string>([...AGENT_ROLES]);
@@ -93,7 +89,7 @@ export class ModelConfig {
     return {
       role,
       runtime: rc.runtime ?? agents.default_runtime ?? 'copilot',
-      model: rc.model ?? agents.default_model ?? 'high',
+      model: rc.model ?? agents.default_model ?? '',
       enabledModels,
     };
   }
@@ -113,7 +109,7 @@ export class ModelConfig {
     const runtime = rc?.runtime ?? agents.default_runtime;
     const model = rc?.model ?? agents.default_model;
     if (!runtime && !model) return []; // No config → let adapter use its default
-    return [{ runtime: runtime ?? 'copilot', model: model ?? 'high', enabled: true, isDefault: true }];
+    return [{ runtime: runtime ?? 'copilot', model: model ?? '', enabled: true, isDefault: true }];
   }
 
   /**

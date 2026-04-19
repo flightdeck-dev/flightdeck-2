@@ -851,7 +851,7 @@ function ProjectSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Lead Runtime</span>
-            <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel || 'high' }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+            <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
               <option value="copilot">Copilot (SDK)</option>
               <option value="codex">Codex</option>
               <option value="claude-code">Claude Code</option>
@@ -863,8 +863,7 @@ function ProjectSettings() {
           <div className="flex items-center justify-between">
             <span className="text-sm">Lead Model</span>
             <select value={leadModel} onChange={async e => { setLeadModel(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: leadRuntime, model: e.target.value }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
-              <option value="high">High tier</option>
-              <option value="medium">Medium tier</option>
+              <option value="">Select model...</option>
               {leadModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>

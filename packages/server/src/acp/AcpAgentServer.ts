@@ -147,7 +147,7 @@ export class AcpAgentServer implements Agent {
         availableModels.push({
           modelId: m.modelId,
           name: `${m.displayName} (${rt})`,
-          description: `${m.tier} tier via ${rt} runtime`,
+          description: `via ${rt} runtime`,
         });
       }
     }
