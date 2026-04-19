@@ -413,6 +413,14 @@ export class SqliteStore extends EventEmitter {
     return row ?? { totalIn: 0, totalOut: 0, totalCacheRead: 0, totalCacheWrite: 0, totalCost: 0, requestCount: 0 };
   }
 
+  getAgentTokenUsage(agentId: AgentId): { totalIn: number; totalOut: number } {
+    const row = this._db.select({
+      totalIn: sql<number>`COALESCE(SUM(${costEntries.tokensIn}), 0)`,
+      totalOut: sql<number>`COALESCE(SUM(${costEntries.tokensOut}), 0)`,
+    }).from(costEntries).where(eq(costEntries.agentId, agentId as string)).get();
+    return row ?? { totalIn: 0, totalOut: 0 };
+  }
+
   updateAgentContextWindow(agentId: AgentId, currentTokens: number, tokenLimit: number): void {
     this._db.run(sql`UPDATE agents SET context_window_tokens = ${currentTokens}, context_window_limit = ${tokenLimit} WHERE id = ${agentId}`);
   }

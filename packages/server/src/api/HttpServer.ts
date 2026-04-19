@@ -616,7 +616,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/agents' && method === 'GET') {
       const includeRetired = url.searchParams.get('include_retired') === 'true';
-      json(200, fd.listAgents(includeRetired));
+      const agentList = fd.listAgents(includeRetired);
+      // Enrich with token counts from cost entries
+      const enriched = agentList.map(a => {
+        const usage = fd.sqlite.getAgentTokenUsage(a.id as import('@flightdeck-ai/shared').AgentId);
+        return { ...a, tokensIn: usage.totalIn, tokensOut: usage.totalOut };
+      });
+      json(200, enriched);
     } else if (subPath === '/agents/spawn' && method === 'POST') {
       const am = agentManagers?.get(projectName) ?? fd.agentManager;
       if (!am) { json(500, { error: 'No AgentManager available for this project' }); return; }
