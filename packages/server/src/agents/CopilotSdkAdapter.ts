@@ -223,7 +223,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
-      name: 'flightdeck_msg_send',
+      name: 'flightdeck_send',
       description: 'Send a message to another agent or channel.',
       parameters: {
         type: 'object',
@@ -407,6 +407,38 @@ export class CopilotSdkAdapter extends AgentAdapter {
         description: 'Create a spec from requirements.',
         parameters: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } }, required: ['title', 'content'] },
         handler: async (args: { title: string; content: string }) => JSON.stringify(await httpPost('/specs', args)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_cancel',
+        description: 'Cancel a task.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' }, reason: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string; reason?: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/cancel`, { reason: args.reason })),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_skip',
+        description: 'Skip a task.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' }, reason: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string; reason?: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/skip`, { reason: args.reason })),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_task_reopen',
+        description: 'Reopen a completed or cancelled task.',
+        parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+        handler: async (args: { taskId: string }) => JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/reopen`)),
+        skipPermission: true,
+      });
+
+      tools.push({
+        name: 'flightdeck_discuss',
+        description: 'Create a focused discussion thread.',
+        parameters: { type: 'object', properties: { topic: { type: 'string' }, context: { type: 'string' }, participants: { type: 'array', items: { type: 'string' } } }, required: ['topic'] },
+        handler: async (args: any) => JSON.stringify(await httpPost('/discussions', args)),
         skipPermission: true,
       });
     }
