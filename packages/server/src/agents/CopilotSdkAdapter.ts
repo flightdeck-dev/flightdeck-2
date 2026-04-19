@@ -573,14 +573,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
-      name: 'flightdeck_agent_unretire',
-      description: 'Un-retire a previously retired agent.',
-      parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },
-      handler: async (args: { targetAgentId: string }) => JSON.stringify(await httpPost(`/agents/${encodeURIComponent(args.targetAgentId)}/unretire`)),
-      skipPermission: true,
-    });
-
-    tools.push({
       name: 'flightdeck_agent_restart',
       description: 'Restart an agent.',
       parameters: { type: 'object', properties: { targetAgentId: { type: 'string' } }, required: ['targetAgentId'] },

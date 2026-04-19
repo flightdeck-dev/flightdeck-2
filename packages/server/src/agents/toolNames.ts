@@ -33,7 +33,6 @@ export const TOOL_NAMES = {
   AGENT_HIBERNATE: 'flightdeck_agent_hibernate',
   AGENT_WAKE: 'flightdeck_agent_wake',
   AGENT_RETIRE: 'flightdeck_agent_retire',
-  AGENT_UNRETIRE: 'flightdeck_agent_unretire',
   AGENT_RESTART: 'flightdeck_agent_restart',
   AGENT_INTERRUPT: 'flightdeck_agent_interrupt',
 
