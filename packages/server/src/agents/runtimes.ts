@@ -44,7 +44,7 @@ export interface RuntimeDefinition {
  * All known agent runtimes.
  *
  * Runtimes marked with supportsAcp: true can be spawned via AcpAdapter.
- * Others need PtyAdapter or a custom adapter (documented in notes).
+ * Others need a custom adapter (documented in notes).
  */
 export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
   codex: {
@@ -110,9 +110,9 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     command: 'claude',
     args: [],
     systemPromptMethod: 'both',
-    supportsAcp: false,
+    supportsAcp: true,
     supportsSessionLoad: false,
-    adapter: 'pty',
+    adapter: 'acp',
     icon: '🟣',
     docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
     setupLinks: [{ label: 'Claude Code', url: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview' }],

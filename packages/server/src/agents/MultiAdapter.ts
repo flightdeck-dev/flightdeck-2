@@ -3,21 +3,19 @@ import type { AgentRuntime } from '@flightdeck-ai/shared';
 import { RUNTIME_REGISTRY } from './runtimes.js';
 
 /**
- * Composite adapter that delegates to AcpAdapter or PtyAdapter
+ * Composite adapter that delegates to AcpAdapter or CopilotSdkAdapter
  * based on the runtime's adapter type in RUNTIME_REGISTRY.
  */
 export class MultiAdapter extends AgentAdapter {
   readonly runtime: AgentRuntime = 'acp'; // default
   private acpAdapter: AgentAdapter;
-  private ptyAdapter: AgentAdapter;
   private copilotSdkAdapter: AgentAdapter | null;
   /** Maps sessionId → adapter for routing steer/kill/getMetadata */
   private sessionAdapterMap = new Map<string, AgentAdapter>();
 
-  constructor(acpAdapter: AgentAdapter, ptyAdapter: AgentAdapter, copilotSdkAdapter?: AgentAdapter | null) {
+  constructor(acpAdapter: AgentAdapter, copilotSdkAdapter?: AgentAdapter | null) {
     super();
     this.acpAdapter = acpAdapter;
-    this.ptyAdapter = ptyAdapter;
     this.copilotSdkAdapter = copilotSdkAdapter ?? null;
   }
 
@@ -25,7 +23,6 @@ export class MultiAdapter extends AgentAdapter {
     if (!runtime) return this.acpAdapter;
     const def = RUNTIME_REGISTRY[runtime];
     if (def?.adapter === 'copilot-sdk' && this.copilotSdkAdapter) return this.copilotSdkAdapter;
-    if (def?.adapter === 'pty') return this.ptyAdapter;
     return this.acpAdapter;
   }
 
@@ -61,7 +58,6 @@ export class MultiAdapter extends AgentAdapter {
 
   /** Expose ACP adapter for session-end callbacks etc. */
   getAcpAdapter(): AgentAdapter { return this.acpAdapter; }
-  getPtyAdapter(): AgentAdapter { return this.ptyAdapter; }
   getCopilotSdkAdapter(): AgentAdapter | null { return this.copilotSdkAdapter; }
 
   override getSession(sessionId: string): { output: string } | undefined {

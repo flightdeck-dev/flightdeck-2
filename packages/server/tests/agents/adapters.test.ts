@@ -1,11 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { AcpAdapter } from '../../src/agents/AcpAdapter.js';
-import { PtyAdapter } from '../../src/agents/PtyAdapter.js';
-import { SessionManager, type RuntimeConfig } from '../../src/agents/SessionManager.js';
+import { type RuntimeConfig } from '../../src/agents/SessionManager.js';
 
 const TEST_RUNTIMES: Record<string, RuntimeConfig> = {
   codex: { command: 'echo', args: ['{prompt}'], adapter: 'acp' },
-  claude: { command: 'echo', args: ['{prompt}'], adapter: 'pty' },
+  claude: { command: 'echo', args: ['{prompt}'], adapter: 'acp' },
 };
 
 describe('AcpAdapter', () => {
@@ -101,37 +100,10 @@ describe('AcpAdapter', () => {
   });
 });
 
-describe.skip('PtyAdapter — needs real claude CLI', () => {
-  let mgr: SessionManager;
-  let adapter: PtyAdapter;
-
-  afterEach(() => mgr?.clear());
-
-  it('spawns with pty runtime', async () => {
-    mgr = new SessionManager(TEST_RUNTIMES);
-    adapter = new PtyAdapter(mgr, 'claude');
-
-    const meta = await adapter.spawn({ role: 'worker', cwd: '/tmp' });
-    expect(meta.status).toBe('running');
-    expect(meta.sessionId).toMatch(/^session-/);
-  });
-
-  it('runtime is pty', () => {
-    mgr = new SessionManager(TEST_RUNTIMES);
-    adapter = new PtyAdapter(mgr, 'claude');
-    expect(adapter.runtime).toBe('pty');
-  });
-});
-
 describe('Adapter selection', () => {
   it('AcpAdapter has acp runtime', () => {
     const adapter = new AcpAdapter(TEST_RUNTIMES, 'codex');
     expect(adapter.runtime).toBe('acp');
     adapter.clear();
-  });
-
-  it('PtyAdapter has pty runtime', () => {
-    const adapter = new PtyAdapter(new SessionManager(TEST_RUNTIMES), 'claude');
-    expect(adapter.runtime).toBe('pty');
   });
 });

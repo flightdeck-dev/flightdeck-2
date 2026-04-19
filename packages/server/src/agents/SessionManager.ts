@@ -47,9 +47,8 @@ export const DEFAULT_RUNTIMES: Record<string, RuntimeConfig> = Object.fromEntrie
 import { interpolateArgs } from './interpolateArgs.js';
 
 /**
- * Simple PTY-based session backend used by PtyAdapter.
- * Not used in the daemon startup path (which uses AcpAdapter instead),
- * but retained as the lightweight/non-ACP agent backend.
+ * Session backend providing runtime config lookups.
+ * Used by AcpAdapter and Orchestrator for runtime resolution.
  */
 export class SessionManager {
   private sessions = new Map<string, AgentSession>();

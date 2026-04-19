@@ -15,7 +15,7 @@ export { Orchestrator } from './orchestrator/Orchestrator.js';
 export { FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from './lead/LeadManager.js';
 export { AgentAdapter } from './agents/AgentAdapter.js';
 export { AcpAdapter } from './agents/AcpAdapter.js';
-export { PtyAdapter } from './agents/PtyAdapter.js';
+
 export { AgentManager, buildSystemPrompt } from './agents/AgentManager.js';
 export { WorktreeManager } from './agents/WorktreeManager.js';
 export { IsolationManager } from './isolation/IsolationManager.js';

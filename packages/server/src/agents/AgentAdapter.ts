@@ -41,7 +41,7 @@ export interface AgentMetadata {
 
 /**
  * Abstract interface for controlling agent lifecycle.
- * Implementations: AcpAdapter (native ACP), PtyAdapter (tmux/PTY).
+ * Implementations: AcpAdapter (native ACP), CopilotSdkAdapter (Copilot SDK).
  */
 export abstract class AgentAdapter {
   abstract readonly runtime: AgentRuntime;

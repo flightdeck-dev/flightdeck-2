@@ -76,7 +76,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Load cached model info from disk (so models are available before any project connects)
   modelRegistry.loadFromDisk();
 
-  const { PtyAdapter: PtyAdapterClass } = await import('../agents/PtyAdapter.js');
   const { MultiAdapter: MultiAdapterClass } = await import('../agents/MultiAdapter.js');
   const { CopilotSdkAdapter } = await import('../agents/CopilotSdkAdapter.js');
   const { LeadManager } = await import('../lead/LeadManager.js');
@@ -114,7 +113,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   } catch { /* best effort */ }
 
   const acpAdapter = new AcpAdapterClass(undefined, process.env.FLIGHTDECK_RUNTIME || 'codex');
-  const ptyAdapter = new PtyAdapterClass(undefined, 'claude-code');
   const copilotSdkAdapter = new CopilotSdkAdapter({
     onUsage: (agentId, usage) => {
       for (const name of projectManager.list()) {
@@ -162,7 +160,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       }
     },
   });
-  const multiAdapter = new MultiAdapterClass(acpAdapter, ptyAdapter, copilotSdkAdapter);
+  const multiAdapter = new MultiAdapterClass(acpAdapter, copilotSdkAdapter);
   const projectManager = new ProjectManager(multiAdapter);
 
   // Handle agent process crashes: update SQLite status so we know
@@ -223,7 +221,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   };
   acpAdapter.onSessionTurnStart = turnStartHandler;
   copilotSdkAdapter.onSessionTurnStart = turnStartHandler;
-  ptyAdapter.onSessionTurnStart = turnStartHandler;
 
   // When an agent's prompt turn ends, mark idle in SQLite
   acpAdapter.onSessionTurnEnd = (sessionId, agentId) => {
@@ -255,7 +252,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // Wire the same turn-end handler for CopilotSdkAdapter
   copilotSdkAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
-  ptyAdapter.onSessionTurnEnd = acpAdapter.onSessionTurnEnd;
 
   // Broadcast all agent streaming output to WebSocket clients
   acpAdapter.onAnySessionOutput = (agentId, update) => {
