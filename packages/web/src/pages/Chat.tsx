@@ -471,7 +471,7 @@ export default function Chat() {
   const { connected, projectName } = useProject();
   const { agents } = useAgents();
   const leadAgent = agents.find(a => a.role === 'lead' && a.status !== 'retired' && a.status !== 'offline');
-  const isLeadSpawning = !leadAgent && agents.length === 0 && messages.length === 0;
+  const isLeadSpawning = !leadAgent && agents.length === 0 && messages.length > 0;
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);

@@ -736,6 +736,8 @@ function ProjectSettings() {
   const [leadRuntime, setLeadRuntime] = useState<string>("copilot");
   const [leadModel, setLeadModel] = useState<string>("high");
   const [leadModelOptions, setLeadModelOptions] = useState<string[]>([]);
+  const [cwd, setCwd] = useState<string>('');
+  const [originalCwd, setOriginalCwd] = useState<string>('');
 
   useEffect(() => {
     if (!status?.config) return;
@@ -744,6 +746,8 @@ function ProjectSettings() {
     setScoutEnabled(cfg.scoutEnabled === true);
     setIdleTimeoutEnabled((cfg.heartbeatIdleTimeoutDays ?? 3) > 0);
     setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
+    setCwd(cfg.cwd ?? '');
+    setOriginalCwd(cfg.cwd ?? '');
   }, [status?.config]);
 
   // Load lead runtime/model from model config
@@ -753,17 +757,18 @@ function ProjectSettings() {
       const lead = data.roles?.find((r: any) => r.role === "lead");
       if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? "high"); }
     }).catch(() => {});
-    // Fetch available models for dropdown
+    // Fetch available models for dropdown (filtered by current runtime)
     fetch(`/api/projects/${encodeURIComponent(projectName)}/models/available`).then(r => r.json()).then(data => {
+      const runtimeModels = data[leadRuntime];
       const all: string[] = [];
-      for (const tiers of Object.values(data)) {
-        for (const models of Object.values(tiers as any)) {
+      if (runtimeModels) {
+        for (const models of Object.values(runtimeModels)) {
           for (const m of models as any[]) { if (m.modelId && !all.includes(m.modelId)) all.push(m.modelId); }
         }
       }
       setLeadModelOptions(all);
     }).catch(() => {});
-  }, [projectName]);
+  }, [projectName, leadRuntime]);
   const saveConfig = async (update: Record<string, unknown>) => {
     if (!projectName) return;
     setSaving(true);
@@ -797,6 +802,17 @@ function ProjectSettings() {
           <div className="flex items-center justify-between">
             <span className="text-sm">Name</span>
             <span className="text-sm font-mono text-[var(--color-text-secondary)]">{status.config?.name ?? '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Working Directory</span>
+            <input
+              type="text"
+              value={cwd}
+              onChange={e => setCwd(e.target.value)}
+              onBlur={() => { if (cwd !== originalCwd) { saveConfig({ cwd }); setOriginalCwd(cwd); } }}
+              placeholder="/path/to/project"
+              className="w-64 text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] font-mono"
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Governance</span>
