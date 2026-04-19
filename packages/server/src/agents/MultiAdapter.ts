@@ -63,4 +63,9 @@ export class MultiAdapter extends AgentAdapter {
   getAcpAdapter(): AgentAdapter { return this.acpAdapter; }
   getPtyAdapter(): AgentAdapter { return this.ptyAdapter; }
   getCopilotSdkAdapter(): AgentAdapter | null { return this.copilotSdkAdapter; }
+
+  override getSession(sessionId: string): { output: string } | undefined {
+    const adapter = this.sessionAdapterMap.get(sessionId) ?? this.acpAdapter;
+    return adapter.getSession(sessionId);
+  }
 }
