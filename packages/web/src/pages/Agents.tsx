@@ -359,8 +359,8 @@ function AgentDetailPanel({
                       className="flex-1 resize-none bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)] max-h-32 overflow-y-auto"
                       rows={1}
                       onKeyDown={e => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                          // ⌘+Enter = newline
+                        if (e.key === 'Enter' && e.shiftKey) {
+                          // Shift+Enter = newline
                           return;
                         }
                         if (e.key === 'Enter') {
