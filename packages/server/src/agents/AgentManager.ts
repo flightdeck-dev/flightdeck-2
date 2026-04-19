@@ -7,6 +7,7 @@ import type { SkillManager } from '../skills/SkillManager.js';
 import { type WorktreeManager } from './WorktreeManager.js';
 import type { MessageStore } from '../comms/MessageStore.js';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { RUNTIME_REGISTRY } from './runtimes.js';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -208,7 +209,7 @@ export class AgentManager {
     const agent: Agent = {
       id: newId,
       role: opts.role,
-      runtime: opts.runtime ?? this.adapter.runtime,
+      runtime: (opts.runtime && RUNTIME_REGISTRY[opts.runtime]?.adapter as any) ?? this.adapter.runtime,
       runtimeName: opts.runtime ?? null,
       acpSessionId: null,
       status: 'idle',
