@@ -1,11 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, Outlet } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Layout } from './components/Layout.tsx';
 import { FlightdeckProviders } from './hooks/FlightdeckProviders.tsx';
 import { useProject } from './hooks/useProject.tsx';
-import { Rocket } from 'lucide-react';
-import { Sidebar } from './components/Sidebar.tsx';
+import { Rocket, Plus } from 'lucide-react';
+import { Sidebar, CreateProjectModal } from './components/Sidebar.tsx';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.tsx'));
 const Chat = lazy(() => import('./pages/Chat.tsx'));
@@ -64,6 +64,7 @@ function RootRedirect() {
 
 /** Empty state shown inside Layout when no projects exist */
 function EmptyState() {
+  const [showCreate, setShowCreate] = useState(false);
   return (
     <div style={{
       display: 'flex',
@@ -78,9 +79,26 @@ function EmptyState() {
       <p style={{ color: 'var(--color-text-secondary)', fontSize: 14, margin: 0, maxWidth: 360, textAlign: 'center' }}>
         Multi-agent orchestration platform. Create your first project to get started.
       </p>
-      <p style={{ color: 'var(--color-text-tertiary)', fontSize: 12, margin: '8px 0 0' }}>
-        Click <strong>+ New Project</strong> in the sidebar to begin.
-      </p>
+      <button
+        onClick={() => setShowCreate(true)}
+        style={{
+          marginTop: 8,
+          padding: '10px 24px',
+          fontSize: 14,
+          fontWeight: 500,
+          color: 'white',
+          backgroundColor: 'var(--color-accent, #6366f1)',
+          border: 'none',
+          borderRadius: 8,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <Plus size={16} /> New Project
+      </button>
+      {showCreate && <CreateProjectModal onClose={() => setShowCreate(false)} onCreated={() => window.location.reload()} />}
     </div>
   );
 }

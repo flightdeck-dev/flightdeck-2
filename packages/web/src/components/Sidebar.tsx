@@ -340,7 +340,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   );
 }
 
-function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [cwd, setCwd] = useState('');
   const [governance, setGovernance] = useState('autonomous');
