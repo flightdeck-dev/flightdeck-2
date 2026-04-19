@@ -49,11 +49,15 @@
 
 ## Design Principle
 
-**`onSessionTurnEnd` is the single source of truth for `busy → idle`.** All adapters (ACP, CopilotSdk) fire this callback when a prompt turn completes.
+**`onSessionTurnStart` and `onSessionTurnEnd` are the single source of truth for `idle ↔ busy`.**
 
-**`onSessionTurnStart` is the single source of truth for `idle → busy`.** All adapters fire this callback when a prompt/steer begins. Both are wired in `gateway.ts` to update SQLite and broadcast WS.
+All three adapters (ACP, CopilotSdk, Pty) fire these callbacks:
+- `onSessionTurnStart(sessionId, agentId)` — fired when a prompt/steer begins
+- `onSessionTurnEnd(sessionId, agentId)` — fired when a prompt turn completes
 
-Orchestrator also pre-marks `busy` on task claim to prevent double-assignment races. This is a reservation, not a duplicate — `onSessionTurnStart` confirms it.
+Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
+
+**Exception:** Orchestrator pre-marks `busy` on task claim to prevent double-assignment races. This is a reservation — `onSessionTurnStart` confirms it when the actual steer fires.
 
 ## Transition Table
 
@@ -61,36 +65,39 @@ Orchestrator also pre-marks `busy` on task claim to prevent double-assignment ra
 |------|----|---------|----------|
 | *(new)* | `busy` | `spawnAgent()` succeeds | `AgentManager.spawnAgent` |
 | *(new)* | `errored` | `spawnAgent()` fails | `AgentManager.spawnAgent` catch |
-| `busy` | `idle` | Prompt turn completes (`onSessionTurnEnd`) | `gateway.ts` (ACP + CopilotSdk) |
-| `busy` | `idle` | `steerLead()` returns | `LeadManager.steerLead` |
+| `idle` | `busy` | `onSessionTurnStart` (steer/prompt begins) | All adapters → `gateway.ts` |
+| `idle` | `busy` | Orchestrator pre-marks on task claim | `Orchestrator` (reservation) |
+| `busy` | `idle` | `onSessionTurnEnd` (prompt turn completes) | All adapters → `gateway.ts` |
 | `busy` | `offline` | ACP session ends (process exit/error/EOF) | `AcpAdapter.onSessionEnd` → `gateway.ts` |
 | `busy` | `offline` | Agent terminated | `AgentManager.terminateAgent` |
 | `busy` | `offline` | Orchestrator detects stale agent | `Orchestrator` (stale cleanup) |
-| `idle` | `busy` | User sends message (Lead) | `gateway.ts wireWsToLead` |
-| `idle` | `busy` | `steerLead()` called | `LeadManager.steerLead` |
-| `idle` | `busy` | `steerAgent()` called | `AgentManager.steerAgent` |
-| `idle` | `busy` | Orchestrator assigns task | `Orchestrator` (task claim) |
-| `idle` | `busy` | ReviewFlow assigns review | `ReviewFlow` |
-| `idle` | `busy` | `wakeAgent()` called | `AgentManager.wakeAgent` |
 | `idle` | `offline` | Agent terminated | `AgentManager.terminateAgent` |
 | `idle` | `offline` | Gateway startup (`--no-recover`) | `gateway.ts` (startup cleanup) |
 | `idle` | `hibernated` | `hibernateAgent()` called | `AgentManager.hibernateAgent` |
 | `idle` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
-| `offline` | `busy` | Agent respawned | `AgentManager.spawnAgent` (new ID) |
 | `hibernated` | `busy` | `wakeAgent()` called | `AgentManager.wakeAgent` |
 | `hibernated` | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
-| `errored` | `busy` | Agent respawned (new ID) | `AgentManager.spawnAgent` |
+| `errored` | *(new agent)* | Respawn with new agent ID | `AgentManager.spawnAgent` |
 | *any* | `retired` | `retireAgent()` called | `AgentManager.retireAgent` |
 | *any* | `offline` | Gateway shutdown cleanup | `gateway.ts` |
+
+## Callback Locations
+
+| Adapter | `onSessionTurnStart` fires in | `onSessionTurnEnd` fires in |
+|---------|-------------------------------|----------------------------|
+| ACP | `sendPrompt()` — before `connection.prompt()` | After prompt response + queue drain |
+| CopilotSdk | `steer()` — before `session.send()` | On `session.idle` event |
+| Pty | `steer()` — before `runClaude()` | After `runClaude()` returns (success or error) |
 
 ## Key Invariants
 
 1. **Only `idle` agents can be assigned new work** (Orchestrator checks `status === 'idle'`)
-2. **`busy → idle` requires an explicit event** — either `onSessionTurnEnd` callback or `steerLead` return
-3. **`hibernated` agents have their session saved** — waking resumes the session
-4. **`retired` is terminal** — no transitions out of `retired`
-5. **`errored` is terminal for that agent ID** — a new agent must be spawned
-6. **`offline` means the process is gone** — the agent ID persists in SQLite for history
+2. **`busy → idle` always goes through `onSessionTurnEnd`** — no other code path sets idle
+3. **`idle → busy` always goes through `onSessionTurnStart`** (+ Orchestrator reservation)
+4. **`hibernated` agents have their session saved** — waking resumes the session
+5. **`retired` is terminal** — no transitions out of `retired`
+6. **`errored` is terminal for that agent ID** — a new agent must be spawned
+7. **`offline` means the process is gone** — the agent ID persists in SQLite for history
 
 ## Known Gaps (TODO)
 
