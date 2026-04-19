@@ -138,9 +138,14 @@ function ProjectItem({ project, isActive, collapsed, onDeleted }: { project: Pro
               </div>
             )}
           </div>
-          {(project.busyAgentCount > 0 || project.agentCount > 0) && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-white font-medium min-w-[18px] text-center">
-              {project.busyAgentCount ?? 0}/{project.agentCount}
+          {project.agentCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-secondary)]">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                (project.busyAgentCount ?? 0) > 0
+                  ? 'bg-emerald-400 animate-pulse'
+                  : 'bg-[var(--color-text-tertiary)] opacity-50'
+              }`} />
+              {project.agentCount}
             </span>
           )}
           {activeTasks > 0 && (
