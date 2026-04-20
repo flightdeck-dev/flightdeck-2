@@ -19,7 +19,7 @@ const ProjectCtx = createContext<ProjectContextValue | null>(null);
 export function ProjectProvider({ projectName, children }: { projectName: string | null; children: ReactNode }) {
   const { subscribe, connected } = useWsEventBus();
 
-  const { data: projects = [], mutate: mutateProjects } = useSWR('projects', () => api.getProjects());
+  const { data: projects = [], mutate: mutateProjects } = useSWR('projects', () => api.getProjects(), { refreshInterval: 5000 });
   const { data: status = null, isLoading: statusLoading, mutate: mutateStatus } = useSWR(
     projectName ? ['status', projectName] : null,
     () => api.getStatus(projectName!)

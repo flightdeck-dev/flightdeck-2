@@ -122,7 +122,7 @@ function AgentPanel() {
           <div className="flex items-center gap-2">
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${a.status === 'busy' ? 'animate-pulse' : ''}`}
-              style={{ backgroundColor: a.status === 'idle' ? 'var(--color-status-ready)' : a.status === 'busy' ? 'var(--color-status-running)' : 'var(--color-text-tertiary)' }}
+              style={{ backgroundColor: a.status === 'busy' ? 'var(--color-status-running)' : a.status === 'idle' ? 'var(--color-text-tertiary)' : 'var(--color-text-tertiary)' }}
             />
             <span className="text-xs font-medium truncate">{a.id.replace(/-[a-z0-9]+$/, '')}</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]">{a.role}</span>
