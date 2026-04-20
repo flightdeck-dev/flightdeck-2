@@ -10,7 +10,7 @@ export interface FlightdeckTask {
   description?: string;
   role: string;
   assignedAgent?: string;
-  state: "ready" | "assigned" | "running" | "in_review" | "done" | "failed" | "cancelled";
+  state: "ready" | "pending" | "blocked" | "planned" | "running" | "in_review" | "done" | "failed" | "cancelled" | "skipped";
   parentId?: string | null;
   epicId?: string | null;
   createdAt?: string;
@@ -20,7 +20,7 @@ export interface FlightdeckTask {
 export interface FlightdeckAgent {
   id: string;
   role: string;
-  status: "idle" | "busy" | "working" | "error" | "terminated";
+  status: "idle" | "busy" | "hibernated" | "errored" | "retired";
   model: string;
   currentTask?: string;
 }
@@ -36,7 +36,7 @@ export interface ChatMessage {
   threadId?: string | null;
   parentId?: string | null;
   taskId?: string | null;
-  authorType: "user" | "lead" | "agent";
+  authorType: "user" | "lead" | "agent" | "system";
   authorId: string;
   content: string;
   createdAt?: string;

@@ -212,7 +212,7 @@ export class ChatPanel {
     const div = document.createElement('div');
     const cls = msg.authorType || 'user';
     div.className = 'msg ' + cls;
-    const author = msg.authorType === 'lead' ? '🎯 Lead' : msg.authorType === 'agent' ? '🤖 ' + msg.authorId : '👤 You';
+    const author = msg.authorType === 'lead' ? '🎯 Lead' : msg.authorType === 'agent' ? '🤖 ' + msg.authorId : msg.authorType === 'system' ? '⚙️ System' : '👤 You';
     div.innerHTML = '<span class="time">' + formatTime(msg.createdAt) + '</span><div class="author">' + author + '</div>' + escapeHtml(msg.content);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;

@@ -5,15 +5,18 @@ type TaskState = FlightdeckTask["state"];
 
 const STATE_ICONS: Record<string, { icon: string; color: string }> = {
   ready: { icon: "circle-outline", color: "charts.blue" },
-  assigned: { icon: "circle-filled", color: "charts.blue" },
+  pending: { icon: "clock", color: "charts.blue" },
+  blocked: { icon: "lock", color: "charts.yellow" },
+  planned: { icon: "calendar", color: "charts.blue" },
   running: { icon: "sync~spin", color: "charts.orange" },
   in_review: { icon: "eye", color: "charts.yellow" },
   done: { icon: "check", color: "charts.green" },
   failed: { icon: "error", color: "charts.red" },
   cancelled: { icon: "circle-slash", color: "disabledForeground" },
+  skipped: { icon: "dash", color: "disabledForeground" },
 };
 
-const STATE_ORDER: TaskState[] = ["running", "ready", "assigned", "in_review", "done", "failed", "cancelled"];
+const STATE_ORDER: TaskState[] = ["running", "ready", "pending", "blocked", "planned", "in_review", "done", "failed", "cancelled", "skipped"];
 
 // ── Tree Items ──
 

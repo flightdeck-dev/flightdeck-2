@@ -40,7 +40,7 @@ export class StatusBar {
       const done = tasks.filter((t) => t.state === "done").length;
       const running = tasks.filter((t) => t.state === "running").length;
       const total = tasks.length;
-      const activeAgents = agents.filter((a) => a.status === "busy" || a.status === "working" || a.status === "idle").length;
+      const activeAgents = agents.filter((a) => a.status === "busy" || a.status === "idle").length;
       this.item.text = `$(rocket) ${project}: ${done}/${total} tasks ${running > 0 ? `(${running} running)` : ""} · ${activeAgents} agents`;
       this.item.tooltip = `Project: ${project}\nTasks: ${done} done, ${running} running, ${total} total\nAgents: ${activeAgents} active`;
     } catch {

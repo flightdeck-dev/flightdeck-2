@@ -106,7 +106,7 @@ export function registerCommands(
         {}
       );
       const stateEmoji: Record<string, string> = {
-        ready: "🔵", running: "🟠", in_review: "👁", done: "✅", failed: "🔴", cancelled: "⚫", assigned: "🔷",
+        ready: "🔵", pending: "⏳", blocked: "🔒", planned: "📋", running: "🟠", in_review: "👁", done: "✅", failed: "🔴", cancelled: "⚫", skipped: "⏭",
       };
       panel.webview.html = `<!DOCTYPE html>
 <html><head>

@@ -4,19 +4,25 @@ import { FlightdeckClient, FlightdeckAgent } from "./flightdeckClient";
 const STATUS_ICONS: Record<string, { icon: string; color: string }> = {
   idle: { icon: "person", color: "charts.blue" },
   busy: { icon: "sync~spin", color: "charts.orange" },
-  working: { icon: "sync~spin", color: "charts.orange" },
-  error: { icon: "error", color: "charts.red" },
-  terminated: { icon: "circle-slash", color: "disabledForeground" },
+  hibernated: { icon: "debug-pause", color: "disabledForeground" },
+  errored: { icon: "error", color: "charts.red" },
+  retired: { icon: "circle-slash", color: "disabledForeground" },
 };
 
 const ROLE_ICONS: Record<string, string> = {
+  lead: "megaphone",
+  planner: "list-ordered",
+  worker: "tools",
+  developer: "code",
+  reviewer: "checklist",
   architect: "symbol-structure",
   frontend: "browser",
   backend: "server",
-  reviewer: "checklist",
   devops: "gear",
-  lead: "megaphone",
-  worker: "tools",
+  scout: "search",
+  "product-thinker": "lightbulb",
+  "qa-tester": "beaker",
+  "tech-writer": "book",
 };
 
 export class AgentItem extends vscode.TreeItem {
