@@ -118,7 +118,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
 
-    // ── Global config (runtime toggles, display prefs shared across projects) ──
+    if (url.pathname === '/api/runtimes' && method === 'GET') {
+      const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
+      const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({
+        id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
+        icon: r.icon, installHint: r.installHint,
+        disabledByDefault: r.disabledByDefault ?? false,
+      }));
+      json(200, runtimes);
+      return;
+    }
     if (url.pathname === '/api/global-config' && method === 'GET') {
       const { existsSync, readFileSync } = await import('node:fs');
       const { join } = await import('node:path');
