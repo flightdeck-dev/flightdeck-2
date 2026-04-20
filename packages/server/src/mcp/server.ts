@@ -900,7 +900,11 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_status', 'Get project status', {}, async () => {
     try {
-      return jsonResponse(await client.getStatus());
+      const status = await client.getStatus() as Record<string, unknown>;
+      // Strip cost/token data — agents don't need it
+      delete status.tokenUsage;
+      delete status.totalCost;
+      return jsonResponse(status);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

@@ -273,7 +273,7 @@ export class Flightdeck {
 
   // ── Status ──
 
-  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; agents: Array<{ id: string; role: string; status: string; currentTask?: string }> } {
+  status(): { config: ProjectConfig; taskStats: Record<string, number>; agentCount: number; tokenUsage: ReturnType<SqliteStore['getTokenUsageTotal']>; agents: Array<{ id: string; role: string; status: string; currentTask?: string }> } {
     const agentList = this.listAgents();
     const tasks = this.dag.listTasks();
     const agentDetails = agentList.map(a => {
@@ -284,6 +284,7 @@ export class Flightdeck {
       config: this.project.getConfig(),
       taskStats: this.getTaskStats(),
       agentCount: agentList.length,
+      tokenUsage: this.sqlite.getTokenUsageTotal(),
       agents: agentDetails,
     };
   }
