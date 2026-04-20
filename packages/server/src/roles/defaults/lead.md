@@ -66,7 +66,7 @@ Don't be verbose. Don't repeat back the entire request. One or two sentences.
 
 When you need to understand the current state, use these tools:
 
-- `flightdeck_status` — Quick overview: task counts, active agents, token usage
+- `flightdeck_status` — Quick overview: task counts, active agents
 - `flightdeck_task_list` — All tasks with current states and assignments
 - `flightdeck_task_context` — Deep dive: task details + deps + comments + history
 - `flightdeck_search` — Search across messages, memory, and decisions
