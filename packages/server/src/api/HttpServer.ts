@@ -122,7 +122,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
       const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({
         id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
-        icon: r.icon, iconUrl: r.iconUrl, installHint: r.installHint,
+        icon: r.icon, iconUrl: r.iconUrl, registryId: r.registryId, installHint: r.installHint,
         disabledByDefault: r.disabledByDefault ?? false,
       }));
       json(200, runtimes);
@@ -145,6 +145,31 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, agents);
       } catch (err) {
         json(500, { error: `Failed to refresh registry: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      return;
+    }
+    if (url.pathname === '/api/custom-runtimes' && method === 'GET') {
+      try {
+        const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
+        const config = loadGlobalConfig();
+        json(200, config.customRuntimes ?? {});
+      } catch (err) {
+        json(500, { error: `Failed to read custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      return;
+    }
+    if (url.pathname === '/api/custom-runtimes' && method === 'PUT') {
+      try {
+        const { loadGlobalConfig, saveGlobalConfig } = await import('../config/GlobalConfig.js');
+        const { loadCustomRuntimes } = await import('../agents/runtimes.js');
+        const body = await readBody();
+        const config = loadGlobalConfig();
+        config.customRuntimes = body as any;
+        saveGlobalConfig(config);
+        loadCustomRuntimes();
+        json(200, { ok: true });
+      } catch (err) {
+        json(500, { error: `Failed to save custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
       }
       return;
     }
@@ -913,27 +938,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const result: Record<string, unknown> = {};
       for (const rt of modRegistry!.getRuntimes()) result[rt] = modRegistry!.getModels(rt);
       json(200, result);
-    } else if (subPath === '/custom-runtimes' && method === 'GET') {
-      try {
-        const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
-        const config = loadGlobalConfig();
-        json(200, config.customRuntimes ?? {});
-      } catch (err) {
-        json(500, { error: `Failed to read custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
-      }
-    } else if (subPath === '/custom-runtimes' && method === 'PUT') {
-      try {
-        const { loadGlobalConfig, saveGlobalConfig } = await import('../config/GlobalConfig.js');
-        const { loadCustomRuntimes } = await import('../agents/runtimes.js');
-        const body = await readBody();
-        const config = loadGlobalConfig();
-        config.customRuntimes = body as any;
-        saveGlobalConfig(config);
-        loadCustomRuntimes(); // Reload into registry
-        json(200, { ok: true });
-      } catch (err) {
-        json(500, { error: `Failed to save custom runtimes: ${err instanceof Error ? err.message : String(err)}` });
-      }
+    } else if (url.pathname.match(/^\/api\/projects\/[^/]+\/runtimes$/) && method === 'GET') {
     } else if (subPath === '/config' && method === 'GET') {
       try {
         const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
@@ -960,7 +965,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
         systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
         supportsModelDiscovery: r.supportsModelDiscovery !== false,
-        icon: r.icon, iconUrl: r.iconUrl, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
+        icon: r.icon, iconUrl: r.iconUrl, registryId: r.registryId, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
         loginInstructions: r.loginInstructions, installHint: r.installHint,
         disabledByDefault: r.disabledByDefault ?? false,
       }));

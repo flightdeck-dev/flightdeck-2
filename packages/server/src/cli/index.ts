@@ -181,7 +181,6 @@ switch (command) {
     console.log(`Project: ${s.config.name}`);
     console.log(`Governance: ${s.config.governance}`);
     console.log(`Agents: ${s.agentCount}`);
-    console.log(`Total cost: $${s.totalCost.toFixed(2)}`);
     console.log('Tasks:', JSON.stringify(s.taskStats));
     fd.close();
     break;
