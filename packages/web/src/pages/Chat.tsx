@@ -471,7 +471,7 @@ export default function Chat() {
   const { displayConfig } = useDisplay();
   const { connected, projectName } = useProject();
   const { agents } = useAgents();
-  const leadAgent = agents.find(a => a.role === 'lead' && a.status !== 'retired' && a.status !== 'hibernated');
+  const leadAgent = agents.find(a => a.role === 'lead' && !['retired', 'errored'].includes(a.status));
   const isLeadSpawning = !leadAgent && agents.length === 0 && messages.length > 0;
   const [input, setInput] = useState('');
   const [waitingForLead, setWaitingForLead] = useState(false);
@@ -634,9 +634,10 @@ export default function Chat() {
   const streamEntries = [...streamingMessages.entries()].filter(([id]) => !messageIds.has(id));
   const isStreaming = streamEntries.length > 0;
 
-  // Clear waiting state when streaming starts or new lead message arrives
+  // Clear waiting state when streaming starts or new message from lead/system arrives
   useEffect(() => {
-    if (isStreaming || filteredMessages[filteredMessages.length - 1]?.authorType === 'lead') {
+    const lastMsg = filteredMessages[filteredMessages.length - 1];
+    if (isStreaming || (lastMsg && lastMsg.authorType !== 'user')) {
       setWaitingForLead(false);
     }
   }, [isStreaming, filteredMessages]);

@@ -695,24 +695,21 @@ export class LeadManager {
       lastHeartbeat: null,
     });
 
-    // Notify Lead about new Planner (with reason)
+    // Notify Lead about new Planner (only if replacing an old one, not on first boot)
     if (this.leadSessionId && this.plannerAgentId) {
-      // Find previous planner(s) to explain why a new one was spawned
-      const prevPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.id !== this.plannerAgentId);
-      const lastPrev = prevPlanners[prevPlanners.length - 1];
-      let reason = 'No previous Planner existed.';
-      if (lastPrev) {
+      const prevPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.id !== this.plannerAgentId && a.status !== 'retired');
+      if (prevPlanners.length > 0) {
+        const lastPrev = prevPlanners[prevPlanners.length - 1];
         const statusMap: Record<string, string> = {
           hibernated: 'was hibernated and could not be resumed',
           errored: 'encountered an error',
-          retired: 'was retired',
         };
-        reason = `Previous Planner (${lastPrev.id}) ${statusMap[lastPrev.status] ?? `status: ${lastPrev.status}`}.`;
+        const reason = `Previous Planner (${lastPrev.id}) ${statusMap[lastPrev.status] ?? `status: ${lastPrev.status}`}.`;
+        this.steerLead({
+          type: 'system_notice',
+          message: `A new Planner (${this.plannerAgentId}) has been started. ${reason} Previous conversation context is not carried over.`,
+        }).catch(() => {});
       }
-      this.steerLead({
-        type: 'system_notice',
-        message: `A new Planner (${this.plannerAgentId}) has been started. ${reason} Previous conversation context is not carried over. You may need to re-communicate any outstanding directives.`,
-      }).catch(() => {});
     }
 
     // Retire all other planners (one project = one active planner)
