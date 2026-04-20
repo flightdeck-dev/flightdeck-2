@@ -58,6 +58,19 @@ export interface GatewayDeps {
 export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { port, corsOrigin, continueAgents = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
 
+  // Tee stderr to log file
+  try {
+    const { createWriteStream } = await import('node:fs');
+    const logPath = join(FD_HOME, 'gateway.log');
+    const logStream = createWriteStream(logPath, { flags: 'a' });
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk: any, ...args: any[]) => {
+      logStream.write(chunk);
+      return origWrite(chunk, ...args);
+    };
+    console.error(`[${new Date().toISOString()}] Gateway log: ${logPath}`);
+  } catch { /* best effort */ }
+
   const { AcpAdapter: AcpAdapterClass } = await import('../agents/AcpAdapter.js');
 
   // Load cached model info from disk (so models are available before any project connects)
