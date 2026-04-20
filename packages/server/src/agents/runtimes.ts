@@ -26,6 +26,10 @@ export interface RuntimeDefinition {
   notes: string | string[];
   /** Icon emoji */
   icon?: string;
+  /** SVG icon URL from ACP registry */
+  iconUrl?: string;
+  /** ID in ACP agent registry */
+  registryId?: string;
   /** Documentation URL */
   docsUrl?: string;
   /** Setup/install links */
@@ -58,6 +62,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsSessionLoad: true,
     adapter: 'acp',
     icon: '🤖',
+    registryId: 'codex-acp',
     docsUrl: 'https://github.com/openai/codex',
     setupLinks: [
       { label: 'ACP adapter', url: 'https://github.com/zed-industries/codex-acp' },
@@ -77,6 +82,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsSessionLoad: false,
     adapter: 'copilot-sdk',
     icon: '🐙',
+    registryId: 'github-copilot-cli',
     docsUrl: 'https://github.com/github/copilot-sdk',
     setupLinks: [{ label: 'SDK Documentation', url: 'https://github.com/github/copilot-sdk' }],
     installHint: 'npm install @github/copilot-sdk',
@@ -96,6 +102,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsSessionLoad: false,
     adapter: 'acp',
     icon: '🟠',
+    registryId: 'claude-acp',
     docsUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview',
     setupLinks: [
       { label: 'ACP adapter', url: 'https://github.com/anthropics/claude-code-sdk-python' },
@@ -116,6 +123,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsSessionLoad: false,
     adapter: 'acp',
     icon: '💎',
+    registryId: 'gemini',
     docsUrl: 'https://github.com/google-gemini/gemini-cli',
     setupLinks: [{ label: 'Installation guide', url: 'https://geminicli.com/docs/get-started/installation/' }],
     installHint: 'npm install -g @anthropic-ai/claude-code',
@@ -132,6 +140,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsSessionLoad: false,
     adapter: 'acp',
     icon: '🔓',
+    registryId: 'opencode',
     docsUrl: 'https://opencode.ai/docs/',
     setupLinks: [{ label: 'Documentation', url: 'https://opencode.ai/docs/' }],
     installHint: 'go install github.com/nicholasgriffintn/opencode@latest',
@@ -181,6 +190,7 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     supportsAcp: true,
     supportsSessionLoad: true,
     adapter: 'acp',
+    registryId: 'cursor',
     notes: [
       'Cursor CLI binary is `agent`. Auth via `agent login` or `--api-key` or CURSOR_API_KEY env.',
       'Supports session/load for resume. Supports MCP servers via .cursor/mcp.json.',
@@ -206,6 +216,23 @@ export const RUNTIME_REGISTRY: Record<string, RuntimeDefinition> = {
     ],
   },
 };
+
+/** Populate iconUrl fields from ACP registry */
+export async function populateRegistryIcons(): Promise<void> {
+  try {
+    const { acpRegistry } = await import('./AcpRegistry.js');
+    const agents = await acpRegistry.getAgents();
+    for (const agent of agents) {
+      for (const [, rt] of Object.entries(RUNTIME_REGISTRY)) {
+        if (rt.registryId === agent.id && agent.icon) {
+          rt.iconUrl = agent.icon;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('  [AcpRegistry] Failed to populate icons:', err instanceof Error ? err.message : String(err));
+  }
+}
 
 /** Get only ACP-compatible runtimes */
 export function getAcpRuntimes(): Record<string, RuntimeDefinition> {

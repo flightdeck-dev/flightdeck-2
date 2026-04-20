@@ -78,8 +78,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   modelRegistry.loadFromDisk();
 
   // Load custom runtimes from global config
-  const { loadCustomRuntimes } = await import('../agents/runtimes.js');
+  const { loadCustomRuntimes, populateRegistryIcons } = await import('../agents/runtimes.js');
   loadCustomRuntimes();
+
+  // Populate icon URLs from ACP registry (non-blocking)
+  populateRegistryIcons().catch(() => {});
 
   const { MultiAdapter: MultiAdapterClass } = await import('../agents/MultiAdapter.js');
   const { CopilotSdkAdapter } = await import('../agents/CopilotSdkAdapter.js');

@@ -55,7 +55,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 interface RuntimeInfo {
   id: string; name: string; command: string; supportsAcp: boolean; adapter: string;
-  icon?: string; docsUrl?: string; setupLinks?: Array<{ label: string; url: string }>;
+  icon?: string; iconUrl?: string; docsUrl?: string; setupLinks?: Array<{ label: string; url: string }>;
   loginInstructions?: string; installHint?: string; supportsSessionLoad?: boolean;
 }
 
@@ -70,7 +70,7 @@ function RuntimeCard({ rt, projectName: _projectName, enabled, onToggle, testRes
   return (
     <div className={`border-b border-[var(--color-border)] last:border-0 ${!enabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center gap-3 py-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-        <span className="text-lg shrink-0">{rt.icon ?? '🔌'}</span>
+        <span className="text-lg shrink-0">{rt.iconUrl ? <img src={rt.iconUrl} alt="" className="w-5 h-5 inline" /> : (rt.icon ?? '🔌')}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-[var(--color-text-primary)]">{rt.name}</p>
@@ -247,6 +247,9 @@ function GlobalSettings() {
       && preset.flightdeckTools === displayConfig.flightdeckTools;
   }) ?? 'custom';
 
+  const [registryAgents, setRegistryAgents] = useState<any[] | null>(null);
+  const [registryLoading, setRegistryLoading] = useState(false);
+
   return (
     <>
       {/* Display Presets */}
@@ -346,6 +349,74 @@ function GlobalSettings() {
           </Card>
         </section>
       )}
+
+      {/* Add from Registry */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <SectionHeader>ACP Agent Registry</SectionHeader>
+          <button
+            onClick={async () => {
+              setRegistryLoading(true);
+              try {
+                const res = await fetch('/api/registry');
+                const data = await res.json();
+                setRegistryAgents(Array.isArray(data) ? data : []);
+              } catch { setRegistryAgents([]); }
+              setRegistryLoading(false);
+            }}
+            className="text-xs px-3 py-1 rounded-lg bg-[var(--color-surface-secondary)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors"
+          >
+            {registryLoading ? 'Loading…' : registryAgents ? 'Refresh' : 'Browse Registry'}
+          </button>
+        </div>
+        {registryAgents && (
+          <Card>
+            {registryAgents.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No agents found in registry.</p>}
+            {registryAgents.map(agent => {
+              const alreadyBuiltIn = runtimes?.some(rt => rt.id === agent.id || (rt as any).registryId === agent.id);
+              return (
+                <div key={agent.id} className="flex items-center gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
+                  {agent.icon ? <img src={agent.icon} alt="" className="w-5 h-5 shrink-0" /> : <span className="text-lg">🔌</span>}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{agent.name}</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)] truncate">{agent.description}</p>
+                  </div>
+                  {alreadyBuiltIn ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">Built-in</span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        const cmd = agent.distribution?.npx?.package
+                          ? `npx ${agent.distribution.npx.package}`
+                          : agent.distribution?.binary?.[process.platform ?? 'linux']?.cmd ?? agent.id;
+                        const customRt = {
+                          name: agent.name,
+                          command: cmd,
+                          args: agent.distribution?.npx?.args ?? [],
+                          env: agent.distribution?.npx?.env,
+                        };
+                        try {
+                          const res = await fetch('/api/settings/custom-runtimes');
+                          const existing = await res.json();
+                          const updated = { ...existing, [agent.id]: customRt };
+                          await fetch('/api/settings/custom-runtimes', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updated),
+                          });
+                        } catch { /* best effort */ }
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)] text-white hover:opacity-80 transition-opacity"
+                    >
+                      Add
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </section>
 
       {/* Chat Bridges */}
       <ChatBridgesSection globalCfg={globalCfg} />

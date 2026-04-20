@@ -122,10 +122,30 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
       const runtimes = Object.entries(RUNTIME_REGISTRY).map(([id, r]) => ({
         id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
-        icon: r.icon, installHint: r.installHint,
+        icon: r.icon, iconUrl: r.iconUrl, installHint: r.installHint,
         disabledByDefault: r.disabledByDefault ?? false,
       }));
       json(200, runtimes);
+      return;
+    }
+    if (url.pathname === '/api/registry' && method === 'GET') {
+      const { acpRegistry } = await import('../agents/AcpRegistry.js');
+      try {
+        const agents = await acpRegistry.getAgents();
+        json(200, agents);
+      } catch (err) {
+        json(500, { error: `Failed to fetch registry: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      return;
+    }
+    if (url.pathname === '/api/registry/refresh' && method === 'GET') {
+      const { acpRegistry } = await import('../agents/AcpRegistry.js');
+      try {
+        const agents = await acpRegistry.refresh();
+        json(200, agents);
+      } catch (err) {
+        json(500, { error: `Failed to refresh registry: ${err instanceof Error ? err.message : String(err)}` });
+      }
       return;
     }
     if (url.pathname === '/api/global-config' && method === 'GET') {
@@ -940,7 +960,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         id, name: r.name, command: r.command, supportsAcp: r.supportsAcp, adapter: r.adapter,
         systemPromptMethod: r.systemPromptMethod, supportsSessionLoad: r.supportsSessionLoad,
         supportsModelDiscovery: r.supportsModelDiscovery !== false,
-        icon: r.icon, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
+        icon: r.icon, iconUrl: r.iconUrl, docsUrl: r.docsUrl, setupLinks: r.setupLinks,
         loginInstructions: r.loginInstructions, installHint: r.installHint,
         disabledByDefault: r.disabledByDefault ?? false,
       }));
