@@ -373,7 +373,7 @@ function GlobalSettings() {
           <Card>
             {registryAgents.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No agents found in registry.</p>}
             {registryAgents.map(agent => {
-              const alreadyBuiltIn = runtimes?.some(rt => rt.id === agent.id || (rt as any).registryId === agent.id);
+              const alreadyBuiltIn = runtimes?.some(rt => (rt as any).registryId === agent.id);
               return (
                 <div key={agent.id} className="flex items-center gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
                   {agent.icon ? <img src={agent.icon} alt="" className="w-5 h-5 shrink-0" /> : <span className="text-lg">🔌</span>}
@@ -388,7 +388,7 @@ function GlobalSettings() {
                       onClick={async () => {
                         const cmd = agent.distribution?.npx?.package
                           ? `npx ${agent.distribution.npx.package}`
-                          : agent.distribution?.binary?.[process.platform ?? 'linux']?.cmd ?? agent.id;
+                          : agent.distribution?.binary?.['linux-x86_64']?.cmd ?? agent.id;
                         const customRt = {
                           name: agent.name,
                           command: cmd,
@@ -396,10 +396,10 @@ function GlobalSettings() {
                           env: agent.distribution?.npx?.env,
                         };
                         try {
-                          const res = await fetch('/api/settings/custom-runtimes');
+                          const res = await fetch('/api/custom-runtimes');
                           const existing = await res.json();
                           const updated = { ...existing, [agent.id]: customRt };
-                          await fetch('/api/settings/custom-runtimes', {
+                          await fetch('/api/custom-runtimes', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updated),
@@ -416,6 +416,41 @@ function GlobalSettings() {
             })}
           </Card>
         )}
+
+        {/* Manual Add Custom Runtime */}
+        <Card>
+          <p className="text-sm font-medium mb-2">Add Custom Runtime</p>
+          <div className="space-y-2">
+            <input id="custom-rt-id" placeholder="Runtime ID (e.g. my-agent)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
+            <input id="custom-rt-name" placeholder="Display name" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
+            <input id="custom-rt-cmd" placeholder="Command (e.g. my-agent-acp)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
+            <input id="custom-rt-args" placeholder="Args (comma-separated, optional)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
+            <button
+              onClick={async () => {
+                const id = (document.getElementById('custom-rt-id') as HTMLInputElement)?.value?.trim();
+                const name = (document.getElementById('custom-rt-name') as HTMLInputElement)?.value?.trim();
+                const cmd = (document.getElementById('custom-rt-cmd') as HTMLInputElement)?.value?.trim();
+                const argsStr = (document.getElementById('custom-rt-args') as HTMLInputElement)?.value?.trim();
+                if (!id || !name || !cmd) return;
+                const args = argsStr ? argsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+                try {
+                  const res = await fetch('/api/custom-runtimes');
+                  const existing = await res.json();
+                  await fetch('/api/custom-runtimes', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...existing, [id]: { name, command: cmd, args } }),
+                  });
+                  // Clear inputs
+                  ['custom-rt-id','custom-rt-name','custom-rt-cmd','custom-rt-args'].forEach(x => {
+                    const el = document.getElementById(x) as HTMLInputElement; if (el) el.value = '';
+                  });
+                } catch { /* */ }
+              }}
+              className="px-3 py-1.5 text-sm rounded-md bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity"
+            >Save</button>
+          </div>
+        </Card>
       </section>
 
       {/* Chat Bridges */}
