@@ -633,16 +633,7 @@ switch (command) {
 
   case 'providers': {
     const { RUNTIME_REGISTRY } = await import('../agents/runtimes.js');
-    const { execFileSync } = await import('node:child_process');
-
-    const checkBinary = (cmd: string): boolean => {
-      try {
-        execFileSync('which', [cmd], { stdio: 'pipe' });
-        return true;
-      } catch {
-        return false;
-      }
-    };
+    const { commandExists: checkBinary } = await import('../utils/platform.js');
 
     if (values.json) {
       const entries = Object.entries(RUNTIME_REGISTRY).map(([key, r]) => ({

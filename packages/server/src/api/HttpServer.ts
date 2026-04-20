@@ -976,11 +976,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const rt = RUNTIME_REGISTRY[runtimeId];
       if (!rt) { json(404, { error: `Unknown runtime: ${runtimeId}` }); return; }
       try {
+        const { commandExists } = await import('../utils/platform.js');
         const { execFileSync } = await import('node:child_process');
         // Check if binary exists
-        try {
-          execFileSync('which', [rt.command], { stdio: 'pipe', timeout: 5000 });
-        } catch {
+        if (!commandExists(rt.command)) {
           json(200, { success: false, installed: false, message: `Binary "${rt.command}" not found on PATH` });
           return;
         }

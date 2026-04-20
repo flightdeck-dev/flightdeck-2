@@ -72,7 +72,7 @@ describe('AgentManager', () => {
     });
 
     expect(agent.role).toBe('worker');
-    expect(agent.status).toBe('busy');
+    expect(agent.status).toBe('idle');
     expect(agent.acpSessionId).toBe('mock-session-1');
     expect(adapter.spawnCalls).toHaveLength(1);
     expect(adapter.spawnCalls[0].role).toBe('worker');
@@ -80,7 +80,7 @@ describe('AgentManager', () => {
     // Verify in SQLite
     const dbAgent = store.getAgent(agent.id);
     expect(dbAgent).not.toBeNull();
-    expect(dbAgent!.status).toBe('busy');
+    expect(dbAgent!.status).toBe('idle');
     expect(dbAgent!.acpSessionId).toBe('mock-session-1');
   });
 

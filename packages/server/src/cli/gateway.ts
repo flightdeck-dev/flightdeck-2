@@ -702,13 +702,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Auto-discover models for installed runtimes (background, best-effort)
     import('../agents/AcpAdapter.js').then(({ discoverRuntimeModels }) => {
       import('../agents/runtimes.js').then(({ RUNTIME_REGISTRY }) => {
-        import('node:child_process').then(({ execFileSync }) => {
+        import('../utils/platform.js').then(({ commandExists }) => {
           const runtimeIds = Object.entries(RUNTIME_REGISTRY)
             .filter(([, r]) => r.supportsAcp && r.supportsModelDiscovery !== false)
             .map(([id]) => id);
-          const installed = runtimeIds.filter(id => {
-            try { execFileSync('which', [RUNTIME_REGISTRY[id].command], { stdio: 'pipe', timeout: 3000 }); return true; } catch { return false; }
-          });
+          const installed = runtimeIds.filter(id => commandExists(RUNTIME_REGISTRY[id].command));
           if (installed.length === 0) return;
           console.error(`Discovering models for: ${installed.join(', ')}...`);
           (async () => {

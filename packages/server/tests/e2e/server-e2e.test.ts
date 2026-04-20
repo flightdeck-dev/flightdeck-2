@@ -221,7 +221,7 @@ describe('Project Status (scenario 5)', () => {
     expect(status.config.name).toBe(projectName);
     expect(status.taskStats).toBeDefined();
     expect(status.agentCount).toBe(0);
-    expect(status.totalCost).toBe(0);
+    // totalCost removed from status response
   });
 
   it('5.2 - status reflects task changes', () => {

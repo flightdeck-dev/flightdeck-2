@@ -45,7 +45,7 @@ function runCmd(cmd: string, args: string[]): string | null {
 }
 
 function checkBinary(cmd: string): boolean {
-  return runCmd('which', [cmd]) !== null;
+  return runCmd(process.platform === 'win32' ? 'where' : 'which', [cmd]) !== null;
 }
 
 function checkNodeVersion(): CheckResult {

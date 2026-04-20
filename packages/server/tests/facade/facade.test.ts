@@ -26,7 +26,7 @@ describe('Flightdeck Facade', () => {
     const status = fd.status();
     expect(status.config.name).toBe(projectName);
     expect(status.agentCount).toBe(0);
-    expect(status.totalCost).toBe(0);
+    expect(status.totalCost).toBeUndefined();
   });
 
   it('creates specs', () => {

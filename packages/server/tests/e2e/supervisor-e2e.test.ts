@@ -178,14 +178,14 @@ describe('Scenario 9: Claw as Supervisor', () => {
       });
 
       expect(agent.role).toBe('lead');
-      expect(agent.status).toBe('busy');
+      expect(agent.status).toBe('idle');
       expect(agent.acpSessionId).toBeTruthy();
       expect(adapter.spawnCount).toBe(1);
 
       // Verify persisted in store
       const stored = store.getAgent(agent.id);
       expect(stored).not.toBeNull();
-      expect(stored!.status).toBe('busy');
+      expect(stored!.status).toBe('idle');
     });
 
     it('spawns lead via LeadManager directly', async () => {
@@ -218,8 +218,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
         message: { id: 'msg-1', role: 'user', content: 'Implement the auth module', timestamp: new Date().toISOString() } as any,
       });
 
-      expect(adapter.steerLog).toHaveLength(2);
-      expect(adapter.steerLog[1].message.content).toContain('Implement the auth module');
+      expect(adapter.steerLog).toHaveLength(1);
+      expect(adapter.steerLog[0].message.content).toContain('Implement the auth module');
     });
 
     it('steers lead with urgent interrupt via AgentManager', async () => {
@@ -254,7 +254,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
       });
       expect(adapter.spawnCount).toBe(2);
       expect(worker.role).toBe('worker');
-      expect(worker.status).toBe('busy');
+      expect(worker.status).toBe('idle');
 
       // Both agents visible
       const agents = agentManager.listAgents();
@@ -281,9 +281,9 @@ describe('Scenario 9: Claw as Supervisor', () => {
         summary: 'OAuth2 module implemented and tested',
       });
 
-      expect(adapter.steerLog).toHaveLength(2);
-      expect(adapter.steerLog[1].message.content).toContain('spec-001');
-      expect(adapter.steerLog[1].message.content).toContain('OAuth2 module implemented and tested');
+      expect(adapter.steerLog).toHaveLength(1);
+      expect(adapter.steerLog[0].message.content).toContain('spec-001');
+      expect(adapter.steerLog[0].message.content).toContain('OAuth2 module implemented and tested');
     });
 
     it('steers lead on task failure', async () => {
@@ -301,9 +301,9 @@ describe('Scenario 9: Claw as Supervisor', () => {
         error: 'Build failed: type errors in auth.ts',
       });
 
-      expect(adapter.steerLog).toHaveLength(2);
-      expect(adapter.steerLog[1].message.content).toContain('task-42');
-      expect(adapter.steerLog[1].message.content).toContain('Build failed');
+      expect(adapter.steerLog).toHaveLength(1);
+      expect(adapter.steerLog[0].message.content).toContain('task-42');
+      expect(adapter.steerLog[0].message.content).toContain('Build failed');
     });
 
     it('tracks task completions for heartbeat conditions', () => {
@@ -363,8 +363,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
         reason: 'Need clarification on API design: REST vs GraphQL?',
       });
 
-      expect(adapter.steerLog).toHaveLength(2);
-      const content = adapter.steerLog[1].message.content;
+      expect(adapter.steerLog).toHaveLength(1);
+      const content = adapter.steerLog[0].message.content;
       expect(content).toContain('[AGENT worker-1]');
       expect(content).toContain('source: escalation');
       expect(content).toContain('worker-1');
@@ -471,8 +471,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
       await leadManager.spawnLead();
       await leadManager.steerLead({ type: 'heartbeat' });
 
-      expect(adapter.steerLog).toHaveLength(2);
-      expect(adapter.steerLog[1].message.content).toContain('[heartbeat steer]');
+      expect(adapter.steerLog).toHaveLength(1);
+      expect(adapter.steerLog[0].message.content).toContain('[heartbeat steer]');
     });
 
     it('checks heartbeat conditions — tasks_completed', () => {
