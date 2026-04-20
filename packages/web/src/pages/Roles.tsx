@@ -86,28 +86,26 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
   const modelsByRuntime: Record<string, { modelId: string; displayName?: string; configured: boolean }[]> = {};
   const seen = new Set<string>();
 
-  for (const [runtime, groups] of Object.entries(availableModels)) {
-    if (typeof groups === 'object' && groups !== null) {
-      for (const models of Object.values(groups as Record<string, unknown>)) {
-        if (Array.isArray(models)) {
-          for (const m of models) {
-            if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
-              const mo = m as { id?: string; modelId?: string; displayName?: string };
-              const modelId = mo.modelId ?? mo.id!;
-              const key = `${runtime}:${modelId}`;
-              if (!seen.has(key)) {
-                seen.add(key);
-                const isConfigured = role.enabledModels.some(em => em.runtime === runtime && em.model === modelId);
-                (modelsByRuntime[runtime] ??= []).push({
-                  modelId,
-                  displayName: mo.displayName,
-                  configured: isConfigured,
-                });
-              }
-            }
+  for (const [runtime, models] of Object.entries(availableModels)) {
+    if (Array.isArray(models)) {
+      // Flat array of models (current format)
+      for (const m of models) {
+        if (typeof m === 'object' && m !== null && ('id' in m || 'modelId' in m)) {
+          const mo = m as { id?: string; modelId?: string; displayName?: string };
+          const modelId = mo.modelId ?? mo.id!;
+          const key = `${runtime}:${modelId}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            const isConfigured = role.enabledModels.some(em => em.runtime === runtime && em.model === modelId);
+            (modelsByRuntime[runtime] ??= []).push({
+              modelId,
+              displayName: mo.displayName,
+              configured: isConfigured,
+            });
           }
         }
       }
+    }
     }
   }
 
