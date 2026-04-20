@@ -314,11 +314,11 @@ export class AgentManager {
       const displayModel = resolvedModel ?? meta.model;
       console.error(`  [${opts.projectName ?? this.projectName}] Agent ${newId} spawned (role: ${opts.role}, runtime: ${resolvedRuntime ?? 'default'}, model: ${displayModel ?? 'auto'}, session: ${meta.sessionId})`);
       this.store.updateAgentAcpSession(newId, meta.sessionId);
-      this.store.updateAgentStatus(newId, 'busy');
+      this.store.updateAgentStatus(newId, 'idle');
       if (displayModel) this.store.updateAgentModel(newId, displayModel);
       else if (meta.model) this.store.updateAgentModel(newId, meta.model);
       agent.acpSessionId = meta.sessionId;
-      agent.status = 'busy';
+      agent.status = 'idle';
 
       // Track mappings
       this.sessionToAgent.set(meta.sessionId, newId);
