@@ -172,6 +172,9 @@ export class AgentManager {
 
   private skillManager: SkillManager | null;
 
+  /** Callback fired when a DM message is stored (outgoing steer or agent response) */
+  onDmMessage: ((projectName: string, message: any) => void) | null = null;
+
   constructor(
     adapter: AgentAdapter,
     private store: SqliteStore,
@@ -434,12 +437,13 @@ export class AgentManager {
 
     // Store the outgoing steer message
     if (this.messageStore) {
-      this.messageStore.createMessage({
+      const dmMsg = this.messageStore.createMessage({
         threadId: null, parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
         metadata: null, channel: `dm:${agentId}`,
       });
+      if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
     }
 
     await this.adapter.steer(sessionId, { content: message, urgent: true });
@@ -457,12 +461,13 @@ export class AgentManager {
 
     // Store the outgoing steer message
     if (this.messageStore) {
-      this.messageStore.createMessage({
+      const dmMsg = this.messageStore.createMessage({
         threadId: null, parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
         metadata: null, channel: `dm:${agentId}`,
       });
+      if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
     }
 
     await this.adapter.steer(sessionId, { content: message, urgent: false });

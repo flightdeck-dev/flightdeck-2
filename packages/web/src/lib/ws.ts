@@ -10,7 +10,8 @@ export type WsEvent =
   | { type: 'display:config'; config: DisplayConfig }
   | { type: 'state:update'; stats: Record<string, number> }
   | { type: 'agent:stream'; agentId: string; delta: string; contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result'; toolName?: string }
-  | { type: 'tool:event'; toolName: string; agentId: string; input: unknown; output: unknown; status: string; durationMs?: number; error?: string };
+  | { type: 'tool:event'; toolName: string; agentId: string; input: unknown; output: unknown; status: string; durationMs?: number; error?: string }
+  | { type: 'dm:message'; project: string; message: { id: string; channel: string; content: string; authorType: string; authorId: string | null; createdAt: string; [k: string]: unknown } };
 
 type EventHandler = (event: WsEvent) => void;
 

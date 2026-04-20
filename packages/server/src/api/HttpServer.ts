@@ -1318,13 +1318,18 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           }
         } else if (body.to) {
           // DM path — store in MessageStore and deliver
+          let storedDmMsg: any = null;
           if (fd.messages) {
-            fd.messages.createMessage({
+            storedDmMsg = fd.messages.createMessage({
               threadId: null, parentId: body.parentId ?? null, taskId: null,
               authorType: 'agent', authorId: agentId,
               content: (body.content as string).length > 4000 ? (body.content as string).slice(0, 4000) + '\n\u2026[truncated]' : body.content,
               metadata: null, channel: `dm:${body.to}`,
             });
+          }
+          // Broadcast DM via WebSocket
+          if (wsServer && storedDmMsg) {
+            wsServer.broadcast({ type: 'dm:message', project: projectName, message: storedDmMsg });
           }
           const msg = {
             id: mkMsgId(agentId, body.to, Date.now().toString()),

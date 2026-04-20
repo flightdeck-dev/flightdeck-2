@@ -97,12 +97,14 @@ function AgentDetailPanel({
   projectName,
   liveOutput,
   liveChunks,
+  liveDmMessages,
   onClose,
 }: {
   agent: Agent;
   projectName: string;
   liveOutput: string;
   liveChunks: StreamChunk[];
+  liveDmMessages: any[];
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('chat');
@@ -241,12 +243,19 @@ function AgentDetailPanel({
   const effectiveOutput = liveOutput || historicalOutput;
   const hasChunks = liveChunks.length > 0;
 
-  // Fetch persisted DM history for this agent
-  const { data: dmMessages } = useSWR(
+  // Fetch persisted DM history for this agent (no polling — WS handles real-time)
+  const { data: dmHistoryMessages } = useSWR(
     projectName && agent.id ? ['agent-dms', projectName, agent.id] : null,
     () => api.getMessages(projectName!, { channel: `dm:${agent.id}`, limit: 50 }),
-    { refreshInterval: 5000 }
   );
+
+  // Combine historical messages with live WS messages (deduplicated by id)
+  const dmMessages = useMemo(() => {
+    const history = dmHistoryMessages ?? [];
+    const historyIds = new Set(history.map((m: any) => m.id));
+    const newLive = liveDmMessages.filter((m: any) => !historyIds.has(m.id));
+    return [...history, ...newLive];
+  }, [dmHistoryMessages, liveDmMessages]);
 
   return (
       <div
@@ -696,7 +705,7 @@ function AgentCard({ agent, projectName, onSelect, isSelected, onMutate, onError
 }
 
 export default function Agents() {
-  const { agents, agentOutputs, agentStreamChunks } = useAgentsHook();
+  const { agents, agentOutputs, agentStreamChunks, dmMessages } = useAgentsHook();
   const { loading, projectName } = useProject();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [pageToast, setPageToast] = useState<string | null>(null);
@@ -823,6 +832,7 @@ export default function Agents() {
           projectName={projectName}
           liveOutput={agentOutputs.get(selectedAgent.id) ?? ''}
           liveChunks={agentStreamChunks.get(selectedAgent.id) ?? EMPTY_CHUNKS}
+          liveDmMessages={dmMessages.get(selectedAgent.id) ?? []}
           onClose={() => setSelectedAgentId(null)}
         />
       )}

@@ -16,6 +16,7 @@ export interface AgentContextValue {
   agents: Agent[];
   agentOutputs: Map<string, string>;
   agentStreamChunks: Map<string, StreamChunk[]>;
+  dmMessages: Map<string, any[]>;
 }
 
 const AgentCtx = createContext<AgentContextValue | null>(null);
@@ -23,8 +24,10 @@ const AgentCtx = createContext<AgentContextValue | null>(null);
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [agentOutputs, setAgentOutputs] = useState(new Map<string, string>());
   const [agentStreamChunks, setAgentStreamChunks] = useState(new Map<string, StreamChunk[]>());
+  const [dmMessages, setDmMessages] = useState(new Map<string, any[]>());
   const agentOutputsRef = useRef(new Map<string, string>());
   const agentStreamChunksRef = useRef(new Map<string, StreamChunk[]>());
+  const dmMessagesRef = useRef(new Map<string, any[]>());
   const dirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const { subscribe } = useWsEventBus();
@@ -89,6 +92,14 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           }]);
         }
         scheduleFlush();
+      } else if (event.type === 'dm:message') {
+        const channel = event.message?.channel;
+        if (channel?.startsWith('dm:')) {
+          const agentId = channel.slice(3);
+          const prev = dmMessagesRef.current.get(agentId) ?? [];
+          dmMessagesRef.current.set(agentId, [...prev, event.message]);
+          setDmMessages(new Map(dmMessagesRef.current));
+        }
       }
     });
   }, [subscribe, mutateAgents]);
@@ -98,7 +109,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AgentCtx.Provider value={{ agents, agentOutputs, agentStreamChunks }}>
+    <AgentCtx.Provider value={{ agents, agentOutputs, agentStreamChunks, dmMessages }}>
       {children}
     </AgentCtx.Provider>
   );

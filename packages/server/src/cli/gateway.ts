@@ -434,6 +434,12 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const wsServer = fd.messages ? new WsServer(fd.messages) : null;
     if (wsServer) wsServers.set(name, wsServer);
 
+    // Wire DM message broadcast
+    fd.agentManager.onDmMessage = (projName, msg) => {
+      const ws = wsServers.get(projName);
+      if (ws) ws.broadcast({ type: 'dm:message', project: projName, message: msg });
+    };
+
     // Wire orchestrator
     fd.orchestrator.stop();
     const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
@@ -574,6 +580,12 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const wsServer = fd.messages ? new WsServerClass(fd.messages) : null;
       if (wsServer) wsServers.set(name, wsServer as any);
 
+      // Wire DM message broadcast
+      fd.agentManager.onDmMessage = (projName, msg) => {
+        const ws = wsServers.get(projName);
+        if (ws) ws.broadcast({ type: 'dm:message', project: projName, message: msg });
+      };
+
       // Orchestrator
       fd.orchestrator.stop();
       const { Orchestrator: OrchestratorClass } = await import('../orchestrator/Orchestrator.js');
@@ -639,6 +651,13 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const { WebSocketServer: WsServerClass } = await import('../api/WebSocketServer.js');
       wsServer = new WsServerClass(fd.messages) as any;
       wsServers.set(wsProjectName, wsServer as any);
+      // Wire DM message broadcast for hot-created WS
+      if (!fd.agentManager.onDmMessage) {
+        fd.agentManager.onDmMessage = (projName, msg) => {
+          const ws = wsServers.get(projName);
+          if (ws) ws.broadcast({ type: 'dm:message', project: projName, message: msg });
+        };
+      }
     }
 
     const clientId = `ws-${wsProjectName}-${++clientCounter}`;
