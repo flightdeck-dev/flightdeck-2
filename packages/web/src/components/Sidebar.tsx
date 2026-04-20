@@ -356,7 +356,7 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
 
   useEffect(() => {
     fetch('/api/runtimes').then(r => r.json()).then((rts: Array<{ id: string; name: string; icon?: string; supportsAcp: boolean }>) => {
-      setAvailableRuntimes(rts.filter(r => r.supportsAcp));
+      setAvailableRuntimes(rts);
     }).catch(() => {});
   }, []);
 
