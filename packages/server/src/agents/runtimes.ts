@@ -258,25 +258,11 @@ import { parse as parseYaml } from 'yaml';
 import { loadGlobalConfig } from '../config/GlobalConfig.js';
 
 /** Load custom runtimes from global config.yaml and optional project config */
-export function loadCustomRuntimes(projectDir?: string): void {
+export function loadCustomRuntimes(): void {
   // Load from global config.yaml
   const globalConfig = loadGlobalConfig();
   if (globalConfig.customRuntimes) {
     registerCustomRuntimes(globalConfig.customRuntimes);
-  }
-
-  // Load from project-level .flightdeck/config.yaml customRuntimes section
-  if (projectDir) {
-    try {
-      const projectConfigPath = join(projectDir, '.flightdeck', 'config.yaml');
-      if (existsSync(projectConfigPath)) {
-        const raw = readFileSync(projectConfigPath, 'utf-8');
-        const projectConfig = parseYaml(raw);
-        if (projectConfig?.customRuntimes) {
-          registerCustomRuntimes(projectConfig.customRuntimes);
-        }
-      }
-    } catch { /* best effort */ }
   }
 }
 

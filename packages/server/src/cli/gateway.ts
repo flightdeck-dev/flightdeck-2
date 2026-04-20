@@ -358,7 +358,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   for (const name of projectNames) {
     const fd = projectManager.get(name)!;
     // Load per-project custom runtimes
-    loadCustomRuntimes(fd.project.subpath('.'));
     const profile = fd.status().config.governance;
     console.error(`\n── Project: ${name} (profile: ${profile}) ──`);
 
