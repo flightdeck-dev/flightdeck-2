@@ -10,6 +10,7 @@ import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
 import { modelRegistry } from '../agents/ModelTiers.js';
 import type { BridgeConfig } from '../bridges/types.js';
+import { log } from '../utils/logger.js';
 
 /** Load bridge config from global-config.json */
 async function loadBridgeConfig(): Promise<BridgeConfig | null> {
@@ -639,6 +640,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wss.on('connection', async (socket: any, req: any) => {
+    const wsUrl0 = new URL(req.url ?? '/', `http://localhost:${port}`);
+    const wsMatch0 = wsUrl0.pathname.match(/^\/ws\/([^/]+)$/);
+    const wsProject0 = wsMatch0 ? decodeURIComponent(wsMatch0[1]) : projectNames[0];
+    log('WS', `Client connected to project "${wsProject0}"`);
     // Auth check for WebSocket connections
     if (authMode === 'token' && authToken) {
       const wsAuthUrl = new URL(req.url ?? '/', `http://localhost:${port}`);
@@ -683,7 +688,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     socket.on('message', (raw: any) => {
       try { wsServer.handleEvent(clientId, JSON.parse(raw.toString())); } catch {}
     });
-    socket.on('close', () => wsServer.removeClient(clientId));
+    socket.on('close', () => { wsServer.removeClient(clientId); log('WS', `Client disconnected (${clientId})`); });
   });
 
   httpServer.listen(port, bindAddress, () => {
@@ -967,6 +972,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
   wsServer.on('user:message', (msg: any) => {
     // Generate fresh ID for this response
     msgIdRef.current = makeMessageId('lead', Date.now().toString());
+    log('WS', `user:message in "${projectName}": "${(msg.content ?? '').slice(0, 80)}"`);
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });

@@ -39,6 +39,7 @@ import type {
 import { AgentAdapter, type SpawnOptions, type SteerMessage, type AgentMetadata } from './AgentAdapter.js';
 import type { AgentId, AgentRuntime } from '@flightdeck-ai/shared';
 import { agentId } from '@flightdeck-ai/shared';
+import { log, truncate } from '../utils/logger.js';
 import type { RuntimeConfig } from './SessionManager.js';
 import { DEFAULT_RUNTIMES } from './SessionManager.js';
 import { modelRegistry } from './ModelTiers.js';
@@ -563,6 +564,7 @@ export class AcpAdapter extends AgentAdapter {
       session.acpSessionId = result.sessionId;
       session.status = 'active';
       session.lastActivityAt = new Date();
+      log('ACP', `Session ${result.sessionId} created for ${session.agentId} (runtime: ${session.runtimeName})`);
 
       // Cache available models from session response (standard ACP)
       if (result.models?.availableModels) {
@@ -824,6 +826,7 @@ export class AcpAdapter extends AgentAdapter {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
     if (session.status === 'ended') throw new Error(`Session already ended: ${sessionId}`);
+    log('ACP', `Steer ${session.agentId}: "${truncate(message.content)}"`);
 
     if (!session.acpSessionId) {
       // Session not yet initialized — queue the message for later

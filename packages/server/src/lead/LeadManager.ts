@@ -10,6 +10,7 @@ import { SessionStore } from '../acp/SessionStore.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { log, truncate } from '../utils/logger.js';
 
 /** Format timestamp in user's timezone as ISO with offset */
 function formatTs(): string {
@@ -143,9 +144,10 @@ export class LeadManager {
     // Enforce single active Lead — if one exists, don't spawn another
     const activeLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
     if (activeLeads.length > 0) {
-      console.error(`  Lead already active (${activeLeads[0].id}), skipping spawn`);
+      log('Lead', `Already active (${activeLeads[0].id}), skipping spawn`);
       return this.leadSessionId ?? '';
     }
+    log('Lead', `Spawning (runtime: ${this.leadRuntime})...`);
 
     // Try to wake a hibernated lead
     const hibernatedLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && a.status === 'hibernated' && a.acpSessionId);
@@ -262,6 +264,7 @@ export class LeadManager {
 
     // Save the configured model to DB so UI can display it
     try { const mc = await import("../agents/ModelConfig.js").then(m => new m.ModelConfig(this.project.subpath("."))); const cfg = mc.getRoleConfig("lead"); if (cfg.model) this.sqlite.updateAgentModel(meta.agentId as any, cfg.model); } catch {}
+    log('Lead', `Spawned fresh (session: ${meta.sessionId}, agent: ${meta.agentId})`);
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
     }
@@ -270,7 +273,7 @@ export class LeadManager {
     if (!this.plannerSessionId) {
       try {
         await this.spawnPlanner();
-        console.error('  Planner auto-spawned alongside Lead');
+        log('Lead', 'Planner auto-spawned alongside Lead');
       } catch { /* Planner spawn failure is non-fatal */ }
     }
 
@@ -292,6 +295,9 @@ export class LeadManager {
 
   /** Send an event steer to Lead and return its response text */
   async steerLead(event: LeadEvent): Promise<string> {
+    const steerStart = Date.now();
+    const eventPreview = event.type === 'user_message' ? truncate(event.message.content) : event.type === 'task_comment' ? truncate(event.message.content) : event.type;
+    log('Lead', `← steer: ${event.type} "${eventPreview}"`);
     // Auto-wake suspended Lead on first steer
     if (!this.leadSessionId && this.isLeadSuspended() && this.suspendedLeadInfo) {
       const info = this.suspendedLeadInfo;
@@ -332,6 +338,7 @@ export class LeadManager {
     const sourceMessageId = event.type === 'user_message' ? event.message.id : undefined;
     try {
       const response = await this.acpAdapter.steer(this.leadSessionId, { content: steer, sourceMessageId });
+      log('Lead', `→ response (${Date.now() - steerStart}ms): "${truncate(response)}"`);
       this.lastSteerAt = new Date().toISOString();
       // busy→idle handled by onSessionTurnEnd callback
 
@@ -633,6 +640,7 @@ export class LeadManager {
 
   /** Spawn Planner as a persistent ACP session */
   async spawnPlanner(): Promise<string> {
+    log('Planner', `Spawning (runtime: ${this.plannerRuntime})...`);
     // Try to wake a hibernated planner first
     const hibernatedPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.status === 'hibernated' && a.acpSessionId);
     if (hibernatedPlanners.length > 0) {
@@ -681,6 +689,7 @@ export class LeadManager {
     });
     this.plannerSessionId = meta.sessionId;
     this.plannerAgentId = meta.agentId;
+    log('Planner', `Spawned fresh (session: ${meta.sessionId}, agent: ${meta.agentId})`);
 
     // Register Planner agent in SQLite
     this.sqlite.insertAgent({
@@ -790,6 +799,8 @@ export class LeadManager {
 
   /** Steer the persistent Planner with a request */
   async steerPlanner(message: string): Promise<string> {
+    const plannerStart = Date.now();  
+    log('Planner', `← steer: "${truncate(message)}"`);
     // Auto-resume suspended planner on first steer
     if (this.isPlannerSuspended() && this.suspendedPlannerInfo) {
       const info = this.suspendedPlannerInfo;
@@ -805,6 +816,7 @@ export class LeadManager {
     }
     if (!this.plannerSessionId) return '';
     const response = await this.acpAdapter.steer(this.plannerSessionId, { content: message });
+    log('Planner', `→ response (${Date.now() - plannerStart}ms): "${truncate(response)}"`);
     return response;
   }
 

@@ -19,6 +19,7 @@ import { processReview } from '../verification/ReviewFlow.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { log, truncate } from '../utils/logger.js';
 
 /** Format timestamp in user's timezone as ISO with offset */
 function formatTs(): string {
@@ -148,6 +149,7 @@ export class Orchestrator {
    * (spawning agents, sending messages, logging decisions).
    */
   private handleEffect(effect: SideEffect): void {
+    log('Orchestrator', `Effect: ${effect.type}${(effect as any).taskId ? ` for ${(effect as any).taskId}` : ''}`);
     switch (effect.type) {
       case 'spawn_reviewer': {
         if (!this.adapter) break;
@@ -288,6 +290,7 @@ export class Orchestrator {
     // but don't promote, assign, or process anything new.
     if (this._paused) return result;
 
+
     let stateChanged = false;
 
     // 0. Check for spec changes (FR-008)
@@ -326,6 +329,15 @@ export class Orchestrator {
 
     // 7. Compact old completed tasks (FR-015)
     result.tasksCompacted = this.compactOldTasks();
+
+    // Log tick summary
+    if (result.readyTasksAssigned > 0 || result.stallsDetected > 0 || result.completionsProcessed > 0) {
+      const agents = this.store.listAgents();
+      const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent).length;
+      const runningTasks = this.dag.listTasks().filter(t => t.state === 'running').length;
+      const idleAgents = agents.filter(a => a.status === 'idle').length;
+      log('Orchestrator', `Tick: ${readyTasks} ready, ${runningTasks} running, ${idleAgents} idle agent(s)`);
+    }
 
     // 8. Broadcast state changes to WebSocket clients
     if (stateChanged) {
@@ -627,6 +639,7 @@ export class Orchestrator {
         // Assign to idle agent
         try {
           this.dag.claimTask(task.id, agent.id);
+          log('Orchestrator', `Task "${truncate(task.title, 50)}" (${task.id}) ready → running (assigned to ${agent.id})`);
           this.store.updateAgentStatus(agent.id, 'busy'); // Pre-mark to prevent double-assignment before steer fires
           usedAgentIds.add(agent.id);
           assigned++;

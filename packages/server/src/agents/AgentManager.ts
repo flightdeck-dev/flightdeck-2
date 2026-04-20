@@ -9,6 +9,7 @@ import type { MessageStore } from '../comms/MessageStore.js';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { RUNTIME_REGISTRY } from './runtimes.js';
 import { join, resolve, dirname } from 'node:path';
+import { log, truncate } from '../utils/logger.js';
 import { fileURLToPath } from 'node:url';
 
 export interface SpawnAgentOptions {
@@ -424,6 +425,7 @@ export class AgentManager {
 
 
   async interruptAgent(agentId: AgentId, message: string): Promise<void> {
+    log('AgentMgr', `Steer (interrupt) ${agentId}: "${truncate(message)}"`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
@@ -451,6 +453,7 @@ export class AgentManager {
 
   /** Send a non-urgent message to an agent (queued, delivered after current turn) */
   async sendToAgent(agentId: AgentId, message: string): Promise<void> {
+    log('AgentMgr', `Send to ${agentId}: "${truncate(message)}"`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     if (agent.status === 'hibernated') {
@@ -563,6 +566,7 @@ export class AgentManager {
   }
 
   async hibernateAgent(agentId: AgentId): Promise<void> {
+    log('AgentMgr', `Hibernating agent ${agentId}`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
@@ -582,6 +586,7 @@ export class AgentManager {
   }
 
   async wakeAgent(agentId: AgentId): Promise<Agent> {
+    log('AgentMgr', `Waking agent ${agentId}`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     if (agent.status !== 'hibernated') throw new Error(`Agent ${agentId} is not hibernated (status: ${agent.status})`);
@@ -608,11 +613,11 @@ export class AgentManager {
       this.sessionToAgent.set(meta.sessionId, agentId);
       this.agentToSession.set(agentId, meta.sessionId);
 
-      console.error(`[wake] Agent ${agentId} resumed (session: ${meta.sessionId})`);
+      log('AgentMgr', `Wake success: ${agentId} (session: ${meta.sessionId})`);
       return { ...agent, acpSessionId: meta.sessionId, status: 'busy' };
     } catch (err) {
       // Resume failed — retire the agent, don't retry
-      console.error(`[wake] Resume failed for ${agentId}: ${(err as Error).message}. Retiring.`);
+      log('AgentMgr', `Wake failed for ${agentId}: ${(err as Error).message}. Retiring.`);
       this.store.updateAgentStatus(agentId, 'retired');
       this.store.updateAgentAcpSession(agentId, null);
       throw new Error(`Failed to resume agent ${agentId}: ${(err as Error).message}. Agent has been retired.`);
@@ -620,6 +625,7 @@ export class AgentManager {
   }
 
   async retireAgent(agentId: AgentId): Promise<void> {
+    log('AgentMgr', `Retiring agent ${agentId}`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
