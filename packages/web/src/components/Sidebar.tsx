@@ -5,7 +5,7 @@ import { useProject } from '../hooks/useProject.tsx';
 import { useAgents } from '../hooks/useAgents.tsx';
 import { api } from '../lib/api.ts';
 import type { ProjectSummary } from '../lib/types.ts';
-import { Folder, FolderOpen, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown, AlertTriangle } from 'lucide-react';
+import { Folder, FolderOpen, LayoutDashboard, MessageSquare, ListTodo, Bot, Scale, Settings, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Plus, MoreHorizontal, Trash2, Archive, X, Clock, Crown, AlertTriangle, FileText } from 'lucide-react';
 import { FolderPicker } from './FolderPicker.tsx';
 
 import type { LucideIcon } from 'lucide-react';
@@ -21,6 +21,7 @@ const PROJECT_NAV: SubNavItem[] = [
   { path: '/chat', label: 'Chat', icon: MessageSquare },
   { path: '/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/agents', label: 'Agents', icon: Bot },
+  { path: '/specs', label: 'Specs', icon: FileText },
   { path: '/decisions', label: 'Decisions', icon: Scale },
   { path: '/cron', label: 'Cron', icon: Clock },
   { path: '/roles', label: 'Roles', icon: Crown },
