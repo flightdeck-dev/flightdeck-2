@@ -183,19 +183,14 @@ describe('MCP new tools', () => {
     expect(learnings[0].content).toContain('branded');
   });
 
-  it('cost_report works for lead', async () => {
+  it('flightdeck_status strips tokenUsage for agents', async () => {
     setCallerAgent('lead-1');
-    const result = await callTool(server, 'flightdeck_cost_report', {});
+    const result = await callTool(server, 'flightdeck_status', {});
     const data = JSON.parse(getText(result));
-    expect(data).toHaveProperty('totalCost');
-    expect(data).toHaveProperty('byAgent');
-    expect(data).toHaveProperty('byTask');
-  });
-
-  it('cost_report rejected for worker', async () => {
-    setCallerAgent('worker-1');
-    const result = await callTool(server, 'flightdeck_cost_report', {});
-    expect(getText(result)).toContain('Error');
+    expect(data).toHaveProperty('taskStats');
+    expect(data).toHaveProperty('agentCount');
+    expect(data).not.toHaveProperty('tokenUsage');
+    expect(data).not.toHaveProperty('totalCost');
   });
 
   it('timer_set and timer_list', async () => {
