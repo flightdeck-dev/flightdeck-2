@@ -776,16 +776,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Cost tools ──
 
-  server.tool('flightdeck_cost_report', 'Get cost report', {
-  }, async () => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      return jsonResponse(await client.getCostReport());
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
 
   // ── Timer tools ──
 

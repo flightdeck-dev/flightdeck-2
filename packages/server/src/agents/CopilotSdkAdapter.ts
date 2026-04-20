@@ -388,13 +388,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
         skipPermission: true,
       });
 
-      tools.push({
-        name: 'flightdeck_cost_report',
-        description: 'Get cost report for the project.',
-        parameters: { type: 'object', properties: {} },
-        handler: async () => JSON.stringify(await httpGet('/cost')),
-        skipPermission: true,
-      });
 
       tools.push({
         name: 'flightdeck_decision_log',

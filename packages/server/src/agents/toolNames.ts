@@ -61,7 +61,6 @@ export const TOOL_NAMES = {
   // Status & reporting
   STATUS: 'flightdeck_status',
   REPORT: 'flightdeck_report',
-  COST_REPORT: 'flightdeck_cost_report',
   PLAN_REVIEW: 'flightdeck_plan_review',
   ESCALATE: 'flightdeck_escalate',
   ESCALATE_TO_HUMAN: 'flightdeck_escalate_to_human',
