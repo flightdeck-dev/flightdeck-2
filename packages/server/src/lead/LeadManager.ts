@@ -175,7 +175,8 @@ export class LeadManager {
         this.retireOtherAgents('lead', lead.id);
         return meta.sessionId;
       } catch (err) {
-        // Resume failed (expected after gateway restart)
+        // Resume failed — log for debugging
+        log('Lead', `Wake failed for ${lead.id}: ${err instanceof Error ? err.message : String(err)}`);
         this.sqlite.updateAgentStatus(lead.id as any, 'retired');
       }
     }
@@ -661,9 +662,9 @@ export class LeadManager {
         console.error(`  Planner ${planner.id} woken (session: ${meta.sessionId})`);
         this.retireOtherAgents('planner', planner.id);
         return meta.sessionId;
-      } catch {
-        // Resume failed (expected after gateway restart — process is gone)
-        // Silently mark as retired and fall through to fresh spawn
+      } catch (err) {
+        // Resume failed — log the reason for debugging
+        log('Planner', `Wake failed for ${planner.id}: ${err instanceof Error ? err.message : String(err)}`);
         this.sqlite.updateAgentStatus(planner.id as any, 'retired');
       }
     }
