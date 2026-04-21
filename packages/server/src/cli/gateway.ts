@@ -326,6 +326,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
   // Wire Copilot SDK streaming output to WebSocket
   copilotSdkAdapter.onOutput = (agentId, event) => {
+    const e = event as any;
+    // Debug: log event types to help diagnose streaming
+    if (e.type && !['session.idle', 'assistant.usage', 'session.usage_info'].includes(e.type)) {
+      log('CopilotSdk', `Event: ${e.type} (agent: ${agentId})`);
+    }
     for (const wsServer of wsServers.values()) {
       let delta = '';
       let contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result' = 'text';

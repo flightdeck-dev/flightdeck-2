@@ -297,7 +297,7 @@ export class LeadManager {
   /** Send an event steer to Lead and return its response text */
   async steerLead(event: LeadEvent): Promise<string> {
     const steerStart = Date.now();
-    const eventPreview = event.type === 'user_message' ? truncate(event.message.content) : event.type === 'task_comment' ? truncate(event.message.content) : event.type;
+    const eventPreview = event.type === 'user_message' ? truncate(event.message.content) : event.type === 'task_comment' ? truncate(event.message.content) : event.type === 'agent_message' ? truncate(event.message) : event.type === 'system_notice' ? truncate(event.message) : event.type;
     log('Lead', `← steer: ${event.type} "${eventPreview}"`);
     // Auto-wake suspended Lead on first steer
     if (!this.leadSessionId && this.isLeadSuspended() && this.suspendedLeadInfo) {
