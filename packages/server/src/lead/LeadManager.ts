@@ -62,6 +62,7 @@ export type LeadEvent =
   | { type: 'spec_changed'; specId: string; summary: string }
   | { type: 'heartbeat' }
   | { type: 'worker_recovery'; message: string }
+  | { type: 'agent_message'; agentId: string; message: string }
   | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } }
   | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> }
   | { type: 'task_completed_notify'; taskId: string; title: string; claim?: string }
@@ -515,6 +516,16 @@ export class LeadManager {
         const wrTs = formatTs();
         parts.push(`[${wrTs}] [SYSTEM]`);
         parts.push(`source: worker_recovery`);
+        parts.push('---');
+        parts.push(event.message);
+        break;
+      }
+
+      case 'agent_message': {
+        const amTs = formatTs();
+        parts.push(`[${amTs}] [AGENT ${event.agentId}]`);
+        parts.push(`agent_id: ${event.agentId}`);
+        parts.push(`source: direct_message`);
         parts.push('---');
         parts.push(event.message);
         break;

@@ -149,7 +149,7 @@ function AgentPanel() {
           </div>
         )}
         <div className="text-[10px] text-[var(--color-text-tertiary)] pl-4 truncate">
-          {(a as any).runtimeName ?? ''}{a.model ? ` · ${a.model}` : ''}
+          {a.model || (a as any).runtimeName || '—'}
         </div>
       </div>
     );

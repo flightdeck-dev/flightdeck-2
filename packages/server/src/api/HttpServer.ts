@@ -382,7 +382,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const authorTypesParam = url.searchParams.get('author_types');
       const authorTypes = authorTypesParam ? authorTypesParam.split(',') : undefined;
       const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-      json(200, (fd.messages?.listMessages({ threadId, taskId, limit, authorTypes }) ?? []).reverse());
+      const allMsgs = fd.messages?.listMessages({ threadId, taskId, limit: limit + 50, authorTypes }) ?? [];
+      // Exclude DM messages from main chat (they have channel like 'dm:xxx')
+      const mainChatMsgs = allMsgs.filter(m => !m.channel?.startsWith('dm:'));
+      json(200, mainChatMsgs.slice(-limit).reverse());
     } else if (subPath === '/messages' && method === 'POST') {
       try {
         const body = await readBody();
@@ -1386,6 +1389,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           if (targetTo === 'planner' || targetTo.startsWith('planner-')) {
             const lm = leadManagers.get(projectName);
             if (lm) lm.steerPlanner?.(`[DM from ${agentId}]: ${body.content}`).catch(() => {});
+          } else if (targetTo === 'lead' || targetTo.startsWith('lead-')) {
+            const lm = leadManagers.get(projectName);
+            if (lm) lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: body.content as string }).catch(() => {});
           } else {
             // DM to a worker or other agent — use AgentManager
             const am = agentManagers?.get(projectName) ?? fd.agentManager;

@@ -105,7 +105,7 @@ function TokenUsage({ projectName, tokenUsage }: { projectName: string; tokenUsa
             <div key={i} className="text-[11px] font-mono text-[var(--color-text-tertiary)] flex items-center gap-2">
               <span className="truncate max-w-[120px]">{a.agentId}</span>
               <span className="opacity-50">·</span>
-              <span className="truncate max-w-[140px]">{a.model}</span>
+              <span className="truncate max-w-[140px]">{a.model || a.runtimeName || '—'}</span>
               <span className="opacity-50">·</span>
               <span>{formatTokenCount(a.totalIn)}/{formatTokenCount(a.totalOut)}</span>
               <span className="opacity-50">·</span>
@@ -318,9 +318,7 @@ export default function Dashboard() {
                         </p>
                       )}
                     </div>
-                    {a.model && (
-                      <span className="text-xs text-[var(--color-text-tertiary)] font-mono shrink-0">{a.model}</span>
-                    )}
+                    <span className="text-xs text-[var(--color-text-tertiary)] font-mono shrink-0">{a.model || a.runtimeName || '—'}</span>
                   </div>
                 );
               })}
