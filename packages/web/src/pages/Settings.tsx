@@ -159,8 +159,8 @@ function GlobalSettings() {
   const runtimeProject = projectsData?.[0]?.name ?? '';
 
   const { data: runtimesData } = useSWR(
-    runtimeProject ? ['runtimes-settings', runtimeProject] : null,
-    () => api.getRuntimes(runtimeProject) as Promise<RuntimeInfo[]>
+    'runtimes-global',
+    () => fetch('/api/runtimes').then(r => r.json()) as Promise<RuntimeInfo[]>
   );
   const runtimes = runtimesData ?? null;
 
