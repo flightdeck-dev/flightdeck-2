@@ -114,26 +114,65 @@ function TaskPanel() {
 // --- Agent Panel ---
 function AgentPanel() {
   const { agents } = useAgents();
+  const { tasks } = useTasks();
+
+  // Only show active agents (idle/busy), not retired/hibernated/errored
+  const activeAgents = agents.filter(a => a.status === 'idle' || a.status === 'busy');
+  const inactiveAgents = agents.filter(a => a.status === 'hibernated' || a.status === 'errored');
+
+  const statusLabel: Record<string, string> = {
+    idle: 'Idle', busy: 'Working', hibernated: 'Sleeping', errored: 'Error', retired: 'Retired',
+  };
+  const statusColor: Record<string, string> = {
+    idle: 'var(--color-text-tertiary)', busy: 'var(--color-status-running)', hibernated: 'var(--color-text-tertiary)', errored: 'var(--color-status-failed)',
+  };
+
+  const AgentRow = ({ a }: { a: typeof agents[0] }) => {
+    const agentTasks = tasks.filter(t => t.assignedAgent === a.id && t.state === 'running');
+    return (
+      <div className="px-2 py-2 rounded-md bg-[var(--color-surface-secondary)] space-y-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${a.status === 'busy' ? 'animate-pulse' : ''}`}
+            style={{ backgroundColor: statusColor[a.status] ?? 'var(--color-text-tertiary)' }}
+          />
+          <span className="text-xs font-medium truncate capitalize">{a.role}</span>
+          <span className="text-[10px] text-[var(--color-text-tertiary)]">{statusLabel[a.status] ?? a.status}</span>
+        </div>
+        {agentTasks.length > 0 && (
+          <div className="pl-4 space-y-0.5">
+            {agentTasks.map(t => (
+              <div key={t.id} className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                ▶ {t.title}
+              </div>
+            ))}
+          </div>
+        )}
+        {a.model && (
+          <div className="text-[10px] text-[var(--color-text-tertiary)] pl-4 truncate">
+            {a.model}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-1">
-      {agents.map(a => (
-        <div key={a.id} className="px-2 py-2 rounded-md bg-[var(--color-surface-secondary)] space-y-1">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${a.status === 'busy' ? 'animate-pulse' : ''}`}
-              style={{ backgroundColor: a.status === 'busy' ? 'var(--color-status-running)' : a.status === 'idle' ? 'var(--color-text-tertiary)' : 'var(--color-text-tertiary)' }}
-            />
-            <span className="text-xs font-medium truncate">{a.id.replace(/-[a-z0-9]+$/, '')}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)]">{a.role}</span>
+      {activeAgents.map(a => <AgentRow key={a.id} a={a} />)}
+      {inactiveAgents.length > 0 && (
+        <details className="pt-1">
+          <summary className="text-[10px] text-[var(--color-text-tertiary)] cursor-pointer px-2">
+            {inactiveAgents.length} inactive
+          </summary>
+          <div className="space-y-1 mt-1 opacity-50">
+            {inactiveAgents.map(a => <AgentRow key={a.id} a={a} />)}
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-tertiary)] pl-4">
-            {a.model && <span className="truncate">{a.model}</span>}
-            {a.currentTask && <span className="truncate">→ {a.currentTask}</span>}
-          </div>
-        </div>
-      ))}
-      {agents.length === 0 && <p className="text-xs text-[var(--color-text-tertiary)] px-2">No agents</p>}
+        </details>
+      )}
+      {activeAgents.length === 0 && inactiveAgents.length === 0 && (
+        <p className="text-xs text-[var(--color-text-tertiary)] px-2">No agents</p>
+      )}
     </div>
   );
 }
