@@ -53,3 +53,18 @@ describe('Copilot SDK event mapper', () => {
     expect(mapCopilotSdkEvent({ type: 'tool.execution_start', data: {} })).toBeNull(); // no name
   });
 });
+
+  // Persisted events (always emitted, even without streaming: true)
+  it('maps assistant.message (persisted) to text', () => {
+    const result = mapCopilotSdkEvent({ type: 'assistant.message', data: { content: 'Final answer', messageId: 'msg-1' } });
+    expect(result).toEqual({ delta: 'Final answer', contentType: 'text' });
+  });
+
+  it('maps assistant.reasoning (persisted) to thinking', () => {
+    const result = mapCopilotSdkEvent({ type: 'assistant.reasoning', data: { content: 'Let me think...', reasoningId: 'r-1' } });
+    expect(result).toEqual({ delta: 'Let me think...', contentType: 'thinking' });
+  });
+
+  it('returns null for assistant.message without content', () => {
+    expect(mapCopilotSdkEvent({ type: 'assistant.message', data: {} })).toBeNull();
+  });
