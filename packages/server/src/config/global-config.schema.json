@@ -40,6 +40,30 @@
     "port": {
       "type": "integer",
       "description": "Gateway port (default: 18800)"
+    },
+    "runtimeOrder": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of runtime IDs for UI display"
+    },
+    "disabledRuntimes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Runtime IDs to hide from the UI"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (e.g. 'America/Los_Angeles')"
+    },
+    "display": {
+      "type": "object",
+      "properties": {
+        "thinking": { "type": "boolean", "description": "Show thinking/reasoning blocks" },
+        "toolCalls": { "type": "string", "description": "Tool call display mode" },
+        "flightdeckTools": { "type": "string", "description": "Flightdeck tool display mode" },
+        "agentStreaming": { "type": "boolean", "description": "Enable agent streaming" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

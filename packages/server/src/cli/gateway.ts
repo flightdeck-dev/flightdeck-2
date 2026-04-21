@@ -12,14 +12,13 @@ import { modelRegistry } from '../agents/ModelTiers.js';
 import type { BridgeConfig } from '../bridges/types.js';
 import { log } from '../utils/logger.js';
 
-/** Load bridge config from global-config.json */
+/** Load bridge config from global config */
 async function loadBridgeConfig(): Promise<BridgeConfig | null> {
   try {
-    const cfgPath = join(FD_HOME, 'global-config.json');
-    if (!existsSync(cfgPath)) return null;
-    const raw = JSON.parse(readFileSync(cfgPath, 'utf-8'));
-    if (!raw.bridges) return null;
-    return raw.bridges as BridgeConfig;
+    const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
+    const config = loadGlobalConfig() as any;
+    if (!config.bridges) return null;
+    return config.bridges as BridgeConfig;
   } catch {
     return null;
   }

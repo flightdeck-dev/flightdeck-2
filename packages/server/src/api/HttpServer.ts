@@ -174,29 +174,22 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       return;
     }
     if (url.pathname === '/api/global-config' && method === 'GET') {
-      const { existsSync, readFileSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const { FD_HOME } = await import('../cli/constants.js');
-      const cfgPath = join(FD_HOME, 'global-config.json');
+      const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
       try {
-        json(200, existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf-8')) : {});
+        json(200, loadGlobalConfig());
       } catch { json(200, {}); }
       return;
     }
     if (url.pathname === '/api/global-config' && method === 'PUT') {
       try {
         const body = await readBody();
-        const { GlobalConfigSchema } = await import('@flightdeck-ai/shared/config-schema');
-        const parsed = GlobalConfigSchema.partial().safeParse(body);
-        if (!parsed.success) { json(400, { error: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') }); return; }
-        const { existsSync, readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
-        const { join } = await import('node:path');
-        const { FD_HOME } = await import('../cli/constants.js');
-        mkdirSync(FD_HOME, { recursive: true });
-        const cfgPath = join(FD_HOME, 'global-config.json');
-        const existing = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf-8')) : {};
-        Object.assign(existing, parsed.data);
-        writeFileSync(cfgPath, JSON.stringify(existing, null, 2));
+        if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+          json(400, { error: 'Expected a JSON object' }); return;
+        }
+        const { loadGlobalConfig, saveGlobalConfig } = await import('../config/GlobalConfig.js');
+        const existing = loadGlobalConfig();
+        Object.assign(existing, body);
+        saveGlobalConfig(existing);
         json(200, existing);
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
       return;

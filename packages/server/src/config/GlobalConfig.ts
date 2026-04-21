@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
@@ -18,19 +18,42 @@ export interface CustomRuntimeConfig {
 export interface GlobalConfig {
   customRuntimes?: Record<string, CustomRuntimeConfig>;
   defaultRuntime?: string;
+  runtimeOrder?: string[];
+  disabledRuntimes?: string[];
+  timezone?: string;
+  display?: {
+    thinking?: boolean;
+    toolCalls?: string;
+    flightdeckTools?: string;
+    agentStreaming?: boolean;
+  };
   auth?: { mode: 'none' | 'token'; token?: string };
   bind?: string;
   port?: number;
 }
 
 export function loadGlobalConfig(): GlobalConfig {
-  if (!existsSync(CONFIG_PATH)) return {};
-  try {
-    const raw = readFileSync(CONFIG_PATH, 'utf-8');
-    return (parseYaml(raw) as GlobalConfig) ?? {};
-  } catch {
-    return {};
+  let config: GlobalConfig = {};
+  if (existsSync(CONFIG_PATH)) {
+    try {
+      const raw = readFileSync(CONFIG_PATH, 'utf-8');
+      config = (parseYaml(raw) as GlobalConfig) ?? {};
+    } catch { /* best effort */ }
   }
+
+  // One-time migration from global-config.json
+  const oldJsonPath = join(CONFIG_DIR, 'global-config.json');
+  if (existsSync(oldJsonPath)) {
+    try {
+      const oldConfig = JSON.parse(readFileSync(oldJsonPath, 'utf-8'));
+      config = { ...config, ...oldConfig };
+      saveGlobalConfig(config);
+      unlinkSync(oldJsonPath);
+      console.error('[GlobalConfig] Migrated global-config.json → config.yaml');
+    } catch { /* best effort */ }
+  }
+
+  return config;
 }
 
 export function saveGlobalConfig(config: GlobalConfig): void {
