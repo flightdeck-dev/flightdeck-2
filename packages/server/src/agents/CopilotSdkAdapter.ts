@@ -237,7 +237,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
         required: ['content'],
       },
       handler: async (args: { to?: string; channel?: string; content: string }) => {
-        return JSON.stringify(await httpPost('/messages', args));
+        return JSON.stringify(await httpPost('/messages/send', args));
       },
       skipPermission: true,
     });
