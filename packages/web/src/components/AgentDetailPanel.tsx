@@ -244,12 +244,22 @@ export function AgentDetailPanel({
     () => api.getMessages(projectName!, { channel: `dm:${agent.id}`, limit: 50 }),
   );
 
+  // For Lead, also fetch main chat messages (user ↔ Lead conversation)
+  const { data: mainChatMessages } = useSWR(
+    projectName && agent.role === 'lead' ? ['lead-main-chat', projectName] : null,
+    () => api.getMessages(projectName!, { limit: 50 }),
+  );
+
   const dmMessages = useMemo(() => {
     const history = dmHistoryMessages ?? [];
-    const historyIds = new Set(history.map((m: any) => m.id));
-    const newLive = liveDmMessages.filter((m: any) => !historyIds.has(m.id));
-    return [...history, ...newLive];
-  }, [dmHistoryMessages, liveDmMessages]);
+    const mainChat = (agent.role === 'lead' ? mainChatMessages ?? [] : []);
+    const all = [...mainChat, ...history].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const seen = new Set<string>();
+    const deduped = all.filter((m: any) => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+    const liveIds = new Set(deduped.map((m: any) => m.id));
+    const newLive = liveDmMessages.filter((m: any) => !liveIds.has(m.id));
+    return [...deduped, ...newLive];
+  }, [dmHistoryMessages, mainChatMessages, liveDmMessages, agent.role]);
 
   // Content (shared between compact and full modes)
   const content = (
@@ -333,13 +343,14 @@ export function AgentDetailPanel({
               {dmMessages && dmMessages.length > 0 && (
                 <div className="space-y-2 mb-4 pb-4 border-b border-[var(--color-border)]">
                   {dmMessages.map((m) => (
-                    <div key={m.id} className={`flex ${m.authorType === 'agent' && m.authorId === agent.id ? 'justify-start' : 'justify-end'}`}>
+                    <div key={m.id} className={`flex ${m.authorType === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`inline-block px-3 py-2 rounded-2xl text-sm max-w-[85%] whitespace-pre-wrap break-words ${
-                        m.authorType === 'agent' && m.authorId === agent.id
-                          ? 'rounded-bl-sm bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)]'
-                          : 'rounded-br-sm bg-[var(--color-primary)] text-white'
+                        m.authorType === 'user'
+                          ? 'rounded-br-sm bg-[var(--color-primary)] text-white'
+                          : 'rounded-bl-sm bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)]'
                       }`}>
                         {m.authorType === 'system' && <span className="text-xs opacity-60 block mb-0.5">system</span>}
+                        {m.authorType !== 'user' && <span className="text-[10px] text-[var(--color-text-tertiary)] block mb-0.5 capitalize">{m.authorType}</span>}
                         {m.content}
                       </div>
                     </div>
