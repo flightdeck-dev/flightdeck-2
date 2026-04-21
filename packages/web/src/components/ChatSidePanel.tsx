@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ListTodo, Bot, Search, FileText, X, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks.tsx';
 import { useAgents } from '../hooks/useAgents.tsx';
@@ -115,6 +116,8 @@ function TaskPanel() {
 function AgentPanel() {
   const { agents } = useAgents();
   const { tasks } = useTasks();
+  const { projectName } = useProject();
+  const navigate = useNavigate();
 
   // Only show active agents (idle/busy), not retired/hibernated/errored
   const activeAgents = agents.filter(a => a.status === 'idle' || a.status === 'busy');
@@ -130,7 +133,10 @@ function AgentPanel() {
   const AgentRow = ({ a }: { a: typeof agents[0] }) => {
     const agentTasks = tasks.filter(t => t.assignedAgent === a.id && t.state === 'running');
     return (
-      <div className="px-2 py-2 rounded-md bg-[var(--color-surface-secondary)] space-y-1">
+      <div
+        className="px-2 py-2 rounded-md bg-[var(--color-surface-secondary)] space-y-1 cursor-pointer hover:bg-[var(--color-surface-hover)] transition-colors"
+        onClick={() => projectName && navigate(`/${encodeURIComponent(projectName)}/agents?selected=${a.id}`)}
+      >
         <div className="flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${a.status === 'busy' ? 'animate-pulse' : ''}`}

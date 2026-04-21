@@ -710,7 +710,10 @@ function AgentCard({ agent, projectName, onSelect, isSelected, onMutate, onError
 export default function Agents() {
   const { agents, agentOutputs, agentStreamChunks, dmMessages } = useAgentsHook();
   const { loading, projectName } = useProject();
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('selected');
+  });
   const [pageToast, setPageToast] = useState<string | null>(null);
   const { mutate } = useSWR(projectName ? ['agents', projectName] : null);
   const handleMutate = useCallback(() => { mutate(); }, [mutate]);
