@@ -257,8 +257,16 @@ import { homedir } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 import { loadGlobalConfig } from '../config/GlobalConfig.js';
 
+const customRuntimeIds = new Set<string>();
+
 /** Load custom runtimes from global config.yaml and optional project config */
 export function loadCustomRuntimes(): void {
+  // Remove previously loaded custom runtimes
+  for (const id of customRuntimeIds) {
+    delete RUNTIME_REGISTRY[id];
+  }
+  customRuntimeIds.clear();
+  
   // Load from global config.yaml
   const globalConfig = loadGlobalConfig();
   if (globalConfig.customRuntimes) {
@@ -269,7 +277,7 @@ export function loadCustomRuntimes(): void {
 function registerCustomRuntimes(runtimes: Record<string, any>): void {
   for (const [id, cfg] of Object.entries(runtimes)) {
     if (!cfg.name || !cfg.command) continue;
-    if (RUNTIME_REGISTRY[id]) continue; // Don't override built-in
+    if (RUNTIME_REGISTRY[id] && !customRuntimeIds.has(id)) continue; // Don't override built-in
 
     RUNTIME_REGISTRY[id] = {
       name: cfg.name,
@@ -289,6 +297,7 @@ function registerCustomRuntimes(runtimes: Record<string, any>): void {
       notes: ['Custom ACP runtime'],
       customEnv: cfg.env,
     };
+    customRuntimeIds.add(id);
     console.error(`  Loaded custom runtime: ${id} (${cfg.name})`);
   }
 }
