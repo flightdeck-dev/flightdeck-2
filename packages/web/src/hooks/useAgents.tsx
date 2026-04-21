@@ -46,7 +46,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   const { data: agents = [], mutate: mutateAgents } = useSWR(
     projectName ? ['agents', projectName] : null,
-    () => api.getAgents(projectName!)
+    () => api.getAgents(projectName!),
+    { refreshInterval: 3000 }
   );
 
   // Clear streaming state when project changes
