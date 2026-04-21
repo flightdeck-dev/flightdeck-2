@@ -899,6 +899,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
     const sessionConfig: SessionConfig = {
       sessionId,
       model: opts.model ?? this.defaultModel,
+      streaming: true,
       systemMessage: opts.systemPrompt
         ? { mode: 'append', content: opts.systemPrompt }
         : undefined,
@@ -1085,6 +1086,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const session = await client.resumeSession(opts.previousSessionId, {
       model: opts.model ?? this.defaultModel,
+      streaming: true,
       tools,
       onPermissionRequest: approveAll,
     });
