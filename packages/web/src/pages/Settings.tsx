@@ -39,7 +39,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
         value ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
       }`}>
       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-        value ? 'left-5' : 'left-0.5'
+        value ? 'translate-x-[21px]' : 'translate-x-[2px]'
       }`} />
     </button>
   );
