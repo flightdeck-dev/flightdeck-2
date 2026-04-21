@@ -106,7 +106,6 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
         }
       }
     }
-    }
   }
 
   for (const em of role.enabledModels) {

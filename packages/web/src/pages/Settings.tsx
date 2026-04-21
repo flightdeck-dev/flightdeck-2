@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { useDisplay } from '../hooks/useDisplay.tsx';
 import { api } from '../lib/api.ts';
 import { DISPLAY_PRESET_NAMES, DISPLAY_PRESETS, type DisplayPreset, type ToolVisibility } from '@flightdeck-ai/shared/display';
 import { useAgents as useAgentsHook } from '../hooks/useAgents.tsx';
-import { Loader2, X, FileText } from 'lucide-react';
+import { Loader2, X, FileText, Trash2 } from 'lucide-react';
 
 const PRESET_DESCRIPTIONS: Record<string, string> = {
   minimal: 'Final answers only — clean and focused',
@@ -158,11 +158,15 @@ function GlobalSettings() {
   );
   const runtimeProject = projectsData?.[0]?.name ?? '';
 
-  const { data: runtimesData } = useSWR(
+  const { data: runtimesData, mutate: mutateRuntimes } = useSWR(
     'runtimes-global',
     () => fetch('/api/runtimes').then(r => r.json()) as Promise<RuntimeInfo[]>
   );
   const runtimes = runtimesData ?? null;
+
+  const { data: customRuntimes, mutate: mutateCustom } = useSWR('custom-runtimes',
+    () => fetch('/api/custom-runtimes').then(r => r.json()) as Promise<Record<string, any>>
+  );
 
   const { data: globalCfg } = useSWR('global-config', () =>
     fetch('/api/global-config').then(r => r.json())
@@ -249,6 +253,30 @@ function GlobalSettings() {
 
   const [registryAgents, setRegistryAgents] = useState<any[] | null>(null);
   const [registryLoading, setRegistryLoading] = useState(false);
+  const [addedAgents, setAddedAgents] = useState<Set<string>>(new Set());
+  const [addingAgent, setAddingAgent] = useState<string | null>(null);
+  const [removingRuntime, setRemovingRuntime] = useState<string | null>(null);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSaved, setManualSaved] = useState(false);
+
+  const removeCustomRuntime = useCallback(async (id: string) => {
+    setRemovingRuntime(id);
+    try {
+      const res = await fetch('/api/custom-runtimes');
+      const existing = await res.json();
+      const updated = { ...existing };
+      delete updated[id];
+      await fetch('/api/custom-runtimes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      mutateCustom();
+      mutateRuntimes();
+      setAddedAgents(prev => { const next = new Set(prev); next.delete(id); return next; });
+    } catch { /* best effort */ }
+    setRemovingRuntime(null);
+  }, [mutateCustom, mutateRuntimes]);
 
   return (
     <>
@@ -330,7 +358,9 @@ function GlobalSettings() {
             </span>
           </div>
           <Card>
-            {getSortedRuntimes().map((rt) => (
+            {getSortedRuntimes().map((rt) => {
+              const isCustom = customRuntimes && rt.id in customRuntimes;
+              return (
               <div key={rt.id}
                 draggable
                 onDragStart={() => setDragId(rt.id)}
@@ -344,8 +374,19 @@ function GlobalSettings() {
                     enabled={disabledLoaded ? !disabledRuntimes.includes(rt.id) : true}
                     onToggle={toggleRuntime} testResult={testResults[rt.id] ?? null} testing={testingSet.has(rt.id)} />
                 </div>
+                {isCustom && (
+                  <button
+                    onClick={() => removeCustomRuntime(rt.id)}
+                    disabled={removingRuntime === rt.id}
+                    className="ml-1 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    title="Remove custom runtime"
+                  >
+                    {removingRuntime === rt.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  </button>
+                )}
               </div>
-            ))}
+              );
+            })}
           </Card>
         </section>
       )}
@@ -374,6 +415,8 @@ function GlobalSettings() {
             {registryAgents.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No agents found in registry.</p>}
             {registryAgents.map(agent => {
               const alreadyBuiltIn = runtimes?.some(rt => (rt as any).registryId === agent.id);
+              const alreadyAdded = addedAgents.has(agent.id) || (customRuntimes && agent.id in customRuntimes);
+              const isAdding = addingAgent === agent.id;
               return (
                 <div key={agent.id} className="flex items-center gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
                   {agent.icon ? <img src={agent.icon} alt="" className="w-5 h-5 shrink-0" /> : <span className="text-lg">🔌</span>}
@@ -383,18 +426,35 @@ function GlobalSettings() {
                   </div>
                   {alreadyBuiltIn ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]">Built-in</span>
+                  ) : alreadyAdded ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">✓ Added</span>
+                      <button
+                        onClick={() => removeCustomRuntime(agent.id)}
+                        disabled={removingRuntime === agent.id}
+                        className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-red-400 transition-colors disabled:opacity-50"
+                        title="Remove"
+                      >
+                        {removingRuntime === agent.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
+                    </div>
                   ) : (
                     <button
+                      disabled={isAdding}
                       onClick={async () => {
-                        const cmd = agent.distribution?.npx?.package
-                          ? `npx ${agent.distribution.npx.package}`
-                          : agent.distribution?.binary?.['linux-x86_64']?.cmd ?? agent.id;
-                        const customRt = {
+                        setAddingAgent(agent.id);
+                        const customRt: any = {
                           name: agent.name,
-                          command: cmd,
+                          command: agent.id,
                           args: agent.distribution?.npx?.args ?? [],
-                          env: agent.distribution?.npx?.env,
                         };
+                        if (agent.distribution?.npx?.env) customRt.env = agent.distribution.npx.env;
+                        if (agent.distribution?.npx?.package) {
+                          const pkg = agent.distribution.npx.package;
+                          const atIdx = pkg.lastIndexOf('@');
+                          const basePkg = atIdx > 0 ? pkg.substring(0, atIdx) : pkg;
+                          customRt.installHint = `npm install -g ${basePkg}`;
+                        }
                         try {
                           const res = await fetch('/api/custom-runtimes');
                           const existing = await res.json();
@@ -404,11 +464,15 @@ function GlobalSettings() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updated),
                           });
+                          setAddedAgents(prev => new Set(prev).add(agent.id));
+                          mutateCustom();
+                          mutateRuntimes();
                         } catch { /* best effort */ }
+                        setAddingAgent(null);
                       }}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)] text-white hover:opacity-80 transition-opacity"
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)] text-white hover:opacity-80 transition-opacity disabled:opacity-50"
                     >
-                      Add
+                      {isAdding ? 'Adding…' : 'Add'}
                     </button>
                   )}
                 </div>
@@ -426,6 +490,7 @@ function GlobalSettings() {
             <input id="custom-rt-cmd" placeholder="Command (e.g. my-agent-acp)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <input id="custom-rt-args" placeholder="Args (comma-separated, optional)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <button
+              disabled={manualSaving}
               onClick={async () => {
                 const id = (document.getElementById('custom-rt-id') as HTMLInputElement)?.value?.trim();
                 const name = (document.getElementById('custom-rt-name') as HTMLInputElement)?.value?.trim();
@@ -433,6 +498,8 @@ function GlobalSettings() {
                 const argsStr = (document.getElementById('custom-rt-args') as HTMLInputElement)?.value?.trim();
                 if (!id || !name || !cmd) return;
                 const args = argsStr ? argsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+                setManualSaving(true);
+                setManualSaved(false);
                 try {
                   const res = await fetch('/api/custom-runtimes');
                   const existing = await res.json();
@@ -441,14 +508,18 @@ function GlobalSettings() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...existing, [id]: { name, command: cmd, args } }),
                   });
-                  // Clear inputs
                   ['custom-rt-id','custom-rt-name','custom-rt-cmd','custom-rt-args'].forEach(x => {
                     const el = document.getElementById(x) as HTMLInputElement; if (el) el.value = '';
                   });
+                  mutateCustom();
+                  mutateRuntimes();
+                  setManualSaved(true);
+                  setTimeout(() => setManualSaved(false), 2000);
                 } catch { /* */ }
+                setManualSaving(false);
               }}
-              className="px-3 py-1.5 text-sm rounded-md bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity"
-            >Save</button>
+              className="px-3 py-1.5 text-sm rounded-md bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            >{manualSaving ? 'Saving…' : manualSaved ? '✓ Saved' : 'Save'}</button>
           </div>
         </Card>
       </section>
