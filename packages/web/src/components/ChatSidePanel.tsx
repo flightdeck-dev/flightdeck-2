@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ListTodo, Bot, Search, FileText, X, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks.tsx';
 import { useAgents } from '../hooks/useAgents.tsx';
 import { useProject } from '../hooks/useProject.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { api } from '../lib/api.ts';
+import { AgentDetailPanel, EMPTY_CHUNKS } from '../components/AgentDetailPanel.tsx';
 
 type PanelTab = 'tasks' | 'agents' | 'search' | 'memory';
 
@@ -114,10 +114,37 @@ function TaskPanel() {
 
 // --- Agent Panel ---
 function AgentPanel() {
-  const { agents } = useAgents();
+  const { agents, agentOutputs, agentStreamChunks, dmMessages } = useAgents();
   const { tasks } = useTasks();
   const { projectName } = useProject();
-  const navigate = useNavigate();
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  const selectedAgent = agents.find(a => a.id === selectedAgentId);
+
+  // Clear selection if agent disappears
+  useEffect(() => {
+    if (selectedAgentId && !agents.find(a => a.id === selectedAgentId)) {
+      setSelectedAgentId(null);
+    }
+  }, [agents, selectedAgentId]);
+
+  // If an agent is selected, show detail panel instead of agent list
+  if (selectedAgent && projectName) {
+    return (
+      <div className="h-full flex flex-col">
+        <AgentDetailPanel
+          key={selectedAgent.id}
+          agent={selectedAgent}
+          projectName={projectName}
+          liveOutput={agentOutputs.get(selectedAgent.id) ?? ''}
+          liveChunks={agentStreamChunks.get(selectedAgent.id) ?? EMPTY_CHUNKS}
+          liveDmMessages={dmMessages.get(selectedAgent.id) ?? []}
+          onClose={() => setSelectedAgentId(null)}
+          compact
+        />
+      </div>
+    );
+  }
 
   // Only show active agents (idle/busy), not retired/hibernated/errored
   const activeAgents = agents.filter(a => a.status === 'idle' || a.status === 'busy');
@@ -135,7 +162,7 @@ function AgentPanel() {
     return (
       <div
         className="px-2 py-2 rounded-md bg-[var(--color-surface-secondary)] space-y-1 cursor-pointer hover:bg-[var(--color-surface-hover)] transition-colors"
-        onClick={() => projectName && navigate(`/${encodeURIComponent(projectName)}/agents?selected=${a.id}`)}
+        onClick={() => setSelectedAgentId(a.id)}
       >
         <div className="flex items-center gap-2">
           <span
