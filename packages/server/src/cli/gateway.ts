@@ -339,25 +339,28 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
 
       switch (e.type) {
         case 'assistant.message_delta':
-        case 'assistant.streaming_delta':
-          delta = e.data?.content ?? e.data?.delta ?? '';
+          delta = e.data?.deltaContent ?? '';
           contentType = 'text';
           break;
         case 'assistant.reasoning_delta':
-          delta = e.data?.content ?? e.data?.delta ?? '';
+          delta = e.data?.deltaContent ?? '';
+          contentType = 'thinking';
+          break;
+        case 'assistant.intent':
+          delta = e.data?.intent ?? '';
           contentType = 'thinking';
           break;
         case 'tool.execution_start':
-          toolName = e.data?.name ?? e.data?.tool ?? '';
+          toolName = e.data?.name ?? '';
           if (toolName) {
             const isFlightdeck = toolName.startsWith('flightdeck_');
-            delta = JSON.stringify({ toolCallId: e.data?.id ?? '', name: toolName, input: e.data?.input ? JSON.stringify(e.data.input) : '', status: 'pending' });
+            delta = JSON.stringify({ toolCallId: e.data?.toolCallId ?? '', name: toolName, input: e.data?.arguments ? JSON.stringify(e.data.arguments) : '', status: 'pending' });
             contentType = isFlightdeck ? 'tool_call' : 'tool_call';
           }
           break;
         case 'tool.execution_complete':
-          toolName = e.data?.name ?? e.data?.tool ?? '';
-          delta = JSON.stringify({ toolCallId: e.data?.id ?? '', name: toolName, result: e.data?.content ?? e.data?.result ?? '', status: 'completed' });
+          toolName = e.data?.name ?? '';
+          delta = JSON.stringify({ toolCallId: e.data?.toolCallId ?? '', name: toolName, result: e.data?.content ?? '', status: 'completed' });
           contentType = 'tool_result';
           break;
         default:
