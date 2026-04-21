@@ -149,6 +149,7 @@ function RuntimeCard({ rt, projectName: _projectName, enabled, onToggle, testRes
 function GlobalSettings() {
   const { displayConfig, setDisplayConfig, applyDisplayPreset } = useDisplay();
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; installed: boolean; version?: string; message: string }>>({});
   const [testingSet, setTestingSet] = useState<Set<string>>(new Set());
 
@@ -227,7 +228,7 @@ function GlobalSettings() {
   }, [runtimes, runtimeOrder]);
 
   const handleDrop = useCallback(async (targetId: string) => {
-    if (!dragId || dragId === targetId || !runtimes || !runtimeProject) return;
+    if (!dragId || dragId === targetId || !runtimes) return;
     const sorted = getSortedRuntimes();
     const order = sorted.map(rt => rt.id);
     const fromIdx = order.indexOf(dragId);
@@ -237,12 +238,16 @@ function GlobalSettings() {
     order.splice(toIdx, 0, dragId);
     setRuntimeOrder(order);
     setDragId(null);
+    setDragOverId(null);
     try {
-      await api.updateProjectConfig(runtimeProject, { runtimeOrder: order });
-    } catch {
-      setRuntimeOrder(prev => prev); // revert handled by SWR refresh
-    }
-  }, [dragId, runtimes, runtimeProject, getSortedRuntimes]);
+      const res = await fetch('/api/global-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtimeOrder: order }),
+      });
+      if (!res.ok) console.error('Failed to save runtime order');
+    } catch { /* best effort */ }
+  }, [dragId, runtimes, getSortedRuntimes]);
 
   const currentPreset = DISPLAY_PRESET_NAMES.find(p => {
     const preset = DISPLAY_PRESETS[p];
@@ -364,9 +369,11 @@ function GlobalSettings() {
               <div key={rt.id}
                 draggable
                 onDragStart={() => setDragId(rt.id)}
-                onDragOver={e => e.preventDefault()}
+                onDragOver={e => { e.preventDefault(); setDragOverId(rt.id); }}
+                onDragLeave={() => setDragOverId(null)}
                 onDrop={() => handleDrop(rt.id)}
-                className={`flex items-center transition-opacity ${dragId === rt.id ? 'opacity-40' : ''}`}
+                onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                className={`flex items-center transition-all duration-200 ${dragId === rt.id ? 'opacity-30 scale-95' : ''} ${dragOverId === rt.id && dragId !== rt.id ? 'border-l-2 border-[var(--color-primary)] pl-1' : ''}`}
               >
                 <span className="cursor-grab active:cursor-grabbing text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] px-1 select-none" title="Drag to reorder">≡</span>
                 <div className="flex-1">
