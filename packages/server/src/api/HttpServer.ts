@@ -1391,7 +1391,17 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             if (lm) lm.steerPlanner?.(`[DM from ${agentId}]: ${body.content}`).catch(() => {});
           } else if (targetTo === 'lead' || targetTo.startsWith('lead-')) {
             const lm = leadManagers.get(projectName);
-            if (lm) lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: body.content as string }).catch(() => {});
+            if (lm) {
+              lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: body.content as string }).then(response => {
+                if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY' && fd.messages) {
+                  const leadMsg = fd.messages.createMessage({
+                    threadId: null, parentId: null, taskId: null,
+                    authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
+                  });
+                  if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
+                }
+              }).catch(() => {});
+            }
           } else {
             // DM to a worker or other agent — use AgentManager
             const am = agentManagers?.get(projectName) ?? fd.agentManager;
