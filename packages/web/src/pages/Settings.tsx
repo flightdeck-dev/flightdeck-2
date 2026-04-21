@@ -540,7 +540,60 @@ function GlobalSettings() {
 
       {/* Chat Bridges */}
       <ChatBridgesSection globalCfg={globalCfg} />
+
+      {/* Debug */}
+      <DebugLogSection />
     </>
+  );
+}
+
+function DebugLogSection() {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/logs?tail=100');
+      const data = await res.json();
+      setLogs(data.lines ?? []);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(fetchLogs, 2000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchLogs]);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionHeader>Gateway Logs</SectionHeader>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setLoading(true); fetchLogs().finally(() => setLoading(false)); }}
+            className="text-[10px] px-2 py-0.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+          >{loading ? 'Loading…' : '↻ Load'}</button>
+          <label className="flex items-center gap-1 text-[10px] text-[var(--color-text-tertiary)]">
+            <input type="checkbox" checked={autoRefresh} onChange={e => { setAutoRefresh(e.target.checked); if (e.target.checked) fetchLogs(); }} className="w-3 h-3" />
+            Auto-refresh
+          </label>
+        </div>
+      </div>
+      {logs.length > 0 && (
+        <Card>
+          <div className="max-h-[400px] overflow-y-auto font-mono text-[11px] leading-relaxed text-[var(--color-text-secondary)] whitespace-pre-wrap break-all">
+            {logs.map((line, i) => (
+              <div key={i} className={line.includes('error') || line.includes('Error') || line.includes('FAIL') ? 'text-[var(--color-status-failed)]' : ''}>{line}</div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        </Card>
+      )}
+    </section>
   );
 }
 

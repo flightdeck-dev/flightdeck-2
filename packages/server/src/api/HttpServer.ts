@@ -128,6 +128,21 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       json(200, runtimes);
       return;
     }
+    if (url.pathname === '/api/logs' && method === 'GET') {
+      try {
+        const { existsSync, readFileSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { FD_HOME } = await import('../cli/constants.js');
+        const logPath = join(FD_HOME, 'gateway.log');
+        if (!existsSync(logPath)) { json(200, { lines: [], path: logPath }); return; }
+        const lines = readFileSync(logPath, 'utf-8').split('\n');
+        const tail = parseInt(url.searchParams.get('tail') ?? '200', 10);
+        json(200, { lines: lines.slice(-tail), total: lines.length, path: logPath });
+      } catch (err) {
+        json(500, { error: `Failed to read logs: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      return;
+    }
     if (url.pathname === '/api/registry' && method === 'GET') {
       const { acpRegistry } = await import('../agents/AcpRegistry.js');
       try {
