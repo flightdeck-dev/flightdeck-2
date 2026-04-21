@@ -324,6 +324,47 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
+  // Wire Copilot SDK streaming output to WebSocket
+  copilotSdkAdapter.onOutput = (agentId, event) => {
+    for (const wsServer of wsServers.values()) {
+      let delta = '';
+      let contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result' = 'text';
+      let toolName: string | undefined;
+      const e = event as any;
+
+      switch (e.type) {
+        case 'assistant.message_delta':
+        case 'assistant.streaming_delta':
+          delta = e.data?.content ?? e.data?.delta ?? '';
+          contentType = 'text';
+          break;
+        case 'assistant.reasoning_delta':
+          delta = e.data?.content ?? e.data?.delta ?? '';
+          contentType = 'thinking';
+          break;
+        case 'tool.execution_start':
+          toolName = e.data?.name ?? e.data?.tool ?? '';
+          if (toolName) {
+            const isFlightdeck = toolName.startsWith('flightdeck_');
+            delta = JSON.stringify({ toolCallId: e.data?.id ?? '', name: toolName, input: e.data?.input ? JSON.stringify(e.data.input) : '', status: 'pending' });
+            contentType = isFlightdeck ? 'tool_call' : 'tool_call';
+          }
+          break;
+        case 'tool.execution_complete':
+          toolName = e.data?.name ?? e.data?.tool ?? '';
+          delta = JSON.stringify({ toolCallId: e.data?.id ?? '', name: toolName, result: e.data?.content ?? e.data?.result ?? '', status: 'completed' });
+          contentType = 'tool_result';
+          break;
+        default:
+          return;
+      }
+
+      if (delta) {
+        wsServer.broadcast({ type: 'agent:stream', agentId, delta, contentType, toolName });
+      }
+    }
+  };
+
   // Determine which projects to serve
   let projectNames = projectManager.list();
   if (projectFilter) {
