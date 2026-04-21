@@ -35,11 +35,11 @@ function VisibilitySelector({ value, onChange }: { value: ToolVisibility; onChan
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
     <button onClick={() => onChange(!value)}
-      className={`w-10 h-5 rounded-full transition-colors relative ${
+      className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${
         value ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-secondary)] border border-[var(--color-border)]'
       }`}>
-      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-        value ? 'translate-x-[21px]' : 'translate-x-[2px]'
+      <span className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${
+        value ? 'left-[22px]' : 'left-[2px]'
       }`} />
     </button>
   );
