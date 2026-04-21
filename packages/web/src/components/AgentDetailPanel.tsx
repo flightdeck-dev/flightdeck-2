@@ -343,14 +343,13 @@ export function AgentDetailPanel({
               {dmMessages && dmMessages.length > 0 && (
                 <div className="space-y-2 mb-4 pb-4 border-b border-[var(--color-border)]">
                   {dmMessages.map((m) => (
-                    <div key={m.id} className={`flex ${m.authorType === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={m.id} className={`flex ${m.authorId === agent.id || (m.authorType === 'user' && agent.role === 'lead') ? 'justify-end' : 'justify-start'}`}>
                       <div className={`inline-block px-3 py-2 rounded-2xl text-sm max-w-[85%] whitespace-pre-wrap break-words ${
-                        m.authorType === 'user'
+                        m.authorId === agent.id || (m.authorType === 'user' && agent.role === 'lead')
                           ? 'rounded-br-sm bg-[var(--color-primary)] text-white'
                           : 'rounded-bl-sm bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)]'
                       }`}>
-                        {m.authorType === 'system' && <span className="text-xs opacity-60 block mb-0.5">system</span>}
-                        {m.authorType !== 'user' && <span className="text-[10px] text-[var(--color-text-tertiary)] block mb-0.5 capitalize">{m.authorType}</span>}
+                        {m.authorId !== agent.id && m.authorType !== 'user' && <span className="text-[10px] opacity-60 block mb-0.5 capitalize">{m.authorType === 'agent' ? (m.authorId?.replace(/-[a-z0-9]+$/, '') ?? 'agent') : m.authorType}</span>}
                         {m.content}
                       </div>
                     </div>
