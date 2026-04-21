@@ -301,6 +301,9 @@ function AgentDetailPanel({
                 <span className="text-[var(--color-text-tertiary)]">Task:</span> {currentTask.title}
               </p>
             )}
+            <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1 font-mono truncate">
+              {agent.runtimeName ?? agent.runtime ?? ''}{agent.model ? ` · ${agent.model}` : ''}
+            </p>
           </div>
 
           {/* Tabs */}
