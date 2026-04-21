@@ -256,8 +256,10 @@ function GlobalSettings() {
       && preset.flightdeckTools === displayConfig.flightdeckTools;
   }) ?? 'custom';
 
-  const [registryAgents, setRegistryAgents] = useState<any[] | null>(null);
-  const [registryLoading, setRegistryLoading] = useState(false);
+  const { data: registryAgents, mutate: mutateRegistry } = useSWR('acp-registry', 
+    () => fetch('/api/registry').then(r => r.json()).then(d => Array.isArray(d) ? d : []),
+    { revalidateOnFocus: false }
+  );
   const [addedAgents, setAddedAgents] = useState<Set<string>>(new Set());
   const [addingAgent, setAddingAgent] = useState<string | null>(null);
   const [removingRuntime, setRemovingRuntime] = useState<string | null>(null);
@@ -403,21 +405,13 @@ function GlobalSettings() {
         <div className="flex items-center justify-between">
           <SectionHeader>ACP Agent Registry</SectionHeader>
           <button
-            onClick={async () => {
-              setRegistryLoading(true);
-              try {
-                const res = await fetch('/api/registry');
-                const data = await res.json();
-                setRegistryAgents(Array.isArray(data) ? data : []);
-              } catch { setRegistryAgents([]); }
-              setRegistryLoading(false);
-            }}
-            className="text-xs px-3 py-1 rounded-lg bg-[var(--color-surface-secondary)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors"
+            onClick={() => mutateRegistry()}
+            className="text-[10px] px-2 py-0.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
           >
-            {registryLoading ? 'Loading…' : registryAgents ? 'Refresh' : 'Browse Registry'}
+            ↻ Refresh
           </button>
         </div>
-        {registryAgents && (
+        {registryAgents && registryAgents.length > 0 && (
           <Card>
             {registryAgents.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No agents found in registry.</p>}
             {registryAgents.map(agent => {
@@ -489,8 +483,11 @@ function GlobalSettings() {
         )}
 
         {/* Manual Add Custom Runtime */}
+        <details className="group">
+          <summary className="text-sm text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)] select-none mb-2">
+            ➕ Add custom runtime manually
+          </summary>
         <Card>
-          <p className="text-sm font-medium mb-2">Add Custom Runtime</p>
           <div className="space-y-2">
             <input id="custom-rt-id" placeholder="Runtime ID (e.g. my-agent)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <input id="custom-rt-name" placeholder="Display name" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
@@ -538,6 +535,7 @@ function GlobalSettings() {
             >{manualSaving ? 'Saving…' : manualSaved ? '✓ Saved' : 'Save'}</button>
           </div>
         </Card>
+        </details>
       </section>
 
       {/* Chat Bridges */}
