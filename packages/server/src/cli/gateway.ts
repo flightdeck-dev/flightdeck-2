@@ -11,6 +11,7 @@ import { CronScheduler } from '../cron/CronScheduler.js';
 import { modelRegistry } from '../agents/ModelTiers.js';
 import type { BridgeConfig } from '../bridges/types.js';
 import { log } from '../utils/logger.js';
+import { mapCopilotSdkEvent } from '../agents/copilotSdkEventMapper.js';
 
 /** Load bridge config from global config */
 async function loadBridgeConfig(): Promise<BridgeConfig | null> {
@@ -331,44 +332,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     if (e.type && !['session.idle', 'assistant.usage', 'session.usage_info'].includes(e.type)) {
       log('CopilotSdk', `Event: ${e.type} (agent: ${agentId})`);
     }
+    const mapped = mapCopilotSdkEvent(e);
+    if (!mapped) return;
     for (const wsServer of wsServers.values()) {
-      let delta = '';
-      let contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result' = 'text';
-      let toolName: string | undefined;
-      const e = event as any;
-
-      switch (e.type) {
-        case 'assistant.message_delta':
-          delta = e.data?.deltaContent ?? '';
-          contentType = 'text';
-          break;
-        case 'assistant.reasoning_delta':
-          delta = e.data?.deltaContent ?? '';
-          contentType = 'thinking';
-          break;
-        case 'assistant.intent':
-          delta = e.data?.intent ?? '';
-          contentType = 'thinking';
-          break;
-        case 'tool.execution_start':
-          toolName = e.data?.name ?? '';
-          if (toolName) {
-            const isFlightdeck = toolName.startsWith('flightdeck_');
-            delta = JSON.stringify({ toolCallId: e.data?.toolCallId ?? '', name: toolName, input: e.data?.arguments ? JSON.stringify(e.data.arguments) : '', status: 'pending' });
-            contentType = isFlightdeck ? 'tool_call' : 'tool_call';
-          }
-          break;
-        case 'tool.execution_complete':
-          toolName = e.data?.name ?? '';
-          delta = JSON.stringify({ toolCallId: e.data?.toolCallId ?? '', name: toolName, result: e.data?.content ?? '', status: 'completed' });
-          contentType = 'tool_result';
-          break;
-        default:
-          return;
-      }
-
-      if (delta) {
-        wsServer.broadcast({ type: 'agent:stream', agentId, delta, contentType, toolName });
+      if (mapped.delta) {
+        wsServer.broadcast({ type: 'agent:stream', agentId, delta: mapped.delta, contentType: mapped.contentType, toolName: mapped.toolName });
       }
     }
   };
