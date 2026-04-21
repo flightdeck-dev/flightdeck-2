@@ -13,7 +13,7 @@ describe('Agent DM storage', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'fd-dm-'));
     sqlStore = new SqliteStore(join(tmpDir, 'test.sqlite'));
-    msgStore = new MessageStore(sqlStore);
+    msgStore = new MessageStore(sqlStore.db);
   });
 
   afterEach(() => {
@@ -24,12 +24,24 @@ describe('Agent DM storage', () => {
   it('stores and retrieves DMs by channel', () => {
     msgStore.appendChannelMessage('dm:agent-1', {
       role: 'user',
+      authorType: 'user',
+      authorId: null,
       content: 'Hello agent 1',
+      threadId: null,
+      parentId: null,
+      taskId: null,
+      metadata: null,
       recipient: null,
     });
     msgStore.appendChannelMessage('dm:agent-2', {
       role: 'user',
+      authorType: 'user',
+      authorId: null,
       content: 'Hello agent 2',
+      threadId: null,
+      parentId: null,
+      taskId: null,
+      metadata: null,
       recipient: null,
     });
 
@@ -43,21 +55,20 @@ describe('Agent DM storage', () => {
   });
 
   it('filters messages by channel', () => {
-    msgStore.appendChannelMessage('dm:agent-1', {
-      role: 'user',
-      content: 'First',
+    const base = {
+      role: 'user' as const,
+      authorType: 'user' as const,
+      authorId: null,
+      threadId: null,
+      parentId: null,
+      taskId: null,
+      metadata: null,
       recipient: null,
-    });
-    msgStore.appendChannelMessage('dm:agent-1', {
-      role: 'assistant',
-      content: 'Second',
-      recipient: null,
-    });
-    msgStore.appendChannelMessage('general', {
-      role: 'user',
-      content: 'General msg',
-      recipient: null,
-    });
+    };
+
+    msgStore.appendChannelMessage('dm:agent-1', { ...base, content: 'First' });
+    msgStore.appendChannelMessage('dm:agent-1', { ...base, role: 'assistant' as any, authorType: 'agent', content: 'Second' });
+    msgStore.appendChannelMessage('general', { ...base, content: 'General msg' });
 
     const dmMsgs = msgStore.listChannelMessages('dm:agent-1');
     expect(dmMsgs.length).toBe(2);

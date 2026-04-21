@@ -1381,6 +1381,21 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             parentId: body.parentId ?? null,
           };
           fd.sendMessage(msg);
+          // Steer the target agent with the DM content
+          const targetTo = body.to as string;
+          if (targetTo === 'planner' || targetTo.startsWith('planner-')) {
+            const lm = leadManagers.get(projectName);
+            if (lm) lm.steerPlanner?.(`[DM from ${agentId}]: ${body.content}`).catch(() => {});
+          } else {
+            // DM to a worker or other agent — use AgentManager
+            const am = agentManagers?.get(projectName) ?? fd.agentManager;
+            if (am) {
+              const targetAgent = fd.sqlite.getAgent(targetTo as import('@flightdeck-ai/shared').AgentId);
+              if (targetAgent?.acpSessionId) {
+                am.sendToAgent(targetTo as import('@flightdeck-ai/shared').AgentId, body.content as string).catch(() => {});
+              }
+            }
+          }
           json(200, { status: 'sent', to: body.to });
         } else if (body.channel) {
           // Channel path

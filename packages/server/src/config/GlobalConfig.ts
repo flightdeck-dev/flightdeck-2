@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
-const CONFIG_DIR = join(homedir(), '.flightdeck', 'v2');
-const CONFIG_PATH = join(CONFIG_DIR, 'config.yaml');
+function getConfigDir(): string {
+  return join(homedir(), '.flightdeck', 'v2');
+}
 
 export interface CustomRuntimeConfig {
   name: string;
@@ -34,15 +35,17 @@ export interface GlobalConfig {
 
 export function loadGlobalConfig(): GlobalConfig {
   let config: GlobalConfig = {};
-  if (existsSync(CONFIG_PATH)) {
+  const configDir = getConfigDir();
+  const configPath = join(configDir, 'config.yaml');
+  if (existsSync(configPath)) {
     try {
-      const raw = readFileSync(CONFIG_PATH, 'utf-8');
+      const raw = readFileSync(configPath, 'utf-8');
       config = (parseYaml(raw) as GlobalConfig) ?? {};
     } catch { /* best effort */ }
   }
 
   // One-time migration from global-config.json
-  const oldJsonPath = join(CONFIG_DIR, 'global-config.json');
+  const oldJsonPath = join(configDir, 'global-config.json');
   if (existsSync(oldJsonPath)) {
     try {
       const oldConfig = JSON.parse(readFileSync(oldJsonPath, 'utf-8'));
@@ -57,10 +60,11 @@ export function loadGlobalConfig(): GlobalConfig {
 }
 
 export function saveGlobalConfig(config: GlobalConfig): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, stringifyYaml(config));
+  const configDir = getConfigDir();
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'config.yaml'), stringifyYaml(config));
 }
 
 export function getGlobalConfigPath(): string {
-  return CONFIG_PATH;
+  return join(getConfigDir(), 'config.yaml');
 }
