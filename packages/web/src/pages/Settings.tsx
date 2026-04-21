@@ -496,6 +496,7 @@ function GlobalSettings() {
             <input id="custom-rt-name" placeholder="Display name" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <input id="custom-rt-cmd" placeholder="Command (e.g. my-agent-acp)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <input id="custom-rt-args" placeholder="Args (comma-separated, optional)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
+            <input id="custom-rt-env" placeholder="Env vars (KEY=VALUE, comma-separated, optional)" className="w-full text-sm px-3 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-text-tertiary)]" />
             <button
               disabled={manualSaving}
               onClick={async () => {
@@ -503,8 +504,16 @@ function GlobalSettings() {
                 const name = (document.getElementById('custom-rt-name') as HTMLInputElement)?.value?.trim();
                 const cmd = (document.getElementById('custom-rt-cmd') as HTMLInputElement)?.value?.trim();
                 const argsStr = (document.getElementById('custom-rt-args') as HTMLInputElement)?.value?.trim();
+                const envStr = (document.getElementById('custom-rt-env') as HTMLInputElement)?.value?.trim();
                 if (!id || !name || !cmd) return;
                 const args = argsStr ? argsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+                const env: Record<string, string> = {};
+                if (envStr) {
+                  for (const pair of envStr.split(',')) {
+                    const [k, ...v] = pair.split('=');
+                    if (k?.trim() && v.length) env[k.trim()] = v.join('=').trim();
+                  }
+                }
                 setManualSaving(true);
                 setManualSaved(false);
                 try {
@@ -513,9 +522,9 @@ function GlobalSettings() {
                   await fetch('/api/custom-runtimes', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...existing, [id]: { name, command: cmd, args } }),
+                    body: JSON.stringify({ ...existing, [id]: { name, command: cmd, args, ...(Object.keys(env).length ? { env } : {}) } }),
                   });
-                  ['custom-rt-id','custom-rt-name','custom-rt-cmd','custom-rt-args'].forEach(x => {
+                  ['custom-rt-id','custom-rt-name','custom-rt-cmd','custom-rt-args','custom-rt-env'].forEach(x => {
                     const el = document.getElementById(x) as HTMLInputElement; if (el) el.value = '';
                   });
                   mutateCustom();
