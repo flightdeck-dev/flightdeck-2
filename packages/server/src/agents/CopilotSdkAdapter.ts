@@ -992,6 +992,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
       }
     });
 
+    // Try to get resolved model from session history (session.created event may have fired during createSession)
+    try {
+      const events = await session.getMessages();
+      const createdEvent = events.find((e: any) => e.type === 'session.created');
+      if (createdEvent && (createdEvent as any).data?.selectedModel) {
+        agentSession.model = (createdEvent as any).data.selectedModel;
+        if (this.onModelResolved) {
+          try { this.onModelResolved(aid, agentSession.model!); } catch { /* */ }
+        }
+      }
+    } catch { /* best effort */ }
+
     return { agentId: aid, sessionId: sessionId, status: 'running' as const, model: agentSession.model ?? opts.model };
   }
 
