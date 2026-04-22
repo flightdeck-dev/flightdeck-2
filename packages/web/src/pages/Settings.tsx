@@ -1003,16 +1003,14 @@ function ProjectSettings() {
     if (!projectName) return;
     fetch(`/api/projects/${encodeURIComponent(projectName)}/models`).then(r => r.json()).then(data => {
       const lead = data.roles?.find((r: any) => r.role === "lead");
-      if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? "high"); }
+      if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? ""); }
     }).catch(() => {});
     // Fetch available models for dropdown (filtered by current runtime)
     fetch(`/api/projects/${encodeURIComponent(projectName)}/models/available`).then(r => r.json()).then(data => {
       const runtimeModels = data[leadRuntime];
       const all: string[] = [];
-      if (runtimeModels) {
-        for (const models of Object.values(runtimeModels)) {
-          for (const m of models as any[]) { if (m.modelId && !all.includes(m.modelId)) all.push(m.modelId); }
-        }
+      if (Array.isArray(runtimeModels)) {
+        for (const m of runtimeModels) { if (m.modelId && !all.includes(m.modelId)) all.push(m.modelId); }
       }
       setLeadModelOptions(all);
     }).catch(() => {});

@@ -207,7 +207,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const [archivedProjects, setArchivedProjects] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
-  // M6: Debounce archived projects fetch — don't refetch on every WS state:update
+  // M6: Debounce archived projects fetch - don't refetch on every WS state:update
   const archivedFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (archivedFetchRef.current) clearTimeout(archivedFetchRef.current);
@@ -300,7 +300,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         )}
       </div>
 
-      {/* Agent status summary — above Settings for stable position */}
+      {/* Agent status summary - above Settings for stable position */}
       {!collapsed && (activeAgents > 0 || hibernatedAgents > 0) && (
         <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
           <div className="flex items-center gap-2">
@@ -455,9 +455,8 @@ export function CreateProjectModal({ onClose, onCreated }: { onClose: () => void
                   // Fetch available models for this runtime from global endpoint
                   fetch('/api/models/available').then(r => r.json()).then(models => {
                     const rtModels = models[e.target.value];
-                    if (rtModels) {
-                      const all = [...(rtModels.high ?? []), ...(rtModels.medium ?? []), ...(rtModels.fast ?? [])];
-                      setAvailableModels(all);
+                    if (Array.isArray(rtModels)) {
+                      setAvailableModels(rtModels);
                     }
                   }).catch(() => {});
                 }

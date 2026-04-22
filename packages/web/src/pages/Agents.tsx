@@ -93,10 +93,6 @@ function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; p
       const models: string[] = [];
       if (Array.isArray(runtimeModels)) {
         for (const m of runtimeModels) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
-      } else {
-        for (const group of Object.values(runtimeModels as Record<string, any>)) {
-          for (const m of group as any[]) { if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId); }
-        }
       }
       if (models.length) result.push({ runtime, models });
     }

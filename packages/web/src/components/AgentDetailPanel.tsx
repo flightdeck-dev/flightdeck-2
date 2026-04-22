@@ -152,12 +152,6 @@ export function AgentDetailPanel({
         for (const m of runtimeModels) {
           if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
         }
-      } else {
-        for (const group of Object.values(runtimeModels as Record<string, any>)) {
-          for (const m of group as any[]) {
-            if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
-          }
-        }
       }
     }
     setAvailableModels(models);
