@@ -214,6 +214,7 @@ export async function processReview(
           model: options?.reviewerModel,
           runtime: options?.reviewerRuntime,
           projectName: options?.projectName,
+          autoResolve: true,
           taskContext: prompt,
         });
         meta = {

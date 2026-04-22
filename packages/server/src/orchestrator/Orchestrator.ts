@@ -665,35 +665,15 @@ export class Orchestrator {
             ).catch(() => { /* best effort */ });
           }
         } catch { /* Skip */ }
-      } else if (this.agentManager) {
-        // No idle agent — auto-spawn if under cap
-        const activeWorkers = this.store.listAgents().filter(
-          a => (a.status === 'busy' || a.status === 'idle') && a.role === task.role
-        ).length;
-        if (activeWorkers < maxWorkers) {
-          const t2 = task as any;
-          const spawnContext = [
-            `Task assigned: "${task.title}" (ID: ${task.id})`,
-            t2.description ? `\nDescription: ${t2.description}` : '',
-            t2.acceptanceCriteria ? `\nAcceptance Criteria: ${t2.acceptanceCriteria}` : '',
-            t2.context ? `\nContext: ${t2.context}` : '',
-            '\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.',
-          ].filter(Boolean).join('');
-          void this.agentManager.spawnAgent({
-            role: task.role as any,
-            cwd: this.config.cwd ?? process.cwd(),
-            projectName: this.config.name,
-            taskContext: spawnContext,
-            autoResolve: true,
-          }).then(agent => {
-            try {
-              this.dag.claimTask(task.id, agent.id);
-            } catch { /* task may have been claimed by another path */ }
-          }).catch(err => {
-            console.error(`[${this.config.name}] Auto-spawn failed for ${task.role}:`, err instanceof Error ? err.message : String(err));
-          });
-          assigned++; // Optimistic — spawn is async
-        }
+      } else if (this.leadManager) {
+        // No idle agent — notify Lead/Planner that a worker is needed
+        const t2 = task as any;
+        log('Orchestrator', `No idle ${task.role} for task "${task.title}" — notifying Planner`);
+        this.leadManager.steerPlanner?.(
+          `[SYSTEM] Task "${task.title}" (${task.id}) needs a ${task.role} agent but none are available. ` +
+          `Please spawn one with flightdeck_agent_spawn.` +
+          (t2.description ? ` Task description: ${t2.description}` : '')
+        ).catch(() => {});
       }
     }
 
