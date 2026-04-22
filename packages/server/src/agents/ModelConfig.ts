@@ -117,12 +117,10 @@ export class ModelConfig {
    * when no explicit configuration exists.
    */
   getRoleEnabledModelsWithDiscovery(role: string): EnabledModel[] {
-    const result = this.getRoleEnabledModels(role);
+    let result = this.getRoleEnabledModels(role);
     if (result.length === 0) {
       // Auto-populate from discovered models in the registry
       try {
-        // Dynamic import to avoid circular dependency
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { modelRegistry } = require('./ModelRegistry.js') as { modelRegistry: { getRuntimes(): string[]; getModels(rt: string): Array<{ modelId: string }> } };
         const autoModels: EnabledModel[] = [];
         for (const rt of modelRegistry.getRuntimes()) {
@@ -131,9 +129,17 @@ export class ModelConfig {
             autoModels.push({ runtime: rt, model: m.modelId, enabled: true, isDefault: autoModels.length === 0 });
           }
         }
-        return autoModels;
+        result = autoModels;
       } catch { /* best effort */ }
     }
+    // Filter out disabled runtimes
+    try {
+      const { loadGlobalConfig } = require('../config/GlobalConfig.js') as { loadGlobalConfig(): { disabledRuntimes?: string[] } };
+      const disabled = new Set(loadGlobalConfig().disabledRuntimes ?? []);
+      if (disabled.size > 0) {
+        result = result.filter(m => !disabled.has(m.runtime));
+      }
+    } catch { /* best effort */ }
     return result;
   }
 
