@@ -285,7 +285,12 @@ export class AgentManager {
         const mc = new ModelConfig(opts.cwd);
         const enabledModels = mc.getRoleEnabledModels(opts.role);
         const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
-        const activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
+        let activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
+        // If runtime specified, filter to that runtime's models
+        if (resolvedRuntime) {
+          const runtimeModels = activeModels.filter(m => m.runtime === resolvedRuntime);
+          if (runtimeModels.length > 0) activeModels = runtimeModels;
+        }
         const defaultModel = activeModels.find(m => m.isDefault) ?? activeModels[0];
         if (defaultModel) {
           resolvedModel = defaultModel.model;
