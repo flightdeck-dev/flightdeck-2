@@ -172,7 +172,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
   // 9.1: Lead spawn via AgentManager
   describe('9.1 - Lead spawn via AgentManager', () => {
     it('spawns a lead agent with correct role', async () => {
-      const agent = await agentManager.spawnAgent({
+      const agent = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'lead',
         cwd: '/tmp/test-project',
       });
@@ -223,7 +224,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
     });
 
     it('steers lead with urgent interrupt via AgentManager', async () => {
-      const agent = await agentManager.spawnAgent({
+      const agent = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'lead',
         cwd: '/tmp/test-project',
       });
@@ -240,14 +242,16 @@ describe('Scenario 9: Claw as Supervisor', () => {
   describe('9.3 - Lead spawns Worker (nested spawn)', () => {
     it('spawns worker after lead is running', async () => {
       // Lead spawn
-      const lead = await agentManager.spawnAgent({
+      const lead = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'lead',
         cwd: '/tmp/test-project',
       });
       expect(adapter.spawnCount).toBe(1);
 
       // Worker spawn (simulating lead requesting worker)
-      const worker = await agentManager.spawnAgent({
+      const worker = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'worker',
         cwd: '/tmp/test-project',
         task: 'Implement OAuth2',
@@ -323,8 +327,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
   // 9.5: Monitor via status (all agents + tasks visible)
   describe('9.5 - Monitor via status', () => {
     it('lists all agents with metadata', async () => {
-      const lead = await agentManager.spawnAgent({ role: 'lead', cwd: '/tmp' });
-      const worker = await agentManager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+      const lead = await agentManager.spawnAgent({ autoResolve: true, role: 'lead', cwd: '/tmp' });
+      const worker = await agentManager.spawnAgent({ autoResolve: true, role: 'worker', cwd: '/tmp' });
 
       const agents = agentManager.listAgents();
       expect(agents).toHaveLength(2);
@@ -393,7 +397,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
   // 9.9: Stall detection → kill + respawn Lead
   describe('9.9 - Stall detection → kill + respawn', () => {
     it('terminates and restarts a stalled agent', async () => {
-      const agent = await agentManager.spawnAgent({
+      const agent = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'lead',
         cwd: '/tmp/test-project',
       });
@@ -417,7 +422,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
     });
 
     it('terminates agent completely', async () => {
-      const agent = await agentManager.spawnAgent({
+      const agent = await agentManager.spawnAgent({ autoResolve: true,
+        autoResolve: true,
         role: 'worker',
         cwd: '/tmp/test-project',
       });

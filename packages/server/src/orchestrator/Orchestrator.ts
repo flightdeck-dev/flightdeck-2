@@ -684,6 +684,7 @@ export class Orchestrator {
             cwd: this.config.cwd ?? process.cwd(),
             projectName: this.config.name,
             taskContext: spawnContext,
+            autoResolve: true,
           }).then(agent => {
             try {
               this.dag.claimTask(task.id, agent.id);

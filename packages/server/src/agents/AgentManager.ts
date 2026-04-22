@@ -22,6 +22,8 @@ export interface SpawnAgentOptions {
   taskContext?: string;
   taskId?: string;
   isolation?: IsolationStrategy;
+  /** If true, auto-resolve runtime/model from defaults. If false (default), require explicit selection. */
+  autoResolve?: boolean;
   mergeStrategy?: 'auto' | 'squash' | 'pr';
 }
 
@@ -276,27 +278,58 @@ export class AgentManager {
       } catch { /* best effort — skills are optional */ }
     }
 
-    // 5b. Resolve model from enabledModels pool if not explicitly specified
+    // 5b. Validate runtime and model
     let resolvedModel = opts.model;
     let resolvedRuntime = opts.runtime;
-    if (!resolvedModel) {
-      try {
-        const { ModelConfig } = await import('./ModelConfig.js');
-        const mc = new ModelConfig(opts.cwd);
-        const enabledModels = mc.getRoleEnabledModels(opts.role);
-        const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
-        let activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
-        // If runtime specified, filter to that runtime's models
-        if (resolvedRuntime) {
-          const runtimeModels = activeModels.filter(m => m.runtime === resolvedRuntime);
-          if (runtimeModels.length > 0) activeModels = runtimeModels;
+    try {
+      const { ModelConfig } = await import('./ModelConfig.js');
+      const mc = new ModelConfig(opts.cwd);
+      const enabledModels = mc.getRoleEnabledModelsWithDiscovery(opts.role);
+      const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
+      const activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
+
+      if (!resolvedRuntime) {
+        if (opts.autoResolve) {
+          // Auto-resolve: pick default or first available
+          const defaultModel = activeModels.find(m => m.isDefault) ?? activeModels[0];
+          if (defaultModel) { resolvedRuntime = defaultModel.runtime; resolvedModel = resolvedModel || defaultModel.model; }
+        } else {
+          const runtimes = [...new Set(activeModels.map(m => m.runtime))];
+          const { loadGlobalConfig } = await import('../config/GlobalConfig.js');
+          const runtimeOrder = loadGlobalConfig().runtimeOrder ?? [];
+          runtimes.sort((a, b) => {
+            const ia = runtimeOrder.indexOf(a); const ib = runtimeOrder.indexOf(b);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          });
+          const topRuntime = runtimes[0];
+          const topModels = activeModels.filter(m => m.runtime === topRuntime).map(m => m.model);
+          throw new Error(
+            `Runtime not specified. Available runtimes (in preference order): ${runtimes.join(', ')}. ` +
+            `Top runtime "${topRuntime}" has models: ${topModels.join(', ')}. ` +
+            `Please specify runtime and model.`
+          );
         }
-        const defaultModel = activeModels.find(m => m.isDefault) ?? activeModels[0];
-        if (defaultModel) {
-          resolvedModel = defaultModel.model;
-          if (!resolvedRuntime) resolvedRuntime = defaultModel.runtime;
+      }
+
+      if (!resolvedModel) {
+        const runtimeModels = activeModels.filter(m => m.runtime === resolvedRuntime).map(m => m.model);
+        if (opts.autoResolve) {
+          resolvedModel = runtimeModels[0];
+        } else if (runtimeModels.length === 0) {
+          const availableRts = [...new Set(activeModels.map(m => m.runtime))];
+          throw new Error(
+            `No enabled models for runtime "${resolvedRuntime}". Available runtimes: ${availableRts.join(', ')}.`
+          );
+        } else {
+          throw new Error(
+            `Model not specified for runtime "${resolvedRuntime}". Available models: ${runtimeModels.join(', ')}. ` +
+            `Please specify model.`
+          );
         }
-      } catch { /* fallback to adapter defaults */ }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not specified') && !opts.autoResolve) throw err;
+      if (err instanceof Error && err.message.includes('No enabled models')) throw err;
     }
 
     // 6. Spawn via adapter

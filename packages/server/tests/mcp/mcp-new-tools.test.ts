@@ -143,6 +143,8 @@ describe('MCP new tools', () => {
     setCallerAgent('lead-1');
     const result = await callTool(server, 'flightdeck_agent_spawn', {
       role: 'worker',
+      runtime: 'codex',
+      model: 'o4-mini',
     });
     const agent = JSON.parse(getText(result));
     expect(agent.role).toBe('worker');

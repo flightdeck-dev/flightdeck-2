@@ -65,7 +65,7 @@ describe('AgentManager', () => {
   });
 
   it('spawnAgent registers in SQLite and calls adapter', async () => {
-    const agent = await manager.spawnAgent({
+    const agent = await manager.spawnAgent({ autoResolve: true,
       role: 'worker',
       cwd: '/tmp',
       model: 'gpt-4',
@@ -86,7 +86,7 @@ describe('AgentManager', () => {
 
   it('spawnAgent marks agent errored on adapter failure', async () => {
     adapter.shouldFail = true;
-    await expect(manager.spawnAgent({
+    await expect(manager.spawnAgent({ autoResolve: true,
       role: 'worker',
       cwd: '/tmp',
     })).rejects.toThrow('spawn failed');
@@ -98,7 +98,7 @@ describe('AgentManager', () => {
   });
 
   it('terminateAgent kills adapter session and updates SQLite', async () => {
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     await manager.terminateAgent(agent.id);
 
     expect(adapter.killCalls).toHaveLength(1);
@@ -110,7 +110,7 @@ describe('AgentManager', () => {
   });
 
   it('interruptAgent sends urgent steer', async () => {
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     await manager.interruptAgent(agent.id, 'Stop what you are doing!');
 
     expect(adapter.steerCalls).toHaveLength(1);
@@ -119,7 +119,7 @@ describe('AgentManager', () => {
   });
 
   it('restartAgent kills and re-spawns', async () => {
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     const restarted = await manager.restartAgent(agent.id);
 
     expect(adapter.killCalls).toHaveLength(1);
@@ -209,7 +209,7 @@ describe('AgentManager DM delivery', () => {
 
   it('delivers unread DMs on spawnAgent when agent ID matches', async () => {
     // First spawn an agent so we know its ID
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     
     // Terminate it
     await manager.terminateAgent(agent.id);
@@ -220,7 +220,7 @@ describe('AgentManager DM delivery', () => {
 
     // Spawn a NEW agent (same role) — it gets a DIFFERENT ID
     // so DMs to old agent won't be delivered to new agent (correct behavior)
-    const newAgent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const newAgent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     await new Promise(r => setTimeout(r, 50));
 
     // New agent should NOT receive old agent's DMs
@@ -234,7 +234,7 @@ describe('AgentManager DM delivery', () => {
   });
 
   it('does not deliver DMs when there are none', async () => {
-    await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     await new Promise(r => setTimeout(r, 50));
 
     // No steer calls for DMs
@@ -243,7 +243,7 @@ describe('AgentManager DM delivery', () => {
   });
 
   it('marks DMs as read after restart delivery so they are not re-delivered', async () => {
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
 
     messageStore.appendDM('lead-1' as AgentId, agent.id, 'First message');
 
@@ -269,7 +269,7 @@ describe('AgentManager DM delivery', () => {
   });
 
   it('delivers unread DMs on restartAgent', async () => {
-    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp' });
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
 
     // Send a DM while the agent is running
     messageStore.appendDM('planner-1' as AgentId, agent.id, 'New priority task available');
