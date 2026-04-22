@@ -32,7 +32,7 @@ import { Flightdeck } from '../facade.js';
 import { LeadManager, type LeadEvent } from '../lead/LeadManager.js';
 import { AcpAdapter } from '../agents/AcpAdapter.js';
 import { DEFAULT_RUNTIMES } from '../agents/SessionManager.js';
-import { modelRegistry } from '../agents/ModelTiers.js';
+import { modelRegistry } from '../agents/ModelRegistry.js';
 
 export class AcpAgentServer implements Agent {
   private conn!: AgentSideConnection;

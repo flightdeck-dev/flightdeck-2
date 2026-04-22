@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { FD_HOME } from './constants.js';
 import { CronStore } from '../cron/CronStore.js';
 import { CronScheduler } from '../cron/CronScheduler.js';
-import { modelRegistry } from '../agents/ModelTiers.js';
+import { modelRegistry } from '../agents/ModelRegistry.js';
 import type { BridgeConfig } from '../bridges/types.js';
 import { log } from '../utils/logger.js';
 import { mapCopilotSdkEvent } from '../agents/copilotSdkEventMapper.js';
@@ -740,7 +740,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     });
 
     // Discover copilot-sdk models separately (not ACP-based)
-    import('../agents/ModelTiers.js').then(({ modelRegistry }) => {
+    import('../agents/ModelRegistry.js').then(({ modelRegistry }) => {
       copilotSdkAdapter.discoverModels().then(models => {
         if (models.length > 0) {
           modelRegistry.registerModels('copilot', models);

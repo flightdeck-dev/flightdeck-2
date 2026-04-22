@@ -1101,7 +1101,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   server.tool('flightdeck_model_set', 'Change a running agent\'s model (Lead only, user-requested)', {
     agentId: z.string().describe('Agent ID to change model for'),
-    model: z.string().describe('Tier name (high/medium/fast) or specific model ID'),
+    model: z.string().describe('Model ID (e.g. gpt-4.1, claude-sonnet-4)'),
     reason: z.string().optional().describe('Why the model is being changed (logged)'),
   }, async (params) => {
     const resolved = requireAgentId();

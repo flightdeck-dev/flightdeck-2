@@ -21,7 +21,7 @@ export class ModelRegistry {
         const data = JSON.parse(readFileSync(this.cacheFile, 'utf-8'));
         for (const [runtime, models] of Object.entries(data)) {
           if (!this.cache.has(runtime)) {
-            // Strip legacy tier field if present
+            // Strip unknown fields
             const cleaned = (models as any[]).map(m => ({
               modelId: m.modelId,
               displayName: m.displayName ?? m.name ?? m.modelId,

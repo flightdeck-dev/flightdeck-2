@@ -41,7 +41,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
 
   const modelCfgCache = new Map<string, InstanceType<typeof import('../agents/ModelConfig.js').ModelConfig>>();
   let presetNames: string[] = [];
-  let modRegistry: typeof import('../agents/ModelTiers.js').modelRegistry | null = null;
+  let modRegistry: typeof import('../agents/ModelRegistry.js').modelRegistry | null = null;
   let displayModule: typeof import('@flightdeck-ai/shared') | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let serverDisplayConfig: any = null;
@@ -52,7 +52,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       presetNames = PRESET_NAMES;
     }
     if (!modRegistry) {
-      modRegistry = (await import('../agents/ModelTiers.js')).modelRegistry;
+      modRegistry = (await import('../agents/ModelRegistry.js')).modelRegistry;
     }
     if (!displayModule) {
       displayModule = await import('@flightdeck-ai/shared');

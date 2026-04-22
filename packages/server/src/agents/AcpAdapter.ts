@@ -42,7 +42,7 @@ import { agentId } from '@flightdeck-ai/shared';
 import { log, truncate } from '../utils/logger.js';
 import type { RuntimeConfig } from './SessionManager.js';
 import { DEFAULT_RUNTIMES } from './SessionManager.js';
-import { modelRegistry } from './ModelTiers.js';
+import { modelRegistry } from './ModelRegistry.js';
 
 export type AcpSessionStatus = 'initializing' | 'active' | 'prompting' | 'ended';
 

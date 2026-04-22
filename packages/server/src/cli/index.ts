@@ -432,7 +432,7 @@ switch (command) {
 
   case 'models': {
     const { ModelConfig: MC, PRESET_NAMES } = await import('../agents/ModelConfig.js');
-    const { modelRegistry: registry } = await import('../agents/ModelTiers.js');
+    const { modelRegistry: registry } = await import('../agents/ModelRegistry.js');
     const projectDir = process.cwd();
     const mc = new MC(projectDir);
 

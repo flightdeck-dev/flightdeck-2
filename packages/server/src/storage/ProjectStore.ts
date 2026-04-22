@@ -20,8 +20,8 @@ const ROLE_PREFERENCE_TEMPLATE = `# Task Planning Preference
 ## Model Selection
 - Complex architecture/refactoring → high-performance model
 - Routine bug fixes, small changes → budget model
-- Code review → mid-tier is sufficient
-- If a task fails once, retry with a higher-tier model
+- Code review → a lighter model is sufficient
+- If a task fails once, retry with a more capable model
 
 ## Execution Strategy
 - Parallelize independent tasks (no unnecessary dependencies)
