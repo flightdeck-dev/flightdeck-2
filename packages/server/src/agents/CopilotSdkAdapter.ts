@@ -679,9 +679,26 @@ export class CopilotSdkAdapter extends AgentAdapter {
     // Model tools (missing)
     tools.push({
       name: 'flightdeck_model_list',
-      description: 'List available models and runtimes.',
+      description: 'List available models and runtimes, including per-role enabled models.',
       parameters: { type: 'object', properties: {} },
-      handler: async () => JSON.stringify(await httpGet('/models/available')),
+      handler: async () => {
+        const [available, config] = await Promise.all([
+          httpGet('/models/available'),
+          httpGet('/models'),
+        ]);
+        const roleModels: Record<string, unknown> = {};
+        const cfg = config as { roles?: Array<{ role: string; runtime?: string; model?: string; enabledModels?: unknown[] }> };
+        if (cfg.roles) {
+          for (const rc of cfg.roles) {
+            roleModels[rc.role] = {
+              runtime: rc.runtime,
+              model: rc.model,
+              enabledModels: rc.enabledModels ?? [],
+            };
+          }
+        }
+        return JSON.stringify({ availableModels: available, roleModels });
+      },
       skipPermission: true,
     });
 

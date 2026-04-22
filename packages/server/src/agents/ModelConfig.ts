@@ -69,7 +69,7 @@ export class ModelConfig {
 
     return [...allRoles].map(role => {
       const rc = agents.roles?.[role] ?? {};
-      const enabledModels = this.getRoleEnabledModels(role);
+      const enabledModels = this.getRoleEnabledModelsWithDiscovery(role);
       return {
         role,
         runtime: rc.runtime ?? defaultRuntime,
@@ -85,7 +85,7 @@ export class ModelConfig {
   getRoleConfig(role: string): ResolvedRoleConfig {
     const agents = this.getAgentsConfig();
     const rc = agents.roles?.[role] ?? {};
-    const enabledModels = this.getRoleEnabledModels(role);
+    const enabledModels = this.getRoleEnabledModelsWithDiscovery(role);
     return {
       role,
       runtime: rc.runtime ?? agents.default_runtime ?? 'copilot',
@@ -110,6 +110,31 @@ export class ModelConfig {
     const model = rc?.model ?? agents.default_model;
     if (!runtime && !model) return []; // No config → let adapter use its default
     return [{ runtime: runtime ?? 'copilot', model: model ?? '', enabled: true, isDefault: true }];
+  }
+
+  /**
+   * Get enabled models for a role, with auto-population from discovered models
+   * when no explicit configuration exists.
+   */
+  getRoleEnabledModelsWithDiscovery(role: string): EnabledModel[] {
+    const result = this.getRoleEnabledModels(role);
+    if (result.length === 0) {
+      // Auto-populate from discovered models in the registry
+      try {
+        // Dynamic import to avoid circular dependency
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { modelRegistry } = require('./ModelRegistry.js') as { modelRegistry: { getRuntimes(): string[]; getModels(rt: string): Array<{ modelId: string }> } };
+        const autoModels: EnabledModel[] = [];
+        for (const rt of modelRegistry.getRuntimes()) {
+          const models = modelRegistry.getModels(rt);
+          for (const m of models) {
+            autoModels.push({ runtime: rt, model: m.modelId, enabled: true, isDefault: autoModels.length === 0 });
+          }
+        }
+        return autoModels;
+      } catch { /* best effort */ }
+    }
+    return result;
   }
 
   /**

@@ -692,12 +692,31 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
+    // Build model pool context for Planner
+    let modelPoolContext = '';
+    try {
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const mc = new ModelConfig(this.project.subpath('.'));
+      const roleConfigs = mc.getRoleConfigs();
+      if (roleConfigs.length > 0) {
+        modelPoolContext += '\n## Available Models per Role\n';
+        modelPoolContext += 'When spawning agents, use these runtime:model combinations:\n';
+        for (const rc of roleConfigs) {
+          const models = rc.enabledModels?.filter(m => m.enabled) ?? [];
+          const modelList = models.map(m => `${m.runtime}:${m.model}${m.isDefault ? ' (default)' : ''}`).join(', ');
+          modelPoolContext += `- **${rc.role}**: ${modelList || 'any'}\n`;
+        }
+      }
+    } catch { /* best effort */ }
+
+    const fullSystemPrompt = [systemPrompt, modelPoolContext].filter(Boolean).join('\n') || undefined;
+
     const meta = await this.acpAdapter.spawn({
       role: 'planner',
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.plannerRuntime,
-      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
     });
     this.plannerSessionId = meta.sessionId;
     this.plannerAgentId = meta.agentId;

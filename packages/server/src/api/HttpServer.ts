@@ -1068,6 +1068,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const mc = await getModelConfig(fd, projectName);
         mc.setRoleEnabledModels(roleId, body.models);
         modelCfgCache.delete(projectName);
+        // Notify Lead and Planner about model pool change
+        const lm = leadManagers?.get(projectName);
+        if (lm) {
+          const notice = `Model pool updated for role '${roleId}'. Check flightdeck_model_list for current configuration.`;
+          lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
+          lm.steerPlanner(notice).catch(() => {});
+        }
         json(200, { success: true, enabledModels: mc.getRoleEnabledModels(roleId) });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
     } else if (subPath.match(/^\/roles\/[^/]+\/prompt$/) && method === 'PUT') {
@@ -1118,7 +1125,16 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     } else if (subPath.startsWith('/models/preset/') && method === 'POST') {
       const preset = subPath.split('/').pop()!;
       const mc = await getModelConfig(fd, projectName);
-      if (mc.applyPreset(preset)) json(200, { success: true, roles: mc.getRoleConfigs() });
+      if (mc.applyPreset(preset)) {
+        // Notify Lead and Planner about preset change
+        const lm = leadManagers?.get(projectName);
+        if (lm) {
+          const notice = `Model preset '${preset}' applied. Check flightdeck_model_list for current configuration.`;
+          lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
+          lm.steerPlanner(notice).catch(() => {});
+        }
+        json(200, { success: true, roles: mc.getRoleConfigs() });
+      }
       else json(400, { error: `Unknown preset: ${preset}. Available: ${presetNames.join(', ')}` });
     } else if (subPath === '/display' && method === 'GET') {
       json(200, serverDisplayConfig!);
@@ -1146,6 +1162,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         else { json(400, { error: 'Provide runtime and/or model' }); return; }
         // Invalidate cache so next read picks up changes
         modelCfgCache.delete(projectName);
+        // Notify Lead and Planner about model config change
+        const lm = leadManagers?.get(projectName);
+        if (lm) {
+          const notice = `Model configuration updated for role '${role}'. Check flightdeck_model_list for current configuration.`;
+          lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
+          lm.steerPlanner(notice).catch(() => {});
+        }
         json(200, { success: true, config: mc.getRoleConfig(role) });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid request body' }); }
     } else if (subPath === '/orchestrator/pause' && method === 'POST') {

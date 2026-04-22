@@ -283,12 +283,14 @@ function RoleDetail({ role, project, onUpdate }: { role: RoleInfo; project: stri
                   )}
                   <button
                     onClick={() => setDefault(currentRuntime!, modelId)}
-                    className={`text-sm ${
-                      isDefault(currentRuntime!, modelId) ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)] hover:text-yellow-500'
-                    } transition-colors`}
+                    className={`text-xs px-2 py-0.5 rounded-full transition-colors ${
+                      isDefault(currentRuntime!, modelId)
+                        ? 'bg-yellow-500/20 text-yellow-500 font-medium'
+                        : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-secondary)] hover:text-[var(--color-text-secondary)]'
+                    }`}
                     title={isDefault(currentRuntime!, modelId) ? 'Default model' : 'Set as default'}
                   >
-                    {isDefault(currentRuntime!, modelId) ? '★' : '☆'}
+                    {isDefault(currentRuntime!, modelId) ? '● Default' : 'Set default'}
                   </button>
                 </div>
               ))}

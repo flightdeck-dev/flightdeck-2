@@ -488,13 +488,27 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   // ── Model discovery tool ──
 
-  server.tool('flightdeck_model_list', 'List available models and runtimes across all providers. Use this to decide which runtime:model to assign when spawning agents.', {
+  server.tool('flightdeck_model_list', 'List available models and runtimes across all providers, including per-role enabled models. Use this to decide which runtime:model to assign when spawning agents.', {
   }, async () => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
-      const models = await client.listModels();
-      return jsonResponse(models);
+      const [available, config] = await Promise.all([
+        client.getModelsAvailable(),
+        client.getModelConfig(),
+      ]);
+      const roleModels: Record<string, unknown> = {};
+      const cfg = config as { roles?: Array<{ role: string; runtime?: string; model?: string; enabledModels?: unknown[] }> };
+      if (cfg.roles) {
+        for (const rc of cfg.roles) {
+          roleModels[rc.role] = {
+            runtime: rc.runtime,
+            model: rc.model,
+            enabledModels: rc.enabledModels ?? [],
+          };
+        }
+      }
+      return jsonResponse({ availableModels: available, roleModels });
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }
