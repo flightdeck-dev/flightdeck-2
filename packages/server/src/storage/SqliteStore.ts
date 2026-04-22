@@ -52,6 +52,8 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('tasks', 'acceptance_criteria', 'text');
     this.addColumnIfMissing('tasks', 'context', 'text');
     this.addColumnIfMissing('tasks', 'notify_lead', 'integer NOT NULL DEFAULT 0');
+    this.addColumnIfMissing('tasks', 'runtime', 'text');
+    this.addColumnIfMissing('tasks', 'model', 'text');
     this.addColumnIfMissing('messages', 'source', "text DEFAULT 'web'");
     this.addColumnIfMissing('messages', 'sender_id', 'text');
     this.addColumnIfMissing('messages', 'sender_name', 'text');
@@ -90,6 +92,8 @@ export class SqliteStore extends EventEmitter {
       stale: task.stale,
       needsReview: task.needsReview !== false,
       notifyLead: task.notifyLead === true,
+      runtime: task.runtime ?? null,
+      model: task.model ?? null,
       compactedAt: task.compactedAt ?? null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -252,6 +256,8 @@ export class SqliteStore extends EventEmitter {
       stale: Boolean(row.stale),
       needsReview: row.needsReview !== false,
       notifyLead: Boolean(row.notifyLead),
+      runtime: row.runtime ?? undefined,
+      model: row.model ?? undefined,
       compactedAt: (row.compactedAt ?? null) as string | null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

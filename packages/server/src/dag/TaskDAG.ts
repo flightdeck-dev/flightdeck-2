@@ -46,6 +46,8 @@ export class TaskDAG {
     parentTaskId?: TaskId;
     needsReview?: boolean;
     notifyLead?: boolean;
+    runtime?: string;
+    model?: string;
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -66,6 +68,8 @@ export class TaskDAG {
       stale: false,
       notifyLead: opts.notifyLead === true,
       needsReview: opts.needsReview !== false,
+      runtime: opts.runtime,
+      model: opts.model,
       compactedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -204,6 +208,8 @@ export class TaskDAG {
     priority?: number;
     needsReview?: boolean;
     notifyLead?: boolean;
+    runtime?: string;
+    model?: string;
   }>): Task[] {
     // First pass: create all tasks, mapping temp keys to real IDs
     const idMap = new Map<string, TaskId>();
@@ -217,6 +223,8 @@ export class TaskDAG {
         priority: t.priority,
         needsReview: t.needsReview,
         notifyLead: t.notifyLead,
+        runtime: t.runtime,
+        model: t.model,
       });
       idMap.set(t.title, task.id);
       results.push(task);
@@ -443,6 +451,8 @@ export class TaskDAG {
     priority?: number;
     needsReview?: boolean;
     notifyLead?: boolean;
+    runtime?: string;
+    model?: string;
   }>): Task[] {
     const parent = this.store.getTask(parentId);
     if (!parent) throw new Error(`Parent task not found: ${parentId}`);
@@ -460,6 +470,8 @@ export class TaskDAG {
         priority: st.priority,
         needsReview: st.needsReview,
         notifyLead: st.notifyLead,
+        runtime: st.runtime,
+        model: st.model,
         parentTaskId: parentId,
       });
       idMap.set(st.title, task.id);

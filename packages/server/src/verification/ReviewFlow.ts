@@ -211,8 +211,8 @@ export async function processReview(
         const agent = await options.agentManager.spawnAgent({
           role: 'reviewer',
           cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
-          model: options?.reviewerModel,
-          runtime: options?.reviewerRuntime,
+          model: (task as any).model ?? options?.reviewerModel,
+          runtime: (task as any).runtime ?? options?.reviewerRuntime,
           projectName: options?.projectName,
           autoResolve: true,
           taskContext: prompt,
@@ -240,8 +240,8 @@ export async function processReview(
         agentId: reviewerAgentId,
         role: 'reviewer' as any,
         cwd: options?.cwd ?? (task as any).cwd ?? process.cwd(),
-        model: options?.reviewerModel,
-        runtime: options?.reviewerRuntime,
+        model: (task as any).model ?? options?.reviewerModel,
+        runtime: (task as any).runtime ?? options?.reviewerRuntime,
         systemPrompt: prompt,
         projectName: options?.projectName,
       });

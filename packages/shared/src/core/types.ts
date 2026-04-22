@@ -78,6 +78,8 @@ export interface Task {
   acceptanceCriteria?: string; // What "done" looks like — shown to worker and reviewer
   claim?: string | null; // Submission content from worker
   context?: string; // Additional context, references, code snippets
+  runtime?: string; // Preferred runtime for the agent executing this task
+  model?: string; // Preferred model for the agent executing this task
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }

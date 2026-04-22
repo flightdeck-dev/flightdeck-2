@@ -327,7 +327,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
       tools.push({
         name: 'flightdeck_task_add',
         description: 'Create a new task.',
-        parameters: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, role: { type: 'string' }, priority: { type: 'number' }, needsReview: { type: 'boolean' }, notifyLead: { type: 'boolean', description: 'If true, notify Lead when this task completes' } }, required: ['title'] },
+        parameters: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, role: { type: 'string' }, priority: { type: 'number' }, needsReview: { type: 'boolean' }, notifyLead: { type: 'boolean', description: 'If true, notify Lead when this task completes' }, runtime: { type: 'string', description: 'Preferred runtime for agent executing this task' }, model: { type: 'string', description: 'Preferred model for agent executing this task' } }, required: ['title'] },
         handler: async (args: any) => JSON.stringify(await httpPost('/tasks', args)),
         skipPermission: true,
       });

@@ -26,6 +26,8 @@ export const tasks = sqliteTable('tasks', {
   acceptanceCriteria: text('acceptance_criteria'),
   context: text('context'),
   notifyLead: integer('notify_lead', { mode: 'boolean' }).notNull().default(false),
+  runtime: text('runtime'),
+  model: text('model'),
   compactedAt: text('compacted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

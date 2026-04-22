@@ -117,3 +117,12 @@ When creating tasks, you can set `notifyLead: true` on tasks whose results Lead 
 - Set `notifyLead: true` when Lead explicitly says they want to see a result
 - Default is `false` — Lead doesn't get notified for routine tasks
 - Lead can always check results manually via `flightdeck_task_context`
+
+## Task Runtime & Model
+
+When creating tasks with `flightdeck_declare_tasks` or `flightdeck_task_add`, you can specify `runtime` and `model` for each task. These are hints for which agent runtime and model should execute the task.
+
+- Use `runtime` to specify the agent type (e.g. `codex`, `copilot`, `claude-code`)
+- Use `model` to specify the model (e.g. `o4-mini`, `claude-sonnet-4`)
+- Check available models with `flightdeck_model_list`
+- These are optional — if omitted, the system uses the default for the role

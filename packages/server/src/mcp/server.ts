@@ -229,6 +229,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
+      runtime: z.string().optional().describe('Preferred runtime for the agent executing this task (e.g. codex, copilot).'),
+      model: z.string().optional().describe('Preferred model for the agent executing this task (e.g. o4-mini, claude-sonnet-4).'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
@@ -413,6 +415,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
+      runtime: z.string().optional().describe('Preferred runtime for the agent executing this task.'),
+      model: z.string().optional().describe('Preferred model for the agent executing this task.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();
@@ -437,6 +441,8 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
       acceptanceCriteria: z.string().optional().describe('What done looks like. Shown to worker and reviewer.'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
+      runtime: z.string().optional().describe('Preferred runtime for the agent executing this task.'),
+      model: z.string().optional().describe('Preferred model for the agent executing this task.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();

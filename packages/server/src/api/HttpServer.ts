@@ -448,7 +448,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
             json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only lead/planner roles can add tasks. Use flightdeck_escalate() to request task creation.` }); return;
           }
         }
-        const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview, notifyLead: body.notifyLead });
+        const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview, notifyLead: body.notifyLead, runtime: body.runtime, model: body.model });
         if (wsServer) {
           wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
         }

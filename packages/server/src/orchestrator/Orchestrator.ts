@@ -633,7 +633,8 @@ export class Orchestrator {
         continue;
       }
 
-      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
+      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id) && (!task.runtime || a.runtimeName === task.runtime || a.runtime === task.runtime))
+        ?? agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
       if (agent) {
         // Assign to idle agent
         try {
@@ -669,9 +670,11 @@ export class Orchestrator {
         // No idle agent — notify Lead/Planner that a worker is needed
         const t2 = task as any;
         log('Orchestrator', `No idle ${task.role} for task "${task.title}" — notifying Planner`);
+        const runtimeHint = task.runtime ? ` Specified runtime: ${task.runtime}.` : '';
+        const modelHint = task.model ? ` Specified model: ${task.model}.` : '';
         this.leadManager.steerPlanner?.(
           `[SYSTEM] Task "${task.title}" (${task.id}) needs a ${task.role} agent but none are available. ` +
-          `Please spawn one with flightdeck_agent_spawn.` +
+          `Please spawn one with flightdeck_agent_spawn.${runtimeHint}${modelHint}` +
           (t2.description ? ` Task description: ${t2.description}` : '')
         ).catch(() => {});
       }
