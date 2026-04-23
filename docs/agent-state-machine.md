@@ -20,12 +20,12 @@
 ```
                     ┌──────────┐
          spawn ok   │          │  spawn fail
-        ┌──────────►│   busy   │──────────────┐
+        ┌──────────►│   idle   │──────────────┐
         │           │          │               ▼
         │           └────┬─────┘          ┌─────────┐
-        │                │                │ errored  │
-   ┌────┴────┐    turn   │                └────┬────┘
-   │  (new)  │    ends   │                     │ retry/wake
+        │           steer │               │ errored  │
+   ┌────┴────┐    (turn   │               └────┬────┘
+   │  (new)  │    start)  │                    │ retry/wake
    └─────────┘           ▼                     ▼
                     ┌──────────┐          ┌──────────┐
                     │          │◄─────────│   busy   │
@@ -68,7 +68,7 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 
 | From | To | Trigger | Location |
 |------|----|---------|----------|
-| *(new)* | `busy` | `spawnAgent()` succeeds | `AgentManager.spawnAgent` |
+| *(new)* | `idle` | `spawnAgent()` succeeds | `AgentManager.spawnAgent` |
 | *(new)* | `errored` | `spawnAgent()` fails | `AgentManager.spawnAgent` catch |
 | `idle` | `busy` | `onSessionTurnStart` (steer/prompt begins) | All adapters → `gateway.ts` |
 | `idle` | `busy` | Orchestrator pre-marks on task claim | `Orchestrator` (reservation) |
@@ -104,6 +104,12 @@ Both are wired in `gateway.ts` to update SQLite and broadcast WS state changes.
 5. **`retired` can be un-retired** → moves to `hibernated`, then can be woken. **User-only operation** (HTTP API `POST /agents/:id/unretire`) — agents cannot un-retire other agents via MCP tools
 6. **`errored` agents can be retried** — wake/retry spawns a fresh session
 7. **No `offline` state** — use `hibernated` (recoverable) or `errored` (failure)
+
+## Project Constraints
+
+- **One active Lead + one active Director per project.** Spawning a new one retires the old.
+- **Orchestrator only assigns to idle agents** — it does NOT auto-spawn. Director spawns explicitly.
+- **Lead and Director auto-wake** from `hibernated` on first steer.
 
 ## Known Gaps (TODO)
 

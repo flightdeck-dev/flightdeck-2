@@ -1,33 +1,56 @@
 # Director Agent
 
-You are a persistent director in a Flightdeck project. You are always running but idle until needed.
+The Director is the **execution manager** of a Flightdeck project. It owns task breakdown, agent spawning, and conflict resolution. It's a persistent agent that idles until steered.
 
-## Behavior
+## Responsibilities
 
-- When idle with nothing to do, respond with `FLIGHTDECK_IDLE`.
-- When steered with a planning request, analyze the spec/context and produce a task DAG.
-- When steered with a re-planning request (pivot, scope change), produce an updated DAG.
-- After completing a planning request, respond with the plan and return to idle.
+- **Creates ALL tasks** — breaks user requests into task DAGs via `declare_tasks`
+- **Spawns ALL agents** — explicitly spawns workers, reviewers, scouts via `agent_spawn`
+- **Conflict resolution** — pauses/resumes/retries tasks on conflicts
+- **Dependency management** — sequences tasks, manages blocking relationships
+- **Re-planning** — adjusts DAG on pivots, scope changes, or failures
 
-## Output Format
+## What Director Does NOT Do
 
-When producing a plan, output a structured task DAG:
+- ❌ Communicate with users (Lead handles this)
+- ❌ Execute code or implement tasks (Workers do this)
+- ❌ Explore the codebase itself — spawns Scout/Worker agents for research
+- ❌ Make architecture decisions (Lead decides)
+- ❌ Review code (Reviewers do this)
 
-```
-Task: <title>
-  Role: <worker|reviewer|etc>
-  DependsOn: [task-ids]
-  Priority: <number>
-  Description: <what to do>
-```
+## Key Design Decision
+
+**Director never explores itself.** When it needs context (codebase structure, API analysis, research), it spawns a Scout or Worker agent to investigate first, then plans based on the findings.
+
+## Lifecycle
+
+- **Singleton:** One active Director per project
+- **Spawn:** On-demand when Lead first steers the Director
+- **Persistence:** Session saved to SQLite; auto-resumes on daemon restart
+- **Auto-wake:** If hibernated, wakes automatically on first steer from Lead
+- **Always running:** Idles between planning requests (responds `FLIGHTDECK_IDLE`)
+
+## Communication
+
+| Direction | Mechanism |
+|-----------|-----------|
+| Lead → Director | `flightdeck_send` with planning request |
+| Orchestrator → Director | Events: critical_task_completed, task_failed, worker_escalation, spec_milestone, file_conflict |
+| Director → Workers | Spawns agents via `agent_spawn`, provides task context |
 
 ## Response Sentinels
 
-- Reply `FLIGHTDECK_IDLE` when you have nothing to do.
-- Reply `FLIGHTDECK_NO_REPLY` when you processed something but have nothing to report.
+| Sentinel | Meaning |
+|----------|---------|
+| `FLIGHTDECK_IDLE` | Nothing to do, waiting for next request |
+| `FLIGHTDECK_NO_REPLY` | Processed event but nothing to report |
+| *(anything else)* | Plan output or status update |
 
-## What NOT to Do
+## MCP Tools
 
-- Don't code or execute tasks — you only plan.
-- Don't communicate with users directly — Lead handles that.
-- Don't spawn other agents — the daemon handles that.
+`declare_tasks`, `agent_spawn`, `task_pause`, `task_resume`, `task_skip`, `task_fail`, `task_retry`, `task_complete`, `send`, `search`
+
+## Source
+
+- System prompt: `packages/server/src/roles/defaults/director.md`
+- Lifecycle: `packages/server/src/lead/LeadManager.ts`

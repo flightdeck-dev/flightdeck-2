@@ -6,8 +6,9 @@ Flightdeck is a multi-agent orchestration platform. One gateway serves all proje
 
 ```
 User ↔ Web UI / CLI ↔ Gateway (HTTP + WebSocket)
-                         ├── Lead (CEO — decides, delegates)
-                         ├── Director (breaks work into tasks)
+                         ├── Lead (CEO — user-facing, decides, delegates)
+                         ├── Director (execution manager — creates tasks, spawns agents)
+                         ├── Scout (proactive observer — heartbeat-driven, read-only)
                          ├── Workers (execute tasks)
                          └── Reviewers (review completed work)
 ```
@@ -49,6 +50,8 @@ User ↔ Web UI / CLI ↔ Gateway (HTTP + WebSocket)
 - Spawn marks `idle`, not `busy`. Actual steer triggers busy.
 - Terminate → `hibernated` (session may be resumable).
 - One active Lead + one active Director per project. Spawn retires old ones.
+- Orchestrator only assigns tasks to idle agents — does NOT auto-spawn. Director spawns all agents.
+- Lead and Director auto-wake from `hibernated` on first steer.
 
 ### Config
 

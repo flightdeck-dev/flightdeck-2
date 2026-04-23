@@ -8,13 +8,17 @@
 
 ### Agent Statuses
 
-All agents share a common status enum (`core/types.ts:37`):
+5 states (`shared/src/core/types.ts`):
 
 ```
-idle | busy | offline | errored
+idle | busy | hibernated | errored | retired
 ```
 
-Additionally, agents may be **hibernated** (persisted to SQLite, no live ACP session) — this is tracked via `updateAgentStatus(..., 'hibernated')` in the Orchestrator's recovery path (`orchestrator/Orchestrator.ts:recoverOrphanedTasks`).
+No `offline` state. See [agent-state-machine.md](./agent-state-machine.md) for the full transition table.
+
+- **`onSessionTurnStart`/`onSessionTurnEnd`** are the single source of truth for `idle ↔ busy`
+- Spawn → `idle`. Terminate → `hibernated`. Crash → `errored`.
+- `retired` can be un-retired → `hibernated` → woken (user-only operation)
 
 ---
 
@@ -85,8 +89,7 @@ Workers are disposable execution agents that implement individual tasks.
 
 | Aspect | Detail |
 |---|---|
-| **Spawn trigger 1** | Orchestrator `autoAssignReadyTasks()` — when a ready task has no idle worker, `agentManager.spawnAgent()` is called (`orchestrator/Orchestrator.ts:autoAssignReadyTasks`) |
-| **Spawn trigger 2** | Director/Lead via `flightdeck_agent_spawn` MCP tool (`mcp/server.ts:502`) |
+| **Spawn trigger** | Director spawns explicitly via `flightdeck_agent_spawn` MCP tool. Orchestrator does NOT auto-spawn |
 | **Assignment** | `dag.claimTask(taskId, agentId)` — task transitions ready → running |
 | **Task context** | On assignment, worker receives system message with task title, description, acceptance criteria, dependencies |
 | **Isolation** | `file_lock` (default) or `git_worktree` — configured per project (`core/types.ts:IsolationStrategy`) |
@@ -101,17 +104,17 @@ Workers are disposable execution agents that implement individual tasks.
         ▼
      [idle] ◄──────────────────────────┐
         │                               │
-        │ Orchestrator assigns task     │ task_submit (done/in_review)
+        │ Orchestrator assigns task     │ onSessionTurnEnd
+        │ (onSessionTurnStart)          │
         ▼                               │
      [busy] ───────────────────────────┘
         │
-        │ session crash / task_fail
+        │ terminate / crash
         ▼
-    [offline]
-   (terminated)
+  [hibernated / errored]
 ```
 
-**On daemon restart:** Running tasks with no live ACP session are failed → retried → back to ready. Worker agents are marked offline/hibernated (`Orchestrator.recoverOrphanedTasks`).
+**On daemon restart:** Running tasks with no live ACP session are failed → retried → back to ready. Worker agents are marked hibernated (`Orchestrator.recoverOrphanedTasks`).
 
 ---
 
@@ -121,8 +124,7 @@ Reviewers validate completed work before marking tasks done.
 
 | Aspect | Detail |
 |---|---|
-| **Spawn trigger** | `spawn_reviewer` side effect when task transitions running → in_review (`core/types.ts:transition`), handled by `processReview()` in `verification/ReviewFlow.ts` |
-| **Fallback spawn** | Orchestrator `spawnMissingReviewers()` catches in_review tasks without active reviewers each tick |
+| **Spawn trigger** | `spawn_reviewer` side effect when task transitions running → in_review, handled by `processReview()` in `verification/ReviewFlow.ts` |
 | **Pool reuse** | Idle reviewers can be re-steered with new reviews |
 | **Lifecycle** | busy (reviewing) → idle (done) → reused for next review or retired |
 | **Verdict** | `flightdeck_review_submit` MCP tool: approve → done, request_changes → running (back to worker) |
@@ -210,7 +212,7 @@ The Orchestrator steers the Lead on significant events (NOT for normal completio
 |---|---|
 | Task assignment | `agentManager.sendToAgent(agentId, contextMessage)` with task details (`Orchestrator.autoAssignReadyTasks`) |
 | Stall reminder | `adapter.steer(sessionId, { content: "submit or escalate" })` (`Orchestrator.detectStalls`) |
-| Auto-spawn + assign | `agentManager.spawnAgent({ role, taskContext })` → `dag.claimTask()` |
+| Assign to idle | Orchestrator finds idle worker → `dag.claimTask()` (no auto-spawn — Director spawns agents) |
 
 ### 2.6 Worker → Orchestrator
 
@@ -407,8 +409,8 @@ Reporting:          daily         per-task      per-milestone
 | Role | Responsibilities | Does NOT do | MCP Tools |
 |------|-----------------|-------------|-----------|
 | **Lead** | User communication, high-level decisions, plan approval/rejection, escalation handling, status reporting | Task breakdown, agent spawning, code implementation, code review | plan_review, task_add (trivial only), task_cancel, task_skip, send, read, search, status, spec_create, role_list |
-| **Director** | Task breakdown (declare_tasks), dependency management, conflict resolution, agent spawning, task pause/resume/retry | User communication, architecture decisions, code implementation | declare_tasks, agent_spawn, task_pause, task_resume, task_skip, task_fail, task_retry, task_complete, send, search |
-| **Orchestrator** | Auto-assign ready tasks to idle workers, auto-spawn workers (up to maxConcurrentWorkers), auto-spawn reviewers, promote blocked→ready (event-driven), stall detection, budget monitoring | No LLM calls — pure code logic | N/A (code, not an agent) |
+| **Director** | Creates ALL tasks (declare_tasks), spawns ALL agents (agent_spawn), dependency management, conflict resolution, task pause/resume/retry. Never explores itself — spawns agents for research | User communication, architecture decisions, code implementation, codebase exploration | declare_tasks, agent_spawn, task_pause, task_resume, task_skip, task_fail, task_retry, task_complete, send, search |
+| **Orchestrator** | Assign ready tasks to idle workers (no auto-spawn), promote blocked→ready (event-driven), stall detection, budget monitoring | No LLM calls — pure code logic. Does NOT spawn agents — Director does | N/A (code, not an agent) |
 | **Worker** | Code implementation, testing, task_submit, escalate when blocked | Task planning, agent management, code review | task_list, task_claim, task_submit, task_fail, escalate, file_lock, search, memory_write |
 | **Reviewer** | Code review, approve/request_changes via review_submit | Implementation, task planning | task_list, task_get, task_complete, task_fail, review_submit, search |
 | **Scout** | Read-only codebase analysis, suggest improvements | Write files, create tasks, modify anything | task_list, spec_list, search, decision_list, learning_search (all read-only) |

@@ -11,11 +11,11 @@ User → Lead → Director → Orchestrator → Workers → Reviewers
 ```
 
 - **Lead** 👑 — High-level decisions, user communication, plan approval
-- **Director** 📋 — Task breakdown, conflict resolution, agent lifecycle
-- **Orchestrator** — Event-driven auto-assignment, auto-spawning (500ms debounce)
+- **Director** 📋 — Execution manager: creates ALL tasks, spawns ALL agents, resolves conflicts
+- **Orchestrator** — Event-driven assignment of tasks to idle agents (no auto-spawn)
 - **Workers** 💻 — Implement code changes
 - **Reviewers** 🔍 — Code review (pool reuse, fresh reviewer on retry)
-- **Scout** 🔭, **QA Tester** 🧪, **Tech Writer** 📝, **Product Thinker** 💡
+- **Scout** 🔭 — Proactive observer (heartbeat-driven, read-only analysis), **QA Tester** 🧪, **Tech Writer** 📝, **Product Thinker** 💡
 
 ## Install
 
