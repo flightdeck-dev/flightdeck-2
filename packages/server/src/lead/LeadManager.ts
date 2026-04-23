@@ -237,7 +237,15 @@ export class LeadManager {
       statusContext = `\n## Current Project Status\nTasks: ${taskStats.running ?? 0} running, ${taskStats.ready ?? 0} ready, ${taskStats.done ?? 0} done, ${taskStats.failed ?? 0} failed\nAgents: ${busyCount} busy, ${idleCount} idle\n${agentList.length > 0 ? 'Active agents: ' + agentList.map(a => `${a.id} (${a.role}, ${a.status})`).join(', ') : 'No active agents'}`;
     } catch { /* best effort */ }
 
-    const systemPrompt = [memoryContext, roleContext, statusContext].filter(Boolean).join('\n') || undefined;
+    // Inject active management agents info
+    let mgmtContext = '';
+    try {
+      const projectConfig = this.project.getConfig() as any;
+      const scoutEnabled = projectConfig.scoutEnabled === true;
+      mgmtContext = `\n## Active Management Agents\n- Lead: you (active)\n- Director: active\n- Scout: ${scoutEnabled ? 'active (heartbeat-driven)' : 'disabled by user'}\n`;
+    } catch { /* best effort */ }
+
+    const systemPrompt = [memoryContext, roleContext, statusContext, mgmtContext].filter(Boolean).join('\n') || undefined;
 
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
@@ -709,7 +717,15 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
-    const fullSystemPrompt = [systemPrompt, modelPoolContext].filter(Boolean).join('\n') || undefined;
+    // Inject active management agents info for Director
+    let directorMgmtContext = '';
+    try {
+      const projectConfig = this.project.getConfig() as any;
+      const scoutEnabled = projectConfig.scoutEnabled === true;
+      directorMgmtContext = `\n## Active Management Agents\n- Lead: active\n- Director: you (active)\n- Scout: ${scoutEnabled ? 'active (heartbeat-driven)' : 'disabled by user'}\n`;
+    } catch { /* best effort */ }
+
+    const fullSystemPrompt = [systemPrompt, modelPoolContext, directorMgmtContext].filter(Boolean).join('\n') || undefined;
 
     const meta = await this.acpAdapter.spawn({
       role: 'director',
