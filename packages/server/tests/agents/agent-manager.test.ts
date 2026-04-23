@@ -272,7 +272,7 @@ describe('AgentManager DM delivery', () => {
     const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
 
     // Send a DM while the agent is running
-    messageStore.appendDM('planner-1' as AgentId, agent.id, 'New priority task available');
+    messageStore.appendDM('director-1' as AgentId, agent.id, 'New priority task available');
 
     // Restart the agent
     adapter.steerCalls = []; // Clear previous steers

@@ -131,7 +131,7 @@ describe('WorkflowEngine', () => {
   it('handles discussion step type', () => {
     const config: WorkflowConfig = {
       task_pipeline: [
-        { step: 'discuss', type: 'discussion', participants: ['lead', 'planner'] },
+        { step: 'discuss', type: 'discussion', participants: ['lead', 'director'] },
         { step: 'done' },
       ],
       spec_pipeline: [],
@@ -141,7 +141,7 @@ describe('WorkflowEngine', () => {
     const action = engine.initTask(tid('t1'));
     expect(action.type).toBe('discussion');
     if (action.type === 'discussion') {
-      expect(action.participants).toEqual(['lead', 'planner']);
+      expect(action.participants).toEqual(['lead', 'director']);
     }
   });
 

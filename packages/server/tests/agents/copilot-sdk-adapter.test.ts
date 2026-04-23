@@ -41,7 +41,7 @@ describe('CopilotSdkAdapter', () => {
       expect(names).toContain('flightdeck_search');
       expect(names).toContain('flightdeck_status');
 
-      // Worker should NOT have lead/planner tools
+      // Worker should NOT have lead/director tools
       expect(names).not.toContain('flightdeck_task_add');
       expect(names).not.toContain('flightdeck_declare_tasks');
       expect(names).not.toContain('flightdeck_agent_spawn');
@@ -56,13 +56,13 @@ describe('CopilotSdkAdapter', () => {
       expect(names).toContain('flightdeck_role_list');
       expect(names).toContain('flightdeck_tools_available');
 
-      // Lead no longer has these (moved to Planner)
+      // Lead no longer has these (moved to Director)
       expect(names).not.toContain('flightdeck_agent_spawn');
       expect(names).not.toContain('flightdeck_declare_tasks');
     });
 
-    it('planner has agent_spawn and declare_tasks', () => {
-      const names = getToolNames('planner');
+    it('director has agent_spawn and declare_tasks', () => {
+      const names = getToolNames('director');
       expect(names).toContain('flightdeck_agent_spawn');
       expect(names).toContain('flightdeck_declare_tasks');
       expect(names).toContain('flightdeck_task_pause');
@@ -97,7 +97,7 @@ describe('CopilotSdkAdapter', () => {
     });
 
     it('no duplicate tool names within a role', () => {
-      for (const role of ['worker', 'reviewer', 'lead', 'planner']) {
+      for (const role of ['worker', 'reviewer', 'lead', 'director']) {
         const names = getToolNames(role);
         expect(new Set(names).size).toBe(names.length);
       }
@@ -167,8 +167,8 @@ describe('CopilotSdkAdapter', () => {
       expect(JSON.parse(result)).toEqual({ tasks: 5 });
     });
 
-    it('declare_tasks available for planner', async () => {
-      const tool = getTool('planner', 'flightdeck_declare_tasks');
+    it('declare_tasks available for director', async () => {
+      const tool = getTool('director', 'flightdeck_declare_tasks');
       expect(tool).toBeDefined();
       mockJsonResponse({ created: 2 });
       await tool.handler({ tasks: [{ title: 'A' }] });
@@ -177,8 +177,8 @@ describe('CopilotSdkAdapter', () => {
       expect(opts.method).toBe('POST');
     });
 
-    it('agent_spawn available for planner', async () => {
-      const tool = getTool('planner', 'flightdeck_agent_spawn');
+    it('agent_spawn available for director', async () => {
+      const tool = getTool('director', 'flightdeck_agent_spawn');
       expect(tool).toBeDefined();
       mockJsonResponse({ agentId: 'w-1' });
       await tool.handler({ role: 'worker' });

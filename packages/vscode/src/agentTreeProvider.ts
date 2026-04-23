@@ -11,7 +11,7 @@ const STATUS_ICONS: Record<string, { icon: string; color: string }> = {
 
 const ROLE_ICONS: Record<string, string> = {
   lead: "megaphone",
-  planner: "list-ordered",
+  director: "list-ordered",
   worker: "tools",
   developer: "code",
   reviewer: "checklist",

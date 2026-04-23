@@ -15,7 +15,7 @@ Flightdeck currently has a flat task DAG: tasks have dependencies, but no concep
 1. **Subgraph nesting** — a task that encapsulates a mini-DAG, executed as a unit
 2. **Dynamic fan-out** — a task whose output determines how many parallel tasks to spawn
 
-Both need to work with Flightdeck's fundamentals: MCP tools, ACP agents, SQLite state, and the Lead/Planner/Worker role hierarchy.
+Both need to work with Flightdeck's fundamentals: MCP tools, ACP agents, SQLite state, and the Lead/Director/Worker role hierarchy.
 
 ---
 
@@ -31,7 +31,7 @@ Real software work has natural nesting:
 - "Build the auth module" → (design API, write middleware, write tests, integrate)
 - "Set up CI" → (write workflow file, add secrets config, verify with dry run)
 
-Today in Flightdeck, the Planner flattens everything into one level. Task groups let the Planner say "this is a chunk of related work — figure out the internals later."
+Today in Flightdeck, the Director flattens everything into one level. Task groups let the Director say "this is a chunk of related work — figure out the internals later."
 
 ### Design
 
@@ -61,10 +61,10 @@ interface CreateTaskParams {
 
 **Creating a group:**
 ```
-Planner creates task "Build auth module" (type: group)
+Director creates task "Build auth module" (type: group)
   → returns task ID "task-auth"
 
-Planner creates child tasks:
+Director creates child tasks:
   "Design auth API"      (parentGroup: "task-auth")
   "Write auth middleware" (parentGroup: "task-auth", depends on: "Design auth API")  
   "Write auth tests"     (parentGroup: "task-auth", depends on: "Write auth middleware")
@@ -94,10 +94,10 @@ expand_group          — Add more children to an existing group
 collapse_group_status — Get summary: "3/5 done, 1 in progress, 1 blocked"
 ```
 
-**Example — Planner perspective:**
+**Example — Director perspective:**
 
 ```
-// Planner calls declare_task_group:
+// Director calls declare_task_group:
 {
   "group": {
     "title": "Build auth module",
@@ -128,7 +128,7 @@ collapse_group_status — Get summary: "3/5 done, 1 in progress, 1 blocked"
 
 - Does not change how agents work. Workers still claim individual tasks.
 - Does not introduce sub-DAG execution engines. The existing DAG scheduler handles children like normal tasks, just scoped.
-- Does not require YAML. Groups are created programmatically by Planner/Lead.
+- Does not require YAML. Groups are created programmatically by Director/Lead.
 
 ---
 
@@ -159,10 +159,10 @@ ALTER TABLE tasks ADD COLUMN fan_out_index INTEGER;  -- 0-based index in the fan
 
 #### How it works
 
-**Step 1: Planner declares a fan-out point**
+**Step 1: Director declares a fan-out point**
 
 ```
-// Planner creates:
+// Director creates:
 {
   "title": "Discover packages to test",
   "role": "worker",
@@ -218,12 +218,12 @@ The `merge-test-results` task receives all 4 results as input context. It can su
 
 #### MCP tools
 
-No new tools needed. Fan-out is triggered by including `fanOutItems` in `task_submit`. The Planner declares intent via the template in `task_create`.
+No new tools needed. Fan-out is triggered by including `fanOutItems` in `task_submit`. The Director declares intent via the template in `task_create`.
 
 #### Example — Full flow
 
 ```
-Planner creates DAG:
+Director creates DAG:
   
   [discover-files] ──fan-out──> [lint-file: {{item}}] ──collect──> [report-results]
                                      (N copies)
@@ -252,14 +252,14 @@ Subgraph + fan-out combine naturally:
   → collect → [Integration test all endpoints]
 ```
 
-The fan-out creates N groups, each group is a sub-DAG. This handles complex parallel-then-converge workflows without the Planner having to know N upfront.
+The fan-out creates N groups, each group is a sub-DAG. This handles complex parallel-then-converge workflows without the Director having to know N upfront.
 
 ---
 
 ## What we're NOT doing (conscious scope limits)
 
-1. **No YAML workflow files.** Flightdeck's DAGs are created by agents via MCP tools, not by humans editing YAML. The Planner IS the workflow author.
-2. **No visual DAG editor.** Dashboard shows the DAG read-only. Editing is via Planner.
+1. **No YAML workflow files.** Flightdeck's DAGs are created by agents via MCP tools, not by humans editing YAML. The Director IS the workflow author.
+2. **No visual DAG editor.** Dashboard shows the DAG read-only. Editing is via Director.
 3. **No dynamic edge conditions.** Edges (dependencies) are static once created. Fan-out is the only runtime graph mutation.
 4. **No recursive fan-out.** One level only. If you need deeper nesting, use groups inside fan-out.
 5. **No ChatDev-style "cycle execution."** If you need retry loops, the reviewer rejects and the worker re-claims. No explicit cycle edges.
@@ -284,7 +284,7 @@ Start with task groups — it's mostly a `group_id` column + a few MCP tools + s
 
 ## Open questions
 
-1. **Should the Lead be able to fan-out, or only Planner?** Probably both — Lead might discover at runtime that work needs splitting.
+1. **Should the Lead be able to fan-out, or only Director?** Probably both — Lead might discover at runtime that work needs splitting.
 2. **Fan-out + file locking:** If 5 parallel tasks all touch the same repo, file locking becomes critical. Current locking should handle it, but need to verify under fan-out load.
 3. **Fan-out cost:** Each spawned task needs an ACP agent. 20 parallel agents = 20 processes. Memory implications on 16GB? Probably fine if they're not all active simultaneously.
 4. **Template language:** `{{item.name}}` is simple Mustache-style. Do we need conditionals? Probably not for v1.

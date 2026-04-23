@@ -15,7 +15,7 @@ Flightdeck 2.0 is a clean-slate multi-agent orchestration engine built as a libr
 │                     └────┬────┘                         │
 │                          │                              │
 │                     ┌────▼────┐                         │
-│                     │ Planner │  📋 Task breakdown      │
+│                     │ Director │  📋 Task breakdown      │
 │                     └────┬────┘                         │
 │                          │                              │
 │                  ┌───────▼────────┐                     │
@@ -39,7 +39,7 @@ Flightdeck 2.0 is a clean-slate multi-agent orchestration engine built as a libr
 | Role | Icon | Responsibilities |
 |------|------|------------------|
 | **Lead** | 👑 | High-level decisions, user communication, plan approval |
-| **Planner** | 📋 | Task breakdown, conflict resolution, agent lifecycle |
+| **Director** | 📋 | Task breakdown, conflict resolution, agent lifecycle |
 | **Orchestrator** | — | Auto-assign tasks, auto-spawn workers, event-driven reactivity |
 | **Worker** | 💻 | Write and modify code, implement features and fixes |
 | **Reviewer** | 🔍 | Code review (pool reuse, fresh reviewer on retry) |
@@ -52,7 +52,7 @@ Flightdeck 2.0 is a clean-slate multi-agent orchestration engine built as a libr
 
 ```
 User request → Lead (approves plan)
-  → Planner (breaks into tasks, creates DAG)
+  → Director (breaks into tasks, creates DAG)
     → Orchestrator (assigns tasks to agents)
       → Worker agents (implement code)
         → Reviewer agents (code review)

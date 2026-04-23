@@ -32,10 +32,10 @@ describe('MCP Server Error Messages', () => {
     // Register test agents
     const worker: Agent = { id: 'agent-worker-1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     const lead: Agent = { id: 'agent-lead-1' as AgentId, role: 'lead', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
-    const planner: Agent = { id: 'agent-planner-1' as AgentId, role: 'planner', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
+    const director: Agent = { id: 'agent-director-1' as AgentId, role: 'director', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     fd.registerAgent(lead);
-    fd.registerAgent(planner);
+    fd.registerAgent(director);
     gateway = await startTestGateway(fd, projectName);
     process.env.FLIGHTDECK_URL = `http://127.0.0.1:${gateway.port}`;
     process.env.FLIGHTDECK_PROJECT = projectName;
@@ -64,7 +64,7 @@ describe('MCP Server Error Messages', () => {
     const text = result.content[0].text;
     expect(text).toContain('agent-worker-1');
     expect(text).toContain('worker');
-    expect(text).toContain('lead/planner');
+    expect(text).toContain('lead/director');
     expect(text).toContain('flightdeck_escalate');
   });
 
@@ -126,7 +126,7 @@ describe('MCP Server Error Messages', () => {
     });
     const text = result.content[0].text;
     expect(text).toContain('worker');
-    expect(text).toContain('lead/planner');
+    expect(text).toContain('lead/director');
     expect(text).toContain('flightdeck_escalate');
   });
 

@@ -7,11 +7,11 @@ A next-generation multi-agent orchestration engine for AI coding agents with CLI
 ## Architecture
 
 ```
-User → Lead → Planner → Orchestrator → Workers → Reviewers
+User → Lead → Director → Orchestrator → Workers → Reviewers
 ```
 
 - **Lead** 👑 — High-level decisions, user communication, plan approval
-- **Planner** 📋 — Task breakdown, conflict resolution, agent lifecycle
+- **Director** 📋 — Task breakdown, conflict resolution, agent lifecycle
 - **Orchestrator** — Event-driven auto-assignment, auto-spawning (500ms debounce)
 - **Workers** 💻 — Implement code changes
 - **Reviewers** 🔍 — Code review (pool reuse, fresh reviewer on retry)

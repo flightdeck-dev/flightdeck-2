@@ -1,5 +1,5 @@
 /**
- * Lightweight gateway: only Lead, no Planner (save memory)
+ * Lightweight gateway: only Lead, no Director (save memory)
  */
 import { Flightdeck } from './packages/server/src/facade.ts';
 import { AcpAdapter } from './packages/server/src/agents/AcpAdapter.ts';
@@ -26,8 +26,8 @@ async function main() {
     acpAdapter,
   });
 
-  // Only spawn Lead (no Planner to save memory)
-  console.error('Spawning Lead only (no Planner)...');
+  // Only spawn Lead (no Director to save memory)
+  console.error('Spawning Lead only (no Director)...');
   const leadSession = await leadManager.spawnLead();
   console.error(`Lead spawned: ${leadSession}`);
 

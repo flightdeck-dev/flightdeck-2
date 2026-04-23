@@ -53,7 +53,7 @@ describe('Orchestrator suspended agents', () => {
   it('does not count suspended agents as active capacity', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
-      role: 'planner', runtime: 'acp', acpSessionId: null,
+      role: 'director', runtime: 'acp', acpSessionId: null,
       status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
@@ -64,7 +64,7 @@ describe('Orchestrator suspended agents', () => {
   it('listHibernatedAgents returns only hibernated agents', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
-      role: 'planner', runtime: 'acp', acpSessionId: null,
+      role: 'director', runtime: 'acp', acpSessionId: null,
       status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
     store.insertAgent({
@@ -82,7 +82,7 @@ describe('Orchestrator suspended agents', () => {
   it('purgeOfflineAgents purges hibernated agents but not retired', () => {
     store.insertAgent({
       id: 'agent-s1' as AgentId,
-      role: 'planner', runtime: 'acp', acpSessionId: null,
+      role: 'director', runtime: 'acp', acpSessionId: null,
       status: 'retired', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
     store.insertAgent({

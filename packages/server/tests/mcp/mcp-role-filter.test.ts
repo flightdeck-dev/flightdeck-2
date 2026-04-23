@@ -26,8 +26,8 @@ describe('toolPermissions', () => {
     expect(getToolsForRole('lead')).toContain('flightdeck_task_list');
     expect(getToolsForRole('worker')).toContain('flightdeck_task_claim');
     expect(getToolsForRole('worker')).not.toContain('flightdeck_agent_spawn');
-    expect(getToolsForRole('planner')).toContain('flightdeck_declare_tasks');
-    expect(getToolsForRole('planner')).toContain('flightdeck_agent_spawn');
+    expect(getToolsForRole('director')).toContain('flightdeck_declare_tasks');
+    expect(getToolsForRole('director')).toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('reviewer')).toContain('flightdeck_task_complete');
     expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_claim');
   });

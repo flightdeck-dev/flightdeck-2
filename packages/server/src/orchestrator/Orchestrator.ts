@@ -167,8 +167,8 @@ export class Orchestrator {
             this.webhookNotifier?.notify(
               taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
             );
-            // Notify Planner if this was a critical-path completion
-            this.notifyPlannerIfNeeded(effect.taskId, 'completed');
+            // Notify Director if this was a critical-path completion
+            this.notifyDirectorIfNeeded(effect.taskId, 'completed');
           } else {
             // Notify lead about review failure
             this.leadManager?.steerLead({
@@ -200,8 +200,8 @@ export class Orchestrator {
         this.webhookNotifier?.notify(
           escalationEvent(this.config.name, effect.reason, (escalatedTask?.assignedAgent as string) ?? undefined),
         );
-        // Also notify Planner about escalations
-        this.notifyPlannerIfNeeded(effect.taskId, 'escalated');
+        // Also notify Director about escalations
+        this.notifyDirectorIfNeeded(effect.taskId, 'escalated');
         break;
       }
       case 'notify_agent': {
@@ -452,7 +452,7 @@ export class Orchestrator {
           this.webhookNotifier?.notify(
             taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
           );
-          this.notifyPlannerIfNeeded(task.id, 'completed');
+          this.notifyDirectorIfNeeded(task.id, 'completed');
         } else {
           this.leadManager?.steerLead({
             type: 'task_failure',
@@ -572,8 +572,8 @@ export class Orchestrator {
               taskId: task.id,
               error: `Task failed after ${maxRetries} retries. Agent session ended without submission.`,
             });
-            // Also notify Planner about exhausted failures
-            this.notifyPlannerIfNeeded(task.id, 'failed');
+            // Also notify Director about exhausted failures
+            this.notifyDirectorIfNeeded(task.id, 'failed');
             this.webhookNotifier?.notify(
               taskFailedEvent(this.config.name, task.title, `Failed after ${maxRetries} retries`),
             );
@@ -667,12 +667,12 @@ export class Orchestrator {
           }
         } catch { /* Skip */ }
       } else if (this.leadManager) {
-        // No idle agent — notify Lead/Planner that a worker is needed
+        // No idle agent — notify Lead/Director that a worker is needed
         const t2 = task as any;
-        log('Orchestrator', `No idle ${task.role} for task "${task.title}" — notifying Planner`);
+        log('Orchestrator', `No idle ${task.role} for task "${task.title}" — notifying Director`);
         const runtimeHint = task.runtime ? ` Specified runtime: ${task.runtime}.` : '';
         const modelHint = task.model ? ` Specified model: ${task.model}.` : '';
-        this.leadManager.steerPlanner?.(
+        this.leadManager.steerDirector?.(
           `[SYSTEM] Task "${task.title}" (${task.id}) needs a ${task.role} agent but none are available. ` +
           `Please spawn one with flightdeck_agent_spawn.${runtimeHint}${modelHint}` +
           (t2.description ? ` Task description: ${t2.description}` : '')
@@ -880,9 +880,9 @@ export class Orchestrator {
     this.boundReactHandler = () => this.scheduleReactiveTick();
     this.store.on('task-state-changed', this.boundReactHandler);
 
-    // Subscribe to merge conflicts for Planner notification
+    // Subscribe to merge conflicts for Director notification
     this.store.on('merge-conflict', (info: { taskId: string; branch: string }) => {
-      this.leadManager?.steerPlannerEvent({
+      this.leadManager?.steerDirectorEvent({
         type: 'file_conflict',
         taskId: info.taskId,
         message: `Merge conflict on branch ${info.branch} for task ${info.taskId}. The worktree is preserved for manual resolution. Options: task_pause other conflicting tasks, task_retry on latest main, or escalate to Lead.`,
@@ -991,11 +991,11 @@ export class Orchestrator {
     }
   }
 
-  /* ── Reactive Planner notifications ─────────────────────────── */
+  /* ── Reactive Director notifications ─────────────────────────── */
 
   private specMilestonesSent = new Map<string, Set<number>>();
 
-  private notifyPlannerIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated'): void {
+  private notifyDirectorIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated'): void {
     if (!this.leadManager) return;
 
     const task = this.dag.getTask(taskId);
@@ -1013,7 +1013,7 @@ export class Orchestrator {
           const specTasks = allTasks.filter(t => t.specId === task.specId);
           const remaining = specTasks.filter(t => t.state !== 'done' && t.state !== 'skipped' && t.state !== 'cancelled');
 
-          this.leadManager.steerPlannerEvent({
+          this.leadManager.steerDirectorEvent({
             type: 'critical_task_completed',
             taskId: taskId as string,
             specId: task.specId as string,
@@ -1028,7 +1028,7 @@ export class Orchestrator {
         break;
       }
       case 'failed': {
-        this.leadManager.steerPlannerEvent({
+        this.leadManager.steerDirectorEvent({
           type: 'task_failed',
           taskId: taskId as string,
           error: `Task "${task.title}" failed`,
@@ -1037,7 +1037,7 @@ export class Orchestrator {
         break;
       }
       case 'escalated': {
-        this.leadManager.steerPlannerEvent({
+        this.leadManager.steerDirectorEvent({
           type: 'worker_escalation',
           taskId: taskId as string,
           agentId: (task.assignedAgent as string) ?? 'unknown',
@@ -1064,7 +1064,7 @@ export class Orchestrator {
       if (pct >= m && !sent.has(m)) {
         sent.add(m);
         this.specMilestonesSent.set(specId, sent);
-        this.leadManager.steerPlannerEvent({
+        this.leadManager.steerDirectorEvent({
           type: 'spec_milestone',
           specId,
           completed,

@@ -1,6 +1,6 @@
 ---
 name: iterative-review
-description: Iterative test-observe-fix cycle for Flightdeck development. Use when running integration tests against the Flightdeck daemon, observing Lead/agent behavior, identifying bugs, fixing them, and re-testing. Applies to any scenario where you need to exercise the Flightdeck orchestration loop (daemon → Lead → Planner → Workers) and continuously improve based on observed behavior.
+description: Iterative test-observe-fix cycle for Flightdeck development. Use when running integration tests against the Flightdeck daemon, observing Lead/agent behavior, identifying bugs, fixing them, and re-testing. Applies to any scenario where you need to exercise the Flightdeck orchestration loop (daemon → Lead → Director → Workers) and continuously improve based on observed behavior.
 ---
 
 # Iterative Review Cycle
@@ -72,7 +72,7 @@ process(action=log, sessionId=<daemon-session>)
 | Lead says "done" but task state unchanged | Lead hallucinated — always verify via API |
 | chat endpoint hangs forever | Lead busy processing; use async message POST instead |
 | SIGKILL on daemon | Check if exec had a timeout set (most common cause) |
-| Planner creates unwanted tasks | Planner acts autonomously; may need clearer scope |
+| Director creates unwanted tasks | Director acts autonomously; may need clearer scope |
 
 ## 3. DOCUMENT — Record Findings
 
@@ -157,5 +157,5 @@ curl -sf http://localhost:18800/api/projects/<project>/messages | \
 - **Agents register but don't spawn** — check acpSessionId, not just status
 - **chat endpoint is synchronous** — use async POST for non-blocking messages
 - **One ACP agent ≈ 300–500MB RSS** — much lighter than expected, dozens can run on 32GB
-- **Planner is autonomous** — it may create tasks you didn't ask for
+- **Director is autonomous** — it may create tasks you didn't ask for
 - **Subagent self-reports are unreliable** — run `pnpm test` yourself after fixes

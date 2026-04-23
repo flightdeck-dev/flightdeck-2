@@ -237,9 +237,9 @@ export class AcpAdapter extends AgentAdapter {
 
       async writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse> {
         const filePath = path.resolve(session.cwd, params.path);
-        // Lead and planner can only write to .flightdeck/ and memory/ directories
+        // Lead and director can only write to .flightdeck/ and memory/ directories
         // They should coordinate, not implement
-        if (session.role === 'lead' || session.role === 'planner') {
+        if (session.role === 'lead' || session.role === 'director') {
           const rel = path.relative(session.cwd, filePath);
           // Block path traversal: reject paths that resolve outside the project cwd
           if (rel.startsWith('..') || path.isAbsolute(rel)) {
@@ -602,8 +602,8 @@ export class AcpAdapter extends AgentAdapter {
       }
 
       // Set session mode based on role:
-      // Lead/planner stay read-only (orchestration only), workers/reviewers/scouts get full-access
-      const READ_ONLY_ROLES = new Set(['lead', 'planner']);
+      // Lead/director stay read-only (orchestration only), workers/reviewers/scouts get full-access
+      const READ_ONLY_ROLES = new Set(['lead', 'director']);
       const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
       const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
       // Use configOptions (ACP spec) to set mode

@@ -72,7 +72,7 @@ The user interacts with Flightdeck only. Never with individual agents.
 $ flightdeck spec create "Add OAuth2 to the API"
 $ flightdeck start --profile autonomous
 
-(Flightdeck auto-spawns planner, workers, reviewers via ACP)
+(Flightdeck auto-spawns director, workers, reviewers via ACP)
 (Agents communicate with Flightdeck via MCP)
 (Next morning)
 
@@ -159,7 +159,7 @@ The Flightdeck daemon is designed to be restartable without losing agent session
 **User experience:** Daemon restart = a few seconds of disconnection. No lost work, no re-spawned agents, no repeated tasks.
 
 **`--no-recover` / `--fresh` flag:**
-Pass `--no-recover` (or its alias `--fresh`) to `flightdeck start` to skip session recovery entirely. All existing agents are marked as `terminated` in the database, and fresh Lead + Planner sessions are spawned. Useful when previous sessions are known to be stale or broken (e.g. after a crash or runtime update).
+Pass `--no-recover` (or its alias `--fresh`) to `flightdeck start` to skip session recovery entirely. All existing agents are marked as `terminated` in the database, and fresh Lead + Director sessions are spawned. Useful when previous sessions are known to be stale or broken (e.g. after a crash or runtime update).
 
 ### Multi-Surface Architecture
 
@@ -226,7 +226,7 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 - Pulls current state from Flightdeck via MCP on demand (not pushed every event)
 - Interrupted only on: user messages, critical failures, escalations, budget warnings
 
-**Planner Agent** - persistent, idle until needed. Always-on session that responds with FLIGHTDECK_IDLE when not processing a request. Activated when:
+**Director Agent** - persistent, idle until needed. Always-on session that responds with FLIGHTDECK_IDLE when not processing a request. Activated when:
 - Initial spec needs to be decomposed into a task DAG
 - A worker escalates that a task needs re-planning
 - User pivots and the DAG needs restructuring
@@ -321,7 +321,7 @@ skills:
       - testing-patterns
     reviewer:
       - code-review
-    planner: []
+    director: []
 
 mcp:
   # Global: all agents connect to these
@@ -416,7 +416,7 @@ This matches how real teams work: your manager doesn't run your tests. But if yo
 - ACP spawn/steer/kill agents
 - Cost tracking
 - Progress reporting
-- Event routing (escalations → lead or planner)
+- Event routing (escalations → lead or director)
 
 ### Isolation Model (replaces file locking)
 
@@ -801,7 +801,7 @@ Generated automatically at the configured cadence:
 - **FR-016:** System MUST actively detect stalls (agent silence, task overtime, DAG idle) and take corrective action
 - **FR-017:** System MUST support hierarchical DAGs for large projects (epics → sub-DAGs)
 - **FR-018:** Lead agent MUST be persistent (always-on session) and interrupt-driven
-- **FR-019:** Planner agent MUST be persistent (always-on session, idle until steered with a planning request)
+- **FR-019:** Director agent MUST be persistent (always-on session, idle until steered with a planning request)
 - **FR-020:** System MUST run a periodic tick loop to check for stalls and unassigned tasks
 
 ### Non-Functional Requirements
@@ -883,7 +883,7 @@ The tick loop also checks for:
 
 ### Compaction (Memory Decay)
 
-As projects grow, completed tasks accumulate. Planner and lead can't review thousands of tasks. Flightdeck automatically compresses old completed work:
+As projects grow, completed tasks accumulate. Director and lead can't review thousands of tasks. Flightdeck automatically compresses old completed work:
 
 ```yaml
 compaction:
@@ -909,7 +909,7 @@ milestone-2: "Database migration" [8 tasks done, decisions: chose Drizzle ORM]
 ...
 ```
 
-Planner sees: ~20 compacted milestones + ~50 active tasks. Never thousands.
+Director sees: ~20 compacted milestones + ~50 active tasks. Never thousands.
 
 Original task data stays in SQLite forever (audit trail). Compaction only affects what's shown to agents.
 
@@ -918,22 +918,22 @@ Original task data stays in SQLite forever (audit trail). Compaction only affect
 For projects that grow beyond ~100 active tasks, Flightdeck supports nested DAGs:
 
 ```
-Top-level DAG (top planner manages):
-├── epic-1: "Auth system"      → Sub-DAG (sub-planner manages, 20 tasks)
-├── epic-2: "Payment system"   → Sub-DAG (sub-planner manages, 30 tasks)
-└── epic-3: "Admin dashboard"  → Sub-DAG (sub-planner manages, 25 tasks)
+Top-level DAG (top director manages):
+├── epic-1: "Auth system"      → Sub-DAG (sub-director manages, 20 tasks)
+├── epic-2: "Payment system"   → Sub-DAG (sub-director manages, 30 tasks)
+└── epic-3: "Admin dashboard"  → Sub-DAG (sub-director manages, 25 tasks)
 ```
 
-Each level has its own planner. Cross-epic dependencies are managed at the parent level. Sub-planners only see their own scope.
+Each level has its own director. Cross-epic dependencies are managed at the parent level. Sub-directors only see their own scope.
 
 | Project scale | Structure |
 |---|---|
-| < 20 tasks | Single DAG, one planner |
+| < 20 tasks | Single DAG, one director |
 | 20-100 tasks | Single DAG + compaction |
 | 100-500 tasks | Two levels (epics + tasks) |
 | 500+ tasks | Multi-level tree |
 
-Flightdeck suggests splits based on task count; planner decides how to split.
+Flightdeck suggests splits based on task count; director decides how to split.
 
 ---
 
@@ -993,12 +993,12 @@ task_pipeline:
 # Pipeline for starting a new spec
 spec_pipeline:
   - step: ideate
-    role: planner
+    role: director
   - step: discuss_with_lead
     type: discussion
-    participants: [lead, planner]
+    participants: [lead, director]
   - step: plan
-    role: planner
+    role: director
     output: task_dag
   - step: approve
     role: lead
@@ -1220,16 +1220,16 @@ interface TaskCommentReceived {
 User only talks to Lead. All other agents are managed by Lead.
 
 ```
-          User    Lead    Planner   Worker
+          User    Lead    Director   Worker
 User       -       ✅       ❌        ❌
 Lead       ✅       -       ✅        ✅
-Planner    ❌      ✅        -        ❌
+Director    ❌      ✅        -        ❌
 Worker     ❌      ✅       ❌         -
 ```
 
 ### Lead Context Window Management
 
-Lead is the highest-risk role for context overflow. It handles user conversation, planner proposals, worker reports, task comments, and status changes.
+Lead is the highest-risk role for context overflow. It handles user conversation, director proposals, worker reports, task comments, and status changes.
 
 **Key constraint:** Flightdeck does NOT control the Lead's context window. The agent runtime (Copilot CLI, Codex, etc.) owns compaction. Flightdeck cannot compress, cannot know remaining capacity, cannot evict messages. See "Context Management Constraint" section.
 

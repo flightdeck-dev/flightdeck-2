@@ -810,7 +810,7 @@ const DEFAULT_MEMORY_FILES: { filename: string; description: string }[] = [
   { filename: 'USER.md', description: 'User preferences and context' },
   { filename: 'MEMORY.md', description: 'Long-term curated memory' },
   { filename: 'AGENTS.md', description: 'Worker instructions and conventions' },
-  { filename: 'role-preference.md', description: 'Task planning guidance for Planner' },
+  { filename: 'role-preference.md', description: 'Task planning guidance for Director' },
 ];
 
 interface MemoryFileInfo {

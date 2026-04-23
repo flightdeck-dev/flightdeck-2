@@ -133,12 +133,12 @@ describe('LeadManager', () => {
     expect(FLIGHTDECK_NO_REPLY).toBe('FLIGHTDECK_NO_REPLY');
   });
 
-  // --- Planner session management ---
+  // --- Director session management ---
 
-  describe('Planner persistent session', () => {
-    it('plannerSessionId is null initially', () => {
+  describe('Director persistent session', () => {
+    it('directorSessionId is null initially', () => {
       const lm = new LeadManager({ sqlite, project, acpAdapter });
-      expect(lm.getPlannerSessionId()).toBeNull();
+      expect(lm.getDirectorSessionId()).toBeNull();
     });
 
     it('leadSessionId is null initially', () => {

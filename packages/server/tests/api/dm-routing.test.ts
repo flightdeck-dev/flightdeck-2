@@ -40,7 +40,7 @@ describe('DM routing via /messages/send', () => {
   let tmpDir: string;
   let sqlStore: SqliteStore;
   let msgStore: MessageStore;
-  let steerPlannerFn: ReturnType<typeof vi.fn>;
+  let steerDirectorFn: ReturnType<typeof vi.fn>;
   let steerLeadFn: ReturnType<typeof vi.fn>;
   let sendToAgentFn: ReturnType<typeof vi.fn>;
   let broadcastFn: ReturnType<typeof vi.fn>;
@@ -50,7 +50,7 @@ describe('DM routing via /messages/send', () => {
     sqlStore = new SqliteStore(join(tmpDir, 'test.sqlite'));
     msgStore = new MessageStore(sqlStore.db);
 
-    steerPlannerFn = vi.fn().mockResolvedValue(undefined);
+    steerDirectorFn = vi.fn().mockResolvedValue(undefined);
     steerLeadFn = vi.fn().mockResolvedValue(undefined);
     sendToAgentFn = vi.fn().mockResolvedValue(undefined);
     broadcastFn = vi.fn();
@@ -75,7 +75,7 @@ describe('DM routing via /messages/send', () => {
     } as any;
 
     const pm = makeProjectManager(fd);
-    const leadManager = { steerPlanner: steerPlannerFn, steerLead: steerLeadFn } as any;
+    const leadManager = { steerDirector: steerDirectorFn, steerLead: steerLeadFn } as any;
     const wsServer = { broadcast: broadcastFn } as any;
 
     server = createHttpServer({
@@ -95,12 +95,12 @@ describe('DM routing via /messages/send', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('routes DM to planner via leadManager.steerPlanner()', async () => {
-    const { status, data } = await req(port, 'POST', '/api/projects/test/messages/send', { to: 'planner-abc', content: 'plan this' }, { 'x-agent-id': 'worker-1' });
+  it('routes DM to director via leadManager.steerDirector()', async () => {
+    const { status, data } = await req(port, 'POST', '/api/projects/test/messages/send', { to: 'director-abc', content: 'plan this' }, { 'x-agent-id': 'worker-1' });
     expect(status).toBe(200);
     expect(data.status).toBe('sent');
-    expect(steerPlannerFn).toHaveBeenCalledOnce();
-    expect(steerPlannerFn.mock.calls[0][0]).toContain('plan this');
+    expect(steerDirectorFn).toHaveBeenCalledOnce();
+    expect(steerDirectorFn.mock.calls[0][0]).toContain('plan this');
   });
 
   it('routes DM to lead via leadManager.steerLead() with agent_message type', async () => {
@@ -117,8 +117,8 @@ describe('DM routing via /messages/send', () => {
   });
 
   it('stores DM in MessageStore with dm:{to} channel', async () => {
-    await req(port, 'POST', '/api/projects/test/messages/send', { to: 'planner-abc', content: 'stored msg' }, { 'x-agent-id': 'worker-1' });
-    const dms = msgStore.listChannelMessages('dm:planner-abc');
+    await req(port, 'POST', '/api/projects/test/messages/send', { to: 'director-abc', content: 'stored msg' }, { 'x-agent-id': 'worker-1' });
+    const dms = msgStore.listChannelMessages('dm:director-abc');
     expect(dms.length).toBe(1);
     expect(dms[0].content).toBe('stored msg');
     expect(dms[0].authorId).toBe('worker-1');

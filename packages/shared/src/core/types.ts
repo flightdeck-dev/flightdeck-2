@@ -21,7 +21,7 @@ export const GATE_TYPES = ['human_approval', 'ci_check', 'timer', 'external'] as
 export type GateType = typeof GATE_TYPES[number];
 
 // Agent roles
-export const AGENT_ROLES = ['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer', 'scout'] as const;
+export const AGENT_ROLES = ['lead', 'director', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer', 'scout'] as const;
 export type AgentRole = typeof AGENT_ROLES[number];
 
 // Agent runtime types

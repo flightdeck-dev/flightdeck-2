@@ -132,7 +132,7 @@ Each agent role sees only the MCP tools it needs (`toolPermissions.ts`). Seven r
 | Role | Key Permissions |
 |------|----------------|
 | **lead** | Full access — spawn/terminate agents, declare tasks, manage models, cost reports |
-| **planner** | Create tasks, declare task batches, discuss, search memory |
+| **director** | Create tasks, declare task batches, discuss, search memory |
 | **worker** | Claim tasks, submit work, write memory, report failures |
 | **reviewer** | Complete or fail tasks (quality gate), search memory |
 | **product-thinker** | Create tasks, discuss, write memory, log decisions |
@@ -176,7 +176,7 @@ The `GovernanceEngine` evaluates decisions, gates task starts, checks cost thres
 
 ## Data Flow: Task Lifecycle
 
-1. **Creation** — Lead or planner calls `flightdeck_declare_tasks` via MCP. Tasks are inserted into SQLite with state `ready` (no deps) or `pending` (has deps).
+1. **Creation** — Lead or director calls `flightdeck_declare_tasks` via MCP. Tasks are inserted into SQLite with state `ready` (no deps) or `pending` (has deps).
 
 2. **Dependency Resolution** — Orchestrator tick promotes `pending` → `ready` when all dependencies reach `done`/`skipped`/`cancelled`. The `TaskDAG.resolveReady()` method walks the adjacency graph.
 
@@ -197,7 +197,7 @@ The `GovernanceEngine` evaluates decisions, gates task starts, checks cost thres
 | `facade.ts` | High-level API wrapping all subsystems; one instance per project |
 | `dag/` | Task DAG with adjacency graph, dependency resolution, topological sort, compaction, sub-tasks |
 | `orchestrator/` | Tick loop for task promotion, auto-assignment, stall detection, budget checks, compaction |
-| `lead/` | Lead agent lifecycle, event-driven steering, heartbeat system, planner management |
+| `lead/` | Lead agent lifecycle, event-driven steering, heartbeat system, director management |
 | `agents/` | ACP adapter (spawn/steer/kill), agent manager, session management, model tier registry |
 | `mcp/` | MCP server with 40+ tools, role-based tool filtering, Zod schema validation |
 | `governance/` | Governance profiles, approval gates, escalation rules, cost thresholds, decision evaluation |

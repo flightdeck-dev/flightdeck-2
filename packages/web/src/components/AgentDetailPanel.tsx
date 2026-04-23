@@ -16,7 +16,7 @@ import type { Agent } from '../lib/types.ts';
 export const EMPTY_CHUNKS: StreamChunk[] = [];
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
-  lead: <Crown size={20} strokeWidth={1.5} />, developer: <Code size={20} strokeWidth={1.5} />, worker: <Code size={20} strokeWidth={1.5} />, reviewer: <Search size={20} strokeWidth={1.5} />, planner: <ClipboardList size={20} strokeWidth={1.5} />,
+  lead: <Crown size={20} strokeWidth={1.5} />, developer: <Code size={20} strokeWidth={1.5} />, worker: <Code size={20} strokeWidth={1.5} />, reviewer: <Search size={20} strokeWidth={1.5} />, director: <ClipboardList size={20} strokeWidth={1.5} />,
 };
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; animate?: boolean }> = {

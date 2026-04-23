@@ -35,11 +35,11 @@ describe('MCP new tools', () => {
     fd = new Flightdeck(projectName);
     const lead: Agent = { id: 'lead-1' as AgentId, role: 'lead', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     const worker: Agent = { id: 'worker-1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
-    const planner: Agent = { id: 'planner-1' as AgentId, role: 'planner', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
+    const director: Agent = { id: 'director-1' as AgentId, role: 'director', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     const reviewer: Agent = { id: 'reviewer-1' as AgentId, role: 'reviewer', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(lead);
     fd.registerAgent(worker);
-    fd.registerAgent(planner);
+    fd.registerAgent(director);
     fd.registerAgent(reviewer);
     gateway = await startTestGateway(fd, projectName);
     process.env.FLIGHTDECK_URL = `http://127.0.0.1:${gateway.port}`;
@@ -98,8 +98,8 @@ describe('MCP new tools', () => {
     expect(getText(result)).toContain('Error');
   });
 
-  it('task_skip works for planner', async () => {
-    setCallerAgent('planner-1');
+  it('task_skip works for director', async () => {
+    setCallerAgent('director-1');
     const task = fd.addTask({ title: 'skip me' });
     const result = await callTool(server, 'flightdeck_task_skip', { taskId: task.id });
     const data = JSON.parse(getText(result));
@@ -128,7 +128,7 @@ describe('MCP new tools', () => {
   });
 
   it('declare_tasks creates batch', async () => {
-    setCallerAgent('planner-1');
+    setCallerAgent('director-1');
     const result = await callTool(server, 'flightdeck_declare_tasks', {
       tasks: [
         { title: 'batch-1' },

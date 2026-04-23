@@ -27,38 +27,38 @@ describe('LeadManager lazy resume', () => {
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
 
-  it('isPlannerSuspended returns false initially', () => {
+  it('isDirectorSuspended returns false initially', () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
-    expect(lm.isPlannerSuspended()).toBe(false);
+    expect(lm.isDirectorSuspended()).toBe(false);
   });
 
-  it('isPlannerSuspended returns true after setSuspendedPlanner', () => {
+  it('isDirectorSuspended returns true after setSuspendedDirector', () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
-    lm.setSuspendedPlanner({ acpSessionId: 'acp-123', cwd: '/tmp/test' });
-    expect(lm.isPlannerSuspended()).toBe(true);
+    lm.setSuspendedDirector({ acpSessionId: 'acp-123', cwd: '/tmp/test' });
+    expect(lm.isDirectorSuspended()).toBe(true);
   });
 
-  it('steerPlanner auto-resumes suspended planner', async () => {
+  it('steerDirector auto-resumes suspended director', async () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
     
     // Mock resumeSession to track the call
     const resumeSpy = vi.spyOn(acpAdapter, 'resumeSession').mockResolvedValue({
-      agentId: 'planner-resumed' as any,
+      agentId: 'director-resumed' as any,
       sessionId: 'session-resumed',
       status: 'running',
     });
     const steerSpy = vi.spyOn(acpAdapter, 'steer').mockResolvedValue('ok');
 
-    lm.setSuspendedPlanner({ acpSessionId: 'acp-old', cwd: '/tmp/test', model: 'claude-sonnet' });
-    expect(lm.isPlannerSuspended()).toBe(true);
+    lm.setSuspendedDirector({ acpSessionId: 'acp-old', cwd: '/tmp/test', model: 'claude-sonnet' });
+    expect(lm.isDirectorSuspended()).toBe(true);
 
-    await lm.steerPlanner('Plan this spec');
+    await lm.steerDirector('Plan this spec');
 
     // Should have resumed first
     expect(resumeSpy).toHaveBeenCalledWith({
       previousSessionId: 'acp-old',
       cwd: '/tmp/test',
-      role: 'planner',
+      role: 'director',
       model: 'claude-sonnet',
     });
 
@@ -66,24 +66,24 @@ describe('LeadManager lazy resume', () => {
     expect(steerSpy).toHaveBeenCalledWith('session-resumed', { content: 'Plan this spec' });
 
     // No longer suspended
-    expect(lm.isPlannerSuspended()).toBe(false);
-    expect(lm.getPlannerSessionId()).toBe('session-resumed');
+    expect(lm.isDirectorSuspended()).toBe(false);
+    expect(lm.getDirectorSessionId()).toBe('session-resumed');
   });
 
-  it('steerPlanner handles resume failure gracefully', async () => {
+  it('steerDirector handles resume failure gracefully', async () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
     
     vi.spyOn(acpAdapter, 'resumeSession').mockRejectedValue(new Error('session expired'));
     const steerSpy = vi.spyOn(acpAdapter, 'steer').mockResolvedValue('ok');
 
-    lm.setSuspendedPlanner({ acpSessionId: 'acp-expired', cwd: '/tmp/test' });
+    lm.setSuspendedDirector({ acpSessionId: 'acp-expired', cwd: '/tmp/test' });
     
     // Should not throw
-    await lm.steerPlanner('Plan this spec');
+    await lm.steerDirector('Plan this spec');
 
     // Should not have steered (resume failed)
     expect(steerSpy).not.toHaveBeenCalled();
     // Suspended info cleared (won't retry endlessly)
-    expect(lm.isPlannerSuspended()).toBe(false);
+    expect(lm.isDirectorSuspended()).toBe(false);
   });
 });

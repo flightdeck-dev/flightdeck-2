@@ -7,7 +7,7 @@ Flightdeck is a multi-agent orchestration platform. One gateway serves all proje
 ```
 User ↔ Web UI / CLI ↔ Gateway (HTTP + WebSocket)
                          ├── Lead (CEO — decides, delegates)
-                         ├── Planner (breaks work into tasks)
+                         ├── Director (breaks work into tasks)
                          ├── Workers (execute tasks)
                          └── Reviewers (review completed work)
 ```
@@ -27,7 +27,7 @@ User ↔ Web UI / CLI ↔ Gateway (HTTP + WebSocket)
 | File | What it does |
 |------|-------------|
 | `server/src/cli/gateway.ts` | Gateway startup, WS wiring, adapter setup |
-| `server/src/lead/LeadManager.ts` | Lead + Planner lifecycle, steer routing |
+| `server/src/lead/LeadManager.ts` | Lead + Director lifecycle, steer routing |
 | `server/src/agents/AgentManager.ts` | Agent spawn/terminate/hibernate/wake |
 | `server/src/agents/CopilotSdkAdapter.ts` | Copilot SDK integration (tools, streaming) |
 | `server/src/agents/AcpAdapter.ts` | ACP protocol adapter |
@@ -48,7 +48,7 @@ User ↔ Web UI / CLI ↔ Gateway (HTTP + WebSocket)
 - `onSessionTurnStart` → busy. `onSessionTurnEnd` → idle. Single source of truth.
 - Spawn marks `idle`, not `busy`. Actual steer triggers busy.
 - Terminate → `hibernated` (session may be resumable).
-- One active Lead + one active Planner per project. Spawn retires old ones.
+- One active Lead + one active Director per project. Spawn retires old ones.
 
 ### Config
 
@@ -89,7 +89,7 @@ Project config: `~/.flightdeck/v2/projects/{name}/.flightdeck/config.yaml`.
 
 - CEO mode: delegate immediately, never execute
 - No shell commands, no file reads, no spec writing
-- `flightdeck_send` to Planner for all work requests
+- `flightdeck_send` to Director for all work requests
 - Doesn't see cost/token info (stripped from flightdeck_status)
 
 ### Testing

@@ -323,7 +323,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     // Lead-only tools
-    if (role === 'lead' || role === 'planner') {
+    if (role === 'lead' || role === 'director') {
       tools.push({
         name: 'flightdeck_task_add',
         description: 'Create a new task.',

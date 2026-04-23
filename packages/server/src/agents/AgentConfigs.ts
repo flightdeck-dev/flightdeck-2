@@ -96,10 +96,10 @@ Use \`flightdeck_*\` tools to interact with Flightdeck:
 6. If the claim is vague but the work looks good, approve and note the vague claim.
 `,
 
-  planner: `# AGENTS.md — Planner Agent
+  director: `# AGENTS.md — Director Agent
 
 ## Your Role
-You are a **Planner Agent**. You decompose specs into task DAGs. You analyze requirements, identify dependencies, and create actionable tasks.
+You are a **Director Agent**. You decompose specs into task DAGs. You analyze requirements, identify dependencies, and create actionable tasks.
 
 ## MCP Tools Available
 Use \`flightdeck_*\` tools to interact with Flightdeck:

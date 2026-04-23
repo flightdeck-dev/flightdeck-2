@@ -23,9 +23,9 @@ describe('AgentConfigs', () => {
     expect(configs.agentsMd).toContain('flightdeck_task_approve');
   });
 
-  it('generates planner AGENTS.md focused on planning', () => {
-    const configs = generateAgentConfigs('planner');
-    expect(configs.agentsMd).toContain('Planner Agent');
+  it('generates director AGENTS.md focused on planning', () => {
+    const configs = generateAgentConfigs('director');
+    expect(configs.agentsMd).toContain('Director Agent');
     expect(configs.agentsMd).toContain('flightdeck_task_add');
     expect(configs.agentsMd).not.toContain('flightdeck_task_submit');
   });
@@ -39,8 +39,8 @@ describe('AgentConfigs', () => {
     const worker = generateAgentConfigs('worker');
     const lead = generateAgentConfigs('lead');
     const reviewer = generateAgentConfigs('reviewer');
-    const planner = generateAgentConfigs('planner');
-    const set = new Set([worker.agentsMd, lead.agentsMd, reviewer.agentsMd, planner.agentsMd]);
+    const director = generateAgentConfigs('director');
+    const set = new Set([worker.agentsMd, lead.agentsMd, reviewer.agentsMd, director.agentsMd]);
     expect(set.size).toBe(4);
   });
 });

@@ -139,9 +139,9 @@ ${permittedTools.map(t => `- ${t}`).join('\n')}
     }
   }
 
-  // Inject available roles & models (informational — Lead delegates to Planner)
+  // Inject available roles & models (informational — Lead delegates to Director)
   if (opts.roleConfigs && opts.roleConfigs.length > 0) {
-    prompt += `\n## Available Roles (for reference — Planner handles spawning)\n`;
+    prompt += `\n## Available Roles (for reference — Director handles spawning)\n`;
     for (const rc of opts.roleConfigs) {
       const models = rc.enabledModels?.filter(m => m.enabled) ?? [];
       const defaultModel = models.find(m => m.isDefault) ?? models[0];
@@ -415,7 +415,7 @@ export class AgentManager {
     // Clean up worktree or workdir if one was created
     const { mergeConflict } = await this.cleanupWorktree(agentId);
     if (mergeConflict) {
-      // Emit event for Orchestrator/Planner to handle
+      // Emit event for Orchestrator/Director to handle
       this.store.emit('merge-conflict', mergeConflict);
     }
 

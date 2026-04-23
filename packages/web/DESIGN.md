@@ -46,7 +46,7 @@ Status badges use 15% opacity background: `color-mix(in srgb, {color} 15%, trans
 | Context | Icons | Size |
 |---------|-------|------|
 | Sidebar nav | `LayoutDashboard`, `MessageSquare`, `ListTodo`, `Bot`, `Scale`, `Settings` | 16 |
-| Agent roles | `Crown` (lead), `Code` (worker), `Search` (reviewer), `ClipboardList` (planner) | 20 |
+| Agent roles | `Crown` (lead), `Code` (worker), `Search` (reviewer), `ClipboardList` (director) | 20 |
 | Tool calls | `Settings` (flightdeck_*), `Terminal` (shell), `FileText` (file), `Search` (search), `Wrench` (default) | 14 |
 | Actions | `Plus`, `Send`, `ChevronDown`/`Up`/`Left`/`Right` | 14–18 |
 

@@ -29,7 +29,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_escalate_to_human',
     'flightdeck_tools_available',
   ],
-  planner: [
+  director: [
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_add',
     'flightdeck_task_pause', 'flightdeck_task_resume', 'flightdeck_task_skip',

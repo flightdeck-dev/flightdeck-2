@@ -7,11 +7,11 @@ Multi-agent orchestration platform for AI coding agents. Flightdeck coordinates 
 Flightdeck uses a role-based hierarchy to coordinate work:
 
 ```
-User → Lead → Planner → Orchestrator → Workers → Reviewers
+User → Lead → Director → Orchestrator → Workers → Reviewers
 ```
 
 - **Lead** 👑 — High-level decisions, user communication, plan approval
-- **Planner** 📋 — Task breakdown, conflict resolution, agent lifecycle management
+- **Director** 📋 — Task breakdown, conflict resolution, agent lifecycle management
 - **Orchestrator** — Event-driven auto-assignment and auto-spawning of workers (500ms debounce)
 - **Workers** 💻 — Implement code changes
 - **Reviewers** 🔍 — Code review with pool reuse (fresh reviewer on retry)

@@ -132,15 +132,15 @@ switch (command) {
     console.log('  Gemini:  Add mcpServers.flightdeck to ~/.gemini/settings.json');
     console.log('  Copilot: Run copilot /mcp add flightdeck -- npx flightdeck-mcp');
     console.log();
-    console.log('Generate configs for other roles: flightdeck agent-config <lead|worker|reviewer|planner>');
+    console.log('Generate configs for other roles: flightdeck agent-config <lead|worker|reviewer|director>');
     break;
   }
 
   case 'agent-config': {
-    const role = positionals[1] as 'lead' | 'worker' | 'reviewer' | 'planner';
-    const validRoles = ['lead', 'worker', 'reviewer', 'planner'];
+    const role = positionals[1] as 'lead' | 'worker' | 'reviewer' | 'director';
+    const validRoles = ['lead', 'worker', 'reviewer', 'director'];
     if (!role || !validRoles.includes(role)) {
-      console.error('Usage: flightdeck agent-config <lead|worker|reviewer|planner>');
+      console.error('Usage: flightdeck agent-config <lead|worker|reviewer|director>');
       process.exit(1);
     }
     const configs = ProjectStore.generateAgentConfigs(role);

@@ -32,7 +32,7 @@ describe('DM filtering from main chat', () => {
     // Main chat message (channel: null)
     msgStore.createMessage({ ...base, authorType: 'user', authorId: 'user-1', content: 'hello main chat' });
     // DM message
-    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm to planner', channel: 'dm:planner-1' });
+    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm to director', channel: 'dm:director-1' });
 
     const all = msgStore.listMessages({});
     expect(all.length).toBe(2);
@@ -40,12 +40,12 @@ describe('DM filtering from main chat', () => {
 
   it('listChannelMessages only returns messages for that specific DM channel', () => {
     msgStore.createMessage({ ...base, authorType: 'user', authorId: 'user-1', content: 'hello main chat' });
-    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm to planner', channel: 'dm:planner-1' });
+    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm to director', channel: 'dm:director-1' });
     msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'worker-1', content: 'dm to lead', channel: 'dm:lead-1' });
 
-    const plannerDms = msgStore.listChannelMessages('dm:planner-1');
-    expect(plannerDms.length).toBe(1);
-    expect(plannerDms[0].content).toBe('dm to planner');
+    const directorDms = msgStore.listChannelMessages('dm:director-1');
+    expect(directorDms.length).toBe(1);
+    expect(directorDms[0].content).toBe('dm to director');
 
     const leadDms = msgStore.listChannelMessages('dm:lead-1');
     expect(leadDms.length).toBe(1);
@@ -54,7 +54,7 @@ describe('DM filtering from main chat', () => {
 
   it('main chat can be derived by filtering out dm: channels (as HttpServer does)', () => {
     msgStore.createMessage({ ...base, authorType: 'user', authorId: 'user-1', content: 'main msg 1' });
-    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm content', channel: 'dm:planner-1' });
+    msgStore.createMessage({ ...base, authorType: 'agent', authorId: 'lead-1', content: 'dm content', channel: 'dm:director-1' });
     msgStore.createMessage({ ...base, authorType: 'user', authorId: 'user-1', content: 'main msg 2' });
 
     const all = msgStore.listMessages({});

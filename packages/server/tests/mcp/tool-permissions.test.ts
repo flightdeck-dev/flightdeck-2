@@ -6,7 +6,7 @@ describe('toolPermissions', () => {
     expect(getToolsForRole('lead')).toBe(ROLE_TOOLS.lead);
     expect(getToolsForRole('worker')).toBe(ROLE_TOOLS.worker);
     expect(getToolsForRole('reviewer')).toBe(ROLE_TOOLS.reviewer);
-    expect(getToolsForRole('planner')).toBe(ROLE_TOOLS.planner);
+    expect(getToolsForRole('director')).toBe(ROLE_TOOLS.director);
   });
 
   it('falls back to worker tools for unknown roles', () => {
@@ -36,10 +36,10 @@ describe('toolPermissions', () => {
     }
   });
 
-  it('lead and planner have correct agent management split', () => {
-    // Planner manages agents (spawn/terminate)
-    expect(ROLE_TOOLS.planner).toContain('flightdeck_agent_spawn');
-    expect(ROLE_TOOLS.planner).toContain('flightdeck_agent_terminate');
+  it('lead and director have correct agent management split', () => {
+    // Director manages agents (spawn/terminate)
+    expect(ROLE_TOOLS.director).toContain('flightdeck_agent_spawn');
+    expect(ROLE_TOOLS.director).toContain('flightdeck_agent_terminate');
     // Lead can view but not manage agents directly
     expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_list');
     expect(ROLE_TOOLS.lead).not.toContain('flightdeck_agent_spawn');
@@ -50,7 +50,7 @@ describe('toolPermissions', () => {
 
   it('lead has plan approval tools', () => {
     expect(ROLE_TOOLS.lead).toContain('flightdeck_plan_review');
-    expect(ROLE_TOOLS.planner).not.toContain('flightdeck_plan_review');
+    expect(ROLE_TOOLS.director).not.toContain('flightdeck_plan_review');
   });
 
   it('worker can claim and submit tasks', () => {

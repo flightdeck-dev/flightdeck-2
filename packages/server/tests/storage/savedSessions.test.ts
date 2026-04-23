@@ -29,8 +29,8 @@ describe('SqliteStore saved sessions', () => {
       model: 'claude-sonnet',
     });
     store.saveSession({
-      agentId: 'planner-456',
-      role: 'planner',
+      agentId: 'director-456',
+      role: 'director',
       sessionId: 'acp-def',
       cwd: '/tmp/test',
     });
@@ -40,7 +40,7 @@ describe('SqliteStore saved sessions', () => {
     expect(sessions[0].agentId).toBe('lead-123');
     expect(sessions[0].sessionId).toBe('acp-abc');
     expect(sessions[0].model).toBe('claude-sonnet');
-    expect(sessions[1].agentId).toBe('planner-456');
+    expect(sessions[1].agentId).toBe('director-456');
     expect(sessions[1].model).toBeNull();
   });
 
@@ -55,17 +55,17 @@ describe('SqliteStore saved sessions', () => {
 
   it('should delete a specific session', () => {
     store.saveSession({ agentId: 'lead-1', role: 'lead', sessionId: 's1', cwd: '/tmp' });
-    store.saveSession({ agentId: 'planner-1', role: 'planner', sessionId: 's2', cwd: '/tmp' });
+    store.saveSession({ agentId: 'director-1', role: 'director', sessionId: 's2', cwd: '/tmp' });
 
     store.deleteSession('lead-1');
     const sessions = store.loadSessions();
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].agentId).toBe('planner-1');
+    expect(sessions[0].agentId).toBe('director-1');
   });
 
   it('should clear all sessions', () => {
     store.saveSession({ agentId: 'lead-1', role: 'lead', sessionId: 's1', cwd: '/tmp' });
-    store.saveSession({ agentId: 'planner-1', role: 'planner', sessionId: 's2', cwd: '/tmp' });
+    store.saveSession({ agentId: 'director-1', role: 'director', sessionId: 's2', cwd: '/tmp' });
 
     store.clearSessions();
     expect(store.loadSessions()).toHaveLength(0);

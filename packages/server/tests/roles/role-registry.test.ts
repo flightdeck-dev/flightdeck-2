@@ -13,7 +13,7 @@ describe('RoleRegistry', () => {
     expect(roles.length).toBeGreaterThanOrEqual(7);
     const ids = roles.map(r => r.id);
     expect(ids).toContain('lead');
-    expect(ids).toContain('planner');
+    expect(ids).toContain('director');
     expect(ids).toContain('worker');
     expect(ids).toContain('reviewer');
     expect(ids).toContain('product-thinker');
@@ -36,11 +36,11 @@ describe('RoleRegistry', () => {
 
   it('hasPermission checks correctly', () => {
     expect(registry.hasPermission('lead', 'plan_review')).toBe(true);
-    expect(registry.hasPermission('planner', 'agent_spawn')).toBe(true);
+    expect(registry.hasPermission('director', 'agent_spawn')).toBe(true);
     expect(registry.hasPermission('worker', 'agent_spawn')).toBe(false);
     expect(registry.hasPermission('worker', 'task_claim')).toBe(true);
     expect(registry.hasPermission('reviewer', 'task_complete')).toBe(true);
-    expect(registry.hasPermission('planner', 'declare_tasks')).toBe(true);
+    expect(registry.hasPermission('director', 'declare_tasks')).toBe(true);
   });
 
   it('getPermissions returns permissions object', () => {

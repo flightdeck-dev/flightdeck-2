@@ -222,7 +222,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     title: z.string(),
     description: z.string().optional(),
     specId: z.string().optional(),
-    role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
+    role: z.enum(['lead', 'director', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
     dependsOn: z.array(z.string()).optional(),
     priority: z.number().optional(),
     needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
@@ -408,7 +408,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       title: z.string(),
       description: z.string().optional(),
       specId: z.string().optional(),
-      role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
+      role: z.enum(['lead', 'director', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
@@ -434,7 +434,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     tasks: z.array(z.object({
       title: z.string(),
       description: z.string().optional(),
-      role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
+      role: z.enum(['lead', 'director', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']).optional(),
       dependsOn: z.array(z.string()).optional(),
       priority: z.number().optional(),
       needsReview: z.boolean().optional().describe('If false, skip review and auto-complete on submit. Default: true.'),
@@ -523,7 +523,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Agent lifecycle tools ──
 
   server.tool('flightdeck_agent_spawn', 'Spawn a new agent', {
-    role: z.enum(['lead', 'planner', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']),
+    role: z.enum(['lead', 'director', 'worker', 'reviewer', 'product-thinker', 'qa-tester', 'tech-writer']),
     model: z.string().optional(),
     runtime: z.string().optional().describe('Runtime name (e.g. copilot, opencode, cursor, codex-acp). Uses project config default if not set.'),
     task: z.string().optional(),
@@ -972,7 +972,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_escalate', 'Escalate to lead/planner', {
+  server.tool('flightdeck_escalate', 'Escalate to lead/director', {
     taskId: z.string(),
     reason: z.string(),
   }, async (params) => {

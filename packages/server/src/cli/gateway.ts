@@ -54,7 +54,7 @@ export interface GatewayDeps {
 
 /**
  * Start the Flightdeck gateway: manages multiple projects,
- * spawns Lead/Planner per project, starts HTTP+WS server.
+ * spawns Lead/Director per project, starts HTTP+WS server.
  */
 export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { port, corsOrigin, continueAgents = false, projectFilter, bindAddress = '127.0.0.1', authMode = 'none', authToken = null } = deps;
@@ -368,7 +368,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const cronStores = new Map<string, InstanceType<typeof CronStore>>();
 
   // Set FLIGHTDECK_URL early so MCP subprocesses (spawned during agent init) inherit it.
-  // This must happen BEFORE spawnAgents() so Lead/Planner MCP can relay back to gateway.
+  // This must happen BEFORE spawnAgents() so Lead/Director MCP can relay back to gateway.
   process.env.FLIGHTDECK_URL = `http://${bindAddress === '0.0.0.0' ? '127.0.0.1' : bindAddress}:${port}`;
 
   for (const name of projectNames) {
@@ -415,7 +415,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const { ModelConfig } = await import('../agents/ModelConfig.js');
     const modelConfig = new ModelConfig(fd.project.subpath('.'));
     const leadRoleConfig = modelConfig.getRoleConfig('lead');
-    const plannerRoleConfig = modelConfig.getRoleConfig('planner');
+    const directorRoleConfig = modelConfig.getRoleConfig('director');
 
     // Create LeadManager
     const projectConfig = fd.project.getConfig();
@@ -428,7 +428,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       projectName: name,
       cwd: projectCwd,
       leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
-      plannerRuntime: plannerRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+      directorRuntime: directorRoleConfig.runtime as import('../core/types.js').AgentRuntime,
       heartbeat: {
         enabled: projectConfig.heartbeatEnabled === true,
         interval: 30 * 60 * 1000,
@@ -560,7 +560,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
       const modelConfig = new ModelConfig(fd.project.subpath('.'));
       const leadRoleConfig = modelConfig.getRoleConfig('lead');
-      const plannerRoleConfig = modelConfig.getRoleConfig('planner');
+      const directorRoleConfig = modelConfig.getRoleConfig('director');
 
       // LeadManager
       const projectConfig = fd.project.getConfig();
@@ -573,7 +573,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         projectName: name,
         cwd: projectCwd,
         leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
-        plannerRuntime: plannerRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+        directorRuntime: directorRoleConfig.runtime as import('../core/types.js').AgentRuntime,
         heartbeat: {
           enabled: projectConfig.heartbeatEnabled === true,
           interval: 30 * 60 * 1000,
@@ -770,21 +770,21 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         });
       }
 
-      const plannerInfo = lm.getPlannerSessionInfo();
-      if (plannerInfo) {
+      const directorInfo = lm.getDirectorSessionInfo();
+      if (directorInfo) {
         fd.sqlite.saveSession({
-          agentId: plannerInfo.agentId,
-          role: 'planner',
-          sessionId: plannerInfo.acpSessionId,
-          localSessionId: plannerInfo.sessionId,
-          runtime: plannerInfo.runtime,
+          agentId: directorInfo.agentId,
+          role: 'director',
+          sessionId: directorInfo.acpSessionId,
+          localSessionId: directorInfo.sessionId,
+          runtime: directorInfo.runtime,
           cwd: fd.status().config.cwd ?? process.cwd(),
         });
       }
 
       // Save worker sessions
       const workerAgents = fd.listAgents().filter(a =>
-        a.status === 'busy' && a.acpSessionId && !['lead', 'planner'].includes(a.role)
+        a.status === 'busy' && a.acpSessionId && !['lead', 'director'].includes(a.role)
       );
       for (const agent of workerAgents) {
         fd.sqlite.saveSession({
@@ -905,20 +905,20 @@ async function spawnAgents(
   fd: Flightdeck,
   leadManager: {
     spawnLead(): Promise<string>;
-    spawnPlanner(): Promise<string>;
+    spawnDirector(): Promise<string>;
     resumeLead(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
-    resumePlanner(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
-    setSuspendedPlanner(info: { acpSessionId: string; cwd: string; model?: string }): void;
+    resumeDirector(prevAcpSessionId: string, cwd: string, model?: string): Promise<string>;
+    setSuspendedDirector(info: { acpSessionId: string; cwd: string; model?: string }): void;
     setSuspendedLead(info: { acpSessionId: string; cwd: string; model?: string }): void;
   },
   projectName: string,
 ): Promise<void> {
   const agents = fd.listAgents();
   const hasLead = agents.some(a => a.role === 'lead' && (a.status === 'busy' || a.status === 'idle'));
-  const hasPlanner = agents.some(a => a.role === 'planner' && (a.status === 'busy' || a.status === 'idle'));
+  const hasDirector = agents.some(a => a.role === 'director' && (a.status === 'busy' || a.status === 'idle'));
 
-  // On restart, Lead and Planner will be spawned fresh on-demand via
-  // spawnLead()/spawnPlanner() which internally check for hibernated agents to wake.
+  // On restart, Lead and Director will be spawned fresh on-demand via
+  // spawnLead()/spawnDirector() which internally check for hibernated agents to wake.
 
   if (!hasLead) {
     console.error(`  [${projectName}] Lead — will spawn on-demand.`);
@@ -926,10 +926,10 @@ async function spawnAgents(
     console.error(`  [${projectName}] Lead already active.`);
   }
 
-  if (!hasPlanner) {
-    console.error(`  [${projectName}] Planner — will spawn on-demand.`);
+  if (!hasDirector) {
+    console.error(`  [${projectName}] Director — will spawn on-demand.`);
   } else {
-    console.error(`  [${projectName}] Planner already active.`);
+    console.error(`  [${projectName}] Director already active.`);
   }
 }
 

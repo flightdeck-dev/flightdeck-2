@@ -35,7 +35,7 @@ const DEFAULT_WORKFLOW: WorkflowConfig = {
     { step: 'done' },
   ],
   spec_pipeline: [
-    { step: 'plan', role: 'planner' },
+    { step: 'plan', role: 'director' },
     { step: 'execute' },
   ],
   hooks: {},

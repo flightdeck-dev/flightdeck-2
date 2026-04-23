@@ -44,7 +44,7 @@ function formatTs(): string {
 export const FLIGHTDECK_IDLE = 'FLIGHTDECK_IDLE';
 export const FLIGHTDECK_NO_REPLY = 'FLIGHTDECK_NO_REPLY';
 
-export type PlannerEvent =
+export type DirectorEvent =
   | { type: 'critical_task_completed'; taskId: string; specId: string | null; title: string; remainingInSpec: number }
   | { type: 'task_failed'; taskId: string; error: string; retriesLeft: number }
   | { type: 'worker_escalation'; taskId: string; agentId: string; reason: string }
@@ -94,8 +94,8 @@ export interface LeadManagerOptions {
   cwd?: string;
   /** Runtime name for Lead (e.g. 'copilot', 'opencode'). Falls back to adapter default. */
   leadRuntime?: AgentRuntime;
-  /** Runtime name for Planner. Falls back to leadRuntime, then adapter default. */
-  plannerRuntime?: AgentRuntime;
+  /** Runtime name for Director. Falls back to leadRuntime, then adapter default. */
+  directorRuntime?: AgentRuntime;
 }
 
 export class LeadManager {
@@ -114,15 +114,15 @@ export class LeadManager {
   private projectName: string | undefined;
   private agentCwd: string;
   private leadRuntime: AgentRuntime | undefined;
-  private plannerRuntime: AgentRuntime | undefined;
+  private directorRuntime: AgentRuntime | undefined;
   /** Optional callback invoked during heartbeat when scout should run */
   public onScoutHeartbeat: (() => Promise<void>) | null = null;
 
-  private plannerSessionId: string | null = null;
-  private plannerAgentId: string | null = null;
+  private directorSessionId: string | null = null;
+  private directorAgentId: string | null = null;
   private sessionStore: SessionStore;
   private transcriptSessionId: string | null = null;
-  private suspendedPlannerInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
+  private suspendedDirectorInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
   private suspendedLeadInfo: { acpSessionId: string; cwd: string; model?: string } | null = null;
   private streamHandler: ((update: NonNullable<Parameters<NonNullable<AcpSession['onOutputChunk']>>>[0]) => void) | null = null;
 
@@ -136,7 +136,7 @@ export class LeadManager {
     this.agentCwd = opts.cwd ?? process.cwd();
     this.sessionStore = new SessionStore(opts.projectName ?? 'default', opts.sqlite.db);
     this.leadRuntime = opts.leadRuntime;
-    this.plannerRuntime = opts.plannerRuntime;
+    this.directorRuntime = opts.directorRuntime;
   }
 
   /** Spawn a new Lead agent session */
@@ -169,9 +169,9 @@ export class LeadManager {
         this.sqlite.updateAgentAcpSession(lead.id as any, meta.sessionId);
         this.wireStreamHandler();
         console.error(`  Lead ${lead.id} woken (session: ${meta.sessionId})`);
-        // Still spawn planner alongside
-        if (!this.plannerSessionId) {
-          try { await this.spawnPlanner(); } catch { /* non-fatal */ }
+        // Still spawn director alongside
+        if (!this.directorSessionId) {
+          try { await this.spawnDirector(); } catch { /* non-fatal */ }
         }
         this.retireOtherAgents('lead', lead.id);
         return meta.sessionId;
@@ -270,12 +270,12 @@ export class LeadManager {
       this.startHeartbeatTimer();
     }
 
-    // Auto-spawn Planner alongside Lead
-    if (!this.plannerSessionId) {
+    // Auto-spawn Director alongside Lead
+    if (!this.directorSessionId) {
       try {
-        await this.spawnPlanner();
-        log('Lead', 'Planner auto-spawned alongside Lead');
-      } catch { /* Planner spawn failure is non-fatal */ }
+        await this.spawnDirector();
+        log('Lead', 'Director auto-spawned alongside Lead');
+      } catch { /* Director spawn failure is non-fatal */ }
     }
 
     // Retire all other leads (one project = one active lead)
@@ -377,7 +377,7 @@ export class LeadManager {
   }
 
   /** Wire the stream handler onto the current lead session's onOutputChunk */
-  /** Retire all agents of a given role except the active one. One project = one active lead/planner. */
+  /** Retire all agents of a given role except the active one. One project = one active lead/director. */
   private retireOtherAgents(role: string, activeId: string): void {
     const others = this.sqlite.listAgents().filter(
       a => a.role === role && a.id !== activeId && a.status !== 'retired'
@@ -549,7 +549,7 @@ export class LeadManager {
           parts.push(`  ${s.description}`);
         }
         parts.push('');
-        parts.push('Evaluate these suggestions. Delegate worthwhile items to Planner.');
+        parts.push('Evaluate these suggestions. Delegate worthwhile items to Director.');
         break;
       }
 
@@ -649,38 +649,38 @@ export class LeadManager {
     this.tasksSinceLastHeartbeat++;
   }
 
-  /** Spawn Planner as a persistent ACP session */
-  async spawnPlanner(): Promise<string> {
-    log('Planner', `Spawning (runtime: ${this.plannerRuntime})...`);
-    // Try to wake a hibernated planner first
-    const hibernatedPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.status === 'hibernated' && a.acpSessionId);
-    if (hibernatedPlanners.length > 0) {
-      const planner = hibernatedPlanners[0];
-      console.error(`  Waking hibernated Planner ${planner.id} (session: ${planner.acpSessionId})...`);
+  /** Spawn Director as a persistent ACP session */
+  async spawnDirector(): Promise<string> {
+    log('Director', `Spawning (runtime: ${this.directorRuntime})...`);
+    // Try to wake a hibernated director first
+    const hibernatedDirectors = this.sqlite.listAgents().filter(a => a.role === 'director' && a.status === 'hibernated' && a.acpSessionId);
+    if (hibernatedDirectors.length > 0) {
+      const director = hibernatedDirectors[0];
+      console.error(`  Waking hibernated Director ${director.id} (session: ${director.acpSessionId})...`);
       try {
         const meta = await this.acpAdapter.resumeSession({
-          previousSessionId: planner.acpSessionId!,
+          previousSessionId: director.acpSessionId!,
           cwd: this.agentCwd,
-          role: 'planner',
-          agentId: planner.id,
+          role: 'director',
+          agentId: director.id,
           projectName: this.projectName,
-          runtime: this.plannerRuntime,
+          runtime: this.directorRuntime,
         });
-        this.plannerSessionId = meta.sessionId;
-        this.plannerAgentId = planner.id;
-        this.sqlite.updateAgentStatus(planner.id as any, 'busy');
-        this.sqlite.updateAgentAcpSession(planner.id as any, meta.sessionId);
-        console.error(`  Planner ${planner.id} woken (session: ${meta.sessionId})`);
-        this.retireOtherAgents('planner', planner.id);
+        this.directorSessionId = meta.sessionId;
+        this.directorAgentId = director.id;
+        this.sqlite.updateAgentStatus(director.id as any, 'busy');
+        this.sqlite.updateAgentAcpSession(director.id as any, meta.sessionId);
+        console.error(`  Director ${director.id} woken (session: ${meta.sessionId})`);
+        this.retireOtherAgents('director', director.id);
         return meta.sessionId;
       } catch (err) {
         // Resume failed — log the reason for debugging
-        log('Planner', `Wake failed for ${planner.id}: ${err instanceof Error ? err.message : String(err)}`);
-        this.sqlite.updateAgentStatus(planner.id as any, 'retired');
+        log('Director', `Wake failed for ${director.id}: ${err instanceof Error ? err.message : String(err)}`);
+        this.sqlite.updateAgentStatus(director.id as any, 'retired');
       }
     }
 
-    // Read role-preference.md for Planner's system prompt
+    // Read role-preference.md for Director's system prompt
     let systemPrompt: string | undefined;
     try {
       const { readFileSync, existsSync } = await import('node:fs');
@@ -692,7 +692,7 @@ export class LeadManager {
       }
     } catch { /* best effort */ }
 
-    // Build model pool context for Planner
+    // Build model pool context for Director
     let modelPoolContext = '';
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
@@ -712,22 +712,22 @@ export class LeadManager {
     const fullSystemPrompt = [systemPrompt, modelPoolContext].filter(Boolean).join('\n') || undefined;
 
     const meta = await this.acpAdapter.spawn({
-      role: 'planner',
+      role: 'director',
       cwd: this.agentCwd,
       projectName: this.projectName,
-      runtime: this.plannerRuntime,
+      runtime: this.directorRuntime,
       ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
     });
-    this.plannerSessionId = meta.sessionId;
-    this.plannerAgentId = meta.agentId;
-    log('Planner', `Spawned fresh (session: ${meta.sessionId}, agent: ${meta.agentId})`);
+    this.directorSessionId = meta.sessionId;
+    this.directorAgentId = meta.agentId;
+    log('Director', `Spawned fresh (session: ${meta.sessionId}, agent: ${meta.agentId})`);
 
-    // Register Planner agent in SQLite
+    // Register Director agent in SQLite
     this.sqlite.insertAgent({
       id: meta.agentId,
-      role: 'planner',
-      runtime: this.plannerRuntime ?? this.leadRuntime ?? 'acp',
-      runtimeName: this.plannerRuntime ?? this.leadRuntime ?? 'copilot',
+      role: 'director',
+      runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
+      runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'copilot',
       acpSessionId: meta.sessionId,
       status: 'idle',
       currentSpecId: null,
@@ -735,41 +735,41 @@ export class LeadManager {
       lastHeartbeat: null,
     });
 
-    // Notify Lead about new Planner (only if replacing an old one, not on first boot)
-    if (this.leadSessionId && this.plannerAgentId) {
-      const prevPlanners = this.sqlite.listAgents().filter(a => a.role === 'planner' && a.id !== this.plannerAgentId && a.status !== 'retired');
-      if (prevPlanners.length > 0) {
-        const lastPrev = prevPlanners[prevPlanners.length - 1];
+    // Notify Lead about new Director (only if replacing an old one, not on first boot)
+    if (this.leadSessionId && this.directorAgentId) {
+      const prevDirectors = this.sqlite.listAgents().filter(a => a.role === 'director' && a.id !== this.directorAgentId && a.status !== 'retired');
+      if (prevDirectors.length > 0) {
+        const lastPrev = prevDirectors[prevDirectors.length - 1];
         const statusMap: Record<string, string> = {
           hibernated: 'was hibernated and could not be resumed',
           errored: 'encountered an error',
         };
-        const reason = `Previous Planner (${lastPrev.id}) ${statusMap[lastPrev.status] ?? `status: ${lastPrev.status}`}.`;
+        const reason = `Previous Director (${lastPrev.id}) ${statusMap[lastPrev.status] ?? `status: ${lastPrev.status}`}.`;
         this.steerLead({
           type: 'system_notice',
-          message: `A new Planner (${this.plannerAgentId}) has been started. ${reason} Previous conversation context is not carried over.`,
+          message: `A new Director (${this.directorAgentId}) has been started. ${reason} Previous conversation context is not carried over.`,
         }).catch(() => {});
       }
     }
 
-    // Retire all other planners (one project = one active planner)
-    this.retireOtherAgents('planner', meta.agentId);
+    // Retire all other directors (one project = one active director)
+    this.retireOtherAgents('director', meta.agentId);
 
     return meta.sessionId;
   }
 
-  /** Set suspended planner info for lazy resume */
-  setSuspendedPlanner(info: { acpSessionId: string; cwd: string; model?: string }): void {
-    this.suspendedPlannerInfo = info;
+  /** Set suspended director info for lazy resume */
+  setSuspendedDirector(info: { acpSessionId: string; cwd: string; model?: string }): void {
+    this.suspendedDirectorInfo = info;
   }
 
-  /** Check if planner is suspended (awaiting lazy resume) */
-  isPlannerSuspended(): boolean {
-    return this.suspendedPlannerInfo !== null && this.plannerSessionId === null;
+  /** Check if director is suspended (awaiting lazy resume) */
+  isDirectorSuspended(): boolean {
+    return this.suspendedDirectorInfo !== null && this.directorSessionId === null;
   }
 
-  /** Build a steer message for a PlannerEvent */
-  buildPlannerSteer(event: PlannerEvent): string {
+  /** Build a steer message for a DirectorEvent */
+  buildDirectorSteer(event: DirectorEvent): string {
     const parts: string[] = [];
 
     switch (event.type) {
@@ -822,38 +822,38 @@ export class LeadManager {
     return parts.join('\n');
   }
 
-  /** Send a structured PlannerEvent steer */
-  async steerPlannerEvent(event: PlannerEvent): Promise<string> {
-    const message = this.buildPlannerSteer(event);
-    return this.steerPlanner(message);
+  /** Send a structured DirectorEvent steer */
+  async steerDirectorEvent(event: DirectorEvent): Promise<string> {
+    const message = this.buildDirectorSteer(event);
+    return this.steerDirector(message);
   }
 
-  /** Steer the persistent Planner with a request */
-  async steerPlanner(message: string): Promise<string> {
-    const plannerStart = Date.now();  
-    log('Planner', `← steer: "${truncate(message)}"`);
-    // Auto-resume suspended planner on first steer
-    if (this.isPlannerSuspended() && this.suspendedPlannerInfo) {
-      const info = this.suspendedPlannerInfo;
-      this.suspendedPlannerInfo = null;
+  /** Steer the persistent Director with a request */
+  async steerDirector(message: string): Promise<string> {
+    const directorStart = Date.now();  
+    log('Director', `← steer: "${truncate(message)}"`);
+    // Auto-resume suspended director on first steer
+    if (this.isDirectorSuspended() && this.suspendedDirectorInfo) {
+      const info = this.suspendedDirectorInfo;
+      this.suspendedDirectorInfo = null;
       try {
-        console.error(`  Auto-resuming suspended Planner from session ${info.acpSessionId}...`);
-        await this.resumePlanner(info.acpSessionId, info.cwd, info.model);
-        console.error(`  Planner resumed (session: ${this.plannerSessionId})`);
+        console.error(`  Auto-resuming suspended Director from session ${info.acpSessionId}...`);
+        await this.resumeDirector(info.acpSessionId, info.cwd, info.model);
+        console.error(`  Director resumed (session: ${this.directorSessionId})`);
       } catch (err) {
-        console.error(`  Failed to auto-resume Planner: ${err instanceof Error ? err.message : String(err)}`);
+        console.error(`  Failed to auto-resume Director: ${err instanceof Error ? err.message : String(err)}`);
         return '';
       }
     }
-    if (!this.plannerSessionId) return '';
-    const response = await this.acpAdapter.steer(this.plannerSessionId, { content: message });
-    log('Planner', `→ response (${Date.now() - plannerStart}ms): "${truncate(response)}"`);
+    if (!this.directorSessionId) return '';
+    const response = await this.acpAdapter.steer(this.directorSessionId, { content: message });
+    log('Director', `→ response (${Date.now() - directorStart}ms): "${truncate(response)}"`);
     return response;
   }
 
-  /** Get Planner session ID */
-  getPlannerSessionId(): string | null {
-    return this.plannerSessionId;
+  /** Get Director session ID */
+  getDirectorSessionId(): string | null {
+    return this.directorSessionId;
   }
 
   /** Get Lead session ID */
@@ -872,13 +872,13 @@ export class LeadManager {
     };
   }
 
-  getPlannerSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string; runtime?: string } | null {
-    if (!this.plannerSessionId || !this.plannerAgentId) return null;
+  getDirectorSessionInfo(): { agentId: string; sessionId: string; acpSessionId: string; runtime?: string } | null {
+    if (!this.directorSessionId || !this.directorAgentId) return null;
     return {
-      agentId: this.plannerAgentId,
-      sessionId: this.plannerSessionId,
-      acpSessionId: this.plannerSessionId,
-      runtime: this.plannerRuntime,
+      agentId: this.directorAgentId,
+      sessionId: this.directorSessionId,
+      acpSessionId: this.directorSessionId,
+      runtime: this.directorRuntime,
     };
   }
 
@@ -932,25 +932,25 @@ export class LeadManager {
   }
 
   /**
-   * Resume a Planner agent from a previous ACP session.
+   * Resume a Director agent from a previous ACP session.
    * Falls back to fresh spawn if resume fails.
    */
-  async resumePlanner(previousAcpSessionId: string, cwd: string, model?: string): Promise<string> {
+  async resumeDirector(previousAcpSessionId: string, cwd: string, model?: string): Promise<string> {
     try {
       const meta = await this.acpAdapter.resumeSession({
         previousSessionId: previousAcpSessionId,
         cwd,
-        role: 'planner',
+        role: 'director',
         model,
       });
-      this.plannerSessionId = meta.sessionId;
-    this.plannerAgentId = meta.agentId;
+      this.directorSessionId = meta.sessionId;
+    this.directorAgentId = meta.agentId;
 
       this.sqlite.insertAgent({
         id: meta.agentId,
-        role: 'planner',
-        runtime: this.plannerRuntime ?? this.leadRuntime ?? 'acp',
-        runtimeName: this.plannerRuntime ?? this.leadRuntime ?? 'copilot',
+        role: 'director',
+        runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
+        runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'copilot',
         acpSessionId: meta.sessionId,
         status: 'idle',
         currentSpecId: null,
@@ -960,7 +960,7 @@ export class LeadManager {
 
       return meta.sessionId;
     } catch (err) {
-      console.error(`  Planner resume failed (${err instanceof Error ? err.message : String(err)}), marking offline (not spawning fresh to avoid cascading errors)`);
+      console.error(`  Director resume failed (${err instanceof Error ? err.message : String(err)}), marking offline (not spawning fresh to avoid cascading errors)`);
       return '';
     }
   }

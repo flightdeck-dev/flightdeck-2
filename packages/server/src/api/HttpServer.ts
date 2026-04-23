@@ -439,13 +439,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!body.title || typeof body.title !== 'string') { json(400, { error: 'Missing required field: title' }); return; }
-        // Permission check: only lead/planner can add tasks
+        // Permission check: only lead/director can add tasks
         const callerAgentId = req.headers['x-agent-id'] as string;
         if (callerAgentId) {
           const callerAgent = fd.sqlite.getAgent(callerAgentId as import('@flightdeck-ai/shared').AgentId);
           if (!callerAgent) { json(403, { error: `Error: Agent '${callerAgentId}' not found. Check flightdeck_status() to see registered agents.` }); return; }
-          if (callerAgent.role !== 'lead' && callerAgent.role !== 'planner') {
-            json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only lead/planner roles can add tasks. Use flightdeck_escalate() to request task creation.` }); return;
+          if (callerAgent.role !== 'lead' && callerAgent.role !== 'director') {
+            json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only lead/director roles can add tasks. Use flightdeck_escalate() to request task creation.` }); return;
           }
         }
         const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview, notifyLead: body.notifyLead, runtime: body.runtime, model: body.model });
@@ -554,7 +554,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       if (pauseAgentId) {
         const pauseAgent = fd.sqlite.getAgent(pauseAgentId as import('@flightdeck-ai/shared').AgentId);
         if (pauseAgent && pauseAgent.role === 'worker') {
-          json(403, { error: `Error: Agent '${pauseAgentId}' (role: worker) cannot pause tasks. Only lead/planner roles can pause tasks.` }); return;
+          json(403, { error: `Error: Agent '${pauseAgentId}' (role: worker) cannot pause tasks. Only lead/director roles can pause tasks.` }); return;
         }
       }
       try {
@@ -621,13 +621,13 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const body = await readBody();
         if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return; }
-        // Permission check: only lead/planner can declare tasks
+        // Permission check: only lead/director can declare tasks
         const declareCallerId = req.headers['x-agent-id'] as string;
         if (declareCallerId) {
           const declareCaller = fd.sqlite.getAgent(declareCallerId as import('@flightdeck-ai/shared').AgentId);
           if (!declareCaller) { json(403, { error: `Error: Agent '${declareCallerId}' not found. Check flightdeck_status() to see registered agents.` }); return; }
-          if (declareCaller.role !== 'lead' && declareCaller.role !== 'planner') {
-            json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only lead/planner roles can declare tasks. Use flightdeck_escalate() to request task creation.` }); return;
+          if (declareCaller.role !== 'lead' && declareCaller.role !== 'director') {
+            json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only lead/director roles can declare tasks. Use flightdeck_escalate() to request task creation.` }); return;
           }
         }
         const tasks = fd.declareTasks(body.tasks as Parameters<typeof fd.declareTasks>[0]);
@@ -799,8 +799,8 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       try {
         const agent = fd.sqlite.getAgent(agentId as any);
         await am.retireAgent(agentId as import('@flightdeck-ai/shared').AgentId);
-        // If Lead/Planner was retired, reset LeadManager so next message spawns fresh
-        if (agent?.role === 'lead' || agent?.role === 'planner') {
+        // If Lead/Director was retired, reset LeadManager so next message spawns fresh
+        if (agent?.role === 'lead' || agent?.role === 'director') {
           const lm = leadManagers?.get(projectName);
           if (lm) {
             (lm as any).leadSessionId = null;
@@ -1068,12 +1068,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const mc = await getModelConfig(fd, projectName);
         mc.setRoleEnabledModels(roleId, body.models);
         modelCfgCache.delete(projectName);
-        // Notify Lead and Planner about model pool change
+        // Notify Lead and Director about model pool change
         const lm = leadManagers?.get(projectName);
         if (lm) {
           const notice = `Model pool updated for role '${roleId}'. Check flightdeck_model_list for current configuration.`;
           lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
-          lm.steerPlanner(notice).catch(() => {});
+          lm.steerDirector(notice).catch(() => {});
         }
         json(200, { success: true, enabledModels: mc.getRoleEnabledModels(roleId) });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
@@ -1126,12 +1126,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const preset = subPath.split('/').pop()!;
       const mc = await getModelConfig(fd, projectName);
       if (mc.applyPreset(preset)) {
-        // Notify Lead and Planner about preset change
+        // Notify Lead and Director about preset change
         const lm = leadManagers?.get(projectName);
         if (lm) {
           const notice = `Model preset '${preset}' applied. Check flightdeck_model_list for current configuration.`;
           lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
-          lm.steerPlanner(notice).catch(() => {});
+          lm.steerDirector(notice).catch(() => {});
         }
         json(200, { success: true, roles: mc.getRoleConfigs() });
       }
@@ -1162,12 +1162,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         else { json(400, { error: 'Provide runtime and/or model' }); return; }
         // Invalidate cache so next read picks up changes
         modelCfgCache.delete(projectName);
-        // Notify Lead and Planner about model config change
+        // Notify Lead and Director about model config change
         const lm = leadManagers?.get(projectName);
         if (lm) {
           const notice = `Model configuration updated for role '${role}'. Check flightdeck_model_list for current configuration.`;
           lm.steerLead({ type: 'system_notice', message: notice } as any).catch(() => {});
-          lm.steerPlanner(notice).catch(() => {});
+          lm.steerDirector(notice).catch(() => {});
         }
         json(200, { success: true, config: mc.getRoleConfig(role) });
       } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid request body' }); }
@@ -1324,11 +1324,11 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         const body = await readBody();
         const agentId = req.headers['x-agent-id'] as string || 'http-api';
         if (!body.topic) { json(400, { error: 'Missing topic' }); return; }
-        // Permission check: only lead/planner can create discussions
+        // Permission check: only lead/director can create discussions
         if (agentId !== 'http-api') {
           const discussCaller = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
-          if (discussCaller && discussCaller.role !== 'lead' && discussCaller.role !== 'planner') {
-            json(403, { error: `Error: Agent '${agentId}' (role: ${discussCaller.role}) cannot create discussions. Only lead/planner roles can create discussions. Use flightdeck_escalate() to request one.` }); return;
+          if (discussCaller && discussCaller.role !== 'lead' && discussCaller.role !== 'director') {
+            json(403, { error: `Error: Agent '${agentId}' (role: ${discussCaller.role}) cannot create discussions. Only lead/director roles can create discussions. Use flightdeck_escalate() to request one.` }); return;
           }
         }
         const topicHash = Array.from(body.topic as string).reduce((h: number, c: string) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
@@ -1409,9 +1409,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           fd.sendMessage(msg);
           // Steer the target agent with the DM content
           const targetTo = body.to as string;
-          if (targetTo === 'planner' || targetTo.startsWith('planner-')) {
+          if (targetTo === 'director' || targetTo.startsWith('director-')) {
             const lm = leadManagers.get(projectName);
-            if (lm) lm.steerPlanner?.(`[DM from ${agentId}]: ${body.content}`).catch(() => {});
+            if (lm) lm.steerDirector?.(`[DM from ${agentId}]: ${body.content}`).catch(() => {});
           } else if (targetTo === 'lead' || targetTo.startsWith('lead-')) {
             const lm = leadManagers.get(projectName);
             if (lm) {
@@ -1493,12 +1493,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         json(200, { status: 'logged', filename: fd.memory.getDailyLogFilename() });
       } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     } else if (subPath === '/cost' && method === 'GET') {
-      // Permission check: only lead/planner can view cost reports
+      // Permission check: only lead/director can view cost reports
       const costCallerId = req.headers['x-agent-id'] as string;
       if (costCallerId) {
         const costCaller = fd.sqlite.getAgent(costCallerId as import('@flightdeck-ai/shared').AgentId);
-        if (costCaller && costCaller.role !== 'lead' && costCaller.role !== 'planner') {
-          json(403, { error: `Error: Agent '${costCallerId}' (role: ${costCaller.role}) cannot view cost reports. Only lead/planner roles can view cost reports.` }); return;
+        if (costCaller && costCaller.role !== 'lead' && costCaller.role !== 'director') {
+          json(403, { error: `Error: Agent '${costCallerId}' (role: ${costCaller.role}) cannot view cost reports. Only lead/director roles can view cost reports.` }); return;
         }
       }
       json(200, { totalCost: fd.sqlite.getTotalCost(), byAgent: fd.sqlite.getCostByAgent(), byTask: fd.sqlite.getCostByTask() });
@@ -1608,7 +1608,7 @@ export function createHttpServer(deps: HttpServerDeps): Server {
       const repoSkills = sm.discoverRepoSkills(process.cwd());
       sm.loadProjectConfig();
       const roleAssignments: Record<string, string[]> = {};
-      for (const role of ['lead', 'planner', 'worker', 'reviewer'] as const) {
+      for (const role of ['lead', 'director', 'worker', 'reviewer'] as const) {
         roleAssignments[role] = sm.getSkillsForRole(role);
       }
       json(200, { installed, repoSkills, roleAssignments });

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { getToolsForRole, ROLE_TOOLS } from '../../src/mcp/toolPermissions.js';
 import { parseReviewerResponse, buildReviewPrompt } from '../../src/verification/ReviewFlow.js';
 import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
-import type { PlannerEvent } from '../../src/lead/LeadManager.js';
+import type { DirectorEvent } from '../../src/lead/LeadManager.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { createDatabase } from '../../src/db/database.js';
 import { TaskDAG } from '../../src/dag/TaskDAG.js';
@@ -143,22 +143,22 @@ describe('Role Separation E2E', () => {
       });
     });
 
-    describe('Planner role', () => {
-      const plannerTools = getToolsForRole('planner');
+    describe('Director role', () => {
+      const directorTools = getToolsForRole('director');
 
       it('does NOT have task_claim, task_submit (those are for workers)', () => {
-        expect(plannerTools).not.toContain('flightdeck_task_claim');
-        expect(plannerTools).not.toContain('flightdeck_task_submit');
+        expect(directorTools).not.toContain('flightdeck_task_claim');
+        expect(directorTools).not.toContain('flightdeck_task_submit');
       });
 
       it('DOES have task_list, task_add, declare_tasks, task_get, memory_write, escalate, spec_create', () => {
-        expect(plannerTools).toContain('flightdeck_task_list');
-        expect(plannerTools).toContain('flightdeck_task_add');
-        expect(plannerTools).toContain('flightdeck_declare_tasks');
-        expect(plannerTools).toContain('flightdeck_task_get');
-        expect(plannerTools).toContain('flightdeck_memory_write');
-        expect(plannerTools).toContain('flightdeck_escalate');
-        expect(plannerTools).toContain('flightdeck_spec_create');
+        expect(directorTools).toContain('flightdeck_task_list');
+        expect(directorTools).toContain('flightdeck_task_add');
+        expect(directorTools).toContain('flightdeck_declare_tasks');
+        expect(directorTools).toContain('flightdeck_task_get');
+        expect(directorTools).toContain('flightdeck_memory_write');
+        expect(directorTools).toContain('flightdeck_escalate');
+        expect(directorTools).toContain('flightdeck_spec_create');
       });
     });
 
@@ -202,7 +202,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('no role has ALL tools — separation is real', () => {
-      const allRoles = ['lead', 'planner', 'reviewer', 'worker'];
+      const allRoles = ['lead', 'director', 'reviewer', 'worker'];
       for (const a of allRoles) {
         for (const b of allRoles) {
           if (a === b) continue;
@@ -293,9 +293,9 @@ describe('Role Separation E2E', () => {
     });
   });
 
-  // ── 3. Planner Event Routing ──
+  // ── 3. Director Event Routing ──
 
-  describe('3. Planner Event Routing', () => {
+  describe('3. Director Event Routing', () => {
     let leadManager: LeadManager;
 
     beforeEach(() => {
@@ -307,7 +307,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('critical_task_completed → contains title, remaining, validation request', () => {
-      const msg = leadManager.buildPlannerSteer({
+      const msg = leadManager.buildDirectorSteer({
         type: 'critical_task_completed',
         taskId: 'task-1',
         specId: 'spec-A',
@@ -321,7 +321,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('task_failed → contains error, retries, re-decomposition suggestion', () => {
-      const msg = leadManager.buildPlannerSteer({
+      const msg = leadManager.buildDirectorSteer({
         type: 'task_failed',
         taskId: 'task-2',
         error: 'Build failed: type errors',
@@ -333,7 +333,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('worker_escalation → contains agent id, reason', () => {
-      const msg = leadManager.buildPlannerSteer({
+      const msg = leadManager.buildDirectorSteer({
         type: 'worker_escalation',
         taskId: 'task-3',
         agentId: 'worker-7',
@@ -344,7 +344,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('spec_milestone → contains completion counts', () => {
-      const msg = leadManager.buildPlannerSteer({
+      const msg = leadManager.buildDirectorSteer({
         type: 'spec_milestone',
         specId: 'spec-B',
         completed: 3,
@@ -356,7 +356,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('plan_validation_request → contains spec id and context', () => {
-      const msg = leadManager.buildPlannerSteer({
+      const msg = leadManager.buildDirectorSteer({
         type: 'plan_validation_request',
         specId: 'spec-C',
         context: 'Worker discovered new dependency',
@@ -366,16 +366,16 @@ describe('Role Separation E2E', () => {
     });
   });
 
-  // ── 4. Orchestrator Planner Notification Filtering ──
+  // ── 4. Orchestrator Director Notification Filtering ──
 
-  describe('4. Orchestrator Planner Notification Filtering', () => {
+  describe('4. Orchestrator Director Notification Filtering', () => {
     let store: SqliteStore;
     let dag: TaskDAG;
     let adapter: MockAcpAdapter;
     let orch: Orchestrator;
     let leadManager: LeadManager;
     let tmpDir: string;
-    let plannerEventSpy: ReturnType<typeof vi.spyOn>;
+    let directorEventSpy: ReturnType<typeof vi.spyOn>;
 
     const config: ProjectConfig = {
       name: 'test-role-sep',
@@ -397,8 +397,8 @@ describe('Role Separation E2E', () => {
         acpAdapter: adapter as any,
       });
 
-      // Spy on planner event steers
-      plannerEventSpy = vi.spyOn(leadManager, 'steerPlannerEvent').mockResolvedValue('');
+      // Spy on director event steers
+      directorEventSpy = vi.spyOn(leadManager, 'steerDirectorEvent').mockResolvedValue('');
 
       orch = new Orchestrator(dag, store, gov, adapter as any, config, undefined, {
         leadManager,
@@ -412,15 +412,15 @@ describe('Role Separation E2E', () => {
       rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it('task with dependents completing → planner IS notified', () => {
+    it('task with dependents completing → director IS notified', () => {
       // Add tasks: A → B (B depends on A)
       const taskA = dag.addTask({ title: 'Task A', role: 'worker', specId: 'spec-1' });
       const taskB = dag.addTask({ title: 'Task B', role: 'worker', specId: 'spec-1', dependsOn: [taskA.id] });
 
-      // Directly call notifyPlannerIfNeeded
-      (orch as any).notifyPlannerIfNeeded(taskA.id, 'completed');
+      // Directly call notifyDirectorIfNeeded
+      (orch as any).notifyDirectorIfNeeded(taskA.id, 'completed');
 
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'critical_task_completed',
           taskId: taskA.id,
@@ -428,30 +428,30 @@ describe('Role Separation E2E', () => {
       );
     });
 
-    it('leaf task (no dependents) completing → planner NOT notified with critical_task_completed', () => {
+    it('leaf task (no dependents) completing → director NOT notified with critical_task_completed', () => {
       // Leaf task with no dependents
       const leaf = dag.addTask({ title: 'Leaf task', role: 'worker', specId: 'spec-1' });
 
-      (orch as any).notifyPlannerIfNeeded(leaf.id, 'completed');
+      (orch as any).notifyDirectorIfNeeded(leaf.id, 'completed');
 
       // Should not have been called with critical_task_completed
-      const criticalCalls = plannerEventSpy.mock.calls.filter(
+      const criticalCalls = directorEventSpy.mock.calls.filter(
         (c: any) => c[0].type === 'critical_task_completed',
       );
       expect(criticalCalls).toHaveLength(0);
     });
 
-    it('task failure → planner IS always notified', () => {
+    it('task failure → director IS always notified', () => {
       const task = dag.addTask({ title: 'Failing task', role: 'worker', specId: 'spec-1' });
 
-      (orch as any).notifyPlannerIfNeeded(task.id, 'failed');
+      (orch as any).notifyDirectorIfNeeded(task.id, 'failed');
 
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'task_failed' }),
       );
     });
 
-    it('spec milestones at 50% and 75% → planner notified, no duplicates', () => {
+    it('spec milestones at 50% and 75% → director notified, no duplicates', () => {
       // Create 4 tasks in spec-m
       const t1 = dag.addTask({ title: 'T1', role: 'worker', specId: 'spec-m' });
       const t2 = dag.addTask({ title: 'T2', role: 'worker', specId: 'spec-m' });
@@ -461,24 +461,24 @@ describe('Role Separation E2E', () => {
       // Complete t1 (25%) — no milestone
       store.updateTaskState(t1.id, 'done');
       (orch as any).checkSpecMilestone('spec-m');
-      expect(plannerEventSpy).not.toHaveBeenCalled();
+      expect(directorEventSpy).not.toHaveBeenCalled();
 
       // Complete t2 (50%) — milestone!
       store.updateTaskState(t2.id, 'done');
       (orch as any).checkSpecMilestone('spec-m');
-      expect(plannerEventSpy).toHaveBeenCalledTimes(1);
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      expect(directorEventSpy).toHaveBeenCalledTimes(1);
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'spec_milestone', specId: 'spec-m' }),
       );
 
       // Call again at 50% — no duplicate
       (orch as any).checkSpecMilestone('spec-m');
-      expect(plannerEventSpy).toHaveBeenCalledTimes(1);
+      expect(directorEventSpy).toHaveBeenCalledTimes(1);
 
       // Complete t3 (75%) — another milestone
       store.updateTaskState(t3.id, 'done');
       (orch as any).checkSpecMilestone('spec-m');
-      expect(plannerEventSpy).toHaveBeenCalledTimes(2);
+      expect(directorEventSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -523,7 +523,7 @@ describe('Role Separation E2E', () => {
     let orch: Orchestrator;
     let leadManager: LeadManager;
     let tmpDir: string;
-    let plannerEventSpy: ReturnType<typeof vi.spyOn>;
+    let directorEventSpy: ReturnType<typeof vi.spyOn>;
     let leadSteerSpy: ReturnType<typeof vi.spyOn>;
 
     const config: ProjectConfig = {
@@ -546,7 +546,7 @@ describe('Role Separation E2E', () => {
         acpAdapter: adapter as any,
       });
 
-      plannerEventSpy = vi.spyOn(leadManager, 'steerPlannerEvent').mockResolvedValue('');
+      directorEventSpy = vi.spyOn(leadManager, 'steerDirectorEvent').mockResolvedValue('');
       leadSteerSpy = vi.spyOn(leadManager, 'steerLead').mockResolvedValue('');
 
       orch = new Orchestrator(dag, store, gov, adapter as any, config, undefined, {
@@ -584,9 +584,9 @@ describe('Role Separation E2E', () => {
       // Simulate review approval
       store.updateTaskState(taskA.id, 'done');
 
-      // Notify planner — A has dependent C
-      (orch as any).notifyPlannerIfNeeded(taskA.id, 'completed');
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      // Notify director — A has dependent C
+      (orch as any).notifyDirectorIfNeeded(taskA.id, 'completed');
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'critical_task_completed',
           title: 'Task A',
@@ -604,9 +604,9 @@ describe('Role Separation E2E', () => {
       dag.submitTask(taskB.id);
       store.updateTaskState(taskB.id, 'done');
 
-      (orch as any).notifyPlannerIfNeeded(taskB.id, 'completed');
+      (orch as any).notifyDirectorIfNeeded(taskB.id, 'completed');
       // B has dependent D
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'critical_task_completed',
           title: 'Task B',
@@ -614,7 +614,7 @@ describe('Role Separation E2E', () => {
       );
 
       // 50% milestone (2/4 done)
-      const milestoneCalls = plannerEventSpy.mock.calls.filter(
+      const milestoneCalls = directorEventSpy.mock.calls.filter(
         (c: any) => c[0].type === 'spec_milestone',
       );
       expect(milestoneCalls.length).toBeGreaterThanOrEqual(1);
@@ -628,9 +628,9 @@ describe('Role Separation E2E', () => {
       dag.submitTask(taskC.id);
       store.updateTaskState(taskC.id, 'done');
 
-      (orch as any).notifyPlannerIfNeeded(taskC.id, 'completed');
+      (orch as any).notifyDirectorIfNeeded(taskC.id, 'completed');
       // C has dependent D
-      expect(plannerEventSpy).toHaveBeenCalledWith(
+      expect(directorEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'critical_task_completed',
           title: 'Task C',
@@ -638,7 +638,7 @@ describe('Role Separation E2E', () => {
       );
 
       // 75% milestone (3/4)
-      const milestone75 = plannerEventSpy.mock.calls.filter(
+      const milestone75 = directorEventSpy.mock.calls.filter(
         (c: any) => c[0].type === 'spec_milestone',
       );
       expect(milestone75.length).toBeGreaterThanOrEqual(2);
@@ -651,10 +651,10 @@ describe('Role Separation E2E', () => {
       dag.submitTask(taskD.id);
       store.updateTaskState(taskD.id, 'done');
 
-      (orch as any).notifyPlannerIfNeeded(taskD.id, 'completed');
+      (orch as any).notifyDirectorIfNeeded(taskD.id, 'completed');
 
       // D is a leaf — should NOT get critical_task_completed
-      const dCritical = plannerEventSpy.mock.calls.filter(
+      const dCritical = directorEventSpy.mock.calls.filter(
         (c: any) => c[0].type === 'critical_task_completed' && c[0].title === 'Task D',
       );
       expect(dCritical).toHaveLength(0);
@@ -671,8 +671,8 @@ describe('Role Separation E2E', () => {
       );
       expect(leadReviewCalls).toHaveLength(0);
 
-      // Planner received critical_task_completed for A, B, C but not D
-      const criticalTitles = plannerEventSpy.mock.calls
+      // Director received critical_task_completed for A, B, C but not D
+      const criticalTitles = directorEventSpy.mock.calls
         .filter((c: any) => c[0].type === 'critical_task_completed')
         .map((c: any) => c[0].title);
       expect(criticalTitles).toContain('Task A');

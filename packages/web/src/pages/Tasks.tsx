@@ -100,7 +100,7 @@ function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none">
                 <option value="developer">Developer</option>
                 <option value="reviewer">Reviewer</option>
-                <option value="planner">Planner</option>
+                <option value="director">Director</option>
                 <option value="lead">Lead</option>
               </select>
             </div>

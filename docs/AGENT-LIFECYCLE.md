@@ -65,17 +65,17 @@ The Lead is the user-facing orchestration agent — the "project manager."
 
 ---
 
-### 1.2 Planner Agent
+### 1.2 Director Agent
 
-The Planner handles task decomposition and plan management.
+The Director handles task decomposition and plan management.
 
 | Aspect | Detail |
 |---|---|
-| **Spawn trigger** | On-demand when Lead steers Planner via `steerPlanner()` (`lead/LeadManager.ts:steerPlanner`) |
-| **Spawn method** | `spawnPlanner()` — creates ACP session, registers in SQLite |
+| **Spawn trigger** | On-demand when Lead steers Director via `steerDirector()` (`lead/LeadManager.ts:steerDirector`) |
+| **Spawn method** | `spawnDirector()` — creates ACP session, registers in SQLite |
 | **States** | Same as Lead: busy → idle → hibernated → resumed |
-| **Session persistence** | Like Lead: `setSuspendedPlanner()` + `resumePlanner()` for lazy resume on restart |
-| **Events received** | `PlannerEvent`: critical_task_completed, task_failed, worker_escalation, spec_milestone, plan_validation_request, file_conflict |
+| **Session persistence** | Like Lead: `setSuspendedDirector()` + `resumeDirector()` for lazy resume on restart |
+| **Events received** | `DirectorEvent`: critical_task_completed, task_failed, worker_escalation, spec_milestone, plan_validation_request, file_conflict |
 
 ---
 
@@ -86,7 +86,7 @@ Workers are disposable execution agents that implement individual tasks.
 | Aspect | Detail |
 |---|---|
 | **Spawn trigger 1** | Orchestrator `autoAssignReadyTasks()` — when a ready task has no idle worker, `agentManager.spawnAgent()` is called (`orchestrator/Orchestrator.ts:autoAssignReadyTasks`) |
-| **Spawn trigger 2** | Planner/Lead via `flightdeck_agent_spawn` MCP tool (`mcp/server.ts:502`) |
+| **Spawn trigger 2** | Director/Lead via `flightdeck_agent_spawn` MCP tool (`mcp/server.ts:502`) |
 | **Assignment** | `dag.claimTask(taskId, agentId)` — task transitions ready → running |
 | **Task context** | On assignment, worker receives system message with task title, description, acceptance criteria, dependencies |
 | **Isolation** | `file_lock` (default) or `git_worktree` — configured per project (`core/types.ts:IsolationStrategy`) |
@@ -149,7 +149,7 @@ Reviewers validate completed work before marking tasks done.
       budget_warning)        │                  │
               │               ▼                 │
               │          ┌─────────┐            │
-              │          │ Planner │            │
+              │          │ Director │            │
               │          └────┬────┘     ┌──────┴──────┐
               │               │          │ Orchestrator │
               │          plan tasks      │  (tick loop) │
@@ -173,13 +173,13 @@ Reviewers validate completed work before marking tasks done.
 | Message format | Timestamped header + source + content (`LeadManager.buildSteer`) |
 | Task comments | `steerLead({ type: 'task_comment', taskId, message })` |
 
-### 2.2 Lead → Planner
+### 2.2 Lead → Director
 
 | Path | Code |
 |---|---|
-| Lead calls `flightdeck_send` MCP tool with `to: <planner_id>` | `mcp/server.ts:619` → `client.sendMessage()` |
-| Orchestrator triggers | `LeadManager.steerPlannerEvent(event)` → `steerPlanner(message)` |
-| Event types | `PlannerEvent`: critical_task_completed, task_failed, worker_escalation, spec_milestone, plan_validation_request, file_conflict |
+| Lead calls `flightdeck_send` MCP tool with `to: <director_id>` | `mcp/server.ts:619` → `client.sendMessage()` |
+| Orchestrator triggers | `LeadManager.steerDirectorEvent(event)` → `steerDirector(message)` |
+| Event types | `DirectorEvent`: critical_task_completed, task_failed, worker_escalation, spec_milestone, plan_validation_request, file_conflict |
 
 ### 2.3 Orchestrator → Lead
 
@@ -194,15 +194,15 @@ The Orchestrator steers the Lead on significant events (NOT for normal completio
 | `spec_changed` | Spec file modified | `Orchestrator.checkSpecChanges()` → `leadManager.steerLead()` |
 | `worker_recovery` | Orphaned tasks recovered on startup | `leadManager.steerLead()` |
 
-### 2.4 Orchestrator → Planner
+### 2.4 Orchestrator → Director
 
 | Event | Trigger | Code path |
 |---|---|---|
-| `critical_task_completed` | Task with dependents completes | `Orchestrator.notifyPlannerIfNeeded('completed')` |
-| `task_failed` | Task fails after retries exhausted | `Orchestrator.notifyPlannerIfNeeded('failed')` |
-| `worker_escalation` | Worker escalates | `Orchestrator.notifyPlannerIfNeeded('escalated')` |
+| `critical_task_completed` | Task with dependents completes | `Orchestrator.notifyDirectorIfNeeded('completed')` |
+| `task_failed` | Task fails after retries exhausted | `Orchestrator.notifyDirectorIfNeeded('failed')` |
+| `worker_escalation` | Worker escalates | `Orchestrator.notifyDirectorIfNeeded('escalated')` |
 | `spec_milestone` | 50%/75% of spec tasks done | `Orchestrator.checkSpecMilestone()` |
-| `file_conflict` | Merge conflict detected | `store.on('merge-conflict')` → `leadManager.steerPlannerEvent()` |
+| `file_conflict` | Merge conflict detected | `store.on('merge-conflict')` → `leadManager.steerDirectorEvent()` |
 
 ### 2.5 Orchestrator → Worker
 
@@ -220,7 +220,7 @@ All via MCP tools → HTTP API:
 |---|---|---|
 | Submit work | `flightdeck_task_submit` (`mcp/server.ts:255`) | running → in_review (or done if needsReview=false) |
 | Report failure | `flightdeck_task_fail` (`mcp/server.ts:269`) | running → failed |
-| Escalate | `flightdeck_escalate` (`mcp/server.ts:948`) | Triggers escalation event → Lead + Planner notified |
+| Escalate | `flightdeck_escalate` (`mcp/server.ts:948`) | Triggers escalation event → Lead + Director notified |
 
 ### 2.7 Reviewer → Task
 
@@ -276,21 +276,21 @@ All via MCP tools → HTTP API:
 |---|---|---|---|---|
 | **planned → pending** | Lead | `flightdeck_plan_review` verdict=approve (`mcp/server.ts:976`) | Transitions all planned tasks (optionally filtered by specId) to pending |
 | **planned → cancelled** | Lead | `flightdeck_plan_review` verdict=reject | Planned tasks cancelled; `clear_assignment`, `block_dependents` |
-| **planned → skipped** | Planner | `flightdeck_task_skip` or plan adjustment | `resolve_dependents` (treated as "done" for dep resolution) |
+| **planned → skipped** | Director | `flightdeck_task_skip` or plan adjustment | `resolve_dependents` (treated as "done" for dep resolution) |
 | **pending → ready** | Orchestrator | `promoteReadyTasks()` — all deps done/skipped/cancelled (`Orchestrator.ts:promoteReadyTasks`) | Task becomes eligible for assignment |
 | **pending → blocked** | Orchestrator | `promoteReadyTasks()` — deps not yet resolved (stays pending; explicit block via code) | Waits for dep completion |
-| **pending → skipped** | Planner/Lead | Direct state update | `resolve_dependents` |
-| **pending → cancelled** | Lead/Planner | Direct state update | `clear_assignment`, `block_dependents` |
+| **pending → skipped** | Director/Lead | Direct state update | `resolve_dependents` |
+| **pending → cancelled** | Lead/Director | Direct state update | `clear_assignment`, `block_dependents` |
 | **ready → running** | Orchestrator | `autoAssignReadyTasks()` → `dag.claimTask()` (`Orchestrator.ts:autoAssignReadyTasks`) | Worker spawned/assigned, receives task context message |
 | **ready → gated** | Orchestrator | `governance.shouldGateTaskStart()` returns true (`Orchestrator.ts:autoAssignReadyTasks`) | Task awaits human approval (supervised/collaborative modes) |
-| **ready → paused** | Planner | `flightdeck_task_pause` MCP tool | — |
-| **ready → cancelled** | Lead/Planner | Direct state update | `clear_assignment`, `block_dependents` |
+| **ready → paused** | Director | `flightdeck_task_pause` MCP tool | — |
+| **ready → cancelled** | Lead/Director | Direct state update | `clear_assignment`, `block_dependents` |
 | **gated → running** | Lead/User | Governance approval (via API) | Worker assigned |
 | **gated → ready** | System | Governance config change / gate removed | Re-enters assignment pool |
 | **running → in_review** | Worker | `flightdeck_task_submit` (`mcp/server.ts:255`) | `spawn_reviewer` effect → reviewer agent spawned |
 | **running → done** | Worker | `flightdeck_task_submit` with review disabled | `resolve_dependents`, `set_timestamp` |
 | **running → failed** | Worker / Orchestrator | `flightdeck_task_fail` or session ended without submit (stall detection) | `escalate`, `block_dependents`, `clear_assignment`; Lead notified |
-| **running → paused** | Planner | `flightdeck_task_pause` (conflict resolution) | Worker suspended |
+| **running → paused** | Director | `flightdeck_task_pause` (conflict resolution) | Worker suspended |
 | **running → blocked** | System | External dependency blocks progress | — |
 | **running → cancelled** | Lead | Direct cancellation | `clear_assignment`, `block_dependents` |
 | **in_review → done** | Reviewer | `flightdeck_review_submit` verdict=approve (`mcp/server.ts:361`) | `resolve_dependents`, `set_timestamp`; webhook notification |
@@ -299,12 +299,12 @@ All via MCP tools → HTTP API:
 | **failed → ready** | Orchestrator | Auto-retry if `retries < maxRetries` (`Orchestrator.ts:detectStalls`) | `clear_assignment`, `unblock_dependents`; retry context appended to task description |
 | **blocked → ready** | Orchestrator | `promoteReadyTasks()` — blocking deps now resolved | Re-enters assignment pool |
 | **blocked → pending** | System | Dependency state changed | — |
-| **blocked → cancelled** | Lead/Planner | Direct cancellation | `clear_assignment`, `block_dependents` |
-| **paused → running** | Planner | `flightdeck_task_resume` (`mcp/server.ts:312`) | Worker re-steered |
-| **paused → ready** | Planner | Resume without specific worker | Re-enters assignment pool |
+| **blocked → cancelled** | Lead/Director | Direct cancellation | `clear_assignment`, `block_dependents` |
+| **paused → running** | Director | `flightdeck_task_resume` (`mcp/server.ts:312`) | Worker re-steered |
+| **paused → ready** | Director | Resume without specific worker | Re-enters assignment pool |
 | **paused → cancelled** | Lead | Direct cancellation | `clear_assignment`, `block_dependents` |
 | **done → ready** | Lead | `flightdeck_task_reopen` (`mcp/server.ts:391`) | `clear_assignment`; task re-enters the pipeline |
-| **skipped → pending** | Lead/Planner | Un-skip a task | Re-evaluated by Orchestrator |
+| **skipped → pending** | Lead/Director | Un-skip a task | Re-evaluated by Orchestrator |
 
 ### Side Effects Reference
 
@@ -392,14 +392,14 @@ Reporting:          daily         per-task      per-milestone
 | File | Purpose |
 |---|---|
 | `core/types.ts` | Task states, agent statuses, VALID_TRANSITIONS, transition() with side effects |
-| `lead/LeadManager.ts` | Lead + Planner spawn, resume, steer, heartbeat |
+| `lead/LeadManager.ts` | Lead + Director spawn, resume, steer, heartbeat |
 | `orchestrator/Orchestrator.ts` | Tick loop: promote, assign, stall detection, budget, spec completions |
 | `governance/GovernanceEngine.ts` | Governance profiles, gating, cost thresholds, escalation rules |
 | `mcp/server.ts` | MCP tool definitions (all agent-callable tools) |
 | `verification/ReviewFlow.ts` | Review process: spawn reviewer, handle verdict |
 | `agents/AgentManager.ts` | Agent spawn, steer, session management |
 | `dag/TaskDAG.ts` | Task graph, claimTask, failTask, retryTask |
-| `acp/SessionStore.ts` | Session persistence for Lead/Planner transcripts |
+| `acp/SessionStore.ts` | Session persistence for Lead/Director transcripts |
 
 
 ## Role Responsibilities
@@ -407,7 +407,7 @@ Reporting:          daily         per-task      per-milestone
 | Role | Responsibilities | Does NOT do | MCP Tools |
 |------|-----------------|-------------|-----------|
 | **Lead** | User communication, high-level decisions, plan approval/rejection, escalation handling, status reporting | Task breakdown, agent spawning, code implementation, code review | plan_review, task_add (trivial only), task_cancel, task_skip, send, read, search, status, spec_create, role_list |
-| **Planner** | Task breakdown (declare_tasks), dependency management, conflict resolution, agent spawning, task pause/resume/retry | User communication, architecture decisions, code implementation | declare_tasks, agent_spawn, task_pause, task_resume, task_skip, task_fail, task_retry, task_complete, send, search |
+| **Director** | Task breakdown (declare_tasks), dependency management, conflict resolution, agent spawning, task pause/resume/retry | User communication, architecture decisions, code implementation | declare_tasks, agent_spawn, task_pause, task_resume, task_skip, task_fail, task_retry, task_complete, send, search |
 | **Orchestrator** | Auto-assign ready tasks to idle workers, auto-spawn workers (up to maxConcurrentWorkers), auto-spawn reviewers, promote blocked→ready (event-driven), stall detection, budget monitoring | No LLM calls — pure code logic | N/A (code, not an agent) |
 | **Worker** | Code implementation, testing, task_submit, escalate when blocked | Task planning, agent management, code review | task_list, task_claim, task_submit, task_fail, escalate, file_lock, search, memory_write |
 | **Reviewer** | Code review, approve/request_changes via review_submit | Implementation, task planning | task_list, task_get, task_complete, task_fail, review_submit, search |
@@ -419,11 +419,11 @@ Reporting:          daily         per-task      per-milestone
 ### Key Principle: Separation of Concerns
 
 ```
-User ↔ Lead (decisions) → Planner (planning) → Orchestrator (execution) → Workers (implementation) → Reviewers (quality)
+User ↔ Lead (decisions) → Director (planning) → Orchestrator (execution) → Workers (implementation) → Reviewers (quality)
 ```
 
 - **Lead** conserves tokens — only speaks when needed (user messages, approvals, escalations)
-- **Planner** owns the execution plan — breaks down, sequences, resolves conflicts
+- **Director** owns the execution plan — breaks down, sequences, resolves conflicts
 - **Orchestrator** is pure code — no token cost, handles mechanical assignment/spawning
 - **Workers** are disposable — spawn, implement, submit, done
 - **Reviewers** are pooled — reused across tasks to reduce spawn overhead

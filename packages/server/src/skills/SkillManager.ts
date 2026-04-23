@@ -323,7 +323,7 @@ agents:
     lead:
       runtime: copilot
       model: medium
-    planner:
+    director:
       runtime: copilot
       model: medium
     worker:
@@ -351,7 +351,7 @@ skills:
       - memory-management
     worker: []
     reviewer: []
-    planner: []
+    director: []
 
 mcp:
   global:
