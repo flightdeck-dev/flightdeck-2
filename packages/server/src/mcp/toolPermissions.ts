@@ -9,40 +9,57 @@
 
 export const ROLE_TOOLS: Record<string, string[]> = {
   lead: [
-    'flightdeck_status', 'flightdeck_report',
-    'flightdeck_task_list', 'flightdeck_task_context',
-    'flightdeck_task_cancel', 'flightdeck_task_reopen', 'flightdeck_task_skip',
-    'flightdeck_task_fail',
-    'flightdeck_plan_review',
-    'flightdeck_agent_list', 'flightdeck_agent_output',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_msg_list',
+    // Communication
+    'flightdeck_send', 'flightdeck_read',
     'flightdeck_discuss',
-    'flightdeck_thread_create', 'flightdeck_thread_list',
-    'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_decision_list', 'flightdeck_decision_log',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_model_list', 'flightdeck_model_set', 'flightdeck_model_config',
-    'flightdeck_spec_list', 'flightdeck_spec_create',
-    'flightdeck_role_list', 'flightdeck_role_info',
-    'flightdeck_learning_search', 'flightdeck_learning_add',
-    'flightdeck_suggestion_list', 'flightdeck_suggestion_approve', 'flightdeck_suggestion_reject',
+    // Status & search (for answering user questions)
+    'flightdeck_status',
+    'flightdeck_task_list', 'flightdeck_task_context',
+    'flightdeck_agent_list',
+    'flightdeck_search',
+    // Decisions
+    'flightdeck_plan_review',  // Only Lead can approve plans
+    'flightdeck_decision_log', 'flightdeck_decision_list',
+    // Escalation
     'flightdeck_escalate_to_human',
+    // Memory
+    'flightdeck_memory_write', 'flightdeck_memory_read',
+    'flightdeck_memory_log',
+    // Suggestions (from Scout)
+    'flightdeck_suggestion_list', 'flightdeck_suggestion_approve', 'flightdeck_suggestion_reject',
+    // Utilities
+    'flightdeck_role_list',
     'flightdeck_tools_available',
   ],
   director: [
-    'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_add',
+    // Status & monitoring
+    'flightdeck_status', 'flightdeck_report',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get',
+    // Task management (Director owns ALL task operations)
+    'flightdeck_task_add', 'flightdeck_task_cancel', 'flightdeck_task_reopen',
     'flightdeck_task_pause', 'flightdeck_task_resume', 'flightdeck_task_skip',
     'flightdeck_task_fail', 'flightdeck_task_retry', 'flightdeck_task_complete',
     'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
+    // Agent management (Director spawns and manages ALL agents)
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',
     'flightdeck_agent_hibernate', 'flightdeck_agent_wake',
-    'flightdeck_spec_list', 'flightdeck_spec_create',
-    'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_learning_search',
+    'flightdeck_agent_restart', 'flightdeck_agent_retire',
+    // Specs
+    'flightdeck_spec_list', 'flightdeck_spec_create', 'flightdeck_spec_changes',
+    // Models (needs to choose runtime/model for workers)
+    'flightdeck_model_list', 'flightdeck_model_config',
+    // Communication
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_discuss',
+    // Search & memory
+    'flightdeck_search', 'flightdeck_memory_write',
+    'flightdeck_memory_read', 'flightdeck_memory_log',
+    'flightdeck_learning_search',
+    // Decisions
     'flightdeck_decision_log', 'flightdeck_decision_list',
+    // Scheduling
+    'flightdeck_cron_list', 'flightdeck_cron_add',
+    // Utilities
     'flightdeck_role_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
     'flightdeck_tools_available',

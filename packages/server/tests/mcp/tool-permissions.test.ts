@@ -14,8 +14,8 @@ describe('toolPermissions', () => {
     expect(getToolsForRole('')).toBe(ROLE_TOOLS.worker);
   });
 
-  it('lead has more tools than worker', () => {
-    expect(ROLE_TOOLS.lead.length).toBeGreaterThan(ROLE_TOOLS.worker.length);
+  it('lead has at least as many tools as worker', () => {
+    expect(ROLE_TOOLS.lead.length).toBeGreaterThanOrEqual(ROLE_TOOLS.worker.length);
   });
 
   it('all roles include flightdeck_status', () => {
@@ -30,8 +30,10 @@ describe('toolPermissions', () => {
     }
   });
 
-  it('all roles include flightdeck_escalate', () => {
-    for (const [role, tools] of Object.entries(ROLE_TOOLS)) {
+  it('most roles include flightdeck_escalate', () => {
+    // Lead uses escalate_to_human instead of escalate
+    const rolesWithEscalate = Object.entries(ROLE_TOOLS).filter(([role]) => role !== 'lead');
+    for (const [role, tools] of rolesWithEscalate) {
       expect(tools, `${role} should have flightdeck_escalate`).toContain('flightdeck_escalate');
     }
   });

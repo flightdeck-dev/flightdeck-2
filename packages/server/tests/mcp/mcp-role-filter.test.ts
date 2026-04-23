@@ -92,8 +92,8 @@ describe('MCP Server role-based tool filtering', () => {
     const tools = getToolNames(server);
     expect(tools).toContain('flightdeck_plan_review');
     expect(tools).toContain('flightdeck_task_list');
-    expect(tools).toContain('flightdeck_model_set');
-    expect(tools).toContain('flightdeck_report');
+    expect(tools).toContain('flightdeck_suggestion_list');
+    expect(tools).toContain('flightdeck_escalate_to_human');
   });
 
   it('reviewer only sees review-related tools', () => {
