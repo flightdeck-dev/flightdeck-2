@@ -39,11 +39,13 @@
     "mcp": "tsx src/mcp/server.ts"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "^0.31.0",
     "@agentclientprotocol/sdk": "^0.18.2",
     "@flightdeck-ai/shared": "workspace:*",
     "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/ws": "^8.18.1",
+    "@zed-industries/codex-acp": "^0.12.0",
     "better-sqlite3": "^11.8.1",
     "cron-parser": "^5.5.0",
     "drizzle-orm": "^0.44.7",

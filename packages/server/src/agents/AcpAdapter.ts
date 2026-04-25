@@ -1,8 +1,18 @@
 import { spawn as cpSpawn, type ChildProcess } from 'node:child_process';
 import { Readable, Writable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+
+/** Resolve a command to a local node_modules/.bin path if available */
+function resolveCommand(command: string): string {
+  // Check local bin relative to this file (packages/server/node_modules/.bin/)
+  const localBin = resolve(dirname(fileURLToPath(import.meta.url)), '../../node_modules/.bin', command);
+  if (existsSync(localBin)) return localBin;
+  // Fallback to PATH
+  return command;
+}
 import { RUNTIME_REGISTRY } from './runtimes.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -417,7 +427,7 @@ export class AcpAdapter extends AgentAdapter {
     };
 
     // Spawn the agent process (detached: false ensures children die with parent)
-    const child = cpSpawn(runtime.command, args, {
+    const child = cpSpawn(resolveCommand(runtime.command), args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: spawnEnv,
@@ -675,7 +685,7 @@ export class AcpAdapter extends AgentAdapter {
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;
     const aid = (opts.agentId ?? agentId(opts.role, Date.now().toString())) as AgentId;
 
-    const child = cpSpawn(runtime.command, runtime.args, {
+    const child = cpSpawn(resolveCommand(runtime.command), runtime.args, {
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...(RUNTIME_REGISTRY[runtimeName]?.customEnv ?? {}) },
@@ -1108,7 +1118,7 @@ export async function discoverRuntimeModels(
 
   const cwd = tmpdir();
   const args = interpolateArgs(runtime.args, { prompt: '', cwd });
-  const child = cpSpawn(runtime.command, args, {
+  const child = cpSpawn(resolveCommand(runtime.command), args, {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, ...(runtime as any).customEnv },
