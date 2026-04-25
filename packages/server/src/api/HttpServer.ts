@@ -287,6 +287,12 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         // Hot-register: set up orchestrator, LeadManager, WebSocket for the new project
         const fd = projectManager.get(name);
         if (fd) {
+          // Save CWD and governance to project config
+          const cfg = fd.project.getConfig();
+          if (body.cwd) cfg.cwd = body.cwd;
+          if (body.governance) cfg.governance = body.governance;
+          fd.project.setConfig(cfg);
+        if (fd) {
           // Apply lead runtime/model if provided
           if (body.leadRuntime || body.leadModel) {
             try {
