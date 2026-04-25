@@ -231,6 +231,11 @@ export default function Dashboard() {
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             {status?.config?.governance ?? '—'} governance
           </p>
+          {(status?.config as any)?.cwd && (
+            <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5 font-mono truncate max-w-[400px]" title={(status?.config as any).cwd}>
+              {(status?.config as any).cwd}
+            </p>
+          )}
           {(status as any)?.tokenUsage && (
             <TokenUsage projectName={(status?.config as any)?.name ?? ''} tokenUsage={(status as any).tokenUsage} />
           )}
