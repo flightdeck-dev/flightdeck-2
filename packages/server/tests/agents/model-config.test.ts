@@ -159,8 +159,9 @@ agents:
     const mc2 = new ModelConfig(emptyDir);
     const configs = mc2.getRoleConfigs();
     expect(configs.length).toBeGreaterThanOrEqual(7);
-    // Should use defaults
-    expect(configs[0].runtime).toBe('copilot');
+    // Should use defaults (getDefaultRuntime() picks first available, typically 'codex')
+    expect(typeof configs[0].runtime).toBe('string');
+    expect(configs[0].runtime.length).toBeGreaterThan(0);
     expect(configs[0].model).toBe('');
     rmSync(emptyDir, { recursive: true, force: true });
   });

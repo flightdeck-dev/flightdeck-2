@@ -5,6 +5,28 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { AgentsConfig, EnabledModel } from '@flightdeck-ai/shared';
 import { AGENT_ROLES } from '@flightdeck-ai/shared';
 
+/**
+ * Compute the best default runtime by consulting GlobalConfig (disabledRuntimes, runtimeOrder)
+ * and RUNTIME_REGISTRY. Falls back to 'codex' if nothing is available.
+ */
+function getDefaultRuntime(): string {
+  try {
+    const { loadGlobalConfig } = require('../config/GlobalConfig.js') as { loadGlobalConfig(): { disabledRuntimes?: string[]; runtimeOrder?: string[] } };
+    const gc = loadGlobalConfig();
+    const disabled = new Set(gc.disabledRuntimes ?? []);
+    const order = gc.runtimeOrder ?? [];
+    const { RUNTIME_REGISTRY } = require('./runtimes.js') as { RUNTIME_REGISTRY: Record<string, unknown> };
+    const available = Object.keys(RUNTIME_REGISTRY).filter(id => !disabled.has(id));
+    available.sort((a, b) => {
+      const ia = order.indexOf(a); const ib = order.indexOf(b);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+    return available[0] ?? 'codex';
+  } catch {
+    return 'codex';
+  }
+}
+
 export interface ResolvedRoleConfig {
   role: string;
   runtime: string;
@@ -56,7 +78,7 @@ export class ModelConfig {
    */
   getRoleConfigs(): ResolvedRoleConfig[] {
     const agents = this.getAgentsConfig();
-    const defaultRuntime = agents.default_runtime ?? 'copilot';
+    const defaultRuntime = agents.default_runtime ?? getDefaultRuntime();
     const defaultModel = agents.default_model ?? '';
 
     // Collect all roles: built-in + any custom ones in config
@@ -88,7 +110,7 @@ export class ModelConfig {
     const enabledModels = this.getRoleEnabledModelsWithDiscovery(role);
     return {
       role,
-      runtime: rc.runtime ?? agents.default_runtime ?? 'copilot',
+      runtime: rc.runtime ?? agents.default_runtime ?? getDefaultRuntime(),
       model: rc.model ?? agents.default_model ?? '',
       enabledModels,
     };
@@ -109,7 +131,7 @@ export class ModelConfig {
     const runtime = rc?.runtime ?? agents.default_runtime;
     const model = rc?.model ?? agents.default_model;
     if (!runtime && !model) return []; // No config → let adapter use its default
-    return [{ runtime: runtime ?? 'copilot', model: model ?? '', enabled: true, isDefault: true }];
+    return [{ runtime: runtime ?? getDefaultRuntime(), model: model ?? '', enabled: true, isDefault: true }];
   }
 
   /**

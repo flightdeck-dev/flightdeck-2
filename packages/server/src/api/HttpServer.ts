@@ -287,6 +287,14 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         // Hot-register: set up orchestrator, LeadManager, WebSocket for the new project
         const fd = projectManager.get(name);
         if (fd) {
+          // Apply lead runtime/model if provided
+          if (body.leadRuntime || body.leadModel) {
+            try {
+              const mc = await getModelConfig(fd, name);
+              if (body.leadRuntime) mc.setRole('lead', `${body.leadRuntime}:${body.leadModel ?? ''}`);
+              else if (body.leadModel) mc.setRole('lead', body.leadModel);
+            } catch { /* best effort */ }
+          }
           fd.orchestrator.start();
           if (onProjectSetup) {
             await onProjectSetup(name);
@@ -1245,6 +1253,9 @@ export function createHttpServer(deps: HttpServerDeps): Server {
         }
         if (validBody.cwd !== undefined) {
           cfg.cwd = validBody.cwd;
+        }
+        if (validBody.allowedRuntimes !== undefined) {
+          cfg.allowedRuntimes = validBody.allowedRuntimes;
         }
         if (validBody.notifications !== undefined) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- config extension

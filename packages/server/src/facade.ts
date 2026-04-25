@@ -82,6 +82,11 @@ export class Flightdeck {
       // Default callback — messages can be wired to agent queues later
     });
     this.agentManager = new AgentManager(sharedAdapter, this.sqlite, this.roles, projectName, new SkillManager(this.project.subpath('.')));
+    // Wire project-level runtime restrictions
+    const projectConfig = this.project.getConfig();
+    if (projectConfig.allowedRuntimes && projectConfig.allowedRuntimes.length > 0) {
+      this.agentManager.allowedRuntimes = projectConfig.allowedRuntimes;
+    }
     this.messages = new MessageStore(this.sqlite.db);
     this.agentManager.setMessageStore(this.messages);
 

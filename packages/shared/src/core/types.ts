@@ -167,6 +167,8 @@ export interface ProjectConfig {
   runtimeOrder?: string[];
   /** Disabled runtime ids. */
   disabledRuntimes?: string[];
+  /** If set, only these runtimes may be used for this project. */
+  allowedRuntimes?: string[];
   agents?: AgentsConfig;
   /** Webhook notification configuration. */
   notifications?: {

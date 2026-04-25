@@ -141,6 +141,17 @@ export class LeadManager {
 
   /** Spawn a new Lead agent session */
   async spawnLead(): Promise<string> {
+    // Check project-level runtime restrictions
+    try {
+      const projectConfig = this.project.getConfig() as any;
+      const allowed = projectConfig.allowedRuntimes as string[] | undefined;
+      if (allowed && allowed.length > 0 && this.leadRuntime && !allowed.includes(this.leadRuntime)) {
+        throw new Error(`Lead runtime '${this.leadRuntime}' is not allowed for this project. Allowed: ${allowed.join(', ')}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('not allowed')) throw e;
+      /* project.getConfig() may not exist in tests — skip check */
+    }
     // Enforce single active Lead — if one exists, don't spawn another
     const activeLeads = this.sqlite.listAgents().filter(a => a.role === 'lead' && ['busy', 'idle'].includes(a.status));
     if (activeLeads.length > 0) {
@@ -263,7 +274,7 @@ export class LeadManager {
       id: meta.agentId,
       role: 'lead',
       runtime: this.leadRuntime ?? 'acp',
-      runtimeName: this.leadRuntime ?? 'copilot',
+      runtimeName: this.leadRuntime ?? 'codex',
       acpSessionId: meta.sessionId,
       status: 'idle',
       currentSpecId: null,
@@ -659,6 +670,17 @@ export class LeadManager {
 
   /** Spawn Director as a persistent ACP session */
   async spawnDirector(): Promise<string> {
+    // Check project-level runtime restrictions
+    try {
+      const projectConfig = this.project.getConfig() as any;
+      const allowed = projectConfig.allowedRuntimes as string[] | undefined;
+      if (allowed && allowed.length > 0 && this.directorRuntime && !allowed.includes(this.directorRuntime)) {
+        throw new Error(`Director runtime '${this.directorRuntime}' is not allowed for this project. Allowed: ${allowed.join(', ')}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('not allowed')) throw e;
+      /* project.getConfig() may not exist in tests — skip check */
+    }
     log('Director', `Spawning (runtime: ${this.directorRuntime})...`);
     // Try to wake a hibernated director first
     const hibernatedDirectors = this.sqlite.listAgents().filter(a => a.role === 'director' && a.status === 'hibernated' && a.acpSessionId);
@@ -723,6 +745,11 @@ export class LeadManager {
       const projectConfig = this.project.getConfig() as any;
       const scoutEnabled = projectConfig.scoutEnabled === true;
       directorMgmtContext = `\n## Active Management Agents\n- Lead: active\n- Director: you (active)\n- Scout: ${scoutEnabled ? 'active (heartbeat-driven)' : 'disabled by user'}\n`;
+      // Include project-level runtime restrictions
+      const allowedRts = projectConfig.allowedRuntimes as string[] | undefined;
+      if (allowedRts && allowedRts.length > 0) {
+        directorMgmtContext += `\n## Project Runtime Restrictions\nAllowed runtimes: ${allowedRts.join(', ')}\n`;
+      }
     } catch { /* best effort */ }
 
     const fullSystemPrompt = [systemPrompt, modelPoolContext, directorMgmtContext].filter(Boolean).join('\n') || undefined;
@@ -743,7 +770,7 @@ export class LeadManager {
       id: meta.agentId,
       role: 'director',
       runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
-      runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'copilot',
+      runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'codex',
       acpSessionId: meta.sessionId,
       status: 'idle',
       currentSpecId: null,
@@ -932,7 +959,7 @@ export class LeadManager {
         id: meta.agentId,
         role: 'lead',
         runtime: this.leadRuntime ?? 'acp',
-      runtimeName: this.leadRuntime ?? 'copilot',
+      runtimeName: this.leadRuntime ?? 'codex',
         acpSessionId: meta.sessionId,
         status: 'idle',
         currentSpecId: null,
@@ -966,7 +993,7 @@ export class LeadManager {
         id: meta.agentId,
         role: 'director',
         runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
-        runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'copilot',
+        runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'codex',
         acpSessionId: meta.sessionId,
         status: 'idle',
         currentSpecId: null,

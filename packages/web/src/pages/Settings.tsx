@@ -980,6 +980,10 @@ function ProjectSettings() {
   const [leadRuntime, setLeadRuntime] = useState<string>("copilot");
   const [leadModel, setLeadModel] = useState<string>("");
   const [leadModelOptions, setLeadModelOptions] = useState<string[]>([]);
+  const [directorRuntime, setDirectorRuntime] = useState<string>("copilot");
+  const [directorModel, setDirectorModel] = useState<string>("");
+  const [directorModelOptions, setDirectorModelOptions] = useState<string[]>([]);
+  const [allowedRuntimes, setAllowedRuntimes] = useState<string[]>([]);
   const { data: availableRuntimes } = useSWR(
     projectName ? ['runtimes-project', projectName] : null,
     () => api.getRuntimes(projectName!) as Promise<RuntimeInfo[]>
@@ -998,23 +1002,38 @@ function ProjectSettings() {
     setOriginalCwd(cfg.cwd ?? '');
   }, [status?.config]);
 
-  // Load lead runtime/model from model config
+  // Load lead/director runtime/model from model config
   useEffect(() => {
     if (!projectName) return;
     fetch(`/api/projects/${encodeURIComponent(projectName)}/models`).then(r => r.json()).then(data => {
       const lead = data.roles?.find((r: any) => r.role === "lead");
       if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? ""); }
+      const director = data.roles?.find((r: any) => r.role === "director");
+      if (director) { setDirectorRuntime(director.runtime ?? "copilot"); setDirectorModel(director.model ?? ""); }
     }).catch(() => {});
     // Fetch available models for dropdown (filtered by current runtime)
     fetch(`/api/projects/${encodeURIComponent(projectName)}/models/available`).then(r => r.json()).then(data => {
-      const runtimeModels = data[leadRuntime];
-      const all: string[] = [];
-      if (Array.isArray(runtimeModels)) {
-        for (const m of runtimeModels) { if (m.modelId && !all.includes(m.modelId)) all.push(m.modelId); }
+      const leadRtModels = data[leadRuntime];
+      const leadAll: string[] = [];
+      if (Array.isArray(leadRtModels)) {
+        for (const m of leadRtModels) { if (m.modelId && !leadAll.includes(m.modelId)) leadAll.push(m.modelId); }
       }
-      setLeadModelOptions(all);
+      setLeadModelOptions(leadAll);
+      const dirRtModels = data[directorRuntime];
+      const dirAll: string[] = [];
+      if (Array.isArray(dirRtModels)) {
+        for (const m of dirRtModels) { if (m.modelId && !dirAll.includes(m.modelId)) dirAll.push(m.modelId); }
+      }
+      setDirectorModelOptions(dirAll);
     }).catch(() => {});
-  }, [projectName, leadRuntime]);
+  }, [projectName, leadRuntime, directorRuntime]);
+
+  // Load allowedRuntimes from project config
+  useEffect(() => {
+    if (!status?.config) return;
+    const cfg = status.config as any;
+    setAllowedRuntimes(cfg.allowedRuntimes ?? []);
+  }, [status?.config]);
   const saveConfig = async (update: Record<string, unknown>) => {
     if (!projectName) return;
     setSaving(true);
@@ -1112,6 +1131,61 @@ function ProjectSettings() {
               {leadModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Director Runtime</span>
+            <select value={directorRuntime} onChange={async e => { setDirectorRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/director`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: directorModel }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+              {availableRuntimes ? availableRuntimes.map(rt => (
+                <option key={rt.id} value={rt.id}>{rt.name}</option>
+              )) : (
+                <option value={directorRuntime}>{directorRuntime}</option>
+              )}
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Director Model</span>
+            <select value={directorModel} onChange={async e => { setDirectorModel(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/director`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: directorRuntime, model: e.target.value }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
+              <option value="">Select model...</option>
+              {directorModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">Allowed Runtimes</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">Restrict which runtimes can be used in this project (empty = all allowed)</p>
+            </div>
+          </div>
+          {availableRuntimes && (
+            <div className="flex flex-wrap gap-2">
+              {availableRuntimes.map(rt => {
+                const isAllowed = allowedRuntimes.length === 0 || allowedRuntimes.includes(rt.id);
+                return (
+                  <label key={rt.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isAllowed}
+                      onChange={async e => {
+                        let newAllowed: string[];
+                        if (allowedRuntimes.length === 0) {
+                          // Switching from "all allowed" to specific: include all except unchecked
+                          newAllowed = availableRuntimes.filter(r => r.id !== rt.id).map(r => r.id);
+                        } else if (e.target.checked) {
+                          newAllowed = [...allowedRuntimes, rt.id];
+                        } else {
+                          newAllowed = allowedRuntimes.filter(id => id !== rt.id);
+                        }
+                        // If all are checked, reset to empty (meaning all allowed)
+                        if (newAllowed.length >= availableRuntimes.length) newAllowed = [];
+                        setAllowedRuntimes(newAllowed);
+                        await saveConfig({ allowedRuntimes: newAllowed });
+                      }}
+                      className="rounded"
+                    />
+                    {rt.name}
+                  </label>
+                );
+              })}
+            </div>
+          )}
           {activeLeads.length > 0 && (
             <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
               <div>

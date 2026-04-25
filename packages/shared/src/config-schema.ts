@@ -18,6 +18,7 @@ export const ProjectConfigSchema = z.object({
       events: z.array(z.string()),
     })),
   }).optional(),
+  allowedRuntimes: z.array(z.string()).optional(),
 });
 
 const BridgeDiscordSchema = z.object({

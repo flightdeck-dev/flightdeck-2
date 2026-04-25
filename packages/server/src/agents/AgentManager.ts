@@ -175,6 +175,9 @@ export class AgentManager {
 
   private skillManager: SkillManager | null;
 
+  /** If set, only these runtimes are allowed for this project. */
+  allowedRuntimes: string[] | null = null;
+
   /** Callback fired when a DM message is stored (outgoing steer or agent response) */
   onDmMessage: ((projectName: string, message: any) => void) | null = null;
 
@@ -226,6 +229,13 @@ export class AgentManager {
     const roleName = role?.name ?? opts.role;
     const roleInstructions = role?.instructions ?? `You are a ${opts.role} agent. Complete your assigned tasks.`;
     const permissions = role?.permissions ?? {};
+
+    // Check project-level runtime restrictions
+    if (opts.runtime && this.allowedRuntimes && this.allowedRuntimes.length > 0) {
+      if (!this.allowedRuntimes.includes(opts.runtime)) {
+        throw new Error(`Runtime '${opts.runtime}' is not allowed for this project. Allowed: ${this.allowedRuntimes.join(', ')}`);
+      }
+    }
 
     // 2. Register in SQLite
     const newId = makeAgentId(opts.role, Date.now().toString());
