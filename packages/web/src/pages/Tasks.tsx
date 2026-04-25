@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { ListTodo, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { ListTodo, ChevronUp, ChevronDown } from 'lucide-react';
 import { useProject } from '../hooks/useProject.tsx';
 import { useTasks } from '../hooks/useTasks.tsx';
 import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
 import { api } from '../lib/api.ts';
-import { Modal, ModalHeader, ModalFooter } from '../components/Modal.tsx';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const STATES: TaskState[] = ['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
@@ -46,92 +45,6 @@ function DependencyTree({ task, allTasks }: { task: Task; allTasks: Task[] }) {
         ))}
       </div>
     </div>
-  );
-}
-
-// M10 TODO: Extract a shared <Modal> compound component with focus trapping and aria-* attributes.
-// ✅ Done — using shared Modal component.
-function CreateTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const { projectName } = useProject();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [role, setRole] = useState('developer');
-  const [priority, setPriority] = useState(3);
-  const [needsReview, setNeedsReview] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async () => {
-    if (!title.trim() || !projectName) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      await api.createTask(projectName, { title: title.trim(), description, role, priority, needsReview });
-      onCreated();
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to create task');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal onClose={onClose} aria-label="Create Task">
-      <ModalHeader onClose={onClose}>Create Task</ModalHeader>
-        <div className="px-6 py-4 space-y-4">
-          <div>
-            <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Title</label>
-            <input value={title} onChange={e => setTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit(); }}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
-              placeholder="Task title..." autoFocus />
-          </div>
-          <div>
-            <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
-              placeholder="What needs to be done..." />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Role</label>
-              <select value={role} onChange={e => setRole(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none">
-                <option value="developer">Developer</option>
-                <option value="reviewer">Reviewer</option>
-                <option value="director">Director</option>
-                <option value="lead">Lead</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-[var(--color-text-secondary)] mb-1 block">Priority</label>
-              <select value={priority} onChange={e => setPriority(Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-[var(--color-text-primary)] focus:outline-none">
-                {[1, 2, 3, 4, 5].map(p => (
-                  <option key={p} value={p}>P{p}{p === 1 ? ' (Critical)' : p === 5 ? ' (Low)' : ''}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="needsReview" checked={needsReview} onChange={e => setNeedsReview(e.target.checked)}
-              className="rounded border-[var(--color-border)]" />
-            <label htmlFor="needsReview" className="text-xs text-[var(--color-text-secondary)]">Requires review</label>
-          </div>
-          {error && <p className="text-xs text-[var(--color-status-failed)]">{error}</p>}
-        </div>
-        <ModalFooter>
-          <button onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={!title.trim() || submitting}
-            className="px-4 py-2 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 disabled:opacity-40">
-            {submitting ? 'Creating...' : 'Create Task'}
-          </button>
-        </ModalFooter>
-    </Modal>
   );
 }
 
@@ -225,7 +138,7 @@ export default function Tasks() {
   const { loading, refresh } = useProject();
   const [filter, setFilter] = useState<TaskState | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  
 
   if (loading) {
     return (
@@ -244,10 +157,6 @@ export default function Tasks() {
     <div className="max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Tasks ({tasks.length})</h1>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90">
-          <Plus size={16} strokeWidth={1.5} /> Create Task
-        </button>
       </div>
 
       {/* Filters */}
@@ -288,7 +197,6 @@ export default function Tasks() {
         </div>
       )}
 
-      {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} onCreated={refresh} />}
     </div>
   );
 }
