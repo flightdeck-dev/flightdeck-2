@@ -292,7 +292,6 @@ export function createHttpServer(deps: HttpServerDeps): Server {
           if (body.cwd) cfg.cwd = body.cwd;
           if (body.governance) cfg.governance = body.governance;
           fd.project.setConfig(cfg);
-        if (fd) {
           // Apply lead runtime/model if provided
           if (body.leadRuntime || body.leadModel) {
             try {
