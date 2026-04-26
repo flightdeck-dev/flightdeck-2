@@ -12,7 +12,11 @@ import { handleMessageRoutes } from './routes/messages.js';
 import { handleTaskRoutes } from './routes/tasks.js';
 import { handleAgentRoutes } from './routes/agents.js';
 import { handleConfigRoutes } from './routes/config.js';
-import { handleMiscRoutes } from './routes/misc.js';
+import { handleSpecRoutes } from './routes/specs.js';
+import { handleCollaborationRoutes } from './routes/collaboration.js';
+import { handleCronRoutes } from './routes/cron.js';
+import { handleMemoryRoutes } from './routes/memory.js';
+import { handleWorkspaceRoutes } from './routes/workspace.js';
 
 /** Minimal interface for WebSocket servers used by the HTTP API. */
 export interface WsBroadcaster {
@@ -143,7 +147,11 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     if (await handleTaskRoutes(subPath, method, scopedDeps)) return;
     if (await handleAgentRoutes(subPath, method, scopedDeps)) return;
     if (await handleConfigRoutes(subPath, method, scopedDeps)) return;
-    if (await handleMiscRoutes(subPath, method, scopedDeps)) return;
+    if (await handleSpecRoutes(subPath, method, scopedDeps)) return;
+    if (await handleCollaborationRoutes(subPath, method, scopedDeps)) return;
+    if (await handleCronRoutes(subPath, method, scopedDeps)) return;
+    if (await handleMemoryRoutes(subPath, method, scopedDeps)) return;
+    if (await handleWorkspaceRoutes(subPath, method, scopedDeps)) return;
 
     res.writeHead(404); res.end('Not found');
   });

@@ -4,7 +4,6 @@ import { useProject } from '../hooks/useProject.tsx';
 import { useTasks } from '../hooks/useTasks.tsx';
 import { useChat } from '../hooks/useChat.tsx';
 import { STATE_COLORS } from '../lib/constants.ts';
-import { api } from '../lib/api.ts';
 import type { Task, TaskState } from '../lib/types.ts';
 
 const STATES: TaskState[] = ['pending', 'ready', 'running', 'in_review', 'done', 'failed', 'cancelled'];
@@ -135,7 +134,7 @@ function TaskCard({ task, allTasks, isExpanded, onToggle }: {
 
 export default function Tasks() {
   const { tasks } = useTasks();
-  const { loading, refresh } = useProject();
+  const { loading } = useProject();
   const [filter, setFilter] = useState<TaskState | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
   

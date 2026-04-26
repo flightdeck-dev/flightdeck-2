@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import useSWR, { mutate as globalMutate } from 'swr';
+import useSWR from 'swr';
 import { useProject } from '../hooks/useProject.tsx';
 import { useDisplay } from '../hooks/useDisplay.tsx';
 import { api } from '../lib/api.ts';

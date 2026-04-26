@@ -150,9 +150,9 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
           {msg.authorType === 'agent' && msg.authorId && (
             <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
           )}
-          {(msg.channel ?? (msg as any).channelId)?.startsWith('dm:') && (
+          {msg.channelId?.startsWith('dm:') && (
             <span className="text-[10px] text-[var(--color-text-tertiary)] ml-1">
-              → {(msg.channel ?? (msg as any).channelId).replace('dm:', '').replace(/-[a-z0-9]+$/, '')}
+              → {msg.channelId.replace('dm:', '').replace(/-[a-z0-9]+$/, '')}
             </span>
           )}
           <span className="text-xs text-[var(--color-text-tertiary)]">
