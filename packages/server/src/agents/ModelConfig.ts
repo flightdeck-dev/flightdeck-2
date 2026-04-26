@@ -11,10 +11,12 @@ import { AGENT_ROLES } from '@flightdeck-ai/shared';
  */
 function getDefaultRuntime(): string {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { loadGlobalConfig } = require('../config/GlobalConfig.js') as { loadGlobalConfig(): { disabledRuntimes?: string[]; runtimeOrder?: string[] } };
     const gc = loadGlobalConfig();
     const disabled = new Set(gc.disabledRuntimes ?? []);
     const order = gc.runtimeOrder ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { RUNTIME_REGISTRY } = require('./runtimes.js') as { RUNTIME_REGISTRY: Record<string, unknown> };
     const available = Object.keys(RUNTIME_REGISTRY).filter(id => !disabled.has(id));
     available.sort((a, b) => {
@@ -143,6 +145,7 @@ export class ModelConfig {
     if (result.length === 0) {
       // Auto-populate from discovered models in the registry
       try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { modelRegistry } = require('./ModelRegistry.js') as { modelRegistry: { getRuntimes(): string[]; getModels(rt: string): Array<{ modelId: string }> } };
         const autoModels: EnabledModel[] = [];
         for (const rt of modelRegistry.getRuntimes()) {
@@ -156,6 +159,7 @@ export class ModelConfig {
     }
     // Filter out disabled runtimes
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { loadGlobalConfig } = require('../config/GlobalConfig.js') as { loadGlobalConfig(): { disabledRuntimes?: string[] } };
       const disabled = new Set(loadGlobalConfig().disabledRuntimes ?? []);
       if (disabled.size > 0) {
