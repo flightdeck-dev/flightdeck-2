@@ -7,12 +7,18 @@ import { existsSync } from 'node:fs';
 
 /** Resolve a command to a local node_modules/.bin path if available */
 function resolveCommand(command: string): string {
-  // Check local bin relative to this file (packages/server/node_modules/.bin/)
+  // On Windows, check for .cmd shim first
+  if (process.platform === 'win32') {
+    const localCmd = resolve(dirname(fileURLToPath(import.meta.url)), '../../node_modules/.bin', command + '.cmd');
+    if (existsSync(localCmd)) return localCmd;
+  }
   const localBin = resolve(dirname(fileURLToPath(import.meta.url)), '../../node_modules/.bin', command);
   if (existsSync(localBin)) return localBin;
-  // Fallback to PATH
   return command;
 }
+
+/** On Windows, spawn needs shell:true to resolve .cmd/.bat shims */
+const SPAWN_SHELL = process.platform === 'win32' ? { shell: true } : {};
 import { RUNTIME_REGISTRY } from './runtimes.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -428,6 +434,7 @@ export class AcpAdapter extends AgentAdapter {
 
     // Spawn the agent process (detached: false ensures children die with parent)
     const child = cpSpawn(resolveCommand(runtime.command), args, {
+      ...SPAWN_SHELL,
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: spawnEnv,
@@ -686,6 +693,7 @@ export class AcpAdapter extends AgentAdapter {
     const aid = (opts.agentId ?? agentId(opts.role, Date.now().toString())) as AgentId;
 
     const child = cpSpawn(resolveCommand(runtime.command), runtime.args, {
+      ...SPAWN_SHELL,
       cwd: opts.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...(RUNTIME_REGISTRY[runtimeName]?.customEnv ?? {}) },
@@ -1119,6 +1127,7 @@ export async function discoverRuntimeModels(
   const cwd = tmpdir();
   const args = interpolateArgs(runtime.args, { prompt: '', cwd });
   const child = cpSpawn(resolveCommand(runtime.command), args, {
+    ...SPAWN_SHELL,
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, ...(runtime as any).customEnv },

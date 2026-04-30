@@ -616,10 +616,10 @@ switch (command) {
     const { existsSync } = await import('node:fs');
     try {
       if (existsSync(tuiDist)) {
-        execFileSync('node', [tuiDist, ...tuiArgs], { stdio: 'inherit' });
+        execFileSync('node', [tuiDist, ...tuiArgs], { stdio: 'inherit', shell: process.platform === 'win32' });
       } else {
         // Dev mode: use tsx to run TypeScript source directly
-        execFileSync('npx', ['tsx', tuiSrc, ...tuiArgs], { stdio: 'inherit' });
+        execFileSync('npx', ['tsx', tuiSrc, ...tuiArgs], { stdio: 'inherit', shell: process.platform === 'win32' });
       }
     } catch { /* TUI exited */ }
     break;

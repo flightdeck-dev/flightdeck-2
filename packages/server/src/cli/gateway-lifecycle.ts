@@ -80,19 +80,33 @@ async function forceKillPort(port: number): Promise<void> {
     return;
   }
 
-  // Fallback: lsof
+  // Fallback: lsof (Unix) / netstat (Windows)
   try {
     const { execSync } = await import('node:child_process');
-    const output = execSync(`lsof -ti tcp:${port}`, { encoding: 'utf-8' }).trim();
-    if (output) {
-      for (const p of output.split('\n')) {
-        const lpid = parseInt(p, 10);
-        if (!isNaN(lpid)) {
-          console.log(`Killing process ${lpid} on port ${port}...`);
-          try { process.kill(lpid, 'SIGTERM'); } catch {}
+    if (process.platform === 'win32') {
+      const output = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf-8' }).trim();
+      if (output) {
+        for (const line of output.split('\n')) {
+          const parts = line.trim().split(/\s+/);
+          const lpid = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(lpid) && lpid > 0) {
+            console.log(`Killing process ${lpid} on port ${port}...`);
+            try { execSync(`taskkill /PID ${lpid} /F`, { stdio: 'pipe' }); } catch {}
+          }
         }
       }
-      await new Promise(r => setTimeout(r, 500));
+    } else {
+      const output = execSync(`lsof -ti tcp:${port}`, { encoding: 'utf-8' }).trim();
+      if (output) {
+        for (const p of output.split('\n')) {
+          const lpid = parseInt(p, 10);
+          if (!isNaN(lpid)) {
+            console.log(`Killing process ${lpid} on port ${port}...`);
+            try { process.kill(lpid, 'SIGTERM'); } catch {}
+          }
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
   } catch {}
 }
