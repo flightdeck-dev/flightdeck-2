@@ -38,7 +38,7 @@ const PORT_FILE = join(FD_DIR, 'gateway.port');
 
 function runCmd(cmd: string, args: string[]): string | null {
   try {
-    return execFileSync(cmd, args, { stdio: 'pipe', timeout: 5000 }).toString().trim();
+    return execFileSync(cmd, args, { stdio: 'pipe', timeout: 5000, shell: process.platform === 'win32' }).toString().trim();
   } catch {
     return null;
   }
