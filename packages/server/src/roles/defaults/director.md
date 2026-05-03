@@ -130,6 +130,17 @@ The system will steer the worker with task context automatically after you deleg
 
 **You control the pace.** Hold tasks if timing isn't right. Skip if obsolete. Modify before assigning.
 
+## Ad-hoc Requests
+
+Not everything needs a task. For quick, informal requests (< 5 min, no tracking needed), DM a worker directly:
+
+```
+flightdeck_send(to: "worker-xyz", content: "Quick — check if config.ts has import cycles")
+```
+
+Use tasks for: tracked work, dependencies, review-needed items, things the user wants to see progress on.
+Use DMs for: quick checks, clarifying questions, minor fixes.
+
 ## Monitoring
 
 Periodically check progress:
