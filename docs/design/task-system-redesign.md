@@ -151,3 +151,39 @@ Each task gets a channel: `task:{taskId}`
 - Should Director get a digest/summary of all task channels periodically?
 - Task channel cleanup — archive when task is done?
 - Can user see task channels in UI? (probably yes, as a tab on task detail)
+
+## Addendum: Task Thread = Comments = Discussion
+
+### Unification
+- Each task has one thread (auto-created on task creation or delegation)
+- `flightdeck_task_comment` → just posts to the task's thread
+- All task-related communication lives in one place:
+  - System events (delegated, completed, failed)
+  - Director instructions
+  - Worker questions and progress
+  - Reviews and feedback
+
+### Thread model
+```
+Project channel (all agents)
+  └── Thread per task (auto-created)
+       - system messages (lifecycle events)
+       - agent messages (discussion)
+       - @ mentions for cross-thread notifications
+```
+
+### Simplification
+- Remove separate `task_comment` tool — just use `flightdeck_send(channel: "task:{id}")`
+- Or keep `task_comment` as sugar that posts to the thread
+- UI: task detail shows the thread inline (no separate Comments/Activity tabs)
+
+### Agent visibility
+- Worker: sees own task thread(s) + can read others
+- Director: sees all task threads
+- Lead: sees threads for notifyLead tasks
+- Mentioned agents get notified (steer with the message)
+
+### Future: @mention system
+- `@agent-id` in a message → system steers that agent with the message
+- Enables cross-task collaboration without Director bottleneck
+- Not needed for v1 — Director can manually forward context
