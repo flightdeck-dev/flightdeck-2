@@ -56,7 +56,8 @@ describe('toolPermissions', () => {
   });
 
   it('worker can claim and submit tasks', () => {
-    expect(ROLE_TOOLS.worker).toContain('flightdeck_task_claim');
+    expect(ROLE_TOOLS.worker).not.toContain('flightdeck_task_delegate');
+    expect(ROLE_TOOLS.director).toContain('flightdeck_task_delegate');
     expect(ROLE_TOOLS.worker).toContain('flightdeck_task_submit');
   });
 

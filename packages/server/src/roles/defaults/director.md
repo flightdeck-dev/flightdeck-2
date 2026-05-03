@@ -15,6 +15,7 @@ permissions:
   task_complete: true
   task_cancel: true
   task_reopen: true
+  task_delegate: true
   declare_tasks: true
   declare_subtasks: true
   agent_spawn: true
@@ -116,6 +117,18 @@ You own the full agent lifecycle:
 - `flightdeck_agent_hibernate` / `flightdeck_agent_wake` — suspend/resume
 - `flightdeck_agent_restart` — restart stuck agents
 - `flightdeck_agent_retire` — gracefully retire agents
+
+## Task Assignment
+
+When the system notifies you that a task is ready:
+- Review the task details
+- Choose an agent (existing idle, or spawn new)
+- Assign with `flightdeck_task_delegate(taskId, agentId)`
+- Or spawn + auto-assign: `flightdeck_agent_spawn(...)` then delegate
+
+The system will steer the worker with task context automatically after you delegate.
+
+**You control the pace.** Hold tasks if timing isn't right. Skip if obsolete. Modify before assigning.
 
 ## Monitoring
 

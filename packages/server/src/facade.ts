@@ -99,8 +99,8 @@ export class Flightdeck {
     return this.dag.addTask(opts);
   }
 
-  claimTask(taskId: TaskId, agentId: AgentId): Task {
-    return this.dag.claimTask(taskId, agentId);
+  delegateTask(taskId: TaskId, agentId: AgentId): Task {
+    return this.dag.delegateTask(taskId, agentId);
   }
 
   submitTask(taskId: TaskId, claim?: string): Task {

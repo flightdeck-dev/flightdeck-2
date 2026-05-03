@@ -23,7 +23,7 @@ describe('TaskDAG new operations', () => {
     const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     const task = fd.addTask({ title: 'cancel me' });
-    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.delegateTask(task.id, 'w1' as AgentId);
     const cancelled = fd.cancelTask(task.id);
     expect(cancelled.state).toBe('cancelled');
   });
@@ -38,7 +38,7 @@ describe('TaskDAG new operations', () => {
     const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     const task = fd.addTask({ title: 'pause me' });
-    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.delegateTask(task.id, 'w1' as AgentId);
     const paused = fd.pauseTask(task.id);
     expect(paused.state).toBe('paused');
   });
@@ -47,7 +47,7 @@ describe('TaskDAG new operations', () => {
     const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     const task = fd.addTask({ title: 'resume me' });
-    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.delegateTask(task.id, 'w1' as AgentId);
     fd.pauseTask(task.id);
     const resumed = fd.resumeTask(task.id);
     expect(resumed.state).toBe('running');
@@ -68,7 +68,7 @@ describe('TaskDAG new operations', () => {
     const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     const task = fd.addTask({ title: 'reopen me' });
-    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.delegateTask(task.id, 'w1' as AgentId);
     fd.submitTask(task.id);
     fd.completeTask(task.id);
     const reopened = fd.reopenTask(task.id);
@@ -80,7 +80,7 @@ describe('TaskDAG new operations', () => {
     const worker: Agent = { id: 'w1' as AgentId, role: 'worker', runtime: 'acp', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null };
     fd.registerAgent(worker);
     const task = fd.addTask({ title: 'retry me' });
-    fd.claimTask(task.id, 'w1' as AgentId);
+    fd.delegateTask(task.id, 'w1' as AgentId);
     fd.failTask(task.id);
     const retried = fd.retryTask(task.id);
     expect(retried.state).toBe('ready');

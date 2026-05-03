@@ -31,7 +31,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
   it('submitTask succeeds with no hooks configured (default workflow)', () => {
     const task = fd.addTask({ title: 'Test task', role: 'worker' });
     // Task with no deps starts as ready
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     // Submit should succeed — no hooks to run
     const submitted = fd.submitTask(task.id, 'Done');
@@ -55,7 +55,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Hook test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     const submitted = fd.submitTask(task.id, 'Done');
     expect(submitted.state).toBe('in_review');
@@ -76,7 +76,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Reject test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     expect(() => fd.submitTask(task.id, 'Done')).toThrow('Task submission rejected by hook');
   });
@@ -96,7 +96,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Return test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     expect(() => fd.submitTask(task.id, 'Done')).toThrow('Task returned to worker');
   });
@@ -117,7 +117,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Warn test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     // Should succeed despite hook failure
     const submitted = fd.submitTask(task.id, 'Done');
@@ -139,7 +139,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Skip test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     const submitted = fd.submitTask(task.id, 'Done');
     expect(submitted.state).toBe('in_review');
@@ -170,7 +170,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
   it('task submit goes to in_review (reviewer handles approval)', async () => {
     const task = fd.addTask({ title: 'Tick test', role: 'worker' });
     fd.registerAgent({ id: aid('w1'), role: 'worker', status: 'idle', name: 'Worker 1', model: 'test', createdAt: new Date().toISOString() } as any);
-    fd.claimTask(task.id, aid('w1'));
+    fd.delegateTask(task.id, aid('w1'));
     fd.submitTask(task.id, 'Done');
 
     // Task should be in_review (reviewer will handle approval, not tick)
@@ -200,7 +200,7 @@ describe('WorkflowEngine + Orchestrator Integration', () => {
     });
 
     const task = fd.addTask({ title: 'Multi-hook test', role: 'worker' });
-    fd.claimTask(task.id, aid('agent-1'));
+    fd.delegateTask(task.id, aid('agent-1'));
 
     expect(() => fd.submitTask(task.id, 'Done')).toThrow('rejected');
   });

@@ -37,7 +37,7 @@ describe('TaskDAG', () => {
     const t1 = dag.addTask({ title: 'First' });
     const t2 = dag.addTask({ title: 'Second', dependsOn: [t1.id] });
 
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id);
 
@@ -50,7 +50,7 @@ describe('TaskDAG', () => {
     const t2 = dag.addTask({ title: 'Second' });
     const t3 = dag.addTask({ title: 'Third', dependsOn: [t1.id, t2.id] });
 
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id);
 
@@ -61,7 +61,7 @@ describe('TaskDAG', () => {
 
   it('claims a ready task', () => {
     const t1 = dag.addTask({ title: 'Task' });
-    const claimed = dag.claimTask(t1.id, 'agent-1' as AgentId);
+    const claimed = dag.delegateTask(t1.id, 'agent-1' as AgentId);
     expect(claimed.state).toBe('running');
     expect(claimed.assignedAgent).toBe('agent-1');
   });
@@ -69,7 +69,7 @@ describe('TaskDAG', () => {
   it('rejects claiming non-ready task', () => {
     const t1 = dag.addTask({ title: 'First' });
     const t2 = dag.addTask({ title: 'Second', dependsOn: [t1.id] });
-    expect(() => dag.claimTask(t2.id, 'agent-1' as AgentId)).toThrow('not ready');
+    expect(() => dag.delegateTask(t2.id, 'agent-1' as AgentId)).toThrow('not ready');
   });
 
   it('topological sort respects dependencies', () => {
@@ -86,7 +86,7 @@ describe('TaskDAG', () => {
     dag.addTask({ title: 'A' });
     dag.addTask({ title: 'B' });
     const t1 = dag.addTask({ title: 'C' });
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
 
     const stats = dag.getStats();
     expect(stats.ready).toBe(2);
@@ -95,14 +95,14 @@ describe('TaskDAG', () => {
 
   it('fails a task', () => {
     const t = dag.addTask({ title: 'Fail me' });
-    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.delegateTask(t.id, 'agent-1' as AgentId);
     const failed = dag.failTask(t.id);
     expect(failed.state).toBe('failed');
   });
 
   it('retries a failed task via retryTask', () => {
     const t = dag.addTask({ title: 'Retry me' });
-    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.delegateTask(t.id, 'agent-1' as AgentId);
     dag.failTask(t.id);
     const retried = dag.retryTask(t.id);
     expect(retried.state).toBe('ready');

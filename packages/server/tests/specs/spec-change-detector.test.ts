@@ -116,7 +116,7 @@ describe('Task staleness (FR-008)', () => {
 
   it('does not mark done tasks as stale', () => {
     const t1 = dag.addTask({ title: 'Done task', specId: 'auth.md' as SpecId });
-    dag.claimTask(t1.id, 'agent-1' as any);
+    dag.delegateTask(t1.id, 'agent-1' as any);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id);
 

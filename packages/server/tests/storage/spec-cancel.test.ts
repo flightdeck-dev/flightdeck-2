@@ -36,7 +36,7 @@ describe('cancelTasksBySpec', () => {
   it('does not affect done or skipped tasks', () => {
     const specId = 'spec-2' as SpecId;
     const t1 = dag.addTask({ title: 'Done task', specId, needsReview: false });
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id); // goes straight to done since needsReview: false
     const t2 = dag.addTask({ title: 'Ready task', specId });
 

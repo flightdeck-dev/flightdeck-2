@@ -88,7 +88,7 @@ export class TaskDAG {
     return task;
   }
 
-  claimTask(taskId: TaskId, agentId: AgentId): Task {
+  delegateTask(taskId: TaskId, agentId: AgentId): Task {
     const task = this.store.getTask(taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (task.state !== 'ready') throw new Error(`Task ${taskId} is not ready (state: ${task.state})`);

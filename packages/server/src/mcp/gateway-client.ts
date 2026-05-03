@@ -94,8 +94,8 @@ export class GatewayClient {
     return this.request('POST', '/tasks', params);
   }
 
-  async claimTask(taskId: string): Promise<unknown> {
-    return this.request('POST', `/tasks/${taskId}/claim`);
+  async delegateTask(taskId: string, agentId: string): Promise<unknown> {
+    return this.request('POST', `/tasks/${taskId}/delegate`, { agentId });
   }
 
   async submitTask(taskId: string, claim?: string): Promise<unknown> {

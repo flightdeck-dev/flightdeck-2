@@ -242,13 +242,14 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_claim', 'Claim a ready task', {
+  server.tool('flightdeck_task_delegate', 'Delegate a ready task to a specific agent', {
     taskId: z.string(),
+    agentId: z.string(),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
-      const task = await client.claimTask(params.taskId);
+      const task = await client.delegateTask(params.taskId, params.agentId);
       return jsonResponse(task);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);

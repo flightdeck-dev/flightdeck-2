@@ -35,7 +35,7 @@ describe('CopilotSdkAdapter', () => {
     it('worker gets task tools but not lead-only tools', () => {
       const names = getToolNames('worker');
       expect(names).toContain('flightdeck_task_list');
-      expect(names).toContain('flightdeck_task_claim');
+      expect(names).not.toContain('flightdeck_task_delegate');
       expect(names).toContain('flightdeck_task_submit');
       expect(names).toContain('flightdeck_escalate');
       expect(names).toContain('flightdeck_search');
@@ -126,12 +126,12 @@ describe('CopilotSdkAdapter', () => {
       expect(url.toString()).toContain('/tasks');
     });
 
-    it('task_claim calls POST /tasks/:id/claim', async () => {
-      const tool = getTool('worker', 'flightdeck_task_claim');
+    it('task_delegate calls POST /tasks/:id/delegate', async () => {
+      const tool = getTool('director', 'flightdeck_task_delegate');
       mockJsonResponse({ ok: true });
       await tool.handler({ taskId: 'task-abc' });
       const [url, opts] = mockFetch.mock.calls[0];
-      expect(url).toBe('http://localhost:9999/api/projects/test-project/tasks/task-abc/claim');
+      expect(url).toBe('http://localhost:9999/api/projects/test-project/tasks/task-abc/delegate');
       expect(opts.method).toBe('POST');
     });
 

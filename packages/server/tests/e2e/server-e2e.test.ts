@@ -63,14 +63,14 @@ describe('Task Management (scenario 3)', () => {
   it('3.4 - claims a task (ready → running)', () => {
     const agentId = registerWorker();
     const task = fd.addTask({ title: 'Build API' });
-    const claimed = fd.claimTask(task.id, agentId);
+    const claimed = fd.delegateTask(task.id, agentId);
     expect(claimed.state).toBe('running');
   });
 
   it('3.5 - submits a task (running → in_review)', () => {
     const agentId = registerWorker();
     const task = fd.addTask({ title: 'Build API' });
-    fd.claimTask(task.id, agentId);
+    fd.delegateTask(task.id, agentId);
     const submitted = fd.submitTask(task.id, 'Done: implemented REST endpoints');
     expect(submitted.state).toBe('in_review');
   });
@@ -87,7 +87,7 @@ describe('Task Management (scenario 3)', () => {
   it('3.7 - pause and resume', () => {
     const agentId = registerWorker();
     const task = fd.addTask({ title: 'Long task' });
-    fd.claimTask(task.id, agentId);
+    fd.delegateTask(task.id, agentId);
     const paused = fd.pauseTask(task.id);
     expect(paused.state).toBe('paused');
     // paused → running directly via resumeTask
@@ -98,7 +98,7 @@ describe('Task Management (scenario 3)', () => {
   it('3.8 - cancel a task', () => {
     const agentId = registerWorker();
     const task = fd.addTask({ title: 'Doomed task' });
-    fd.claimTask(task.id, agentId);
+    fd.delegateTask(task.id, agentId);
     const cancelled = fd.cancelTask(task.id);
     expect(cancelled.state).toBe('cancelled');
   });
@@ -118,7 +118,7 @@ describe('Task Management (scenario 3)', () => {
     const task = fd.addTask({ title: 'Full lifecycle' });
     expect(task.state).toBe('ready');
 
-    const running = fd.claimTask(task.id, agentId);
+    const running = fd.delegateTask(task.id, agentId);
     expect(running.state).toBe('running');
 
     const paused = fd.pauseTask(task.id);
@@ -229,7 +229,7 @@ describe('Project Status (scenario 5)', () => {
     fd.addTask({ title: 'Task A' });
     fd.addTask({ title: 'Task B' });
     const t3 = fd.addTask({ title: 'Task C' });
-    fd.claimTask(t3.id, agentId);
+    fd.delegateTask(t3.id, agentId);
 
     const status = fd.status();
     expect(status.taskStats.ready).toBe(2);
@@ -282,10 +282,10 @@ describe('Error Handling (scenario 10)', () => {
     const agent1 = registerWorker('worker-1');
     registerWorker('worker-2');
     const task = fd.addTask({ title: 'Contested task' });
-    fd.claimTask(task.id, agent1);
+    fd.delegateTask(task.id, agent1);
 
     // Task is now running; claiming again should fail
-    expect(() => fd.claimTask(task.id, 'worker-2' as AgentId)).toThrow();
+    expect(() => fd.delegateTask(task.id, 'worker-2' as AgentId)).toThrow();
   });
 
   it('10.2 - submit unclaimed task', () => {

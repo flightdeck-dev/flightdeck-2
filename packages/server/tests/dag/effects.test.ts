@@ -24,7 +24,7 @@ describe('TaskDAG effect processing', () => {
 
   it('running→done is valid (for needsReview=false or direct complete)', () => {
     const t = dag.addTask({ title: 'Test' });
-    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.delegateTask(t.id, 'agent-1' as AgentId);
     // running→done is now a valid transition (used when needsReview=false)
     const done = dag.completeTask(t.id);
     expect(done.state).toBe('done');
@@ -32,7 +32,7 @@ describe('TaskDAG effect processing', () => {
 
   it('running→in_review→done is the valid path', () => {
     const t = dag.addTask({ title: 'Test' });
-    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.delegateTask(t.id, 'agent-1' as AgentId);
     const submitted = dag.submitTask(t.id);
     expect(submitted.state).toBe('in_review');
     const completed = dag.completeTask(t.id);
@@ -43,7 +43,7 @@ describe('TaskDAG effect processing', () => {
     const t1 = dag.addTask({ title: 'First' });
     const t2 = dag.addTask({ title: 'Second', dependsOn: [t1.id] });
 
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id); // This should trigger resolve_dependents via effect
 
@@ -53,7 +53,7 @@ describe('TaskDAG effect processing', () => {
 
   it('claim is stored when submitTask is called with claim text', () => {
     const t = dag.addTask({ title: 'Claimable' });
-    dag.claimTask(t.id, 'agent-1' as AgentId);
+    dag.delegateTask(t.id, 'agent-1' as AgentId);
     dag.submitTask(t.id, 'I implemented the OAuth2 PKCE flow');
 
     // Verify claim is stored in DB

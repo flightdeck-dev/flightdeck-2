@@ -63,7 +63,7 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
       { title: 'Sub 2' },
     ]);
     // Claim and complete sub-tasks
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
     dag.completeTask(subs[0].id);
     dag.skipTask(subs[1].id);
@@ -76,7 +76,7 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
       { title: 'Sub 1' },
       { title: 'Sub 2' },
     ]);
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     expect(dag.deriveEpicState(epic.id)).toBe('running');
   });
 
@@ -86,7 +86,7 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
       { title: 'Sub 1' },
       { title: 'Sub 2' },
     ]);
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.failTask(subs[0].id);
     expect(dag.deriveEpicState(epic.id)).toBe('failed');
   });
@@ -98,11 +98,11 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
       { title: 'Sub 2' },
     ]);
     // Complete both sub-tasks
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
     dag.completeTask(subs[0].id);
 
-    dag.claimTask(subs[1].id, 'agent-2' as AgentId);
+    dag.delegateTask(subs[1].id, 'agent-2' as AgentId);
     dag.submitTask(subs[1].id);
     dag.completeTask(subs[1].id);
 
@@ -117,7 +117,7 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
       { title: 'Sub 1' },
       { title: 'Sub 2' },
     ]);
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
     dag.completeTask(subs[0].id);
 
@@ -148,7 +148,7 @@ describe('Epic lifecycle (hierarchical DAGs)', () => {
     expect(subs[1].state).toBe('pending');
 
     // Complete first, second should become ready
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
     dag.completeTask(subs[0].id);
 

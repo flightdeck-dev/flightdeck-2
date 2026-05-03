@@ -71,7 +71,7 @@ describe('MCP new tools', () => {
     const result = await callTool(server, 'flightdeck_role_info', { roleId: 'worker' });
     const role = JSON.parse(getText(result));
     expect(role.id).toBe('worker');
-    expect(role.permissions.task_claim).toBe(true);
+    expect(role.permissions.task_submit).toBe(true);
     expect(role.specialists).toEqual([]);
   });
 
@@ -109,7 +109,7 @@ describe('MCP new tools', () => {
   it('task_complete works for reviewer', async () => {
     setCallerAgent('reviewer-1');
     const task = fd.addTask({ title: 'complete me' });
-    fd.claimTask(task.id, 'worker-1' as AgentId);
+    fd.delegateTask(task.id, 'worker-1' as AgentId);
     fd.submitTask(task.id);
     const result = await callTool(server, 'flightdeck_task_complete', { taskId: task.id });
     const data = JSON.parse(getText(result));
@@ -119,7 +119,7 @@ describe('MCP new tools', () => {
   it('task_reopen works for lead', async () => {
     setCallerAgent('lead-1');
     const task = fd.addTask({ title: 'reopen me' });
-    fd.claimTask(task.id, 'worker-1' as AgentId);
+    fd.delegateTask(task.id, 'worker-1' as AgentId);
     fd.submitTask(task.id);
     fd.completeTask(task.id);
     const result = await callTool(server, 'flightdeck_task_reopen', { taskId: task.id });

@@ -295,7 +295,7 @@ export async function handleConfigRoutes(
       const { FD_HOME: fdHome } = await import('../../cli/constants.js');
       const rolesDir = pjoin(fdHome, 'projects', projectName, 'roles');
       mkdirSync(rolesDir, { recursive: true });
-      const frontmatter = `---\nid: ${body.id}\nname: ${body.name}\ndescription: ${body.description ?? ''}\nicon: ${body.icon ?? '🔧'}\ncolor: "${body.color ?? '#888888'}"\npermissions:\n  task_claim: true\n  task_submit: true\n  escalate: true\n---\n`;
+      const frontmatter = `---\nid: ${body.id}\nname: ${body.name}\ndescription: ${body.description ?? ''}\nicon: ${body.icon ?? '🔧'}\ncolor: "${body.color ?? '#888888'}"\npermissions:\n  task_delegate: true\n  task_submit: true\n  escalate: true\n---\n`;
       wtas(pjoin(rolesDir, `${body.id}.md`), frontmatter + (body.instructions ?? `You are a ${body.name} agent. Complete your assigned tasks.`));
       json(201, { success: true, id: body.id });
     } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }

@@ -57,7 +57,7 @@ describe('Orchestrator: Compaction & Retrospective', () => {
 
   it('compacts old completed tasks during tick', async () => {
     const task = dag.addTask({ title: 'Old task', description: 'Long description' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id);
     dag.completeTask(task.id);
     // Backdate updatedAt
@@ -74,7 +74,7 @@ describe('Orchestrator: Compaction & Retrospective', () => {
 
   it('triggers retrospective when spec completes', async () => {
     const t1 = dag.addTask({ title: 'Task 1', specId: 'spec-1' as SpecId });
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id);
 
@@ -87,7 +87,7 @@ describe('Orchestrator: Compaction & Retrospective', () => {
 
   it('does not trigger retrospective twice for same spec', async () => {
     const t1 = dag.addTask({ title: 'Task 1', specId: 'spec-1' as SpecId });
-    dag.claimTask(t1.id, 'agent-1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-1' as AgentId);
     dag.submitTask(t1.id);
     dag.completeTask(t1.id);
 
@@ -116,7 +116,7 @@ describe('Orchestrator: Compaction & Retrospective', () => {
     });
 
     const task = dag.addTask({ title: 'Recent task' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id);
     dag.completeTask(task.id);
 

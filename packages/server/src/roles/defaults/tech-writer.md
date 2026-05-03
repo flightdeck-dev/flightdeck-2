@@ -6,7 +6,6 @@ icon: "📝"
 color: "#7ee787"
 model: claude-sonnet-4
 permissions:
-  task_claim: true
   task_submit: true
   memory_write: true
 ---

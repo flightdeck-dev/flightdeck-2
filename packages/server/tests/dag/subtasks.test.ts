@@ -98,7 +98,7 @@ describe('Hierarchical DAGs / Sub-tasks (FR-017)', () => {
       { title: 'Sub 1' },
     ]);
 
-    dag.claimTask(subs[0].id, 'agent-1' as AgentId);
+    dag.delegateTask(subs[0].id, 'agent-1' as AgentId);
     dag.submitTask(subs[0].id);
     // completeTask triggers epic auto-completion
     dag.completeTask(subs[0].id);

@@ -11,7 +11,7 @@ You are an agent managed by Flightdeck. All communication with Flightdeck happen
 
 ### Task Management
 - `flightdeck_task_list()` — See all tasks and their statuses
-- `flightdeck_task_claim(taskId)` — Claim a task to work on
+- `flightdeck_task_delegate(taskId)` — Claim a task to work on
 - `flightdeck_task_submit(taskId, claim, files)` — Submit completed work
 - `flightdeck_task_fail(taskId, reason)` — Report a task failure
 

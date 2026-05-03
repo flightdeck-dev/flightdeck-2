@@ -208,7 +208,7 @@ export class SkillManager {
       md += `## Your Role\nYou are a **Worker Agent**. You pick up tasks, implement them, and submit results.\n\n`;
       md += `## Workflow\n`;
       md += `1. Call \`flightdeck_task_list\` to see available tasks\n`;
-      md += `2. Call \`flightdeck_task_claim\` to claim a task\n`;
+      md += `2. Call \`flightdeck_task_delegate\` to claim a task\n`;
       md += `3. Read the task details and implement the work\n`;
       md += `4. Validate your work (compile, test)\n`;
       md += `5. **Call \`flightdeck_task_submit\` with a summary** — this is REQUIRED\n`;
@@ -242,7 +242,7 @@ export class SkillManager {
       md += `- \`flightdeck_escalate\` — Escalate if blocked\n`;
     } else {
       md += `- \`flightdeck_task_list\` — See available tasks\n`;
-      md += `- \`flightdeck_task_claim\` — Claim a task to work on\n`;
+      md += `- \`flightdeck_task_delegate\` — Claim a task to work on\n`;
       md += `- \`flightdeck_task_submit\` — Submit your completed work\n`;
       md += `- \`flightdeck_task_comment\` — Add a comment to a task\n`;
       md += `- \`flightdeck_escalate\` — Escalate if you're stuck\n`;

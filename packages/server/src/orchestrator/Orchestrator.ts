@@ -89,6 +89,7 @@ export class Orchestrator {
   private governanceConfig: GovernanceConfig;
   private sessionManager: SessionManager | null;
   private retryCount = new Map<TaskId, number>();
+  private notifiedTaskIds = new Set<string>();
   /** Tracks which specs have had retrospectives triggered. Bounded: entries older than 24h are pruned. */
   private retrospectivesDone = new Map<string, number>();
   private decisionLog: DecisionLog | null;
@@ -620,9 +621,7 @@ export class Orchestrator {
   private autoAssignReadyTasks(): number {
     const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent);
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
-    const usedAgentIds = new Set<string>();
-    let assigned = 0;
-    const maxWorkers = this.config.maxConcurrentWorkers ?? 30;
+    let notified = 0;
 
     for (const task of readyTasks) {
       // Check governance gate
@@ -633,54 +632,36 @@ export class Orchestrator {
         continue;
       }
 
-      const agent = agents.find(a => a.role === task.role && !usedAgentIds.has(a.id) && (!task.runtime || a.runtimeName === task.runtime || a.runtime === task.runtime))
-        ?? agents.find(a => a.role === task.role && !usedAgentIds.has(a.id));
-      if (agent) {
-        // Assign to idle agent
-        try {
-          this.dag.claimTask(task.id, agent.id);
-          log('Orchestrator', `Task "${truncate(task.title, 50)}" (${task.id}) ready → running (assigned to ${agent.id})`);
-          this.store.updateAgentStatus(agent.id, 'busy'); // Pre-mark to prevent double-assignment before steer fires
-          usedAgentIds.add(agent.id);
-          assigned++;
+      // Skip already-notified tasks
+      if (this.notifiedTaskIds.has(task.id)) continue;
 
-          if (this.agentManager && agent.acpSessionId) {
-            const ts = formatTs();
-            const t = task as any;
-            const contextParts = [
-              `[${ts}] [SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})`,
-              t.description ? `\nDescription: ${t.description}` : '',
-              t.acceptanceCriteria ? `\nAcceptance Criteria: ${t.acceptanceCriteria}` : '',
-              t.context ? `\nContext: ${t.context}` : '',
-            ];
-            // Add dependency info
-            if (task.dependsOn?.length) {
-              const depInfos = task.dependsOn.map(depId => {
-                const dep = this.dag.getTask(depId);
-                return dep ? `  - ${dep.title} (${dep.state})` : `  - ${depId}`;
-              });
-              contextParts.push(`\nDependencies:\n${depInfos.join('\n')}`);
-            }
-            contextParts.push('\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.');
-            void this.agentManager.sendToAgent(agent.id as AgentId, contextParts.filter(Boolean).join('')
-            ).catch(() => { /* best effort */ });
-          }
-        } catch { /* Skip */ }
-      } else if (this.leadManager) {
-        // No idle agent — notify Lead/Director that a worker is needed
-        const t2 = task as any;
-        log('Orchestrator', `No idle ${task.role} for task "${task.title}" — notifying Director`);
-        const runtimeHint = task.runtime ? ` Specified runtime: ${task.runtime}.` : '';
-        const modelHint = task.model ? ` Specified model: ${task.model}.` : '';
-        this.leadManager.steerDirector?.(
-          `[SYSTEM] Task "${task.title}" (${task.id}) needs a ${task.role} agent but none are available. ` +
-          `Please spawn one with flightdeck_agent_spawn.${runtimeHint}${modelHint}` +
-          (t2.description ? ` Task description: ${t2.description}` : '')
-        ).catch(() => {});
+      // Notify Director instead of auto-assigning
+      if (this.leadManager) {
+        const t = task as any;
+        const idleForRole = agents.filter(a => a.role === task.role);
+        const idleList = idleForRole.length > 0
+          ? idleForRole.map(a => `${a.id} (${a.role}${a.runtimeName ? ', runtime: ' + a.runtimeName : ''})`).join(', ')
+          : '(none)';
+        const lines = [
+          `[SYSTEM] Task ready for assignment:`,
+          `Task: "${task.title}" (${task.id})`,
+          `Role: ${task.role}`,
+          t.description ? `Description: ${t.description}` : '',
+          task.runtime ? `Runtime: ${task.runtime}` : '',
+          task.model ? `Model: ${task.model}` : '',
+          '',
+          `Assign with: flightdeck_task_delegate("${task.id}", "<agentId>")`,
+          `Or spawn new: flightdeck_agent_spawn({role: "${task.role}", ...})`,
+          `Idle ${task.role} agents: ${idleList}`,
+        ].filter(Boolean).join('\n');
+        this.leadManager.steerDirector?.(lines).catch(() => {});
+        this.notifiedTaskIds.add(task.id);
+        notified++;
+        log('Orchestrator', `Notified Director about ready task "${truncate(task.title, 50)}" (${task.id})`);
       }
     }
 
-    return assigned;
+    return notified;
   }
 
   /**

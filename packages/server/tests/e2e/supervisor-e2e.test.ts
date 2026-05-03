@@ -123,12 +123,12 @@ function createMockRoleRegistry() {
     lead: {
       name: 'Lead',
       instructions: 'You are the lead agent. Coordinate workers and report to supervisor.',
-      permissions: { task_list: true, task_create: true, task_claim: true, escalate: true },
+      permissions: { task_list: true, task_create: true, escalate: true },
     },
     worker: {
       name: 'Worker',
       instructions: 'You are a worker agent. Complete assigned tasks.',
-      permissions: { task_claim: true, task_submit: true },
+      permissions: { task_submit: true },
     },
   };
   return {

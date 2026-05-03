@@ -38,14 +38,15 @@ describe('RoleRegistry', () => {
     expect(registry.hasPermission('lead', 'plan_review')).toBe(true);
     expect(registry.hasPermission('director', 'agent_spawn')).toBe(true);
     expect(registry.hasPermission('worker', 'agent_spawn')).toBe(false);
-    expect(registry.hasPermission('worker', 'task_claim')).toBe(true);
+    expect(registry.hasPermission('worker', 'task_delegate')).toBe(false);
+    expect(registry.hasPermission('director', 'task_delegate')).toBe(true);
     expect(registry.hasPermission('reviewer', 'task_complete')).toBe(true);
     expect(registry.hasPermission('director', 'declare_tasks')).toBe(true);
   });
 
   it('getPermissions returns permissions object', () => {
     const perms = registry.getPermissions('worker');
-    expect(perms.task_claim).toBe(true);
+    expect(perms.task_delegate).toBeUndefined();
     expect(perms.task_submit).toBe(true);
     expect(perms.agent_spawn).toBeUndefined();
   });

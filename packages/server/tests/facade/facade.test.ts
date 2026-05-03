@@ -49,7 +49,7 @@ describe('Flightdeck Facade', () => {
     });
 
     const task = fd.addTask({ title: 'Build feature' });
-    const claimed = fd.claimTask(task.id, 'agent-1' as AgentId);
+    const claimed = fd.delegateTask(task.id, 'agent-1' as AgentId);
     expect(claimed.state).toBe('running');
 
     const submitted = fd.submitTask(task.id);
@@ -85,7 +85,7 @@ describe('Flightdeck Facade', () => {
     fd.addTask({ title: 'A' });
     fd.addTask({ title: 'B' });
     const t = fd.addTask({ title: 'C' });
-    fd.claimTask(t.id, 'agent-1' as AgentId);
+    fd.delegateTask(t.id, 'agent-1' as AgentId);
 
     const stats = fd.getTaskStats();
     expect(stats.ready).toBe(2);

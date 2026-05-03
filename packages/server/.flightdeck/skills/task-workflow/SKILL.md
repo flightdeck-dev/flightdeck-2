@@ -8,7 +8,7 @@ description: The claim → execute → submit workflow for tasks
 ## Standard Flow
 
 1. **Check tasks**: `flightdeck_task_list()` — find tasks in `ready` state
-2. **Claim**: `flightdeck_task_claim(taskId)` — marks the task as yours
+2. **Claim**: `flightdeck_task_delegate(taskId)` — marks the task as yours
 3. **Read context**: Check `.flightdeck/tasks/<taskId>.md` for full task details
 4. **Execute**: Do the work using your own tools (read/write/exec)
 5. **Submit**: `flightdeck_task_submit(taskId, claim, files)` — structured result

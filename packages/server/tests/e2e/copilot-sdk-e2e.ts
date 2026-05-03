@@ -37,7 +37,7 @@ async function main() {
     role: 'worker',
     cwd: '/tmp/fd-e2e-test',
     projectName: 'default',
-    systemPrompt: `You are a worker agent. Use flightdeck_task_list to find tasks, flightdeck_task_claim to claim one, do the work, then flightdeck_task_submit to submit.`,
+    systemPrompt: `You are a worker agent. Use flightdeck_task_list to find tasks, do the work, then flightdeck_task_submit to submit.`,
   });
 
   console.log(`Agent: ${agentId} Session: ${sessionId}`);

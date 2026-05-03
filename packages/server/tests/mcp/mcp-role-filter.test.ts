@@ -24,12 +24,12 @@ describe('toolPermissions', () => {
   it('returns correct tools for each role', () => {
     expect(getToolsForRole('lead')).toContain('flightdeck_plan_review');
     expect(getToolsForRole('lead')).toContain('flightdeck_task_list');
-    expect(getToolsForRole('worker')).toContain('flightdeck_task_claim');
+    expect(getToolsForRole('worker')).not.toContain('flightdeck_task_delegate');
     expect(getToolsForRole('worker')).not.toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('director')).toContain('flightdeck_declare_tasks');
     expect(getToolsForRole('director')).toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('reviewer')).toContain('flightdeck_task_complete');
-    expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_claim');
+    expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_delegate');
   });
 
   it('unknown role gets worker-level access', () => {
@@ -79,7 +79,7 @@ describe('MCP Server role-based tool filtering', () => {
   it('worker role only sees worker tools', () => {
     const server = createMcpServer({ projectName, agentRole: 'worker' });
     const tools = getToolNames(server);
-    expect(tools).toContain('flightdeck_task_claim');
+    expect(tools).not.toContain('flightdeck_task_delegate');
     expect(tools).toContain('flightdeck_task_submit');
     expect(tools).toContain('flightdeck_status');
     expect(tools).not.toContain('flightdeck_agent_spawn');
@@ -101,7 +101,7 @@ describe('MCP Server role-based tool filtering', () => {
     const tools = getToolNames(server);
     expect(tools).toContain('flightdeck_task_complete');
     expect(tools).toContain('flightdeck_task_fail');
-    expect(tools).not.toContain('flightdeck_task_claim');
+    expect(tools).not.toContain('flightdeck_task_delegate');
     expect(tools).not.toContain('flightdeck_agent_spawn');
   });
 
@@ -110,7 +110,7 @@ describe('MCP Server role-based tool filtering', () => {
     const tools = getToolNames(server);
     // Should have all registered tools
     expect(tools).toContain('flightdeck_agent_spawn');
-    expect(tools).toContain('flightdeck_task_claim');
+    expect(tools).toContain('flightdeck_task_delegate');
     expect(tools).toContain('flightdeck_task_complete');
     expect(tools.length).toBeGreaterThan(30);
   });
@@ -120,7 +120,7 @@ describe('MCP Server role-based tool filtering', () => {
     const result = await callTool(server, 'flightdeck_tools_available', {});
     const data = JSON.parse(result.content[0].text);
     expect(data.role).toBe('worker');
-    expect(data.tools).toContain('flightdeck_task_claim');
+    expect(data.tools).not.toContain('flightdeck_task_delegate');
     expect(data.tools).not.toContain('flightdeck_agent_spawn');
   });
 

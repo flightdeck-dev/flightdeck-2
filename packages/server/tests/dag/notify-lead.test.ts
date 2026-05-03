@@ -36,7 +36,7 @@ describe('notifyLead — task completion notification', () => {
 
   it('submitTask with notifyLead: true and needsReview: false calls processEffects with notify_lead_completed', () => {
     const task = dag.addTask({ title: 'Notify test', notifyLead: true, needsReview: false });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
 
     // Spy on the private processEffects via prototype
     const effects: any[] = [];
@@ -54,7 +54,7 @@ describe('notifyLead — task completion notification', () => {
 
   it('submitTask with notifyLead: false does not emit notify_lead_completed', () => {
     const task = dag.addTask({ title: 'Silent test', notifyLead: false, needsReview: false });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
 
     const effects: any[] = [];
     const origProcess = (dag as any).processEffects.bind(dag);
@@ -70,7 +70,7 @@ describe('notifyLead — task completion notification', () => {
 
   it('completeTask with notifyLead: true emits notify_lead_completed', () => {
     const task = dag.addTask({ title: 'Complete notify', notifyLead: true });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id); // goes to in_review
 
     const effects: any[] = [];

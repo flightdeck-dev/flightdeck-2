@@ -37,17 +37,34 @@ export async function handleTaskRoutes(
     return true;
   }
 
-  if (subPath.match(/^\/tasks\/[^/]+\/claim$/) && method === 'POST') {
+  if (subPath.match(/^\/tasks\/[^/]+\/delegate$/) && method === 'POST') {
     const taskId = subPath.split('/')[2];
-    const agentId = req.headers['x-agent-id'] as string;
-    if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return true; }
-    const callerAgent = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
-    if (callerAgent && callerAgent.role !== 'worker') {
-      json(403, { error: `Error: Agent '${agentId}' (role: ${callerAgent.role}) cannot claim tasks. Only worker role can claim tasks.` }); return true;
-    }
+    const body = await readBody();
+    const agentId = body?.agentId || req.headers['x-agent-id'] as string;
+    if (!agentId) { json(400, { error: 'Missing agentId in body or X-Agent-Id header' }); return true; }
     try {
-      const task = fd.claimTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
+      const task = fd.delegateTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      // Steer the assigned agent with task context
+      const am = deps.agentManagers?.get(deps.projectName);
+      if (am) {
+        const t = task as any;
+        const contextParts = [
+          `[SYSTEM] Task assigned: "${task.title}" (ID: ${task.id})`,
+          t.description ? `\nDescription: ${t.description}` : '',
+          t.acceptanceCriteria ? `\nAcceptance Criteria: ${t.acceptanceCriteria}` : '',
+          t.context ? `\nContext: ${t.context}` : '',
+        ];
+        if (task.dependsOn?.length) {
+          const depInfos = task.dependsOn.map(depId => {
+            const dep = fd.dag.getTask(depId);
+            return dep ? `  - ${dep.title} (${dep.state})` : `  - ${depId}`;
+          });
+          contextParts.push(`\nDependencies:\n${depInfos.join('\n')}`);
+        }
+        contextParts.push('\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.');
+        void am.sendToAgent(agentId as import('@flightdeck-ai/shared').AgentId, contextParts.filter(Boolean).join('')).catch(() => {});
+      }
       json(200, task);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -72,7 +89,7 @@ export async function handleTaskRoutes(
       if (msg.includes('not running')) {
         const stateMatch = msg.match(/state:\s*(\w+)/);
         const currentState = stateMatch ? stateMatch[1] : 'unknown';
-        json(400, { error: `Error: Cannot submit task '${taskId}' — current state is '${currentState}', must be 'running'. Did you forget to call flightdeck_task_claim() first?` });
+        json(400, { error: `Error: Cannot submit task '${taskId}' — current state is '${currentState}', must be 'running'. Did you forget to call flightdeck_task_delegate() first?` });
       } else if (msg.includes('Task not found')) {
         json(404, { error: `Error: Task '${taskId}' not found. Use flightdeck_task_list() to see available tasks.` });
       } else {

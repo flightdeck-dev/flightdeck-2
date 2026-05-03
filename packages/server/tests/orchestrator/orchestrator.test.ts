@@ -29,7 +29,8 @@ describe('Orchestrator', () => {
     dag = new TaskDAG(store);
     adapter = new AcpAdapter();
     const gov = new GovernanceEngine(config);
-    orch = new Orchestrator(dag, store, gov, adapter, config);
+    const mockLeadManager = { steerDirector: vi.fn().mockResolvedValue(undefined), steerLead: vi.fn().mockResolvedValue(undefined), steerDirectorEvent: vi.fn() } as any;
+    orch = new Orchestrator(dag, store, gov, adapter, config, undefined, { leadManager: mockLeadManager });
   });
 
   afterEach(() => {
@@ -50,7 +51,7 @@ describe('Orchestrator', () => {
     expect(result.readyTasksAssigned).toBe(1);
   });
 
-  it('does not assign when no idle agents', async () => {
+  it('notifies director even when no idle agents', async () => {
     dag.addTask({ title: 'Ready task', role: 'worker' });
     store.insertAgent({
       id: 'agent-w1' as AgentId,
@@ -59,12 +60,12 @@ describe('Orchestrator', () => {
     });
 
     const result = await orch.tick();
-    expect(result.readyTasksAssigned).toBe(0);
+    expect(result.readyTasksAssigned).toBe(1);
   });
 
   it('skips active ACP sessions (do not disturb)', async () => {
     const task = dag.addTask({ title: 'Working on it', role: 'worker' });
-    dag.claimTask(task.id, 'agent-w1' as AgentId);
+    dag.delegateTask(task.id, 'agent-w1' as AgentId);
     store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-active', task.id);
     store.insertAgent({
@@ -87,7 +88,7 @@ describe('Orchestrator', () => {
 
   it('pings idle ACP session with unsubmitted task', async () => {
     const task = dag.addTask({ title: 'Idle agent task', role: 'worker' });
-    dag.claimTask(task.id, 'agent-w1' as AgentId);
+    dag.delegateTask(task.id, 'agent-w1' as AgentId);
     store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-idle', task.id);
     store.insertAgent({
@@ -112,7 +113,7 @@ describe('Orchestrator', () => {
 
   it('restarts agent when ACP session ended without submit', async () => {
     const task = dag.addTask({ title: 'Crashed task', role: 'worker' });
-    dag.claimTask(task.id, 'agent-w1' as AgentId);
+    dag.delegateTask(task.id, 'agent-w1' as AgentId);
     store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-ended', task.id);
     store.insertAgent({
@@ -148,7 +149,7 @@ describe('Orchestrator', () => {
     expect(t2.state).toBe('pending');
 
     // Complete the first task
-    dag.claimTask(t1.id, 'agent-w1' as AgentId);
+    dag.delegateTask(t1.id, 'agent-w1' as AgentId);
     dag.submitTask(t1.id, 'done');
     dag.completeTask(t1.id);
 
@@ -190,7 +191,7 @@ describe('Orchestrator', () => {
     });
 
     const task = dag.addTask({ title: 'Doomed task', role: 'worker' });
-    dag.claimTask(task.id, 'agent-w1' as AgentId);
+    dag.delegateTask(task.id, 'agent-w1' as AgentId);
     store['db'].$client.prepare('UPDATE tasks SET acp_session_id = ? WHERE id = ?')
       .run('session-dead', task.id);
     store.insertAgent({
@@ -273,7 +274,7 @@ describe('Orchestrator', () => {
         role: 'worker', runtime: 'acp', acpSessionId: null,
         status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
       });
-      dag.claimTask(task.id, 'agent-w1' as AgentId);
+      dag.delegateTask(task.id, 'agent-w1' as AgentId);
       dag.submitTask(task.id);
 
       const updated = dag.getTask(task.id);
@@ -287,7 +288,7 @@ describe('Orchestrator', () => {
         role: 'worker', runtime: 'acp', acpSessionId: null,
         status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
       });
-      dag.claimTask(task.id, 'agent-w2' as AgentId);
+      dag.delegateTask(task.id, 'agent-w2' as AgentId);
       dag.submitTask(task.id);
 
       const updated = dag.getTask(task.id);
@@ -301,7 +302,7 @@ describe('Orchestrator', () => {
         role: 'worker', runtime: 'acp', acpSessionId: null,
         status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
       });
-      dag.claimTask(task.id, 'agent-w3' as AgentId);
+      dag.delegateTask(task.id, 'agent-w3' as AgentId);
       dag.submitTask(task.id);
 
       await orch.tick();
@@ -329,7 +330,7 @@ describe('Orchestrator', () => {
       });
 
       // Complete task A — claim, submit, then mark done
-      dag.claimTask(taskA.id, 'agent-w1' as AgentId);
+      dag.delegateTask(taskA.id, 'agent-w1' as AgentId);
       dag.submitTask(taskA.id);
       // Manually mark done (simulating reviewer approval)
       store.updateTaskState(taskA.id, 'done');
@@ -361,11 +362,11 @@ describe('Orchestrator', () => {
       });
 
       // Complete A and B rapidly (within debounce window)
-      dag.claimTask(taskA.id, 'w1' as AgentId);
+      dag.delegateTask(taskA.id, 'w1' as AgentId);
       dag.submitTask(taskA.id);
       store.updateTaskState(taskA.id, 'done');
 
-      dag.claimTask(taskB.id, 'w2' as AgentId);
+      dag.delegateTask(taskB.id, 'w2' as AgentId);
       dag.submitTask(taskB.id);
       store.updateTaskState(taskB.id, 'done');
 
@@ -390,7 +391,7 @@ describe('Orchestrator', () => {
       orch.start();
       orch.pause();
 
-      dag.claimTask(taskA.id, 'w1' as AgentId);
+      dag.delegateTask(taskA.id, 'w1' as AgentId);
       dag.submitTask(taskA.id);
       store.updateTaskState(taskA.id, 'done');
 

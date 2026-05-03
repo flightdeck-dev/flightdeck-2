@@ -39,6 +39,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_add', 'flightdeck_task_cancel', 'flightdeck_task_reopen',
     'flightdeck_task_pause', 'flightdeck_task_resume', 'flightdeck_task_skip',
     'flightdeck_task_fail', 'flightdeck_task_retry', 'flightdeck_task_complete',
+    'flightdeck_task_delegate',
     'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
     // Agent management (Director spawns and manages ALL agents)
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',
@@ -66,7 +67,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   worker: [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_cancel', 'flightdeck_task_resume',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',
@@ -98,7 +99,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   'qa-tester': [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_resume',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',
@@ -108,7 +109,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   ],
   'tech-writer': [
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_claim', 'flightdeck_task_submit',
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail',
     'flightdeck_send', 'flightdeck_read',
     'flightdeck_search', 'flightdeck_memory_write',

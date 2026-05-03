@@ -126,10 +126,10 @@ describe('Role Separation E2E', () => {
     describe('Lead role', () => {
       const leadTools = getToolsForRole('lead');
 
-      it('does NOT have task_complete, task_submit, task_claim', () => {
+      it('does NOT have task_complete, task_submit, task_delegate', () => {
         expect(leadTools).not.toContain('flightdeck_task_complete');
         expect(leadTools).not.toContain('flightdeck_task_submit');
-        expect(leadTools).not.toContain('flightdeck_task_claim');
+        expect(leadTools).not.toContain('flightdeck_task_delegate');
       });
 
       it('DOES have status, task_list, plan_review, escalate_to_human', () => {
@@ -146,12 +146,8 @@ describe('Role Separation E2E', () => {
     describe('Director role', () => {
       const directorTools = getToolsForRole('director');
 
-      it('does NOT have task_claim, task_submit (those are for workers)', () => {
-        expect(directorTools).not.toContain('flightdeck_task_claim');
-        expect(directorTools).not.toContain('flightdeck_task_submit');
-      });
-
-      it('DOES have task_list, task_add, declare_tasks, task_get, memory_write, escalate, spec_create', () => {
+      it('DOES have task_delegate, task_list, task_add, declare_tasks, task_get, memory_write, escalate, spec_create', () => {
+        expect(directorTools).toContain('flightdeck_task_delegate');
         expect(directorTools).toContain('flightdeck_task_list');
         expect(directorTools).toContain('flightdeck_task_add');
         expect(directorTools).toContain('flightdeck_declare_tasks');
@@ -165,8 +161,8 @@ describe('Role Separation E2E', () => {
     describe('Reviewer role', () => {
       const reviewerTools = getToolsForRole('reviewer');
 
-      it('does NOT have task_claim, task_submit, task_add, agent_spawn', () => {
-        expect(reviewerTools).not.toContain('flightdeck_task_claim');
+      it('does NOT have task_delegate, task_submit, task_add, agent_spawn', () => {
+        expect(reviewerTools).not.toContain('flightdeck_task_delegate');
         expect(reviewerTools).not.toContain('flightdeck_task_submit');
         expect(reviewerTools).not.toContain('flightdeck_task_add');
         expect(reviewerTools).not.toContain('flightdeck_agent_spawn');
@@ -189,8 +185,8 @@ describe('Role Separation E2E', () => {
         expect(workerTools).not.toContain('flightdeck_declare_tasks');
       });
 
-      it('DOES have task_claim, task_submit, task_fail, escalate', () => {
-        expect(workerTools).toContain('flightdeck_task_claim');
+      it('DOES have task_submit, task_fail, escalate (but NOT task_delegate)', () => {
+        expect(workerTools).not.toContain('flightdeck_task_delegate');
         expect(workerTools).toContain('flightdeck_task_submit');
         expect(workerTools).toContain('flightdeck_task_fail');
         expect(workerTools).toContain('flightdeck_escalate');
@@ -575,7 +571,7 @@ describe('Role Separation E2E', () => {
       expect(['pending', 'blocked']).toContain(dag.getTask(taskD.id)!.state);
 
       // --- Task A: claim → submit → review approve → done ---
-      dag.claimTask(taskA.id, 'worker-1' as AgentId);
+      dag.delegateTask(taskA.id, 'worker-1' as AgentId);
       expect(dag.getTask(taskA.id)!.state).toBe('running');
 
       dag.submitTask(taskA.id);
@@ -600,7 +596,7 @@ describe('Role Separation E2E', () => {
       // Either 'ready' or 'blocked' — if blocked, tick should fix it
 
       // --- Task B: claim → submit → approve → done ---
-      dag.claimTask(taskB.id, 'worker-2' as AgentId);
+      dag.delegateTask(taskB.id, 'worker-2' as AgentId);
       dag.submitTask(taskB.id);
       store.updateTaskState(taskB.id, 'done');
 
@@ -624,7 +620,7 @@ describe('Role Separation E2E', () => {
       if (dag.getTask(taskC.id)!.state !== 'ready') {
         store.updateTaskState(taskC.id, 'ready');
       }
-      dag.claimTask(taskC.id, 'worker-1' as AgentId);
+      dag.delegateTask(taskC.id, 'worker-1' as AgentId);
       dag.submitTask(taskC.id);
       store.updateTaskState(taskC.id, 'done');
 
@@ -647,7 +643,7 @@ describe('Role Separation E2E', () => {
       if (dag.getTask(taskD.id)!.state !== 'ready') {
         store.updateTaskState(taskD.id, 'ready');
       }
-      dag.claimTask(taskD.id, 'worker-2' as AgentId);
+      dag.delegateTask(taskD.id, 'worker-2' as AgentId);
       dag.submitTask(taskD.id);
       store.updateTaskState(taskD.id, 'done');
 

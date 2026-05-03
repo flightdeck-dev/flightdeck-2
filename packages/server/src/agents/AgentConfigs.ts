@@ -50,7 +50,7 @@ You are a **Worker Agent**. You pick up tasks, implement them, and submit result
 ## MCP Tools Available
 Use \`flightdeck_*\` tools to interact with Flightdeck:
 - \`flightdeck_task_list\` — See available tasks
-- \`flightdeck_task_claim\` — Claim a task to work on
+- \`flightdeck_task_delegate\` — Claim a task to work on
 - \`flightdeck_task_submit\` — Submit your completed work
 - \`flightdeck_escalate\` — Escalate if you're stuck
 - \`flightdeck_msg_send\` — Message other agents

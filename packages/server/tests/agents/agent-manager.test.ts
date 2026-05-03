@@ -157,14 +157,13 @@ describe('buildSystemPrompt', () => {
       roleInstructions: 'Write clean code.',
       agentId: 'worker-123',
       projectName: 'my-project',
-      permissions: { task_claim: true, task_submit: true, memory_write: true },
+      permissions: { task_submit: true, task_fail: true, memory_write: true },
     });
 
     expect(prompt).toContain('Worker agent');
     expect(prompt).toContain('worker-123');
     expect(prompt).toContain('my-project');
     expect(prompt).toContain('Write clean code.');
-    expect(prompt).toContain('flightdeck_task_claim');
     expect(prompt).toContain('flightdeck_task_submit');
     expect(prompt).toContain('flightdeck_memory_write');
   });
@@ -175,10 +174,10 @@ describe('buildSystemPrompt', () => {
       roleInstructions: '',
       agentId: 'w-1',
       projectName: 'p',
-      permissions: { task_claim: true, agent_spawn: false },
+      permissions: { task_submit: true, agent_spawn: false },
     });
 
-    expect(prompt).toContain('flightdeck_task_claim');
+    expect(prompt).toContain('flightdeck_task_submit');
     expect(prompt).not.toContain('flightdeck_agent_spawn');
   });
 });

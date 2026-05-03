@@ -142,15 +142,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
-      name: 'flightdeck_task_claim',
-      description: 'Claim a ready task to work on.',
+      name: 'flightdeck_task_delegate',
+      description: 'Delegate a ready task to a specific agent.',
       parameters: {
         type: 'object',
-        properties: { taskId: { type: 'string', description: 'Task ID to claim' } },
-        required: ['taskId'],
+        properties: {
+          taskId: { type: 'string', description: 'Task ID to delegate' },
+          agentId: { type: 'string', description: 'Agent ID to assign the task to' },
+        },
+        required: ['taskId', 'agentId'],
       },
-      handler: async (args: { taskId: string }) => {
-        return JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/claim`));
+      handler: async (args: { taskId: string; agentId: string }) => {
+        return JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/delegate`, { agentId: args.agentId }));
       },
       skipPermission: true,
     });

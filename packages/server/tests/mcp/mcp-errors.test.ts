@@ -68,29 +68,15 @@ describe('MCP Server Error Messages', () => {
     expect(text).toContain('flightdeck_escalate');
   });
 
-  it('task_claim rejects non-worker with helpful message', async () => {
-    setCallerAgent('agent-lead-1');
+  it('task_delegate on non-existent task gives helpful message', async () => {
+    setCallerAgent('agent-director-1');
     const server = createMcpServer(projectName);
-    const task = fd.addTask({ title: 'claimable' });
-    const result = await callTool(server, 'flightdeck_task_claim', {
-      taskId: task.id,
-    });
-    const text = result.content[0].text;
-    expect(text).toContain('agent-lead-1');
-    expect(text).toContain('lead');
-    expect(text).toContain('worker');
-  });
-
-  it('task_claim on non-existent task gives helpful message', async () => {
-    setCallerAgent('agent-worker-1');
-    const server = createMcpServer(projectName);
-    const result = await callTool(server, 'flightdeck_task_claim', {
+    const result = await callTool(server, 'flightdeck_task_delegate', {
       taskId: 'nonexistent-task',
+      agentId: 'agent-worker-1',
     });
     const text = result.content[0].text;
     expect(text).toContain('nonexistent-task');
-    expect(text).toContain('not found');
-    expect(text).toContain('flightdeck_task_list');
   });
 
   it('task_submit on wrong state gives helpful message', async () => {
@@ -103,7 +89,7 @@ describe('MCP Server Error Messages', () => {
     const text = result.content[0].text;
     expect(text).toContain('ready');
     expect(text).toContain('running');
-    expect(text).toContain('flightdeck_task_claim');
+    expect(text).toContain('flightdeck_task_delegate');
   });
 
   it('unknown agentId gives helpful message', async () => {

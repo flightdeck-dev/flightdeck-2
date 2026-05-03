@@ -24,7 +24,7 @@ describe('Task Compaction (FR-015)', () => {
 
   it('compacts a completed task', () => {
     const task = dag.addTask({ title: 'Build feature', description: 'Long description here with many details' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id);
     dag.completeTask(task.id);
 
@@ -35,7 +35,7 @@ describe('Task Compaction (FR-015)', () => {
 
   it('uses default summary when none provided', () => {
     const task = dag.addTask({ title: 'My Task' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id);
     dag.completeTask(task.id);
 
@@ -46,14 +46,14 @@ describe('Task Compaction (FR-015)', () => {
 
   it('refuses to compact non-terminal tasks', () => {
     const task = dag.addTask({ title: 'Running task' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
 
     expect(() => dag.compactTask(task.id)).toThrow('not in a terminal state');
   });
 
   it('compacts failed tasks', () => {
     const task = dag.addTask({ title: 'Failed task' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.failTask(task.id);
 
     const compacted = dag.compactTask(task.id);
@@ -62,7 +62,7 @@ describe('Task Compaction (FR-015)', () => {
 
   it('persists compactedAt in store', () => {
     const task = dag.addTask({ title: 'Persist test' });
-    dag.claimTask(task.id, 'agent-1' as AgentId);
+    dag.delegateTask(task.id, 'agent-1' as AgentId);
     dag.submitTask(task.id);
     dag.completeTask(task.id);
     dag.compactTask(task.id, 'done');
