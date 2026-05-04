@@ -19,7 +19,7 @@ export async function handleAgentRoutes(
   }
 
   if (subPath === '/agents/spawn' && method === 'POST') {
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available for this project' }); return true; }
     try {
       const body = await readBody();
@@ -59,7 +59,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/terminate$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const agent = fd.sqlite.getAgent(agentId as any);
@@ -75,7 +75,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/restart$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const restarted = await am.restartAgent(agentId as import('@flightdeck-ai/shared').AgentId);
@@ -86,7 +86,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/interrupt$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const body = await readBody();
@@ -103,7 +103,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/send$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const body = await readBody();
@@ -120,7 +120,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/hibernate$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       await am.hibernateAgent(agentId as import('@flightdeck-ai/shared').AgentId);
@@ -131,7 +131,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/wake$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const woken = await am.wakeAgent(agentId as import('@flightdeck-ai/shared').AgentId);
@@ -142,7 +142,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/retire$/) && method === 'POST') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const agent = fd.sqlite.getAgent(agentId as any);
@@ -167,7 +167,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/model$/) && method === 'PUT') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     try {
       const body = await readBody();
@@ -182,7 +182,7 @@ export async function handleAgentRoutes(
 
   if (subPath.match(/^\/agents\/[^/]+\/output$/) && method === 'GET') {
     const agentId = subPath.split('/')[2];
-    const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+    const am = deps.agentManagers.get(projectName)!;
     if (!am) { json(500, { error: 'No AgentManager available' }); return true; }
     const tail = parseInt(url.searchParams.get('tail') ?? '50', 10) || 50;
     try {

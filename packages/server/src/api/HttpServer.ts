@@ -26,7 +26,7 @@ export interface WsBroadcaster {
 export interface HttpServerDeps {
   projectManager: ProjectManager;
   leadManagers: Map<string, LeadManager>;
-  agentManagers?: Map<string, AgentManager>;
+  agentManagers: Map<string, AgentManager>;
   port: number;
   corsOrigin: string;
   wsServers: Map<string, WsBroadcaster>;

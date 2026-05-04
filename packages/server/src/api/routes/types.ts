@@ -17,7 +17,7 @@ export interface GlobalRouteDeps {
 export interface ProjectRouteDeps {
   projectManager: ProjectManager;
   leadManagers: Map<string, LeadManager>;
-  agentManagers?: Map<string, AgentManager>;
+  agentManagers: Map<string, AgentManager>;
   wsServers: Map<string, WsBroadcaster>;
   webhookNotifiers?: Map<string, WebhookNotifier>;
   cronStores?: Map<string, CronStore>;
@@ -40,7 +40,7 @@ export interface ProjectScopedDeps {
   wsServer: WsBroadcaster | undefined;
   leadManager: LeadManager | undefined;
   notifier: WebhookNotifier | undefined;
-  agentManagers?: Map<string, AgentManager>;
+  agentManagers: Map<string, AgentManager>;
   leadManagers: Map<string, LeadManager>;
   cronStores?: Map<string, CronStore>;
   modelCfgCache: Map<string, any>;

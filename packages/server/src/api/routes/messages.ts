@@ -260,7 +260,7 @@ export async function handleMessageRoutes(
             }).catch(() => {});
           }
         } else {
-          const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+          const am = deps.agentManagers.get(projectName)!;
           if (am) {
             const targetAgent = fd.sqlite.getAgent(targetTo as import('@flightdeck-ai/shared').AgentId);
             if (targetAgent?.acpSessionId) {
@@ -282,7 +282,7 @@ export async function handleMessageRoutes(
         // Push to all subscribers of this channel (excluding sender)
         if (fd.messages) {
           const subscribers = fd.messages.getSubscribers(body.channel as string);
-          const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+          const am = deps.agentManagers.get(projectName)!;
           if (am) {
             for (const sub of subscribers) {
               if (sub === agentId) continue; // don't echo to sender
