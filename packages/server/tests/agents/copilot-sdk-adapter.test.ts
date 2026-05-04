@@ -114,7 +114,7 @@ describe('CopilotSdkAdapter', () => {
 
   describe('tool handler HTTP calls', () => {
     function mockJsonResponse(data: unknown) {
-      mockFetch.mockResolvedValueOnce({ json: async () => data });
+      mockFetch.mockResolvedValueOnce({ text: async () => JSON.stringify(data), ok: true, status: 200 });
     }
 
     it('task_list calls GET /tasks', async () => {
@@ -204,7 +204,7 @@ describe('CopilotSdkAdapter', () => {
 
   describe('HTTP headers', () => {
     function mockJsonResponse(data: unknown) {
-      mockFetch.mockResolvedValueOnce({ json: async () => data });
+      mockFetch.mockResolvedValueOnce({ text: async () => JSON.stringify(data), ok: true, status: 200 });
     }
 
     it('all requests include X-Agent-Id and X-Agent-Role headers', async () => {

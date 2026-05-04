@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `reply_to_id` text,
   `attachments` text,
   `channel_id` text,
+  `mentions` text,
   `created_at` text NOT NULL,
   `updated_at` text
 );
@@ -216,4 +217,12 @@ CREATE TABLE IF NOT EXISTS `saved_sessions` (
   `model` text,
   `status` text NOT NULL DEFAULT 'hibernated',
   `saved_at` text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS `channels` (
+  `name` text PRIMARY KEY,
+  `description` text,
+  `archived` integer NOT NULL DEFAULT 0,
+  `created_by` text,
+  `created_at` text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );

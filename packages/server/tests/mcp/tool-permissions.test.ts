@@ -4,18 +4,23 @@ import { getToolsForRole, ROLE_TOOLS } from '../../src/mcp/toolPermissions.js';
 describe('toolPermissions', () => {
   it('returns correct tools for known roles', () => {
     expect(getToolsForRole('lead')).toBe(ROLE_TOOLS.lead);
-    expect(getToolsForRole('worker')).toBe(ROLE_TOOLS.worker);
-    expect(getToolsForRole('reviewer')).toBe(ROLE_TOOLS.reviewer);
     expect(getToolsForRole('director')).toBe(ROLE_TOOLS.director);
   });
 
-  it('falls back to worker tools for unknown roles', () => {
-    expect(getToolsForRole('unknown-role')).toBe(ROLE_TOOLS.worker);
-    expect(getToolsForRole('')).toBe(ROLE_TOOLS.worker);
+  it('all non-lead/non-director roles fall back to agent tools', () => {
+    expect(getToolsForRole('worker')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('reviewer')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('scout')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('product-thinker')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('qa-tester')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('tech-writer')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('unknown-role')).toBe(ROLE_TOOLS.agent);
+    expect(getToolsForRole('')).toBe(ROLE_TOOLS.agent);
   });
 
-  it('lead has at least as many tools as worker', () => {
-    expect(ROLE_TOOLS.lead.length).toBeGreaterThanOrEqual(ROLE_TOOLS.worker.length);
+  it('director has the most tools', () => {
+    expect(ROLE_TOOLS.director.length).toBeGreaterThanOrEqual(ROLE_TOOLS.lead.length);
+    expect(ROLE_TOOLS.director.length).toBeGreaterThanOrEqual(ROLE_TOOLS.agent.length);
   });
 
   it('all roles include flightdeck_status', () => {
@@ -30,24 +35,18 @@ describe('toolPermissions', () => {
     }
   });
 
-  it('most roles include flightdeck_escalate', () => {
+  it('non-lead roles include flightdeck_escalate', () => {
     // Lead uses escalate_to_human instead of escalate
-    const rolesWithEscalate = Object.entries(ROLE_TOOLS).filter(([role]) => role !== 'lead');
-    for (const [role, tools] of rolesWithEscalate) {
-      expect(tools, `${role} should have flightdeck_escalate`).toContain('flightdeck_escalate');
-    }
+    expect(ROLE_TOOLS.director).toContain('flightdeck_escalate');
+    expect(ROLE_TOOLS.agent).toContain('flightdeck_escalate');
   });
 
   it('lead and director have correct agent management split', () => {
-    // Director manages agents (spawn/terminate)
     expect(ROLE_TOOLS.director).toContain('flightdeck_agent_spawn');
     expect(ROLE_TOOLS.director).toContain('flightdeck_agent_terminate');
-    // Lead can view but not manage agents directly
     expect(ROLE_TOOLS.lead).toContain('flightdeck_agent_list');
     expect(ROLE_TOOLS.lead).not.toContain('flightdeck_agent_spawn');
-    // Workers/reviewers can't manage agents
-    expect(ROLE_TOOLS.worker).not.toContain('flightdeck_agent_spawn');
-    expect(ROLE_TOOLS.reviewer).not.toContain('flightdeck_agent_spawn');
+    expect(ROLE_TOOLS.agent).not.toContain('flightdeck_agent_spawn');
   });
 
   it('lead has plan approval tools', () => {
@@ -55,23 +54,24 @@ describe('toolPermissions', () => {
     expect(ROLE_TOOLS.director).not.toContain('flightdeck_plan_review');
   });
 
-  it('worker can claim and submit tasks', () => {
-    expect(ROLE_TOOLS.worker).not.toContain('flightdeck_task_delegate');
+  it('agent can submit and complete tasks', () => {
+    expect(ROLE_TOOLS.agent).not.toContain('flightdeck_task_delegate');
     expect(ROLE_TOOLS.director).toContain('flightdeck_task_delegate');
-    expect(ROLE_TOOLS.worker).toContain('flightdeck_task_submit');
-  });
-
-  it('reviewer can complete and fail tasks', () => {
-    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_complete');
-    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_fail');
-    expect(ROLE_TOOLS.reviewer).toContain('flightdeck_task_get');
+    expect(ROLE_TOOLS.agent).toContain('flightdeck_task_submit');
+    expect(ROLE_TOOLS.agent).toContain('flightdeck_task_complete');
+    expect(ROLE_TOOLS.agent).toContain('flightdeck_task_fail');
+    expect(ROLE_TOOLS.agent).toContain('flightdeck_task_get');
   });
 
   it('lead does NOT have task_complete (reviews are automated)', () => {
     expect(ROLE_TOOLS.lead).not.toContain('flightdeck_task_complete');
   });
 
-  it('lead does NOT have task_submit (that is for workers)', () => {
+  it('lead does NOT have task_submit (that is for agents)', () => {
     expect(ROLE_TOOLS.lead).not.toContain('flightdeck_task_submit');
+  });
+
+  it('only 3 permission tiers exist', () => {
+    expect(Object.keys(ROLE_TOOLS).sort()).toEqual(['agent', 'director', 'lead']);
   });
 });

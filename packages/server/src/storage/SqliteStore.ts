@@ -60,6 +60,9 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('messages', 'reply_to_id', 'text');
     this.addColumnIfMissing('messages', 'attachments', 'text');
     this.addColumnIfMissing('messages', 'channel_id', 'text');
+    this.addColumnIfMissing('messages', 'mentions', 'text');
+    // Create channels registry table
+    try { this._db.run(sql.raw(`CREATE TABLE IF NOT EXISTS channels (name TEXT PRIMARY KEY, description TEXT, archived INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))`)); } catch {}
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}

@@ -42,7 +42,7 @@
     "@agentclientprotocol/claude-agent-acp": "^0.31.0",
     "@agentclientprotocol/sdk": "^0.18.2",
     "@flightdeck-ai/shared": "workspace:*",
-    "@github/copilot-sdk": "^0.2.2",
+    "@github/copilot-sdk": "1.0.0-beta.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/ws": "^8.18.1",
     "@zed-industries/codex-acp": "^0.12.0",

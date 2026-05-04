@@ -1,8 +1,11 @@
 /**
  * Per-role MCP tool filtering.
  *
- * Each role only sees the tools it needs, reducing context waste
- * and tool misselection. Unknown roles default to worker-level access.
+ * Three permission tiers:
+ *   - lead: Lead-specific tools (plan review, suggestions, etc.)
+ *   - director: Director-specific tools (task/agent management, spawning, etc.)
+ *   - agent: Universal agent toolset (union of all non-lead/non-director capabilities).
+ *            All user-defined roles (worker, reviewer, scout, qa-tester, etc.) use this set.
  *
  * The env var FLIGHTDECK_AGENT_ROLE is injected at spawn time by AcpAdapter.
  */
@@ -11,6 +14,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   lead: [
     // Communication
     'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
+    'flightdeck_channel_create', 'flightdeck_channel_archive', 'flightdeck_broadcast', 'flightdeck_my_subscriptions',
     // Status & search (for answering user questions)
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context',
@@ -53,6 +57,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_model_list', 'flightdeck_model_config',
     // Communication
     'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
+    'flightdeck_channel_create', 'flightdeck_channel_archive', 'flightdeck_broadcast', 'flightdeck_my_subscriptions',
     // Search & memory
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_memory_read', 'flightdeck_memory_log',
@@ -68,73 +73,39 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
     'flightdeck_tools_available',
   ],
-  worker: [
+  agent: [
+    // Status
     'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
+    // Tasks (union of worker + reviewer capabilities)
+    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get',
+    'flightdeck_task_submit', 'flightdeck_task_complete',
     'flightdeck_task_fail', 'flightdeck_task_cancel', 'flightdeck_task_resume',
     'flightdeck_task_comment',
+    // Communication
     'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
+    'flightdeck_my_subscriptions',
+    // Search & memory
     'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_learning_add',
-    'flightdeck_decision_log',
-    'flightdeck_cron_list',
-    'flightdeck_tools_available',
-  ],
-  reviewer: [
-    'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_complete', 'flightdeck_task_fail',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
-    'flightdeck_search',
+    // Specs (for product-thinker, tech-writer, scout)
+    'flightdeck_spec_list',
+    // Decisions
     'flightdeck_decision_log', 'flightdeck_decision_list',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_cron_list',
-    'flightdeck_tools_available',
-  ],
-  'product-thinker': [
-    'flightdeck_status',
-    'flightdeck_spec_list',
-    'flightdeck_task_list', 'flightdeck_task_context',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
-    'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_decision_log', 'flightdeck_decision_list',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_tools_available',
-  ],
-  'qa-tester': [
-    'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
-    'flightdeck_task_fail', 'flightdeck_task_resume',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
-    'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_learning_add',
-    'flightdeck_tools_available',
-  ],
-  'tech-writer': [
-    'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
-    'flightdeck_task_fail',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
-    'flightdeck_search', 'flightdeck_memory_write',
-    'flightdeck_spec_list',
-    'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    'flightdeck_tools_available',
-  ],
-  scout: [
-    'flightdeck_status',
-    'flightdeck_task_list', 'flightdeck_task_context',
-    'flightdeck_spec_list',
-    'flightdeck_search',
-    'flightdeck_decision_list',
-    'flightdeck_learning_search',
+    // Learnings
+    'flightdeck_learning_add', 'flightdeck_learning_search',
+    // Suggestions (scout)
     'flightdeck_suggestion_list',
+    // Escalation & file locks
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
+    // Scheduling (read-only)
+    'flightdeck_cron_list',
+    // Utilities
     'flightdeck_tools_available',
   ],
 };
 
-/** Get allowed tools for a role. Unknown roles get worker-level access. */
+/** Get allowed tools for a role. Only "lead" and "director" have dedicated sets; all others use "agent". */
 export function getToolsForRole(role: string): string[] {
-  return ROLE_TOOLS[role] ?? ROLE_TOOLS.worker;
+  if (role === 'lead') return ROLE_TOOLS.lead;
+  if (role === 'director') return ROLE_TOOLS.director;
+  return ROLE_TOOLS.agent;
 }

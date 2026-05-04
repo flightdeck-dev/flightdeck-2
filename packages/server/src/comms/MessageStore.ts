@@ -1,5 +1,5 @@
 import { eq, desc, and, lt, gt, isNotNull, sql } from 'drizzle-orm';
-import { messages, readState, channelSubscriptions } from '../db/schema.js';
+import { messages, readState, channelSubscriptions, channels } from '../db/schema.js';
 import type { FlightdeckDatabase } from '../db/database.js';
 import { messageId } from '@flightdeck-ai/shared';
 
@@ -21,6 +21,8 @@ export interface ChatMessage {
   replyPreview?: string | null;
   attachments?: Array<{ url: string; filename: string; mimeType: string; size: number }> | null;
   channelId?: string | null;
+  mentions?: string[] | null;
+  mentioned?: boolean; // flag when reading: true if the reader is mentioned
   createdAt: string;
   updatedAt: string | null;
 }
@@ -28,7 +30,7 @@ export interface ChatMessage {
 export class MessageStore {
   constructor(private db: FlightdeckDatabase) {}
 
-  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient' | 'replyPreview'> & { id?: string; channel?: string | null; recipient?: string | null; source?: string | null; senderId?: string | null; senderName?: string | null; replyToId?: string | null; attachments?: any[] | null; channelId?: string | null }): ChatMessage {
+  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient' | 'replyPreview' | 'mentioned'> & { id?: string; channel?: string | null; recipient?: string | null; source?: string | null; senderId?: string | null; senderName?: string | null; replyToId?: string | null; attachments?: any[] | null; channelId?: string | null; mentions?: string[] | null }): ChatMessage {
     const now = new Date().toISOString();
     const id = msg.id ?? messageId(msg.authorId ?? 'anon', now, Math.random().toString());
     const record: ChatMessage = {
@@ -48,14 +50,16 @@ export class MessageStore {
       replyToId: (msg as any).replyToId ?? null,
       attachments: (msg as any).attachments ?? null,
       channelId: (msg as any).channelId ?? null,
+      mentions: (msg as any).mentions ?? null,
       createdAt: now,
       updatedAt: null,
     };
-    // Store parentIds and attachments as JSON strings for SQLite
+    // Store parentIds, attachments, and mentions as JSON strings for SQLite
     const dbRecord = {
       ...record,
       parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null,
       attachments: record.attachments ? JSON.stringify(record.attachments) : null,
+      mentions: record.mentions ? JSON.stringify(record.mentions) : null,
     } as any;
     delete dbRecord.replyPreview;
     try {
@@ -93,12 +97,15 @@ export class MessageStore {
     return msg;
   }
 
-  /** Parse parentIds and attachments from JSON string back to array */
-  private hydrateMessage(row: any): ChatMessage {
+  /** Parse parentIds, attachments, and mentions from JSON string back to array */
+  private hydrateMessage(row: any, readerId?: string): ChatMessage {
+    const mentions = row.mentions ? JSON.parse(row.mentions) : null;
     return {
       ...row,
       parentIds: row.parentIds ? JSON.parse(row.parentIds) : null,
       attachments: row.attachments ? JSON.parse(row.attachments) : null,
+      mentions,
+      mentioned: readerId && mentions ? mentions.includes(readerId) : undefined,
     };
   }
 
@@ -192,7 +199,7 @@ export class MessageStore {
 
   // ── Channel messages ─────────────────────────────────────────────────
 
-  appendChannelMessage(channel: string, msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'replyPreview'>): ChatMessage {
+  appendChannelMessage(channel: string, msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'replyPreview' | 'mentioned'>): ChatMessage {
     const result = this.createMessage({ ...msg, channel, recipient: null });
     // Auto-subscribe the sender
     if (msg.authorId) {
@@ -201,7 +208,7 @@ export class MessageStore {
     return result;
   }
 
-  listChannelMessages(channel: string, since?: string, limit?: number): ChatMessage[] {
+  listChannelMessages(channel: string, since?: string, limit?: number, readerId?: string): ChatMessage[] {
     const conditions = [eq(messages.channel, channel)];
     if (since) conditions.push(gt(messages.createdAt, since));
     const rows = this.db
@@ -211,16 +218,55 @@ export class MessageStore {
       .orderBy(desc(messages.createdAt))
       .limit(limit ?? 100)
       .all();
-    return this.attachReplyPreviews(rows.map(r => this.hydrateMessage(r as any)));
+    return this.attachReplyPreviews(rows.map(r => this.hydrateMessage(r as any, readerId)));
   }
 
-  listChannels(): string[] {
-    const rows = this.db
+  listChannels(includeArchived = false): string[] {
+    // Get channels from messages
+    const msgRows = this.db
       .selectDistinct({ channel: messages.channel })
       .from(messages)
       .where(isNotNull(messages.channel))
       .all();
-    return rows.map(r => r.channel!).filter(Boolean);
+    const fromMessages = new Set(msgRows.map(r => r.channel!).filter(Boolean));
+
+    // Get channels from registry
+    const conditions = includeArchived ? undefined : eq(channels.archived, false);
+    const registeredRows = this.db.select({ name: channels.name }).from(channels).where(conditions).all();
+    for (const r of registeredRows) fromMessages.add(r.name);
+
+    // Filter out archived channels (from registry) unless includeArchived
+    if (!includeArchived) {
+      const archivedRows = this.db.select({ name: channels.name }).from(channels).where(eq(channels.archived, true)).all();
+      const archivedSet = new Set(archivedRows.map(r => r.name));
+      for (const ch of archivedSet) fromMessages.delete(ch);
+    }
+
+    return [...fromMessages];
+  }
+
+  // ── Channel Registry ────────────────────────────────────────────
+
+  createChannel(name: string, opts?: { description?: string; createdBy?: string }): { name: string; description: string | null; archived: boolean } {
+    const now = new Date().toISOString();
+    this.db.insert(channels)
+      .values({ name, description: opts?.description ?? null, createdBy: opts?.createdBy ?? null, createdAt: now })
+      .onConflictDoNothing()
+      .run();
+    return { name, description: opts?.description ?? null, archived: false };
+  }
+
+  archiveChannel(name: string): boolean {
+    const result = this.db.update(channels)
+      .set({ archived: true })
+      .where(eq(channels.name, name))
+      .run();
+    return (result as any).changes > 0;
+  }
+
+  getChannel(name: string): { name: string; description: string | null; archived: boolean; createdBy: string | null } | null {
+    const row = this.db.select().from(channels).where(eq(channels.name, name)).get();
+    return row ?? null;
   }
 
   // ── Channel Subscriptions ─────────────────────────────────────────────

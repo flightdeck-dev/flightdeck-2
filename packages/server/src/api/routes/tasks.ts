@@ -41,12 +41,13 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     const body = await readBody();
     const agentId = body?.agentId || req.headers['x-agent-id'] as string;
+    const delegateContext = body?.context as string | undefined;
     if (!agentId) { json(400, { error: 'Missing agentId in body or X-Agent-Id header' }); return true; }
     try {
       const task = fd.delegateTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       // Steer the assigned agent with task context
-      const am = deps.agentManagers?.get(deps.projectName);
+      const am = deps.agentManagers?.get(deps.projectName) ?? fd.agentManager;
       if (am) {
         const t = task as any;
         const contextParts = [
@@ -54,6 +55,7 @@ export async function handleTaskRoutes(
           t.description ? `\nDescription: ${t.description}` : '',
           t.acceptanceCriteria ? `\nAcceptance Criteria: ${t.acceptanceCriteria}` : '',
           t.context ? `\nContext: ${t.context}` : '',
+          delegateContext ? `\nAdditional context: ${delegateContext}` : '',
         ];
         if (task.dependsOn?.length) {
           const depInfos = task.dependsOn.map(depId => {

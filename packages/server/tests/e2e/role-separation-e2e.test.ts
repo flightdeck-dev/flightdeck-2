@@ -158,12 +158,11 @@ describe('Role Separation E2E', () => {
       });
     });
 
-    describe('Reviewer role', () => {
+    describe('Reviewer role (maps to agent)', () => {
       const reviewerTools = getToolsForRole('reviewer');
 
-      it('does NOT have task_delegate, task_submit, task_add, agent_spawn', () => {
+      it('does NOT have task_delegate, task_add, agent_spawn', () => {
         expect(reviewerTools).not.toContain('flightdeck_task_delegate');
-        expect(reviewerTools).not.toContain('flightdeck_task_submit');
         expect(reviewerTools).not.toContain('flightdeck_task_add');
         expect(reviewerTools).not.toContain('flightdeck_agent_spawn');
       });
@@ -176,11 +175,10 @@ describe('Role Separation E2E', () => {
       });
     });
 
-    describe('Worker role', () => {
+    describe('Worker role (maps to agent)', () => {
       const workerTools = getToolsForRole('worker');
 
-      it('does NOT have task_complete, agent_spawn, declare_tasks', () => {
-        expect(workerTools).not.toContain('flightdeck_task_complete');
+      it('does NOT have agent_spawn, declare_tasks', () => {
         expect(workerTools).not.toContain('flightdeck_agent_spawn');
         expect(workerTools).not.toContain('flightdeck_declare_tasks');
       });
@@ -193,12 +191,12 @@ describe('Role Separation E2E', () => {
       });
     });
 
-    it('unknown role falls back to worker tools', () => {
-      expect(getToolsForRole('nonexistent')).toEqual(ROLE_TOOLS.worker);
+    it('unknown role falls back to agent tools', () => {
+      expect(getToolsForRole('nonexistent')).toEqual(ROLE_TOOLS.agent);
     });
 
     it('no role has ALL tools — separation is real', () => {
-      const allRoles = ['lead', 'director', 'reviewer', 'worker'];
+      const allRoles = ['lead', 'director', 'agent'];
       for (const a of allRoles) {
         for (const b of allRoles) {
           if (a === b) continue;

@@ -242,14 +242,15 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_delegate', 'Delegate a ready task to a specific agent', {
+  server.tool('flightdeck_task_delegate', 'Delegate a ready task to a specific agent, optionally with additional context for the worker', {
     taskId: z.string(),
     agentId: z.string(),
+    context: z.string().optional().describe('Additional context or instructions to attach when delegating'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
-      const task = await client.delegateTask(params.taskId, params.agentId);
+      const task = await client.delegateTask(params.taskId, params.agentId, params.context);
       return jsonResponse(task);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
@@ -649,6 +650,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     taskId: z.string().optional().describe('Task ID to post a comment on'),
     parentId: z.string().optional().describe('Message ID to reply to (quote)'),
     content: z.string(),
+    mentions: z.array(z.string()).optional().describe('Array of agent IDs to mention/notify'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
@@ -759,6 +761,57 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     try {
       const info = await client.getChannelInfo(params.channel);
       return jsonResponse(info);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_channel_create', 'Create a new channel with a name and optional description', {
+    name: z.string().describe('Channel name'),
+    description: z.string().optional().describe('Channel description'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const result = await client.createChannel(params.name, params.description);
+      return jsonResponse(result);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_channel_archive', 'Archive a channel (soft-delete). Archived channels are hidden from list_channels.', {
+    name: z.string().describe('Channel name to archive'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const result = await client.archiveChannel(params.name);
+      return jsonResponse(result);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_broadcast', 'Broadcast a message to ALL active agents in the project', {
+    content: z.string().describe('Message content to broadcast'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const result = await client.broadcast(params.content);
+      return jsonResponse(result);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_my_subscriptions', 'List channels the calling agent is subscribed to', {}, async () => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const subs = await client.getSubscriptions();
+      return jsonResponse(subs);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

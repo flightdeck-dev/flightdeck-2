@@ -28,14 +28,17 @@ describe('toolPermissions', () => {
     expect(getToolsForRole('worker')).not.toContain('flightdeck_agent_spawn');
     expect(getToolsForRole('director')).toContain('flightdeck_declare_tasks');
     expect(getToolsForRole('director')).toContain('flightdeck_agent_spawn');
+    // reviewer, worker, scout all map to agent
     expect(getToolsForRole('reviewer')).toContain('flightdeck_task_complete');
     expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_delegate');
   });
 
-  it('unknown role gets worker-level access', () => {
-    const unknown = getToolsForRole('unknown-role');
-    const worker = getToolsForRole('worker');
-    expect(unknown).toEqual(worker);
+  it('all non-lead/non-director roles get agent-level access', () => {
+    const agent = getToolsForRole('agent');
+    expect(getToolsForRole('worker')).toBe(agent);
+    expect(getToolsForRole('reviewer')).toBe(agent);
+    expect(getToolsForRole('scout')).toBe(agent);
+    expect(getToolsForRole('unknown-role')).toBe(agent);
   });
 
   it('all roles have flightdeck_status and flightdeck_tools_available', () => {
@@ -76,7 +79,7 @@ describe('MCP Server role-based tool filtering', () => {
     if (existsSync(projDir)) rmSync(projDir, { recursive: true, force: true });
   });
 
-  it('worker role only sees worker tools', () => {
+  it('worker role only sees agent tools', () => {
     const server = createMcpServer({ projectName, agentRole: 'worker' });
     const tools = getToolNames(server);
     expect(tools).not.toContain('flightdeck_task_delegate');
@@ -96,7 +99,7 @@ describe('MCP Server role-based tool filtering', () => {
     expect(tools).toContain('flightdeck_escalate_to_human');
   });
 
-  it('reviewer only sees review-related tools', () => {
+  it('reviewer gets agent-level tools (same as worker)', () => {
     const server = createMcpServer({ projectName, agentRole: 'reviewer' });
     const tools = getToolNames(server);
     expect(tools).toContain('flightdeck_task_complete');
@@ -108,7 +111,6 @@ describe('MCP Server role-based tool filtering', () => {
   it('no role = all tools visible', () => {
     const server = createMcpServer({ projectName });
     const tools = getToolNames(server);
-    // Should have all registered tools
     expect(tools).toContain('flightdeck_agent_spawn');
     expect(tools).toContain('flightdeck_task_delegate');
     expect(tools).toContain('flightdeck_task_complete');
@@ -128,7 +130,6 @@ describe('MCP Server role-based tool filtering', () => {
     const server = createMcpServer({ projectName, agentRole: 'worker' });
     const tools = getToolNames(server);
     expect(tools).not.toContain('flightdeck_agent_spawn');
-    // Calling it directly should fail
     const tool = (server as any)._registeredTools['flightdeck_agent_spawn'];
     expect(tool).toBeUndefined();
   });

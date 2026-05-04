@@ -94,8 +94,8 @@ export class GatewayClient {
     return this.request('POST', '/tasks', params);
   }
 
-  async delegateTask(taskId: string, agentId: string): Promise<unknown> {
-    return this.request('POST', `/tasks/${taskId}/delegate`, { agentId });
+  async delegateTask(taskId: string, agentId: string, context?: string): Promise<unknown> {
+    return this.request('POST', `/tasks/${taskId}/delegate`, { agentId, context });
   }
 
   async submitTask(taskId: string, claim?: string): Promise<unknown> {
@@ -226,7 +226,7 @@ export class GatewayClient {
 
   // ── Messages ──
 
-  async sendMessage(params: { to?: string; channel?: string; taskId?: string; parentId?: string; content: string }): Promise<unknown> {
+  async sendMessage(params: { to?: string; channel?: string; taskId?: string; parentId?: string; content: string; mentions?: string[] }): Promise<unknown> {
     return this.request('POST', '/messages/send', params);
   }
 
@@ -442,8 +442,24 @@ export class GatewayClient {
 
   // ── Channels ──
 
-  async listChannels(): Promise<string[]> {
-    return this.get('/channels');
+  async listChannels(includeArchived?: boolean): Promise<string[]> {
+    return this.get('/channels', includeArchived ? { includeArchived: 'true' } : undefined);
+  }
+
+  async createChannel(name: string, description?: string): Promise<unknown> {
+    return this.request('POST', '/channels/create', { name, description });
+  }
+
+  async archiveChannel(name: string): Promise<unknown> {
+    return this.request('POST', '/channels/archive', { name });
+  }
+
+  async broadcast(content: string): Promise<unknown> {
+    return this.request('POST', '/messages/broadcast', { content });
+  }
+
+  async getSubscriptions(): Promise<string[]> {
+    return this.get('/channels/subscriptions');
   }
 
   async subscribe(channel: string): Promise<void> {

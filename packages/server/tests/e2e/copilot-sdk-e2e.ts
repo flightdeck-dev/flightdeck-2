@@ -31,13 +31,20 @@ async function main() {
     body: JSON.stringify({ id: 'worker-sdk-test', role: 'worker', status: 'idle' }),
   });
 
+  // Delegate the task to the worker (since claim was removed in favor of director-delegate model)
+  await fetch(`http://localhost:18800/api/projects/default/tasks/${task.id}/delegate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentId: 'worker-sdk-test' }),
+  });
+
   console.log('Spawning agent...');
   const { agentId, sessionId } = await adapter.spawn({
     agentId: 'worker-sdk-test',
     role: 'worker',
     cwd: '/tmp/fd-e2e-test',
     projectName: 'default',
-    systemPrompt: `You are a worker agent. Use flightdeck_task_list to find tasks, do the work, then flightdeck_task_submit to submit.`,
+    systemPrompt: `You are a worker agent. A task has been delegated to you. Use flightdeck_task_list to see your assigned task, do the work (create the requested file), then use flightdeck_task_submit with the taskId to mark it done.`,
   });
 
   console.log(`Agent: ${agentId} Session: ${sessionId}`);

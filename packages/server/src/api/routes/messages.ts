@@ -39,7 +39,65 @@ export async function handleMessageRoutes(
   }
 
   if (subPath === '/channels' && method === 'GET') {
-    json(200, fd.messages?.listChannels() ?? []);
+    const includeArchived = url.searchParams.get('includeArchived') === 'true';
+    json(200, fd.messages?.listChannels(includeArchived) ?? []);
+    return true;
+  }
+
+  // POST /channels/create
+  if (subPath === '/channels/create' && method === 'POST') {
+    try {
+      const body = await readBody();
+      const agentId = req.headers['x-agent-id'] as string || 'http-api';
+      if (!body.name) { json(400, { error: 'Missing channel name' }); return true; }
+      const channel = fd.messages?.createChannel(body.name, { description: body.description, createdBy: agentId });
+      json(200, channel ?? { name: body.name, description: body.description ?? null, archived: false });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  // POST /channels/archive
+  if (subPath === '/channels/archive' && method === 'POST') {
+    try {
+      const body = await readBody();
+      if (!body.name) { json(400, { error: 'Missing channel name' }); return true; }
+      const success = fd.messages?.archiveChannel(body.name) ?? false;
+      json(200, { status: success ? 'archived' : 'not_found', channel: body.name });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  // POST /messages/broadcast
+  if (subPath === '/messages/broadcast' && method === 'POST') {
+    try {
+      const body = await readBody();
+      const agentId = req.headers['x-agent-id'] as string || 'http-api';
+      if (!body.content) { json(400, { error: 'Missing content' }); return true; }
+      // Send to broadcast channel - create it if needed
+      const broadcastChannel = 'broadcast';
+      fd.messages?.createChannel(broadcastChannel, { description: 'System broadcast channel', createdBy: 'system' });
+      const msg = fd.messages?.appendChannelMessage(broadcastChannel, {
+        parentId: null, taskId: null, authorType: 'agent', authorId: agentId,
+        content: body.content, metadata: null, channel: null, recipient: null,
+      });
+      // Subscribe all active agents
+      const allAgents = fd.sqlite.listAgents();
+      for (const agent of allAgents) {
+        if (agent.status !== 'retired' && agent.status !== 'terminated') {
+          fd.messages?.subscribe(agent.id, broadcastChannel);
+        }
+      }
+      json(200, { status: 'broadcast', channel: broadcastChannel, messageId: msg?.id ?? null, recipientCount: allAgents.length });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  // GET /channels/subscriptions
+  if (subPath === '/channels/subscriptions' && method === 'GET') {
+    const agentId = req.headers['x-agent-id'] as string;
+    if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return true; }
+    const subs = fd.messages?.getSubscriptions(agentId) ?? [];
+    json(200, subs);
     return true;
   }
 
@@ -218,6 +276,7 @@ export async function handleMessageRoutes(
           to: null, channel: body.channel, content: body.content,
           timestamp: new Date().toISOString(),
           parentId: body.parentId ?? null,
+          mentions: body.mentions ?? null,
         };
         const { messageId: channelMsgId } = fd.sendMessage(msg, body.channel);
         // Push to all subscribers of this channel (excluding sender)

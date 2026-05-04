@@ -218,7 +218,7 @@ export class Flightdeck {
 
   // ── Communication ──
 
-  sendMessage(message: Message, channel?: string): { messageId: string } {
+  sendMessage(message: Message & { mentions?: string[] }, channel?: string): { messageId: string } {
     if (channel) {
       const stored = this.messages.appendChannelMessage(channel, {
         parentId: (message as any).parentId ?? null,
@@ -230,6 +230,7 @@ export class Flightdeck {
         channel,
         recipient: message.to ?? null,
         replyToId: (message as any).parentId ?? null,
+        mentions: (message as any).mentions ?? null,
       });
       return { messageId: stored.id };
     } else {

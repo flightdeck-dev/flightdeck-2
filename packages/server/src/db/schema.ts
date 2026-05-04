@@ -74,6 +74,7 @@ export const messages = sqliteTable('messages', {
   replyToId: text('reply_to_id'),
   attachments: text('attachments'), // JSON array
   channelId: text('channel_id'),
+  mentions: text('mentions'), // JSON array of agent IDs
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
 }, (table) => [
@@ -82,6 +83,16 @@ export const messages = sqliteTable('messages', {
   index('idx_messages_channel').on(table.channel),
   index('idx_messages_recipient').on(table.recipient),
 ]);
+
+// ── Channels (explicit channel registry) ─────────────────────────────
+
+export const channels = sqliteTable('channels', {
+  name: text('name').primaryKey(),
+  description: text('description'),
+  archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+  createdBy: text('created_by'),
+  createdAt: text('created_at').notNull().default(utcNow),
+});
 
 // ── Read State (DM read tracking) ────────────────────────────────────
 

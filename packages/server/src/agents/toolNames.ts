@@ -46,6 +46,10 @@ export const TOOL_NAMES = {
   UNSUBSCRIBE: 'flightdeck_unsubscribe',
   GET_MESSAGE: 'flightdeck_get_message',
   CHANNEL_INFO: 'flightdeck_channel_info',
+  CHANNEL_CREATE: 'flightdeck_channel_create',
+  CHANNEL_ARCHIVE: 'flightdeck_channel_archive',
+  BROADCAST: 'flightdeck_broadcast',
+  MY_SUBSCRIPTIONS: 'flightdeck_my_subscriptions',
   SUBSCRIBE_AGENTS: 'flightdeck_subscribe_agents',
 
   // Memory

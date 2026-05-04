@@ -96,20 +96,26 @@ export class CopilotSdkAdapter extends AgentAdapter {
       'X-Agent-Role': role,
     };
 
+    const safeJson = async (res: Response) => {
+      const text = await res.text();
+      if (!text) return { ok: res.ok, status: res.status };
+      try { return JSON.parse(text); } catch { return { raw: text }; }
+    };
+
     const httpPost = async (path: string, body?: Record<string, unknown>) => {
       const res = await fetch(`${baseUrl}${path}`, {
         method: 'POST',
         headers,
         body: body ? JSON.stringify(body) : undefined,
       });
-      return res.json();
+      return safeJson(res);
     };
 
     const httpGet = async (path: string, params?: Record<string, string>) => {
       const url = new URL(`${baseUrl}${path}`);
       if (params) Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
       const res = await fetch(url.toString(), { headers });
-      return res.json();
+      return safeJson(res);
     };
 
     const httpPut = async (path: string, body?: Record<string, unknown>) => {
@@ -118,7 +124,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
         headers,
         body: body ? JSON.stringify(body) : undefined,
       });
-      return res.json();
+      return safeJson(res);
     };
 
     const tools: Tool<any>[] = [];
@@ -661,6 +667,38 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
+      name: 'flightdeck_channel_create',
+      description: 'Create a new channel with a name and optional description.',
+      parameters: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' } }, required: ['name'] },
+      handler: async (args: { name: string; description?: string }) => JSON.stringify(await httpPost('/channels/create', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_channel_archive',
+      description: 'Archive a channel (soft-delete). Archived channels are hidden from list_channels.',
+      parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      handler: async (args: { name: string }) => JSON.stringify(await httpPost('/channels/archive', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_broadcast',
+      description: 'Broadcast a message to ALL active agents in the project.',
+      parameters: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'] },
+      handler: async (args: { content: string }) => JSON.stringify(await httpPost('/messages/broadcast', args)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_my_subscriptions',
+      description: 'List channels the calling agent is subscribed to.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/channels/subscriptions')),
+      skipPermission: true,
+    });
+
+    tools.push({
       name: 'flightdeck_subscribe_agents',
       description: 'Batch subscribe multiple agents to a channel (Director/Lead only).',
       parameters: { type: 'object', properties: { channel: { type: 'string' }, agentIds: { type: 'array', items: { type: 'string' } } }, required: ['channel', 'agentIds'] },
@@ -945,14 +983,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
     // They can still read files for context, but cannot modify anything
     const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
     const excludedNativeTools = isManagement ? [
+      // Legacy tool names (Copilot CLI <1.0.40)
       'bash', 'str_replace_editor', 'write_file', 'apply_patch',
       'insert_edit_into_file', 'create_file', 'delete_file',
+      // New tool names (Copilot CLI >=1.0.40)
+      'write_bash', 'create', 'edit',
     ] : undefined;
 
     const sessionConfig: SessionConfig = {
       sessionId,
       model: opts.model ?? this.defaultModel,
       streaming: true,
+      workingDirectory: opts.cwd,
       systemMessage: opts.systemPrompt
         ? { mode: 'append', content: opts.systemPrompt }
         : undefined,
@@ -1140,13 +1182,17 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
     const excludedNativeTools = isManagement ? [
+      // Legacy tool names (Copilot CLI <1.0.40)
       'bash', 'str_replace_editor', 'write_file', 'apply_patch',
       'insert_edit_into_file', 'create_file', 'delete_file',
+      // New tool names (Copilot CLI >=1.0.40)
+      'write_bash', 'create', 'edit',
     ] : undefined;
 
     const session = await client.resumeSession(opts.previousSessionId, {
       model: opts.model ?? this.defaultModel,
       streaming: true,
+      workingDirectory: opts.cwd,
       tools,
       excludedTools: excludedNativeTools,
       onPermissionRequest: approveAll,
