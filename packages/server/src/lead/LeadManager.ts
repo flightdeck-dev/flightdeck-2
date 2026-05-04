@@ -6,6 +6,7 @@ import type { AgentAdapter } from '../agents/AgentAdapter.js';
 import type { AgentRuntime } from '../core/types.js';
 import type { AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
+import { loadRolePrompt } from '../roles/loadRolePrompt.js';
 import { SessionStore } from '../acp/SessionStore.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -223,18 +224,7 @@ export class LeadManager {
     } catch { /* project may not support subpath in tests */ }
 
     // Load Lead role prompt (lead.md)
-    let leadRolePrompt = '';
-    try {
-      const { readFileSync, existsSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const rolePath = join(import.meta.dirname ?? '.', '../roles/defaults/lead.md');
-      if (existsSync(rolePath)) {
-        const raw = readFileSync(rolePath, 'utf-8');
-        // Strip YAML frontmatter
-        const body = raw.replace(/^---[\s\S]*?---\n*/, '');
-        leadRolePrompt = body;
-      }
-    } catch { /* best effort */ }
+    const leadRolePrompt = loadRolePrompt('lead');
 
     // Build role configs and preference context for Lead
     let roleContext = '';
@@ -724,19 +714,11 @@ export class LeadManager {
       }
     }
 
-    // Read role-preference.md for Director's system prompt
+    // Load Director role prompt + role-preference.md
     let systemPrompt: string | undefined;
+    const directorPrompt = loadRolePrompt('director');
+    if (directorPrompt) systemPrompt = directorPrompt;
     try {
-      const { readFileSync, existsSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      // Load Director role prompt (director.md)
-      const directorRolePath = join(import.meta.dirname ?? '.', '../roles/defaults/director.md');
-      if (existsSync(directorRolePath)) {
-        const raw = readFileSync(directorRolePath, 'utf-8');
-        const body = raw.replace(/^---[\s\S]*?---\n*/, '');
-        systemPrompt = body;
-      }
-      // Append role-preference.md if exists
       const prefPath = join(this.project.subpath('.'), 'role-preference.md');
       if (existsSync(prefPath)) {
         const pref = readFileSync(prefPath, 'utf-8');
