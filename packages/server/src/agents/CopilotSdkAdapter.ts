@@ -916,6 +916,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
     // Format: fd-{agentId} — deterministic, maps 1:1 to the agent.
     const sessionId = `fd-${aid}`;
 
+    // For management roles (lead, director, scout), restrict to flightdeck tools only
+    // Workers keep native tools (read_file, write_file, bash) for code implementation
+    const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
+    const availableToolNames = isManagement ? tools.map(t => t.name) : undefined;
+
     const sessionConfig: SessionConfig = {
       sessionId,
       model: opts.model ?? this.defaultModel,
@@ -924,6 +929,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
         ? { mode: 'append', content: opts.systemPrompt }
         : undefined,
       tools,
+      availableTools: availableToolNames,
       onPermissionRequest: approveAll,
     };
 
@@ -1104,10 +1110,14 @@ export class CopilotSdkAdapter extends AgentAdapter {
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
     const tools = this.buildTools(aid, opts.role as AgentRole, opts.projectName);
 
+    const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
+    const availableToolNames = isManagement ? tools.map(t => t.name) : undefined;
+
     const session = await client.resumeSession(opts.previousSessionId, {
       model: opts.model ?? this.defaultModel,
       streaming: true,
       tools,
+      availableTools: availableToolNames,
       onPermissionRequest: approveAll,
     });
 
