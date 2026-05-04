@@ -47,7 +47,7 @@ export async function handleTaskRoutes(
       const task = fd.delegateTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       // Steer the assigned agent with task context
-      const am = deps.agentManagers?.get(deps.projectName) ?? fd.agentManager;
+      const am = deps.agentManagers?.get(deps.projectName);
       if (am) {
         const t = task as any;
         const contextParts = [

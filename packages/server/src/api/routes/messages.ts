@@ -83,7 +83,7 @@ export async function handleMessageRoutes(
       // Subscribe all active agents
       const allAgents = fd.sqlite.listAgents();
       for (const agent of allAgents) {
-        if (agent.status !== 'retired' && agent.status !== 'terminated') {
+        if (agent.status !== 'retired') {
           fd.messages?.subscribe(agent.id, broadcastChannel);
         }
       }

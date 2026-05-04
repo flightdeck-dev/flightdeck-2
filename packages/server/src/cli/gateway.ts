@@ -366,6 +366,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
   const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
   const cronStores = new Map<string, InstanceType<typeof CronStore>>();
+  const agentManagers = new Map<string, InstanceType<typeof import('../agents/AgentManager.js').AgentManager>>();
 
   // Set FLIGHTDECK_URL early so MCP subprocesses (spawned during agent init) inherit it.
   // This must happen BEFORE spawnAgents() so Lead/Director MCP can relay back to gateway.
@@ -437,6 +438,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       },
     });
     leadManagers.set(name, leadManager);
+    agentManagers.set(name, fd.agentManager);
 
     // Wire scout heartbeat callback
     leadManager.onScoutHeartbeat = async () => {
@@ -544,6 +546,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const httpServer = createHttpServer({
     projectManager,
     leadManagers,
+    agentManagers,
     port,
     corsOrigin,
     wsServers,
@@ -582,6 +585,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         },
       });
       leadManagers.set(name, leadManager);
+      agentManagers.set(name, fd.agentManager);
 
       // Wire scout heartbeat callback
       leadManager.onScoutHeartbeat = async () => {
