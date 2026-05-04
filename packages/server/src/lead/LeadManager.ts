@@ -222,6 +222,20 @@ export class LeadManager {
       memoryContext = buildMemoryContext(memoryDir);
     } catch { /* project may not support subpath in tests */ }
 
+    // Load Lead role prompt (lead.md)
+    let leadRolePrompt = '';
+    try {
+      const { readFileSync, existsSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const rolePath = join(import.meta.dirname ?? '.', '../roles/defaults/lead.md');
+      if (existsSync(rolePath)) {
+        const raw = readFileSync(rolePath, 'utf-8');
+        // Strip YAML frontmatter
+        const body = raw.replace(/^---[\s\S]*?---\n*/, '');
+        leadRolePrompt = body;
+      }
+    } catch { /* best effort */ }
+
     // Build role configs and preference context for Lead
     let roleContext = '';
     try {
@@ -256,7 +270,7 @@ export class LeadManager {
       mgmtContext = `\n## Active Management Agents\n- Lead: you (active)\n- Director: active\n- Scout: ${scoutEnabled ? 'active (heartbeat-driven)' : 'disabled by user'}\n`;
     } catch { /* best effort */ }
 
-    const systemPrompt = [memoryContext, roleContext, statusContext, mgmtContext].filter(Boolean).join('\n') || undefined;
+    const systemPrompt = [leadRolePrompt, memoryContext, roleContext, statusContext, mgmtContext].filter(Boolean).join('\n') || undefined;
 
     const meta = await this.acpAdapter.spawn({
       role: 'lead',
@@ -715,10 +729,18 @@ export class LeadManager {
     try {
       const { readFileSync, existsSync } = await import('node:fs');
       const { join } = await import('node:path');
+      // Load Director role prompt (director.md)
+      const directorRolePath = join(import.meta.dirname ?? '.', '../roles/defaults/director.md');
+      if (existsSync(directorRolePath)) {
+        const raw = readFileSync(directorRolePath, 'utf-8');
+        const body = raw.replace(/^---[\s\S]*?---\n*/, '');
+        systemPrompt = body;
+      }
+      // Append role-preference.md if exists
       const prefPath = join(this.project.subpath('.'), 'role-preference.md');
       if (existsSync(prefPath)) {
         const pref = readFileSync(prefPath, 'utf-8');
-        systemPrompt = `## Task Planning Preference\n${pref}`;
+        systemPrompt = (systemPrompt ?? '') + `\n\n## Task Planning Preference\n${pref}`;
       }
     } catch { /* best effort */ }
 

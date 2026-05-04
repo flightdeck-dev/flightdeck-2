@@ -1,198 +1,39 @@
-# Flightdeck 2.0
+# Flightdeck
 
-A next-generation multi-agent orchestration engine for AI coding agents with CLI, HTTP API, and MCP server.
+**Flightdeck** 是一个多代理编排平台（Multi-Agent Orchestration Platform），用于协调多个 AI 代理协同完成复杂的软件工程任务。
 
-> 📐 **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — Deep dive into the system design, data flow, and module responsibilities.
+## 什么是 Flightdeck？
 
-## Architecture
+在大型项目中，单个 AI 代理往往难以独立处理复杂的工程任务。Flightdeck 通过层次化的代理架构，将工作分解、分配、执行和验证，实现多个代理的高效协作。
+
+### 核心能力
+
+- **🎯 任务编排** — 自动将需求拆解为 DAG 任务图，按依赖关系调度执行
+- **🤖 多代理协作** — 支持 Worker、Reviewer、Scout 等多种角色，各司其职
+- **🔌 多运行时支持** — 兼容 Codex、Claude Code、Gemini、Copilot 等主流 AI 代理
+- **🛡️ 质量保障** — 内置交叉审查、质量门禁和独立验证机制
+- **📡 MCP 协议** — 通过 MCP Server 无缝接入各类 AI 客户端
+
+### 架构概览
 
 ```
-User → Lead → Director → Orchestrator → Workers → Reviewers
+用户 → Lead（决策） → Director（执行管理） → Orchestrator（调度） → Workers（实现） → Reviewers（审查）
 ```
 
-- **Lead** 👑 — High-level decisions, user communication, plan approval
-- **Director** 📋 — Execution manager: creates ALL tasks, spawns ALL agents, resolves conflicts
-- **Orchestrator** — Event-driven assignment of tasks to idle agents (no auto-spawn)
-- **Workers** 💻 — Implement code changes
-- **Reviewers** 🔍 — Code review (pool reuse, fresh reviewer on retry)
-- **Scout** 🔭 — Proactive observer (heartbeat-driven, read-only analysis), **QA Tester** 🧪, **Tech Writer** 📝, **Product Thinker** 💡
-
-## Install
+### 快速开始
 
 ```bash
-npm install
-```
-
-## Test
-
-```bash
-npm test
-```
-
-## Modules
-
-| Module | Purpose |
-|--------|---------|
-| `core/` | Domain types, branded IDs, data-driven state machine |
-| `dag/` | Task DAG with dependency resolution, file conflict detection, compaction |
-| `specs/` | Spec & plan layer with change proposals and traceability |
-| `comms/` | Persistent messaging with priority, threading, coalescing |
-| `agents/` | Agent lifecycle, role registry, crash detection, cost tracking |
-| `orchestrator/` | Event-driven orchestrator with auto-assign, auto-spawn, debounce |
-| `isolation/` | File lock and git worktree isolation modes |
-| `verification/` | Cross-model review, blocking quality gates, independent validation |
-| `events/` | Priority-aware event pipeline with back-pressure |
-| `persistence/` | SQLite schema via drizzle-orm (per-project, WAL mode) |
-| `facade` | High-level API with SQLite persistence (used by CLI & MCP) |
-| `cli/` | Command-line interface |
-| `mcp/` | MCP server — thin HTTP client to gateway daemon |
-
-## CLI Usage
-
-Initialize a project:
-```bash
-npx tsx src/cli/index.ts init
-```
-
-Start the daemon:
-```bash
+pnpm install
+flightdeck init
 flightdeck start
 ```
 
-Manage tasks:
-```bash
-flightdeck task add "Build auth" --role backend
-flightdeck task list
-flightdeck task start tk-abc123 --agent coder-1
-flightdeck task complete tk-abc123
-flightdeck task fail tk-abc123 --reason "tests failed"
-flightdeck task gate tk-abc123 --await-type ci_check --await-id run-456
-flightdeck task status        # DAG summary
-flightdeck task topo          # topological order
-```
+## 了解更多
 
-Manage specs:
-```bash
-flightdeck spec create "Auth System"
-flightdeck spec list
-flightdeck spec show sp-abc123
-flightdeck spec change propose sp-abc123
-flightdeck spec change approve ch-abc123
-```
+- [架构设计](./ARCHITECTURE.md)
+- [设计文档](./DESIGN.md)
+- [贡献指南](./CONTRIBUTING.md)
 
-Manage agents:
-```bash
-flightdeck agent register coder-1 --role backend
-flightdeck agent list
-flightdeck agent heartbeat coder-1
-```
+## License
 
-Messaging:
-```bash
-flightdeck msg send agent-1 "Deploy ready" --priority critical
-flightdeck msg inbox agent-1
-flightdeck msg list --thread mg-abc123
-```
-
-Verification:
-```bash
-flightdeck verify request tk-abc123 --reviewer agent-2
-flightdeck verify decide rev-abc123 --verdict approve
-```
-
-System status:
-```bash
-flightdeck status
-flightdeck providers        # list available runtimes
-flightdeck providers --json
-```
-
-All commands support `--json` for machine-readable output.
-
-## Supported Agent Runtimes
-
-### ACP-Compatible
-
-| Provider | Binary | Adapter | Notes |
-|----------|--------|---------|-------|
-| OpenAI Codex CLI 🤖 | `codex-acp` | acp | ACP bridge via @zed-industries/codex-acp |
-| Zed Codex ACP | `codex-acp` | acp | Rust binary, model override via `-c` |
-| Claude Agent (ACP) 🟠 | `claude-agent-acp` | acp | ACP wrapper for Claude Code |
-| Gemini CLI 💎 | `gemini` | acp | Google's reference ACP implementation |
-| OpenCode 🔓 | `opencode acp` | acp | Multi-model, open-source |
-| Cursor | `agent acp` | acp | Cursor CLI with session/load support |
-| Kiro CLI | `kiro-cli acp` | acp | Amazon/AWS coding agent |
-| Kilo Code CLI | `kilocode-cli acp` | acp | 500+ models via OpenRouter |
-| Hermes Agent | `hermes acp` | acp | Nous Research general-purpose agent |
-
-### Non-ACP
-
-| Provider | Adapter | Notes |
-|----------|---------|-------|
-| GitHub Copilot 🐙 | copilot-sdk | Native `@github/copilot-sdk` with direct tool injection |
-| Claude Code 🟣 | pty | `--print` + `--resume` mode with session persistence |
-
-List installed providers:
-```bash
-flightdeck providers
-flightdeck providers --json
-```
-
-## MCP Server Setup
-
-The MCP server is a thin HTTP client to the gateway daemon (no direct DB access).
-
-```
-Agent → MCP server (stdio) → HTTP → Gateway daemon (port 18800) → Flightdeck → SQLite
-```
-
-Add to your MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "flightdeck": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/flightdeck-2/packages/server/src/mcp/server.ts"],
-      "env": {
-        "FLIGHTDECK_AGENT_ID": "worker-1"
-      }
-    }
-  }
-}
-```
-
-## Library API
-
-```typescript
-import { Flightdeck } from '@flightdeck/core';
-
-const fd = new Flightdeck('my-project');
-// Data stored per-project in SQLite (WAL mode)
-
-const task = fd.addTask({ title: 'Build auth', role: 'backend' });
-fd.registerAgent('coder-1', 'backend');
-fd.startTask(task.id, 'coder-1');
-fd.completeTask(task.id);
-
-console.log(fd.status());
-fd.close();
-```
-
-## Isolation Modes
-
-| Mode | Description |
-|------|-------------|
-| `file_lock` (default) | File-level locking prevents concurrent edits |
-| `git_worktree` | Per-worker git worktrees for full isolation |
-
-## Design Principles
-
-1. **Data-driven state machine** — transition table as data, not scattered if-else
-2. **Hash-based IDs** — conflict-free multi-agent task creation
-3. **Spec → Plan → Task traceability** — every task traces to a requirement
-4. **Trust nothing** — cross-model review, fresh reviewer on retry, orchestrator validates
-5. **Compaction** — completed tasks decay to summaries, saving context window
-6. **File conflict detection** — tasks sharing files must have explicit dependencies
-7. **Event-driven orchestrator** — reactive task assignment with debounce
-8. **Per-project SQLite** — no global state files, self-contained projects
+MIT
