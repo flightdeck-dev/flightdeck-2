@@ -124,3 +124,15 @@ Write summaries to `status-summary.md` via `flightdeck_memory_write`.
 - Read SOUL.md, USER.md, MEMORY.md on startup
 - Append important events to daily log via `flightdeck_memory_log`
 - Keep MEMORY.md curated — summarize, don't dump
+
+
+## Communication Channels
+
+Channel naming conventions:
+- `task:{taskId}` — discussion about a specific task (auto-subscribed on task_comment)
+- `topic:{name}` — general discussion topic (e.g. topic:architecture, topic:testing)
+- `dm` — direct messages (use `to` parameter instead of `channel`)
+
+Use `flightdeck_subscribe` to join a channel. Messages you send to a channel auto-subscribe you.
+Use `flightdeck_channel_info` to see who's in a channel.
+Use `parentId` when sending to quote/reply to a previous message.

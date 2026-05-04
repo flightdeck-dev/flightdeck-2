@@ -8,6 +8,36 @@ export async function handleMessageRoutes(
 ): Promise<boolean> {
   const { fd, projectName, wsServer, leadManager, notifier, json, readBody, req, url } = deps;
 
+  // GET /channels/:channel/info
+  const channelInfoMatch = subPath.match(/^\/channels\/([^/]+)\/info$/);
+  if (channelInfoMatch && method === 'GET') {
+    const channel = decodeURIComponent(channelInfoMatch[1]);
+    if (fd.messages) {
+      const subscribers = fd.messages.getSubscribers(channel);
+      const messages = fd.messages.listChannelMessages(channel);
+      json(200, { channel, subscribers, messageCount: messages.length });
+    } else {
+      json(200, { channel, subscribers: [], messageCount: 0 });
+    }
+    return true;
+  }
+
+  // POST /channels/subscribe-agents (batch subscribe)
+  if (subPath === '/channels/subscribe-agents' && method === 'POST') {
+    try {
+      const body = await readBody();
+      if (!body.channel) { json(400, { error: 'Missing channel' }); return true; }
+      if (!Array.isArray(body.agentIds) || body.agentIds.length === 0) { json(400, { error: 'Missing or empty agentIds array' }); return true; }
+      const subscribed: string[] = [];
+      for (const agentId of body.agentIds) {
+        fd.messages?.subscribe(agentId, body.channel);
+        subscribed.push(agentId);
+      }
+      json(200, { status: 'subscribed', channel: body.channel, agentIds: subscribed });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
   if (subPath === '/channels' && method === 'GET') {
     json(200, fd.messages?.listChannels() ?? []);
     return true;
@@ -180,7 +210,7 @@ export async function handleMessageRoutes(
             }
           }
         }
-        json(200, { status: 'sent', to: body.to });
+        json(200, { status: 'sent', to: body.to, messageId: storedDmMsg?.id ?? null });
       } else if (body.channel) {
         const msg = {
           id: mkMsgId(agentId, body.channel, Date.now().toString()),
@@ -189,7 +219,7 @@ export async function handleMessageRoutes(
           timestamp: new Date().toISOString(),
           parentId: body.parentId ?? null,
         };
-        fd.sendMessage(msg, body.channel);
+        const { messageId: channelMsgId } = fd.sendMessage(msg, body.channel);
         // Push to all subscribers of this channel (excluding sender)
         if (fd.messages) {
           const subscribers = fd.messages.getSubscribers(body.channel as string);
@@ -211,7 +241,7 @@ export async function handleMessageRoutes(
             }
           }
         }
-        json(200, { status: 'sent', channel: body.channel });
+        json(200, { status: 'sent', channel: body.channel, messageId: channelMsgId });
       } else {
         json(400, { error: 'Must provide to, channel, or taskId' });
       }

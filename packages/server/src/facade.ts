@@ -218,9 +218,9 @@ export class Flightdeck {
 
   // ── Communication ──
 
-  sendMessage(message: Message, channel?: string): void {
+  sendMessage(message: Message, channel?: string): { messageId: string } {
     if (channel) {
-      this.messages.appendChannelMessage(channel, {
+      const stored = this.messages.appendChannelMessage(channel, {
         parentId: (message as any).parentId ?? null,
         taskId: null,
         authorType: 'agent',
@@ -231,8 +231,10 @@ export class Flightdeck {
         recipient: message.to ?? null,
         replyToId: (message as any).parentId ?? null,
       });
+      return { messageId: stored.id };
     } else {
-      this.messages.appendDM(message.from, message.to ?? '', message.content);
+      const stored = this.messages.appendDM(message.from, message.to ?? '', message.content);
+      return { messageId: stored.id };
     }
   }
 
@@ -245,6 +247,7 @@ export class Flightdeck {
       channel: r.channel ?? channel,
       content: r.content,
       timestamp: r.createdAt,
+      replyPreview: (r as any).replyPreview ?? undefined,
     }));
   }
 

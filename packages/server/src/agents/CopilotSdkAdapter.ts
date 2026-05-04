@@ -652,6 +652,22 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
+    tools.push({
+      name: 'flightdeck_channel_info',
+      description: 'Get channel info: subscribers and message count.',
+      parameters: { type: 'object', properties: { channel: { type: 'string' } }, required: ['channel'] },
+      handler: async (args: { channel: string }) => JSON.stringify(await httpGet(`/channels/${encodeURIComponent(args.channel)}/info`)),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_subscribe_agents',
+      description: 'Batch subscribe multiple agents to a channel (Director/Lead only).',
+      parameters: { type: 'object', properties: { channel: { type: 'string' }, agentIds: { type: 'array', items: { type: 'string' } } }, required: ['channel', 'agentIds'] },
+      handler: async (args: { channel: string; agentIds: string[] }) => JSON.stringify(await httpPost('/channels/subscribe-agents', { channel: args.channel, agentIds: args.agentIds })),
+      skipPermission: true,
+    });
+
     // Memory tools (missing)
     tools.push({
       name: 'flightdeck_memory_log',

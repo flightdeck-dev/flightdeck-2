@@ -10,7 +10,7 @@
 export const ROLE_TOOLS: Record<string, string[]> = {
   lead: [
     // Communication
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     // Status & search (for answering user questions)
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context',
@@ -22,6 +22,8 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_decision_log', 'flightdeck_decision_list',
     // Escalation
     'flightdeck_escalate_to_human',
+    // Batch channel management
+    'flightdeck_subscribe_agents',
     // Memory
     'flightdeck_memory_write', 'flightdeck_memory_read',
     'flightdeck_memory_log',
@@ -50,7 +52,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     // Models (needs to choose runtime/model for workers)
     'flightdeck_model_list', 'flightdeck_model_config',
     // Communication
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     // Search & memory
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_memory_read', 'flightdeck_memory_log',
@@ -59,6 +61,8 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_decision_log', 'flightdeck_decision_list',
     // Scheduling
     'flightdeck_cron_list', 'flightdeck_cron_add',
+    // Batch channel management
+    'flightdeck_subscribe_agents',
     // Utilities
     'flightdeck_role_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
@@ -69,7 +73,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_cancel', 'flightdeck_task_resume',
     'flightdeck_task_comment',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
     'flightdeck_learning_add',
@@ -80,7 +84,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   reviewer: [
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get', 'flightdeck_task_complete', 'flightdeck_task_fail',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     'flightdeck_search',
     'flightdeck_decision_log', 'flightdeck_decision_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
@@ -91,7 +95,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_status',
     'flightdeck_spec_list',
     'flightdeck_task_list', 'flightdeck_task_context',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_decision_log', 'flightdeck_decision_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
@@ -101,7 +105,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_resume',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
     'flightdeck_learning_add',
@@ -111,7 +115,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_status',
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_submit',
     'flightdeck_task_fail',
-    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message',
+    'flightdeck_send', 'flightdeck_read', 'flightdeck_list_channels', 'flightdeck_subscribe', 'flightdeck_unsubscribe', 'flightdeck_get_message', 'flightdeck_channel_info',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_spec_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',

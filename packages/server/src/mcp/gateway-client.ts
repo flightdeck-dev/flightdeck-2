@@ -458,6 +458,14 @@ export class GatewayClient {
     return this.get(`/messages/${messageId}`);
   }
 
+  async getChannelInfo(channel: string): Promise<unknown> {
+    return this.get(`/channels/${encodeURIComponent(channel)}/info`);
+  }
+
+  async subscribeAgents(channel: string, agentIds: string[]): Promise<unknown> {
+    return this.request('POST', '/channels/subscribe-agents', { channel, agentIds });
+  }
+
   // ── Tool events ──
 
   async notifyToolCall(data: {

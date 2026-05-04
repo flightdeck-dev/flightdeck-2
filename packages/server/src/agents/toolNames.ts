@@ -45,6 +45,8 @@ export const TOOL_NAMES = {
   SUBSCRIBE: 'flightdeck_subscribe',
   UNSUBSCRIBE: 'flightdeck_unsubscribe',
   GET_MESSAGE: 'flightdeck_get_message',
+  CHANNEL_INFO: 'flightdeck_channel_info',
+  SUBSCRIBE_AGENTS: 'flightdeck_subscribe_agents',
 
   // Memory
   MEMORY_READ: 'flightdeck_memory_read',

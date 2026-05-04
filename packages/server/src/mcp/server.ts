@@ -753,6 +753,31 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
+  server.tool('flightdeck_channel_info', 'Get channel info: subscribers and message count', {
+    channel: z.string(),
+  }, async (params) => {
+    try {
+      const info = await client.getChannelInfo(params.channel);
+      return jsonResponse(info);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_subscribe_agents', 'Batch subscribe multiple agents to a channel (Director/Lead only)', {
+    channel: z.string(),
+    agentIds: z.array(z.string()),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const result = await client.subscribeAgents(params.channel, params.agentIds);
+      return jsonResponse(result);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
   // ── Memory tools ──
 
   server.tool('flightdeck_memory_read', 'Read a project memory file', {
