@@ -131,13 +131,16 @@ Each agent role sees only the MCP tools it needs (`toolPermissions.ts`). Seven r
 
 | Role | Key Permissions |
 |------|----------------|
-| **lead** | Full access — spawn/terminate agents, declare tasks, manage models, cost reports |
-| **director** | Create tasks, declare task batches, discuss, search memory |
-| **worker** | Claim tasks, submit work, write memory, report failures |
-| **reviewer** | Complete or fail tasks (quality gate), search memory |
-| **product-thinker** | Create tasks, discuss, write memory, log decisions |
-| **qa-tester** | Claim tasks, submit test results, write memory |
-| **tech-writer** | Claim tasks, submit docs, read specs, write memory |
+| **lead** | Plan review/approve, decisions, escalate to human, suggestions, channel batch subscribe, memory, comms |
+| **director** | Task CRUD, agent spawn/terminate/hibernate/wake, specs, models, cron, decisions, channel batch subscribe, comms |
+| **worker** | Task submit/fail/cancel/resume, task comment, file locks, learnings, comms |
+| **reviewer** | Task complete/fail, decisions, file locks, comms |
+| **product-thinker** | Specs (read), decisions, memory, comms |
+| **qa-tester** | Task submit/fail/resume, learnings, memory, comms |
+| **tech-writer** | Task submit/fail, specs (read), memory, comms |
+| **scout** | Read-only (tasks, specs, search, decisions, learnings), suggestions |
+
+All roles (except scout) share a common **comms** toolset: `send`, `read`, `list_channels`, `subscribe`, `unsubscribe`, `get_message`, `channel_info`.
 
 Roles are defined as Markdown files with YAML frontmatter (`roles/defaults/*.md`), loaded by `RoleRegistry`. Projects can override roles with custom definitions.
 
