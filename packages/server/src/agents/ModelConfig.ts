@@ -110,12 +110,9 @@ export class ModelConfig {
     const agents = this.getAgentsConfig();
     const rc = agents.roles?.[role] ?? {};
     const enabledModels = this.getRoleEnabledModelsWithDiscovery(role);
-    // Lead and Director (Lead facets) default to copilot runtime
-    // because CopilotSdkAdapter injects management tools natively.
-    const managementDefault = (role === 'lead' || role === 'director') ? 'copilot' : undefined;
     return {
       role,
-      runtime: rc.runtime ?? managementDefault ?? agents.default_runtime ?? getDefaultRuntime(),
+      runtime: rc.runtime ?? agents.default_runtime ?? getDefaultRuntime(),
       model: rc.model ?? agents.default_model ?? '',
       enabledModels,
     };
