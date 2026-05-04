@@ -90,7 +90,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
   'product-thinker': [
     'flightdeck_status',
     'flightdeck_spec_list',
-    'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_add',
+    'flightdeck_task_list', 'flightdeck_task_context',
     'flightdeck_send', 'flightdeck_read', 'flightdeck_discuss',
     'flightdeck_search', 'flightdeck_memory_write',
     'flightdeck_decision_log', 'flightdeck_decision_list',

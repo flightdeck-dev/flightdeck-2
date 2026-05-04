@@ -14,7 +14,7 @@ export async function handleTaskRoutes(
       if (callerAgentId) {
         const callerAgent = fd.sqlite.getAgent(callerAgentId as import('@flightdeck-ai/shared').AgentId);
         if (!callerAgent) { json(403, { error: `Error: Agent '${callerAgentId}' not found. Check flightdeck_status() to see registered agents.` }); return true; }
-        if (callerAgent.role !== 'director' && callerAgent.role !== 'product-thinker') {
+        if (callerAgent.role !== 'director') {
           json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only Director can add tasks. Use flightdeck_escalate() to request task creation.` }); return true;
         }
       }
