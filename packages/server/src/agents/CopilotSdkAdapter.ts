@@ -916,10 +916,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
     // Format: fd-{agentId} — deterministic, maps 1:1 to the agent.
     const sessionId = `fd-${aid}`;
 
-    // For management roles (lead, director, scout), restrict to flightdeck tools only
-    // Workers keep native tools (read_file, write_file, bash) for code implementation
+    // For management roles (lead, director, scout), exclude write/execute tools
+    // They can still read files for context, but cannot modify anything
     const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
-    const availableToolNames = isManagement ? tools.map(t => t.name) : undefined;
+    const excludedNativeTools = isManagement ? [
+      'bash', 'str_replace_editor', 'write_file', 'apply_patch',
+      'insert_edit_into_file', 'create_file', 'delete_file',
+    ] : undefined;
 
     const sessionConfig: SessionConfig = {
       sessionId,
@@ -929,7 +932,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
         ? { mode: 'append', content: opts.systemPrompt }
         : undefined,
       tools,
-      availableTools: availableToolNames,
+      excludedTools: excludedNativeTools,
       onPermissionRequest: approveAll,
     };
 
@@ -1111,13 +1114,16 @@ export class CopilotSdkAdapter extends AgentAdapter {
     const tools = this.buildTools(aid, opts.role as AgentRole, opts.projectName);
 
     const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
-    const availableToolNames = isManagement ? tools.map(t => t.name) : undefined;
+    const excludedNativeTools = isManagement ? [
+      'bash', 'str_replace_editor', 'write_file', 'apply_patch',
+      'insert_edit_into_file', 'create_file', 'delete_file',
+    ] : undefined;
 
     const session = await client.resumeSession(opts.previousSessionId, {
       model: opts.model ?? this.defaultModel,
       streaming: true,
       tools,
-      availableTools: availableToolNames,
+      excludedTools: excludedNativeTools,
       onPermissionRequest: approveAll,
     });
 
