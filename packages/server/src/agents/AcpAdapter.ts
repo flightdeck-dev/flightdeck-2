@@ -619,10 +619,9 @@ export class AcpAdapter extends AgentAdapter {
       }
 
       // Set session mode based on role:
-      // Lead/director stay read-only (orchestration only), workers/reviewers/scouts get full-access
-      const READ_ONLY_ROLES = new Set(['lead', 'director']);
-      const isReadOnlyRole = READ_ONLY_ROLES.has(role ?? '');
-      const targetMode = isReadOnlyRole ? 'read-only' : 'full-access';
+      // All roles get full-access — behavioral constraints come from role prompts, not sandbox.
+      // Read-only sandbox blocks MCP tool calls which management roles need for delegation.
+      const targetMode = 'full-access';
       // Use configOptions (ACP spec) to set mode
       const modeConfigOption = result.configOptions?.find(
         (opt: { id: string }) => opt.id === 'mode'
@@ -1109,6 +1108,7 @@ export class AcpAdapter extends AgentAdapter {
   async discoverModels(runtimeName: string, timeoutMs = 30_000): Promise<{ modelId: string; name: string }[]> {
     return discoverRuntimeModels(runtimeName, this.runtimes, timeoutMs);
   }
+
 }
 
 /**
