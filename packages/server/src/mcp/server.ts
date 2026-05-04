@@ -377,14 +377,17 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_comment', 'Add a comment to a task (like a PR comment)', {
+  server.tool('flightdeck_task_comment', 'Add a comment to a task (posts to task:{taskId} channel)', {
     taskId: z.string().describe('The task ID to comment on'),
     comment: z.string().describe('The comment text'),
   }, async (params) => {
     const resolved = requireAgentId();
     if ('error' in resolved) return resolved.error;
     try {
+      // Store comment in DB
       const result = await client.addTaskComment(params.taskId, params.comment);
+      // Also post to the task channel so other agents can see it
+      await client.sendMessage({ channel: `task:${params.taskId}`, content: params.comment });
       return jsonResponse(result);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
@@ -692,37 +695,59 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
   // ── Chat message tools ──
 
   server.tool('flightdeck_msg_list', 'List chat messages', {
-    threadId: z.string().optional(),
     taskId: z.string().optional(),
     limit: z.number().optional(),
   }, async (params) => {
     try {
-      const msgs = await client.listMessages({ thread_id: params.threadId, task_id: params.taskId, limit: params.limit });
+      const msgs = await client.listMessages({ task_id: params.taskId, limit: params.limit });
       return jsonResponse(msgs);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }
   });
 
-  server.tool('flightdeck_thread_create', 'Create a chat thread from a message', {
-    originId: z.string(),
-    title: z.string().optional(),
+  server.tool('flightdeck_get_message', 'Get a single message by ID', {
+    messageId: z.string(),
   }, async (params) => {
     try {
-      const thread = await client.createThread(params.originId, params.title);
-      return jsonResponse(thread);
+      const msg = await client.getMessage(params.messageId);
+      if (!msg) return errorResponse(`Message not found: ${params.messageId}`);
+      return jsonResponse(msg);
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }
   });
 
-  server.tool('flightdeck_thread_list', 'List chat threads', {
-    archived: z.boolean().optional(),
-    limit: z.number().optional(),
-  }, async (params) => {
+  server.tool('flightdeck_list_channels', 'List all channels', {}, async () => {
     try {
-      const threads = await client.listThreads(params);
-      return jsonResponse(threads);
+      const channels = await client.listChannels();
+      return jsonResponse(channels);
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_subscribe', 'Subscribe to a channel', {
+    channel: z.string(),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      await client.subscribe(params.channel);
+      return jsonResponse({ status: 'subscribed', channel: params.channel });
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_unsubscribe', 'Unsubscribe from a channel', {
+    channel: z.string(),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      await client.unsubscribe(params.channel);
+      return jsonResponse({ status: 'unsubscribed', channel: params.channel });
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }
@@ -995,19 +1020,6 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if ('error' in resolved) return resolved.error;
     try {
       return jsonResponse(await client.escalateToHuman(params.title, params.description, params.priority));
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_discuss', 'Create a group discussion', {
-    topic: z.string(),
-    invitees: z.array(z.string()).optional(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      return jsonResponse(await client.discuss(params.topic, params.invitees));
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

@@ -107,7 +107,6 @@ CREATE INDEX IF NOT EXISTS `idx_mq_target_status` ON `message_queue` (`target_ag
 
 CREATE TABLE IF NOT EXISTS `messages` (
   `id` text PRIMARY KEY NOT NULL,
-  `thread_id` text,
   `parent_id` text,
   `parent_ids` text,
   `task_id` text,
@@ -117,11 +116,16 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `metadata` text,
   `channel` text,
   `recipient` text,
+  `source` text DEFAULT 'web',
+  `sender_id` text,
+  `sender_name` text,
+  `reply_to_id` text,
+  `attachments` text,
+  `channel_id` text,
   `created_at` text NOT NULL,
   `updated_at` text
 );
 
-CREATE INDEX IF NOT EXISTS `idx_messages_thread` ON `messages` (`thread_id`);
 CREATE INDEX IF NOT EXISTS `idx_messages_task` ON `messages` (`task_id`);
 CREATE INDEX IF NOT EXISTS `idx_messages_author_type` ON `messages` (`author_type`);
 CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`);
@@ -135,17 +139,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS `messages_fts` USING fts5(
   tokenize='porter unicode61'
 );
 
-CREATE TABLE IF NOT EXISTS `threads` (
-  `id` text PRIMARY KEY NOT NULL,
-  `title` text,
-  `origin_id` text,
-  `created_at` text NOT NULL,
-  `archived_at` text
+CREATE TABLE IF NOT EXISTS `read_state` (
+  `agent_id` text NOT NULL,
+  `channel` text NOT NULL DEFAULT 'dm',
+  `last_read_at` text NOT NULL,
+  PRIMARY KEY (`agent_id`, `channel`)
 );
 
-CREATE TABLE IF NOT EXISTS `read_state` (
-  `agent_id` text PRIMARY KEY NOT NULL,
-  `last_read_at` text NOT NULL
+CREATE TABLE IF NOT EXISTS `channel_subscriptions` (
+  `agent_id` text NOT NULL,
+  `channel` text NOT NULL,
+  `subscribed_at` text NOT NULL,
+  PRIMARY KEY (`agent_id`, `channel`)
 );
 
 CREATE TABLE IF NOT EXISTS `sessions` (

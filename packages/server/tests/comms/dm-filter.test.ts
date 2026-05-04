@@ -11,7 +11,7 @@ describe('DM filtering from main chat', () => {
   let tmpDir: string;
 
   const base = {
-    threadId: null,
+    
     parentId: null,
     taskId: null,
     metadata: null,
@@ -69,7 +69,7 @@ describe('DM filtering from main chat', () => {
       authorType: 'user',
       authorId: 'user-1',
       content: 'Hello via appendChannelMessage',
-      threadId: null,
+      
       parentId: null,
       taskId: null,
       metadata: null,

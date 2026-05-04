@@ -221,8 +221,7 @@ export class Flightdeck {
   sendMessage(message: Message, channel?: string): void {
     if (channel) {
       this.messages.appendChannelMessage(channel, {
-        threadId: null,
-        parentId: null,
+        parentId: (message as any).parentId ?? null,
         taskId: null,
         authorType: 'agent',
         authorId: message.from,
@@ -230,6 +229,7 @@ export class Flightdeck {
         metadata: JSON.stringify({ originalId: message.id, to: message.to }),
         channel,
         recipient: message.to ?? null,
+        replyToId: (message as any).parentId ?? null,
       });
     } else {
       this.messages.appendDM(message.from, message.to ?? '', message.content);

@@ -27,7 +27,7 @@ describe('Agent DM storage', () => {
       authorType: 'user',
       authorId: null,
       content: 'Hello agent 1',
-      threadId: null,
+      
       parentId: null,
       taskId: null,
       metadata: null,
@@ -38,7 +38,7 @@ describe('Agent DM storage', () => {
       authorType: 'user',
       authorId: null,
       content: 'Hello agent 2',
-      threadId: null,
+      
       parentId: null,
       taskId: null,
       metadata: null,
@@ -59,7 +59,7 @@ describe('Agent DM storage', () => {
       role: 'user' as const,
       authorType: 'user' as const,
       authorId: null,
-      threadId: null,
+      
       parentId: null,
       taskId: null,
       metadata: null,

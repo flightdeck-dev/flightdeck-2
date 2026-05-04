@@ -263,7 +263,6 @@ export class AcpAgentServer implements Agent {
         type: 'user_message',
         message: {
           id: randomUUID(),
-          threadId: null,
           parentId: null,
           taskId: null,
           authorType: 'user',

@@ -56,22 +56,6 @@ export async function handleSpecRoutes(
     return true;
   }
 
-  if (subPath === '/threads' && method === 'GET') {
-    json(200, fd.messages?.listThreads() ?? []);
-    return true;
-  }
-
-  if (subPath === '/threads' && method === 'POST') {
-    try {
-      const body = await readBody();
-      if (!body.originId && !body.origin_id) { json(400, { error: 'Missing originId' }); return true; }
-      if (!fd.messages) { json(500, { error: 'MessageStore not available' }); return true; }
-      const thread = fd.messages.createThread({ originId: body.originId ?? body.origin_id, title: body.title });
-      json(201, thread);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
-    return true;
-  }
-
   if (subPath === '/search/sessions' && method === 'GET') {
     const query = url.searchParams.get('query');
     if (!query) { json(400, { error: 'Missing query parameter' }); return true; }

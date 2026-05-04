@@ -53,40 +53,28 @@ describe('MCP chat & memory tools', () => {
     expect(msgs.length).toBe(0);
   });
 
-  it('flightdeck_thread_create creates a thread', async () => {
-    // First create a message via the store directly
-    fd.messages.createMessage({
-      id: 'msg-origin',
-      authorType: 'user',
-      authorId: 'user',
-      content: 'test',
-      threadId: null,
-      parentId: null,
-      taskId: null,
-      metadata: null,
+  it('flightdeck_list_channels returns channels', async () => {
+    // Create a channel message
+    fd.messages.appendChannelMessage('general', {
+      parentId: null, taskId: null, authorType: 'agent', authorId: 'agent-1',
+      content: 'hello', metadata: null, channel: null, recipient: null,
     });
 
-    const result = await callTool(server, 'flightdeck_thread_create', {
-      originId: 'msg-origin',
-      title: 'My Thread',
-    });
-    const thread = JSON.parse(getText(result));
-    expect(thread.title).toBe('My Thread');
-    expect(thread.originId).toBe('msg-origin');
+    const result = await callTool(server, 'flightdeck_list_channels', {});
+    const channels = JSON.parse(getText(result));
+    expect(channels).toContain('general');
   });
 
-  it('flightdeck_thread_list returns threads', async () => {
-    fd.messages.createMessage({
-      id: 'msg-1',
-      authorType: 'user', authorId: 'user', content: 'x',
-      threadId: null, parentId: null, taskId: null, metadata: null,
+  it('flightdeck_get_message retrieves a message', async () => {
+    const msg = fd.messages.createMessage({
+      id: 'msg-lookup',
+      authorType: 'user', authorId: 'user', content: 'find me',
+      parentId: null, taskId: null, metadata: null,
     });
-    fd.messages.createThread({ originId: 'msg-1', title: 'Thread 1' });
 
-    const result = await callTool(server, 'flightdeck_thread_list', {});
-    const threads = JSON.parse(getText(result));
-    expect(threads.length).toBe(1);
-    expect(threads[0].title).toBe('Thread 1');
+    const result = await callTool(server, 'flightdeck_get_message', { messageId: 'msg-lookup' });
+    const found = JSON.parse(getText(result));
+    expect(found.content).toBe('find me');
   });
 
   it('flightdeck_search returns memory results with line numbers', async () => {

@@ -24,7 +24,6 @@ permissions:
   agent_wake: true
   agent_restart: true
   agent_retire: true
-  discuss: true
   memory_write: true
   spec_create: true
 ---
@@ -154,6 +153,8 @@ When a critical task completes, evaluate if remaining tasks are still valid. Ski
 
 - `flightdeck_send` with `to: lead` — report to Lead (milestones, escalations, plan summaries)
 - `flightdeck_send` with `to: <worker-id>` — direct a specific worker
+- `flightdeck_send` with `channel: "task:{taskId}"` — post in a task's discussion thread
+- `flightdeck_read` with `channel: "task:{taskId}"` — monitor task channel conversations
 - `flightdeck_send` with `channel` — broadcast to all agents
 - `flightdeck_escalate` — escalate to Lead when you can't resolve something
 

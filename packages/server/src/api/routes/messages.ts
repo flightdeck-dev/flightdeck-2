@@ -8,6 +8,47 @@ export async function handleMessageRoutes(
 ): Promise<boolean> {
   const { fd, projectName, wsServer, leadManager, notifier, json, readBody, req, url } = deps;
 
+  if (subPath === '/channels' && method === 'GET') {
+    json(200, fd.messages?.listChannels() ?? []);
+    return true;
+  }
+
+  if (subPath === '/channels/subscribe' && method === 'POST') {
+    try {
+      const body = await readBody();
+      const agentId = req.headers['x-agent-id'] as string;
+      if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return true; }
+      if (!body.channel) { json(400, { error: 'Missing channel' }); return true; }
+      fd.messages?.subscribe(agentId, body.channel);
+      json(200, { status: 'subscribed', channel: body.channel });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  if (subPath === '/channels/unsubscribe' && method === 'POST') {
+    try {
+      const body = await readBody();
+      const agentId = req.headers['x-agent-id'] as string;
+      if (!agentId) { json(400, { error: 'Missing X-Agent-Id header' }); return true; }
+      if (!body.channel) { json(400, { error: 'Missing channel' }); return true; }
+      fd.messages?.unsubscribe(agentId, body.channel);
+      json(200, { status: 'unsubscribed', channel: body.channel });
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  // GET /messages/:id — single message lookup
+  if (subPath.startsWith('/messages/') && !subPath.includes('/send') && !subPath.includes('/read') && method === 'GET') {
+    const msgId = subPath.slice('/messages/'.length);
+    if (msgId && fd.messages) {
+      const msg = fd.messages.getMessage(msgId);
+      if (msg) { json(200, msg); } else { json(404, { error: 'Message not found' }); }
+    } else {
+      json(404, { error: 'Message not found' });
+    }
+    return true;
+  }
+
   if (subPath === '/messages' && method === 'GET') {
     const channelParam = url.searchParams.get('channel') ?? undefined;
     if (channelParam && fd.messages) {
@@ -15,12 +56,11 @@ export async function handleMessageRoutes(
       json(200, fd.messages.listChannelMessages(channelParam, undefined, limit));
       return true;
     }
-    const threadId = url.searchParams.get('thread_id') ?? undefined;
     const taskId = url.searchParams.get('task_id') ?? undefined;
     const authorTypesParam = url.searchParams.get('author_types');
     const authorTypes = authorTypesParam ? authorTypesParam.split(',') : undefined;
     const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-    const allMsgs = fd.messages?.listMessages({ threadId, taskId, limit: limit + 50, authorTypes }) ?? [];
+    const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 50, authorTypes }) ?? [];
     const mainChatMsgs = allMsgs.filter(m => !m.channel?.startsWith('dm:'));
     json(200, mainChatMsgs.slice(-limit).reverse());
     return true;
@@ -33,7 +73,7 @@ export async function handleMessageRoutes(
       const isAsync = url.searchParams.get('async') === 'true' || url.searchParams.get('async') === '1';
       let userMsg = null;
       if (fd.messages) {
-        userMsg = fd.messages.createMessage({ threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: body.senderId || 'http-api', content: body.content, metadata: null, source: body.source ?? null, senderId: body.senderId ?? null, senderName: body.senderName ?? null, replyToId: body.replyToId ?? null, attachments: body.attachments ?? null, channelId: body.channelId ?? null });
+        userMsg = fd.messages.createMessage({ parentId: null, taskId: null, authorType: 'user', authorId: body.senderId || 'http-api', content: body.content, metadata: null, source: body.source ?? null, senderId: body.senderId ?? null, senderName: body.senderName ?? null, replyToId: body.replyToId ?? null, attachments: body.attachments ?? null, channelId: body.channelId ?? null });
         if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: userMsg });
       }
       if (isAsync) {
@@ -41,7 +81,7 @@ export async function handleMessageRoutes(
           leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content as string } as ChatMessage }).then(raw => {
             if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
               if (fd.messages) {
-                const leadMsg = fd.messages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
+                const leadMsg = fd.messages.createMessage({ parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
                 if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
               }
               if (notifier) notifier.notify(leadResponseEvent(projectName, raw.trim(), body.content));
@@ -58,7 +98,7 @@ export async function handleMessageRoutes(
             if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
               leadResponse = raw.trim();
               if (fd.messages) {
-                leadMsg = fd.messages.createMessage({ threadId: null, parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
+                leadMsg = fd.messages.createMessage({ parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
                 if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
               }
               if (notifier) notifier.notify(leadResponseEvent(projectName, leadResponse, body.content));
@@ -81,9 +121,10 @@ export async function handleMessageRoutes(
         if (fd.messages) {
           const senderAgent = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
           const msg = fd.messages.createMessage({
-            threadId: null, parentId: body.parentId ?? null, taskId: body.taskId,
+            parentId: body.parentId ?? null, taskId: body.taskId,
             authorType: (senderAgent?.role === 'lead' ? 'lead' : 'agent') as 'lead' | 'agent',
             authorId: agentId, content: body.content, metadata: null,
+            replyToId: body.parentId ?? body.replyToId ?? null,
           });
           if (wsServer) wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: body.taskId, message: msg });
           json(200, { status: 'sent', taskId: body.taskId, messageId: msg.id });
@@ -94,10 +135,11 @@ export async function handleMessageRoutes(
         let storedDmMsg: any = null;
         if (fd.messages) {
           storedDmMsg = fd.messages.createMessage({
-            threadId: null, parentId: body.parentId ?? null, taskId: null,
+            parentId: body.parentId ?? null, taskId: null,
             authorType: 'agent', authorId: agentId,
             content: (body.content as string).length > 4000 ? (body.content as string).slice(0, 4000) + '\n\u2026[truncated]' : body.content,
             metadata: null, channel: `dm:${body.to}`,
+            replyToId: body.parentId ?? body.replyToId ?? null,
           });
         }
         if (wsServer && storedDmMsg) {
@@ -122,7 +164,7 @@ export async function handleMessageRoutes(
             lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: body.content as string }).then(response => {
               if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY' && fd.messages) {
                 const leadMsg = fd.messages.createMessage({
-                  threadId: null, parentId: null, taskId: null,
+                  parentId: null, taskId: null,
                   authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
                 });
                 if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
@@ -148,6 +190,27 @@ export async function handleMessageRoutes(
           parentId: body.parentId ?? null,
         };
         fd.sendMessage(msg, body.channel);
+        // Push to all subscribers of this channel (excluding sender)
+        if (fd.messages) {
+          const subscribers = fd.messages.getSubscribers(body.channel as string);
+          const am = deps.agentManagers?.get(projectName) ?? fd.agentManager;
+          if (am) {
+            for (const sub of subscribers) {
+              if (sub === agentId) continue; // don't echo to sender
+              const subAgent = fd.sqlite.getAgent(sub as import('@flightdeck-ai/shared').AgentId);
+              if (subAgent?.acpSessionId) {
+                am.sendToAgent(sub as import('@flightdeck-ai/shared').AgentId, `[#${body.channel} from ${agentId}]: ${body.content}`).catch(() => {});
+              }
+            }
+          }
+          // Also steer lead if subscribed
+          if (subscribers.includes('lead') || subscribers.includes('lead-1')) {
+            const lm = deps.leadManagers.get(projectName);
+            if (lm) {
+              lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: `[#${body.channel}]: ${body.content}` }).catch(() => {});
+            }
+          }
+        }
         json(200, { status: 'sent', channel: body.channel });
       } else {
         json(400, { error: 'Must provide to, channel, or taskId' });

@@ -41,9 +41,10 @@ export const TOOL_NAMES = {
   READ: 'flightdeck_read',
   SEARCH: 'flightdeck_search',
   MSG_LIST: 'flightdeck_msg_list',
-  THREAD_CREATE: 'flightdeck_thread_create',
-  THREAD_LIST: 'flightdeck_thread_list',
-  DISCUSS: 'flightdeck_discuss',
+  LIST_CHANNELS: 'flightdeck_list_channels',
+  SUBSCRIBE: 'flightdeck_subscribe',
+  UNSUBSCRIBE: 'flightdeck_unsubscribe',
+  GET_MESSAGE: 'flightdeck_get_message',
 
   // Memory
   MEMORY_READ: 'flightdeck_memory_read',

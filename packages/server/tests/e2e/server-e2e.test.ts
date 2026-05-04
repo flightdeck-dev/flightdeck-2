@@ -166,33 +166,21 @@ describe('Messaging (scenario 4)', () => {
     expect(msgs).toHaveLength(3);
   });
 
-  it('4.3 - create thread + reply (via chatMessages)', () => {
-    if (!fd.messages) return; // skip if not available
+  it('4.3 - channel message + subscription', () => {
+    if (!fd.messages) return;
 
-    const msg = fd.messages.createMessage({
-      authorType: 'agent',
-      authorId: 'agent-1',
-      content: 'Starting discussion',
+    fd.messages.subscribe('agent-1' as any, 'general');
+    fd.messages.subscribe('agent-2' as any, 'general');
+
+    const msg = fd.messages.appendChannelMessage('general', {
+      parentId: null, taskId: null, authorType: 'agent', authorId: 'agent-1',
+      content: 'Starting discussion', metadata: null, channel: null, recipient: null,
     });
+    expect(msg.channel).toBe('general');
 
-    const thread = fd.messages.createThread({
-      originId: msg.id,
-      title: 'Auth discussion',
-    });
-    expect(thread.originId).toBe(msg.id);
-    expect(thread.title).toBe('Auth discussion');
-
-    const reply = fd.messages.createMessage({
-      authorType: 'agent',
-      authorId: 'agent-2',
-      content: 'Good idea!',
-      threadId: thread.id,
-    });
-    expect(reply.threadId).toBe(thread.id);
-
-    const threadMsgs = fd.messages.listMessages({ threadId: thread.id });
-    expect(threadMsgs).toHaveLength(1);
-    expect(threadMsgs[0].content).toBe('Good idea!');
+    const unread = fd.messages.getUnreadChannelMessages('agent-2');
+    expect(unread).toHaveLength(1);
+    expect(unread[0].content).toBe('Starting discussion');
   });
 
   it('4.4 - task comment (via chatMessages)', () => {

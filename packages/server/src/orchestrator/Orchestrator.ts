@@ -212,7 +212,7 @@ export class Orchestrator {
           authorId: 'orchestrator',
           content: effect.message,
           taskId: null,
-          threadId: null,
+          
           parentId: null,
           metadata: null,
         });
@@ -777,7 +777,7 @@ export class Orchestrator {
         authorId: 'orchestrator',
         content: `[scout] Analysis requested for spec ${specId}. ${tasks.length} completed tasks to review. Use flightdeck_suggestion_list to view results.`,
         taskId: null,
-        threadId: null,
+        
         parentId: null,
         metadata: null,
       });

@@ -129,7 +129,7 @@ function registerCommands(context, client, taskTree, agentTree, outputChannel) {
     vscode.commands.registerCommand("flightdeck.taskDetail", (task) => {
         const panel = vscode.window.createWebviewPanel("flightdeckTask", `Task: ${task.title}`, vscode.ViewColumn.One, {});
         const stateEmoji = {
-            ready: "🔵", running: "🟠", in_review: "👁", done: "✅", failed: "🔴", cancelled: "⚫", assigned: "🔷",
+            ready: "🔵", pending: "⏳", blocked: "🔒", planned: "📋", running: "🟠", in_review: "👁", done: "✅", failed: "🔴", cancelled: "⚫", skipped: "⏭",
         };
         panel.webview.html = `<!DOCTYPE html>
 <html><head>

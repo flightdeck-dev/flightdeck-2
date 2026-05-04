@@ -519,7 +519,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
               authorType: 'user',
               authorId: msg.userId,
               metadata: JSON.stringify({ bridge, channelId: msg.channelId, userName: msg.userName }),
-              threadId: null, parentId: null, taskId: null, channel: bridge,
+              parentId: null, taskId: null, channel: bridge,
               createdAt: new Date().toISOString(),
             } as any,
           }).catch(() => {});
@@ -999,7 +999,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
             const parentIds = mergedIds.length > 1 ? mergedIds : null;
             const leadMsg = fd.messages.createMessage({
               id: msgIdRef.current,
-              threadId: msg.thread_id ?? null, parentId: msg.id ?? null, parentIds, taskId: null,
+              parentId: msg.id ?? null, parentIds, taskId: null,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
             wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
@@ -1031,7 +1031,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
         if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
           if (fd.messages) {
             const leadMsg = fd.messages.createMessage({
-              threadId: null, parentId: null, taskId,
+              parentId: null, taskId,
               authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,
             });
             wsServer.broadcast({ type: 'task:comment', project: projectName, task_id: taskId, message: leadMsg });

@@ -38,18 +38,24 @@ const vscode = __importStar(require("vscode"));
 const STATUS_ICONS = {
     idle: { icon: "person", color: "charts.blue" },
     busy: { icon: "sync~spin", color: "charts.orange" },
-    working: { icon: "sync~spin", color: "charts.orange" },
-    error: { icon: "error", color: "charts.red" },
-    terminated: { icon: "circle-slash", color: "disabledForeground" },
+    hibernated: { icon: "debug-pause", color: "disabledForeground" },
+    errored: { icon: "error", color: "charts.red" },
+    retired: { icon: "circle-slash", color: "disabledForeground" },
 };
 const ROLE_ICONS = {
+    lead: "megaphone",
+    director: "list-ordered",
+    worker: "tools",
+    developer: "code",
+    reviewer: "checklist",
     architect: "symbol-structure",
     frontend: "browser",
     backend: "server",
-    reviewer: "checklist",
     devops: "gear",
-    lead: "megaphone",
-    worker: "tools",
+    scout: "search",
+    "product-thinker": "lightbulb",
+    "qa-tester": "beaker",
+    "tech-writer": "book",
 };
 class AgentItem extends vscode.TreeItem {
     agent;

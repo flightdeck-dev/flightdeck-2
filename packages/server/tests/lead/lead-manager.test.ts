@@ -31,7 +31,7 @@ describe('LeadManager', () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
     const steer = lm.buildSteer({
       type: 'user_message',
-      message: { id: 'msg-1', threadId: null, parentId: null, taskId: null, authorType: 'user', authorId: 'user', content: 'Hello Lead', metadata: null, createdAt: new Date().toISOString(), updatedAt: null },
+      message: { id: 'msg-1', parentId: null, taskId: null, authorType: 'user', authorId: 'user', content: 'Hello Lead', metadata: null, createdAt: new Date().toISOString(), updatedAt: null },
     });
     expect(steer).toContain('[USER]');
     expect(steer).toContain('Hello Lead');

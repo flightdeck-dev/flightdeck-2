@@ -234,9 +234,8 @@ export class GatewayClient {
     return this.get('/messages/read', params as Record<string, string | undefined>);
   }
 
-  async listMessages(params?: { thread_id?: string; task_id?: string; taskId?: string; limit?: number }): Promise<unknown[]> {
+  async listMessages(params?: { task_id?: string; taskId?: string; limit?: number }): Promise<unknown[]> {
     return this.get('/messages', {
-      thread_id: params?.thread_id,
       task_id: params?.task_id,
       limit: params?.limit?.toString(),
     });
@@ -272,12 +271,6 @@ export class GatewayClient {
 
   async escalateToHuman(title: string, description: string, priority?: string): Promise<unknown> {
     return this.request('POST', '/escalations', { title, description, priority });
-  }
-
-  // ── Discussion ──
-
-  async discuss(topic: string, invitees?: string[]): Promise<unknown> {
-    return this.request('POST', '/discuss', { topic, invitees });
   }
 
   // ── Learnings ──
@@ -444,21 +437,25 @@ export class GatewayClient {
 
   // ── Cost ──
 
-  async getCostReport(): Promise<unknown> {
-    return this.get('/cost');
+
+  // ── Threads ── (removed)
+
+  // ── Channels ──
+
+  async listChannels(): Promise<string[]> {
+    return this.get('/channels');
   }
 
-  // ── Threads ──
-
-  async createThread(originId: string, title?: string): Promise<unknown> {
-    return this.request('POST', '/threads', { originId: originId, title });
+  async subscribe(channel: string): Promise<void> {
+    await this.request('POST', '/channels/subscribe', { channel });
   }
 
-  async listThreads(params?: { archived?: boolean; limit?: number }): Promise<unknown[]> {
-    return this.get('/threads', {
-      archived: params?.archived?.toString(),
-      limit: params?.limit?.toString(),
-    });
+  async unsubscribe(channel: string): Promise<void> {
+    await this.request('POST', '/channels/unsubscribe', { channel });
+  }
+
+  async getMessage(messageId: string): Promise<unknown> {
+    return this.get(`/messages/${messageId}`);
   }
 
   // ── Tool events ──

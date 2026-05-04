@@ -104,18 +104,6 @@ describe('MCP Server Error Messages', () => {
     expect(text).toContain('flightdeck_status');
   });
 
-  it('discuss rejects worker with helpful message', async () => {
-    setCallerAgent('agent-worker-1');
-    const server = createMcpServer(projectName);
-    const result = await callTool(server, 'flightdeck_discuss', {
-      topic: 'test topic',
-    });
-    const text = result.content[0].text;
-    expect(text).toContain('worker');
-    expect(text).toContain('lead/director');
-    expect(text).toContain('flightdeck_escalate');
-  });
-
   it('send rejects when no FLIGHTDECK_AGENT_ID set', async () => {
     delete process.env.FLIGHTDECK_AGENT_ID;
     const server = createMcpServer(projectName);

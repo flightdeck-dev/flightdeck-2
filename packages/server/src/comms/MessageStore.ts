@@ -1,11 +1,10 @@
-import { eq, desc, and, lt, gt, isNull, isNotNull, sql } from 'drizzle-orm';
-import { messages, threads, readState } from '../db/schema.js';
+import { eq, desc, and, lt, gt, isNotNull, sql } from 'drizzle-orm';
+import { messages, readState, channelSubscriptions } from '../db/schema.js';
 import type { FlightdeckDatabase } from '../db/database.js';
 import { messageId } from '@flightdeck-ai/shared';
 
 export interface ChatMessage {
   id: string;
-  threadId: string | null;
   parentId: string | null;
   parentIds?: string[] | null;
   taskId: string | null;
@@ -19,29 +18,21 @@ export interface ChatMessage {
   senderId?: string | null;
   senderName?: string | null;
   replyToId?: string | null;
+  replyPreview?: string | null;
   attachments?: Array<{ url: string; filename: string; mimeType: string; size: number }> | null;
   channelId?: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
 
-export interface Thread {
-  id: string;
-  title: string | null;
-  originId: string | null;
-  createdAt: string;
-  archivedAt: string | null;
-}
-
 export class MessageStore {
   constructor(private db: FlightdeckDatabase) {}
 
-  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient'> & { id?: string; channel?: string | null; recipient?: string | null; source?: string | null; senderId?: string | null; senderName?: string | null; replyToId?: string | null; attachments?: any[] | null; channelId?: string | null }): ChatMessage {
+  createMessage(msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'channel' | 'recipient' | 'replyPreview'> & { id?: string; channel?: string | null; recipient?: string | null; source?: string | null; senderId?: string | null; senderName?: string | null; replyToId?: string | null; attachments?: any[] | null; channelId?: string | null }): ChatMessage {
     const now = new Date().toISOString();
     const id = msg.id ?? messageId(msg.authorId ?? 'anon', now, Math.random().toString());
     const record: ChatMessage = {
       id,
-      threadId: msg.threadId ?? null,
       parentId: msg.parentId ?? null,
       parentIds: msg.parentIds ?? null,
       taskId: msg.taskId ?? null,
@@ -66,6 +57,7 @@ export class MessageStore {
       parentIds: record.parentIds ? JSON.stringify(record.parentIds) : null,
       attachments: record.attachments ? JSON.stringify(record.attachments) : null,
     } as any;
+    delete dbRecord.replyPreview;
     try {
       this.db.insert(messages).values(dbRecord).run();
     } catch (err: unknown) {
@@ -89,7 +81,16 @@ export class MessageStore {
   getMessage(id: string): ChatMessage | null {
     const row = this.db.select().from(messages).where(eq(messages.id, id)).get();
     if (!row) return null;
-    return this.hydrateMessage(row as any);
+    const msg = this.hydrateMessage(row as any);
+    if (msg.replyToId) {
+      const referenced = this.db.select().from(messages).where(eq(messages.id, msg.replyToId)).get();
+      if (referenced) {
+        msg.replyPreview = (referenced as any).content.length > 200
+          ? (referenced as any).content.slice(0, 200) + '…'
+          : (referenced as any).content;
+      }
+    }
+    return msg;
   }
 
   /** Parse parentIds and attachments from JSON string back to array */
@@ -101,11 +102,23 @@ export class MessageStore {
     };
   }
 
-  listMessages(opts: { threadId?: string; taskId?: string; before?: string; limit?: number; authorTypes?: string[] } = {}): ChatMessage[] {
-    const conditions = [];
-    if (opts.threadId !== undefined) {
-      conditions.push(eq(messages.threadId, opts.threadId));
+  /** Attach replyPreview to messages that have replyToId */
+  private attachReplyPreviews(msgs: ChatMessage[]): ChatMessage[] {
+    for (const msg of msgs) {
+      if (msg.replyToId) {
+        const referenced = this.getMessage(msg.replyToId);
+        if (referenced) {
+          msg.replyPreview = referenced.content.length > 200
+            ? referenced.content.slice(0, 200) + '…'
+            : referenced.content;
+        }
+      }
     }
+    return msgs;
+  }
+
+  listMessages(opts: { taskId?: string; before?: string; limit?: number; authorTypes?: string[] } = {}): ChatMessage[] {
+    const conditions = [];
     if (opts.taskId !== undefined) {
       conditions.push(eq(messages.taskId, opts.taskId));
     }
@@ -125,85 +138,6 @@ export class MessageStore {
       .limit(limit)
       .all();
     return rows.map(r => this.hydrateMessage(r as any));
-  }
-
-  createThread(opts: { originId: string; title?: string }): Thread {
-    const now = new Date().toISOString();
-    const id = messageId('thread', opts.originId, now);
-    const record: Thread = {
-      id,
-      title: opts.title ?? null,
-      originId: opts.originId,
-      createdAt: now,
-      archivedAt: null,
-    };
-    this.db.insert(threads).values(record).run();
-    return record;
-  }
-
-  getThread(id: string): Thread | null {
-    const row = this.db.select().from(threads).where(eq(threads.id, id)).get();
-    return (row as Thread) ?? null;
-  }
-
-  listThreads(opts: { archived?: boolean; limit?: number } = {}): Thread[] {
-    const conditions = [];
-    if (opts.archived === true) {
-      conditions.push(isNotNull(threads.archivedAt));
-    } else if (opts.archived === false) {
-      conditions.push(isNull(threads.archivedAt));
-    }
-    const limit = opts.limit ?? 50;
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const rows = this.db
-      .select()
-      .from(threads)
-      .where(where)
-      .orderBy(desc(threads.createdAt))
-      .limit(limit)
-      .all();
-    return rows as Thread[];
-  }
-
-  /**
-   * Collect all messages from a thread and produce a summary string (FR-021b).
-   * Returns the concatenated thread content for summarization.
-   */
-  collectThread(threadId: string): { thread: Thread | null; messages: ChatMessage[]; digest: string } {
-    const thread = this.getThread(threadId);
-    const msgs = this.listMessages({ threadId, limit: 1000 });
-    // Reverse to chronological order
-    msgs.reverse();
-    const lines = msgs.map(m => `[${m.authorType}${m.authorId ? ':' + m.authorId : ''}] ${m.content}`);
-    const digest = lines.join('\n');
-    return { thread, messages: msgs, digest };
-  }
-
-  /**
-   * Summarize a thread's discussion (FR-021b).
-   * Returns a summary string from the thread content.
-   * The caller should store this in the DecisionLog.
-   */
-  summarizeThread(threadId: string): { summary: string; messageCount: number } {
-    const { thread, messages, digest } = this.collectThread(threadId);
-    if (messages.length === 0) {
-      return { summary: 'No messages in thread.', messageCount: 0 };
-    }
-    const title = thread?.title ?? 'Untitled thread';
-    const participants = [...new Set(messages.map(m => m.authorId ?? m.authorType))];
-    const firstMsg = messages[0];
-    const lastMsg = messages[messages.length - 1];
-    // Auto-generated summary (without LLM — structured extract)
-    const summary = [
-      `## Thread Summary: ${title}`,
-      `Participants: ${participants.join(', ')}`,
-      `Messages: ${messages.length}`,
-      `Duration: ${firstMsg.createdAt} → ${lastMsg.createdAt}`,
-      '',
-      `### Key content`,
-      digest.length > 2000 ? digest.slice(0, 2000) + '...' : digest,
-    ].join('\n');
-    return { summary, messageCount: messages.length };
   }
 
   /**
@@ -258,8 +192,13 @@ export class MessageStore {
 
   // ── Channel messages ─────────────────────────────────────────────────
 
-  appendChannelMessage(channel: string, msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt'>): ChatMessage {
-    return this.createMessage({ ...msg, channel, recipient: null });
+  appendChannelMessage(channel: string, msg: Omit<ChatMessage, 'id' | 'createdAt' | 'updatedAt' | 'replyPreview'>): ChatMessage {
+    const result = this.createMessage({ ...msg, channel, recipient: null });
+    // Auto-subscribe the sender
+    if (msg.authorId) {
+      this.subscribe(msg.authorId, channel);
+    }
+    return result;
   }
 
   listChannelMessages(channel: string, since?: string, limit?: number): ChatMessage[] {
@@ -272,7 +211,7 @@ export class MessageStore {
       .orderBy(desc(messages.createdAt))
       .limit(limit ?? 100)
       .all();
-    return rows.map(r => this.hydrateMessage(r as any));
+    return this.attachReplyPreviews(rows.map(r => this.hydrateMessage(r as any)));
   }
 
   listChannels(): string[] {
@@ -284,11 +223,69 @@ export class MessageStore {
     return rows.map(r => r.channel!).filter(Boolean);
   }
 
+  // ── Channel Subscriptions ─────────────────────────────────────────────
+
+  subscribe(agentId: string, channel: string): void {
+    const now = new Date().toISOString();
+    try {
+      this.db.insert(channelSubscriptions)
+        .values({ agentId, channel, subscribedAt: now })
+        .onConflictDoNothing()
+        .run();
+    } catch { /* already subscribed */ }
+  }
+
+  unsubscribe(agentId: string, channel: string): void {
+    this.db.delete(channelSubscriptions)
+      .where(and(eq(channelSubscriptions.agentId, agentId), eq(channelSubscriptions.channel, channel)))
+      .run();
+  }
+
+  getSubscriptions(agentId: string): string[] {
+    const rows = this.db.select({ channel: channelSubscriptions.channel })
+      .from(channelSubscriptions)
+      .where(eq(channelSubscriptions.agentId, agentId))
+      .all();
+    return rows.map(r => r.channel);
+  }
+
+  getSubscribers(channel: string): string[] {
+    const rows = this.db.select({ agentId: channelSubscriptions.agentId })
+      .from(channelSubscriptions)
+      .where(eq(channelSubscriptions.channel, channel))
+      .all();
+    return rows.map(r => r.agentId);
+  }
+
+  getUnreadChannelMessages(agentId: string): ChatMessage[] {
+    const subs = this.getSubscriptions(agentId);
+    if (subs.length === 0) return [];
+    const allMsgs: ChatMessage[] = [];
+    for (const ch of subs) {
+      const lastRead = this.getLastRead(agentId, ch);
+      const conditions = [eq(messages.channel, ch)];
+      if (lastRead) conditions.push(gt(messages.createdAt, lastRead));
+      const rows = this.db
+        .select()
+        .from(messages)
+        .where(and(...conditions))
+        .orderBy(messages.createdAt)
+        .all();
+      for (const r of rows) {
+        const msg = this.hydrateMessage(r as any);
+        // Exclude own messages
+        if (msg.authorId !== agentId) {
+          allMsgs.push(msg);
+        }
+      }
+    }
+    return this.attachReplyPreviews(allMsgs);
+  }
+
   // ── DM ────────────────────────────────────────────────────────────────
 
   appendDM(from: string, to: string, content: string): ChatMessage {
     return this.createMessage({
-      threadId: null,
       parentId: null,
       taskId: null,
       authorType: 'agent',
@@ -301,7 +298,7 @@ export class MessageStore {
   }
 
   getUnreadDMs(agentId: string): ChatMessage[] {
-    const lastRead = this.getLastRead(agentId);
+    const lastRead = this.getLastRead(agentId, 'dm');
     const conditions = [
       eq(messages.recipient, agentId),
       eq(messages.channel, 'dm'),
@@ -313,19 +310,25 @@ export class MessageStore {
       .where(and(...conditions))
       .orderBy(messages.createdAt)
       .all();
-    return rows.map(r => this.hydrateMessage(r as any));
+    return this.attachReplyPreviews(rows.map(r => this.hydrateMessage(r as any)));
   }
 
-  markRead(agentId: string): void {
+  markRead(agentId: string, channel: string = 'dm'): void {
     const now = new Date().toISOString();
-    this.db.insert(readState)
-      .values({ agentId, lastReadAt: now })
-      .onConflictDoUpdate({ target: readState.agentId, set: { lastReadAt: now } })
-      .run();
+    // Use raw SQL for upsert on composite key
+    this.db.run(
+      sql`INSERT INTO read_state (agent_id, channel, last_read_at) VALUES (${agentId}, ${channel}, ${now}) ON CONFLICT(agent_id, channel) DO UPDATE SET last_read_at = ${now}`
+    );
   }
 
-  getLastRead(agentId: string): string | null {
-    const row = this.db.select().from(readState).where(eq(readState.agentId, agentId)).get();
+  markChannelRead(agentId: string, channel: string): void {
+    this.markRead(agentId, channel);
+  }
+
+  getLastRead(agentId: string, channel: string = 'dm'): string | null {
+    const row = this.db.select().from(readState)
+      .where(and(eq(readState.agentId, agentId), eq(readState.channel, channel)))
+      .get();
     return row?.lastReadAt ?? null;
   }
 }

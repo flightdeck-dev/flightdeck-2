@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { MessageStore, ChatMessage, Thread } from '../comms/MessageStore.js';
+import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
 import { type DisplayConfig, DEFAULT_DISPLAY, mergeDisplayConfig, isValidDisplayConfig, shouldShow, type ContentType } from '@flightdeck-ai/shared';
 
 /**
@@ -11,13 +11,6 @@ export interface ChatSendEvent {
   type: 'chat:send';
   content: string;
   parent_id?: string;
-  thread_id?: string;
-}
-
-export interface ThreadCreateEvent {
-  type: 'thread:create';
-  origin_id: string;
-  title?: string;
 }
 
 export interface TaskCommentSendEvent {
@@ -36,7 +29,7 @@ export interface ChatInterruptEvent {
   type: 'chat:interrupt';
 }
 
-export type IncomingEvent = ChatSendEvent | ThreadCreateEvent | TaskCommentSendEvent | DisplayConfigUpdateEvent | ChatInterruptEvent;
+export type IncomingEvent = ChatSendEvent | TaskCommentSendEvent | DisplayConfigUpdateEvent | ChatInterruptEvent;
 
 // Server → UI
 export interface ChatMessageEvent {
@@ -60,18 +53,13 @@ export interface DisplayConfigSyncEvent {
   config: DisplayConfig;
 }
 
-export interface ThreadCreatedEvent {
-  type: 'thread:created';
-  thread: Thread;
-}
-
 export interface TaskCommentReceivedEvent {
   type: 'task:comment';
   task_id: string;
   message: ChatMessage;
 }
 
-export type OutgoingEvent = ChatMessageEvent | ChatStreamEvent | ThreadCreatedEvent | TaskCommentReceivedEvent | DisplayConfigSyncEvent;
+export type OutgoingEvent = ChatMessageEvent | ChatStreamEvent | TaskCommentReceivedEvent | DisplayConfigSyncEvent;
 
 export interface WebSocketClient {
   id: string;
@@ -112,10 +100,6 @@ export class WebSocketServer extends EventEmitter {
       case 'chat:send':
         if (typeof event.content !== 'string') return;
         this.handleChatSend(event);
-        break;
-      case 'thread:create':
-        if (!event.origin_id) return;
-        this.handleThreadCreate(event);
         break;
       case 'task:comment':
         if (!event.task_id || typeof event.content !== 'string') return;
@@ -186,7 +170,6 @@ export class WebSocketServer extends EventEmitter {
 
   private handleChatSend(event: ChatSendEvent): void {
     const msg = this.messageStore.createMessage({
-      threadId: event.thread_id ?? null,
       parentId: event.parent_id ?? null,
       taskId: null,
       authorType: 'user',
@@ -202,16 +185,6 @@ export class WebSocketServer extends EventEmitter {
     this.emit('user:message', msg);
   }
 
-  private handleThreadCreate(event: ThreadCreateEvent): void {
-    const thread = this.messageStore.createThread({
-      originId: event.origin_id,
-      title: event.title,
-    });
-
-    this.broadcast({ type: 'thread:created', thread });
-    this.emit('thread:created', thread);
-  }
-
   private handleDisplayConfig(clientId: string, event: DisplayConfigUpdateEvent): void {
     if (!isValidDisplayConfig(event.config)) return;
     const current = this.clientDisplayConfigs.get(clientId) ?? { ...DEFAULT_DISPLAY };
@@ -223,7 +196,6 @@ export class WebSocketServer extends EventEmitter {
 
   private handleTaskComment(event: TaskCommentSendEvent): void {
     const msg = this.messageStore.createMessage({
-      threadId: null,
       parentId: event.parent_id ?? null,
       taskId: event.task_id,
       authorType: 'user',

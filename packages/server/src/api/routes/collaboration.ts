@@ -25,34 +25,6 @@ export async function handleCollaborationRoutes(
     return true;
   }
 
-  if (subPath === '/discuss' && method === 'POST') {
-    try {
-      const body = await readBody();
-      const agentId = req.headers['x-agent-id'] as string || 'http-api';
-      if (!body.topic) { json(400, { error: 'Missing topic' }); return true; }
-      if (agentId !== 'http-api') {
-        const discussCaller = fd.sqlite.getAgent(agentId as import('@flightdeck-ai/shared').AgentId);
-        if (discussCaller && discussCaller.role !== 'lead' && discussCaller.role !== 'director') {
-          json(403, { error: `Error: Agent '${agentId}' (role: ${discussCaller.role}) cannot create discussions. Only lead/director roles can create discussions. Use flightdeck_escalate() to request one.` }); return true;
-        }
-      }
-      const topicHash = Array.from(body.topic as string).reduce((h: number, c: string) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
-      const channel = `discuss-${Math.abs(topicHash).toString(36)}-${Date.now().toString(36)}`;
-      const now = new Date().toISOString();
-      const { messageId } = await import('@flightdeck-ai/shared');
-      const initMsg = {
-        id: messageId('system', channel, now),
-        from: agentId as import('@flightdeck-ai/shared').AgentId,
-        to: null, channel,
-        content: `Discussion created: "${body.topic}"\nInvitees: ${(body.invitees ?? []).join(', ') || 'open'}\nCreated: ${now}`,
-        timestamp: now,
-      };
-      fd.sendMessage(initMsg, channel);
-      json(200, { channel, topic: body.topic, invitees: body.invitees ?? [], createdAt: now });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
-    return true;
-  }
-
   if (subPath === '/learnings' && method === 'POST') {
     try {
       const body = await readBody();

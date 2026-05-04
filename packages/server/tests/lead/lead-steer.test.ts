@@ -10,7 +10,7 @@ import { homedir } from 'node:os';
 function makeChatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: 'msg-1',
-    threadId: null,
+    
     parentId: null,
     taskId: null,
     authorType: 'user',
@@ -123,7 +123,7 @@ describe('LeadManager steer messages', () => {
     it('includes quoted_message when parent message exists in MessageStore', () => {
       // Insert a parent message
       const parent = messageStore.createMessage({
-        threadId: null,
+        
         parentId: null,
         taskId: null,
         authorType: 'lead',
@@ -141,7 +141,7 @@ describe('LeadManager steer messages', () => {
     it('truncates quoted_message to 200 chars with "..." suffix', () => {
       const longContent = 'A'.repeat(300);
       const parent = messageStore.createMessage({
-        threadId: null,
+        
         parentId: null,
         taskId: null,
         authorType: 'lead',

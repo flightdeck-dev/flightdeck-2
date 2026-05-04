@@ -7,7 +7,6 @@ function createMockMessageStore() {
   return {
     createMessage: vi.fn((input: any) => ({
       id: 'msg-1',
-      threadId: input.threadId,
       parentId: input.parentId,
       taskId: input.taskId,
       authorType: input.authorType,
@@ -17,15 +16,7 @@ function createMockMessageStore() {
       createdAt: new Date().toISOString(),
       updatedAt: null,
     })),
-    createThread: vi.fn((input: any) => ({
-      id: 'thread-1',
-      title: input.title ?? null,
-      originId: input.originId,
-      createdAt: new Date().toISOString(),
-      archivedAt: null,
-    })),
     listMessages: vi.fn(() => []),
-    listThreads: vi.fn(() => []),
   } as any;
 }
 
@@ -198,15 +189,6 @@ describe('WebSocketServer display:config', () => {
     // Should be ignored (no string content)
     ws.handleEvent('c1', { type: 'chat:send', content: 123 as any });
     // Only initial config sync message, nothing else broadcast
-    expect(client.sentMessages.length).toBe(0);
-  });
-
-  it('validates thread:create requires origin_id', () => {
-    const client = createMockClient('c1');
-    ws.addClient(client);
-    client.sentMessages.length = 0;
-
-    ws.handleEvent('c1', { type: 'thread:create', origin_id: '' } as any);
     expect(client.sentMessages.length).toBe(0);
   });
 

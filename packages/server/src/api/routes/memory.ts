@@ -45,19 +45,21 @@ export async function handleMemoryRoutes(
     return true;
   }
 
+  // Cost & token-usage: human-only (UI/API), agents don't need these
   if (subPath === '/cost' && method === 'GET') {
     const costCallerId = req.headers['x-agent-id'] as string;
-    if (costCallerId) {
-      const costCaller = fd.sqlite.getAgent(costCallerId as import('@flightdeck-ai/shared').AgentId);
-      if (costCaller && costCaller.role !== 'lead' && costCaller.role !== 'director') {
-        json(403, { error: `Error: Agent '${costCallerId}' (role: ${costCaller.role}) cannot view cost reports. Only lead/director roles can view cost reports.` }); return true;
-      }
+    if (costCallerId && costCallerId !== 'http-api') {
+      json(403, { error: 'Cost reports are human-only. Agents do not need cost data.' }); return true;
     }
     json(200, { totalCost: fd.sqlite.getTotalCost(), byAgent: fd.sqlite.getCostByAgent(), byTask: fd.sqlite.getCostByTask() });
     return true;
   }
 
   if (subPath === '/token-usage' && method === 'GET') {
+    const tokenCallerId = req.headers['x-agent-id'] as string;
+    if (tokenCallerId && tokenCallerId !== 'http-api') {
+      json(403, { error: 'Token usage reports are human-only.' }); return true;
+    }
     json(200, { total: fd.sqlite.getTokenUsageTotal(), byAgent: fd.sqlite.getTokenUsageByAgent() });
     return true;
   }

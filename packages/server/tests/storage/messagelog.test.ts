@@ -24,7 +24,7 @@ describe('MessageStore (channel & DM)', () => {
 
   it('appends and reads channel messages', () => {
     ms.appendChannelMessage('test', {
-      threadId: null, parentId: null, taskId: null,
+      parentId: null, taskId: null,
       authorType: 'agent', authorId: 'agent-1', content: 'hello',
       metadata: null, channel: 'test', recipient: null,
     });
@@ -36,12 +36,12 @@ describe('MessageStore (channel & DM)', () => {
 
   it('lists channels', () => {
     ms.appendChannelMessage('chan-1', {
-      threadId: null, parentId: null, taskId: null,
+      parentId: null, taskId: null,
       authorType: 'agent', authorId: 'a', content: 'a',
       metadata: null, channel: 'chan-1', recipient: null,
     });
     ms.appendChannelMessage('chan-2', {
-      threadId: null, parentId: null, taskId: null,
+      parentId: null, taskId: null,
       authorType: 'agent', authorId: 'a', content: 'b',
       metadata: null, channel: 'chan-2', recipient: null,
     });
@@ -57,13 +57,13 @@ describe('MessageStore (channel & DM)', () => {
   it('filters by since', () => {
     // Insert old message with a known createdAt via createMessage
     ms.createMessage({
-      threadId: null, parentId: null, taskId: null,
+      parentId: null, taskId: null,
       authorType: 'agent', authorId: 'a', content: 'old',
       metadata: null, channel: 'test', recipient: null,
     });
     // Wait a tiny bit then insert recent
     const recent = ms.appendChannelMessage('test', {
-      threadId: null, parentId: null, taskId: null,
+      parentId: null, taskId: null,
       authorType: 'agent', authorId: 'a', content: 'recent',
       metadata: null, channel: 'test', recipient: null,
     });

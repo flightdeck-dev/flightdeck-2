@@ -432,13 +432,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
         skipPermission: true,
       });
 
-      tools.push({
-        name: 'flightdeck_discuss',
-        description: 'Create a focused discussion thread.',
-        parameters: { type: 'object', properties: { topic: { type: 'string' }, context: { type: 'string' }, participants: { type: 'array', items: { type: 'string' } } }, required: ['topic'] },
-        handler: async (args: any) => JSON.stringify(await httpPost('/discussions', args)),
-        skipPermission: true,
-      });
     }
 
     // Messaging (all roles)
@@ -618,28 +611,44 @@ export class CopilotSdkAdapter extends AgentAdapter {
       skipPermission: true,
     });
 
-    // Communication tools (missing)
+    // Communication tools
     tools.push({
       name: 'flightdeck_msg_list',
       description: 'List chat messages.',
-      parameters: { type: 'object', properties: { threadId: { type: 'string' }, taskId: { type: 'string' }, limit: { type: 'number' } } },
-      handler: async (args: { threadId?: string; taskId?: string; limit?: number }) => JSON.stringify(await httpGet('/messages', { thread_id: args.threadId ?? '', task_id: args.taskId ?? '', limit: String(args.limit ?? 20) })),
+      parameters: { type: 'object', properties: { taskId: { type: 'string' }, limit: { type: 'number' } } },
+      handler: async (args: { taskId?: string; limit?: number }) => JSON.stringify(await httpGet('/messages', { task_id: args.taskId ?? '', limit: String(args.limit ?? 20) })),
       skipPermission: true,
     });
 
     tools.push({
-      name: 'flightdeck_thread_create',
-      description: 'Create a chat thread from a message.',
-      parameters: { type: 'object', properties: { originId: { type: 'string' }, title: { type: 'string' } }, required: ['originId'] },
-      handler: async (args: { originId: string; title?: string }) => JSON.stringify(await httpPost('/threads', { originId: args.originId, title: args.title })),
+      name: 'flightdeck_list_channels',
+      description: 'List all channels.',
+      parameters: { type: 'object', properties: {} },
+      handler: async () => JSON.stringify(await httpGet('/channels')),
       skipPermission: true,
     });
 
     tools.push({
-      name: 'flightdeck_thread_list',
-      description: 'List chat threads.',
-      parameters: { type: 'object', properties: { archived: { type: 'boolean' }, limit: { type: 'number' } } },
-      handler: async (args: { archived?: boolean; limit?: number }) => JSON.stringify(await httpGet('/threads', { archived: String(args.archived ?? false), limit: String(args.limit ?? 20) })),
+      name: 'flightdeck_subscribe',
+      description: 'Subscribe to a channel.',
+      parameters: { type: 'object', properties: { channel: { type: 'string' } }, required: ['channel'] },
+      handler: async (args: { channel: string }) => JSON.stringify(await httpPost('/channels/subscribe', { channel: args.channel })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_unsubscribe',
+      description: 'Unsubscribe from a channel.',
+      parameters: { type: 'object', properties: { channel: { type: 'string' } }, required: ['channel'] },
+      handler: async (args: { channel: string }) => JSON.stringify(await httpPost('/channels/unsubscribe', { channel: args.channel })),
+      skipPermission: true,
+    });
+
+    tools.push({
+      name: 'flightdeck_get_message',
+      description: 'Get a single message by ID.',
+      parameters: { type: 'object', properties: { messageId: { type: 'string' } }, required: ['messageId'] },
+      handler: async (args: { messageId: string }) => JSON.stringify(await httpGet(`/messages/${encodeURIComponent(args.messageId)}`)),
       skipPermission: true,
     });
 

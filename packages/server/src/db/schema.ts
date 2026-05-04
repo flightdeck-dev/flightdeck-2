@@ -59,7 +59,6 @@ export const agents = sqliteTable('agents', {
 
 export const messages = sqliteTable('messages', {
   id: text('id').primaryKey(),
-  threadId: text('thread_id'),
   parentId: text('parent_id'),
   parentIds: text('parent_ids'),  // JSON array of message IDs for multi-parent (merged replies)
   taskId: text('task_id'),
@@ -78,7 +77,6 @@ export const messages = sqliteTable('messages', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
 }, (table) => [
-  index('idx_messages_thread').on(table.threadId),
   index('idx_messages_task').on(table.taskId),
   index('idx_messages_author_type').on(table.authorType),
   index('idx_messages_channel').on(table.channel),
@@ -88,19 +86,18 @@ export const messages = sqliteTable('messages', {
 // ── Read State (DM read tracking) ────────────────────────────────────
 
 export const readState = sqliteTable('read_state', {
-  agentId: text('agent_id').primaryKey(),
+  agentId: text('agent_id').notNull(),
+  channel: text('channel').notNull().default('dm'),
   lastReadAt: text('last_read_at').notNull(),
-});
+}, () => []);
 
-// ── Threads ──────────────────────────────────────────────────────────
+// ── Channel Subscriptions ────────────────────────────────────────────
 
-export const threads = sqliteTable('threads', {
-  id: text('id').primaryKey(),
-  title: text('title'),
-  originId: text('origin_id'),
-  createdAt: text('created_at').notNull(),
-  archivedAt: text('archived_at'),
-});
+export const channelSubscriptions = sqliteTable('channel_subscriptions', {
+  agentId: text('agent_id').notNull(),
+  channel: text('channel').notNull(),
+  subscribedAt: text('subscribed_at').notNull(),
+}, () => []);
 
 // ── Cost Entries ─────────────────────────────────────────────────────
 

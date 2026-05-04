@@ -372,15 +372,24 @@ export class AgentManager {
       this.sessionToAgent.set(meta.sessionId, newId);
       this.agentToSession.set(newId, meta.sessionId);
 
-      // 7. Deliver any unread DMs to the newly spawned agent
+      // 7. Deliver any unread DMs and channel messages to the newly spawned agent
       if (this.messageStore) {
-        const unread = this.messageStore.getUnreadDMs(newId);
-        if (unread.length > 0) {
-          const dmSummary = unread.map(m => `[DM from ${m.authorId ?? 'unknown'}]: ${m.content}`).join('\n');
-          this.messageStore.markRead(newId);
-          // Deliver async — don't block spawn on DM delivery
+        const unreadDMs = this.messageStore.getUnreadDMs(newId);
+        const unreadChannel = this.messageStore.getUnreadChannelMessages(newId);
+        const allUnread = [...unreadDMs, ...unreadChannel];
+        if (allUnread.length > 0) {
+          const summary = allUnread.map(m => {
+            const prefix = m.channel && m.channel !== 'dm' ? `[#${m.channel} from ${m.authorId ?? 'unknown'}]` : `[DM from ${m.authorId ?? 'unknown'}]`;
+            const replyCtx = m.replyPreview ? ` (replying to: "${m.replyPreview.slice(0, 80)}")` : '';
+            return `${prefix}${replyCtx}: ${m.content}`;
+          }).join('\n');
+          this.messageStore.markRead(newId, 'dm');
+          // Mark all subscribed channels as read
+          const subs = this.messageStore.getSubscriptions(newId);
+          for (const ch of subs) this.messageStore.markChannelRead(newId, ch);
+          // Deliver async — don't block spawn on message delivery
           this.adapter.steer(meta.sessionId, {
-            content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
+            content: `You have ${allUnread.length} unread message(s):\n\n${summary}`,
             urgent: false,
           }).catch(() => { /* best effort — agent will see them via msg_inbox */ });
         }
@@ -394,7 +403,6 @@ export class AgentManager {
       if (this.messageStore) {
         const errMsg = err instanceof Error ? `${err.message}\n\n${err.stack}` : String(err);
         this.messageStore.createMessage({
-          threadId: null,
           parentId: null,
           taskId: (agent as any).currentTask ?? null,
           authorType: 'system',
@@ -488,7 +496,7 @@ export class AgentManager {
     // Store the outgoing steer message
     if (this.messageStore) {
       const dmMsg = this.messageStore.createMessage({
-        threadId: null, parentId: null, taskId: null,
+        parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
         metadata: null, channel: `dm:${agentId}`,
@@ -513,7 +521,7 @@ export class AgentManager {
     // Store the outgoing steer message
     if (this.messageStore) {
       const dmMsg = this.messageStore.createMessage({
-        threadId: null, parentId: null, taskId: null,
+        parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
         metadata: null, channel: `dm:${agentId}`,
@@ -576,14 +584,22 @@ export class AgentManager {
     this.sessionToAgent.set(meta.sessionId, agentId);
     this.agentToSession.set(agentId, meta.sessionId);
 
-    // Deliver any unread DMs to the restarted agent
+    // Deliver any unread DMs and channel messages to the restarted agent
     if (this.messageStore) {
-      const unread = this.messageStore.getUnreadDMs(agentId);
-      if (unread.length > 0) {
-        const dmSummary = unread.map(m => `[DM from ${m.authorId ?? 'unknown'}]: ${m.content}`).join('\n');
-        this.messageStore.markRead(agentId);
+      const unreadDMs = this.messageStore.getUnreadDMs(agentId);
+      const unreadChannel = this.messageStore.getUnreadChannelMessages(agentId);
+      const allUnread = [...unreadDMs, ...unreadChannel];
+      if (allUnread.length > 0) {
+        const summary = allUnread.map(m => {
+          const prefix = m.channel && m.channel !== 'dm' ? `[#${m.channel} from ${m.authorId ?? 'unknown'}]` : `[DM from ${m.authorId ?? 'unknown'}]`;
+          const replyCtx = m.replyPreview ? ` (replying to: "${m.replyPreview.slice(0, 80)}")` : '';
+          return `${prefix}${replyCtx}: ${m.content}`;
+        }).join('\n');
+        this.messageStore.markRead(agentId, 'dm');
+        const subs = this.messageStore.getSubscriptions(agentId);
+        for (const ch of subs) this.messageStore.markChannelRead(agentId, ch);
         this.adapter.steer(meta.sessionId, {
-          content: `You have ${unread.length} unread message(s):\n\n${dmSummary}`,
+          content: `You have ${allUnread.length} unread message(s):\n\n${summary}`,
           urgent: false,
         }).catch(() => { /* best effort */ });
       }
