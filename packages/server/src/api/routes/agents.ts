@@ -27,8 +27,8 @@ export async function handleAgentRoutes(
       const spawnCallerId = req.headers['x-agent-id'] as string;
       if (spawnCallerId) {
         const spawnCaller = fd.sqlite.getAgent(spawnCallerId as import('@flightdeck-ai/shared').AgentId);
-        if (spawnCaller && spawnCaller.role !== 'lead' && spawnCaller.role !== 'director') {
-          json(403, { error: `Error: Agent '${spawnCallerId}' (role: ${spawnCaller.role}) cannot spawn agents. Only lead/director roles can spawn agents.` }); return true;
+        if (spawnCaller && spawnCaller.role !== 'director') {
+          json(403, { error: `Error: Agent '${spawnCallerId}' (role: ${spawnCaller.role}) cannot spawn agents. Only Director can spawn agents.` }); return true;
         }
       }
       let resolvedRuntime = body.runtime;

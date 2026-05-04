@@ -14,8 +14,8 @@ export async function handleTaskRoutes(
       if (callerAgentId) {
         const callerAgent = fd.sqlite.getAgent(callerAgentId as import('@flightdeck-ai/shared').AgentId);
         if (!callerAgent) { json(403, { error: `Error: Agent '${callerAgentId}' not found. Check flightdeck_status() to see registered agents.` }); return true; }
-        if (callerAgent.role !== 'lead' && callerAgent.role !== 'director') {
-          json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only lead/director roles can add tasks. Use flightdeck_escalate() to request task creation.` }); return true;
+        if (callerAgent.role !== 'director' && callerAgent.role !== 'product-thinker') {
+          json(403, { error: `Error: Agent '${callerAgentId}' (role: ${callerAgent.role}) cannot add tasks. Only Director can add tasks. Use flightdeck_escalate() to request task creation.` }); return true;
         }
       }
       const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview, notifyLead: body.notifyLead, runtime: body.runtime, model: body.model });
@@ -264,8 +264,8 @@ export async function handleTaskRoutes(
       if (declareCallerId) {
         const declareCaller = fd.sqlite.getAgent(declareCallerId as import('@flightdeck-ai/shared').AgentId);
         if (!declareCaller) { json(403, { error: `Error: Agent '${declareCallerId}' not found. Check flightdeck_status() to see registered agents.` }); return true; }
-        if (declareCaller.role !== 'lead' && declareCaller.role !== 'director') {
-          json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only lead/director roles can declare tasks. Use flightdeck_escalate() to request task creation.` }); return true;
+        if (declareCaller.role !== 'director') {
+          json(403, { error: `Error: Agent '${declareCallerId}' (role: ${declareCaller.role}) cannot declare tasks. Only Director can declare tasks. Use flightdeck_escalate() to request task creation.` }); return true;
         }
       }
       const tasks = fd.declareTasks(body.tasks as Parameters<typeof fd.declareTasks>[0]);

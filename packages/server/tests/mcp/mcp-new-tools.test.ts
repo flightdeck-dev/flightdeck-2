@@ -140,7 +140,7 @@ describe('MCP new tools', () => {
   });
 
   it('agent_spawn creates agent and enforces budget', async () => {
-    setCallerAgent('lead-1');
+    setCallerAgent('director-1');
     const result = await callTool(server, 'flightdeck_agent_spawn', {
       role: 'worker',
       runtime: 'codex',

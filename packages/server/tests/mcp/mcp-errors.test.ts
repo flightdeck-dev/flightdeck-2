@@ -64,7 +64,7 @@ describe('MCP Server Error Messages', () => {
     const text = result.content[0].text;
     expect(text).toContain('agent-worker-1');
     expect(text).toContain('worker');
-    expect(text).toContain('lead/director');
+    expect(text).toContain('Director');
     expect(text).toContain('flightdeck_escalate');
   });
 
