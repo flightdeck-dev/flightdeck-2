@@ -411,15 +411,15 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       }
     }
 
-    // Read per-role runtime config from .flightdeck/config.yaml
+    // Read per-role runtime config from .flightdeck/config.yaml in project cwd
+    const projectCwd = fd.status().config.cwd ?? process.cwd();
     const { ModelConfig } = await import('../agents/ModelConfig.js');
-    const modelConfig = new ModelConfig(fd.project.subpath('.'));
+    const modelConfig = new ModelConfig(projectCwd);
     const leadRoleConfig = modelConfig.getRoleConfig('lead');
     const directorRoleConfig = modelConfig.getRoleConfig('director');
 
     // Create LeadManager
     const projectConfig = fd.project.getConfig();
-    const projectCwd = fd.status().config.cwd ?? process.cwd();
     const leadManager = new LeadManager({
       sqlite: fd.sqlite,
       project: fd.project,
@@ -556,15 +556,15 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const profile = fd.status().config.governance;
       console.error(`\n── Hot-register project: ${name} (profile: ${profile}) ──`);
 
-      // ModelConfig
+      // ModelConfig — read from project cwd, not internal storage
+      const projectCwd = fd.status().config.cwd ?? process.cwd();
       const { ModelConfig } = await import('../agents/ModelConfig.js');
-      const modelConfig = new ModelConfig(fd.project.subpath('.'));
+      const modelConfig = new ModelConfig(projectCwd);
       const leadRoleConfig = modelConfig.getRoleConfig('lead');
       const directorRoleConfig = modelConfig.getRoleConfig('director');
 
       // LeadManager
       const projectConfig = fd.project.getConfig();
-      const projectCwd = fd.status().config.cwd ?? process.cwd();
       const leadManager = new LeadManager({
         sqlite: fd.sqlite,
         project: fd.project,

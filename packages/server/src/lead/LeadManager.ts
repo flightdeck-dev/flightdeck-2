@@ -197,7 +197,7 @@ export class LeadManager {
     // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
-      const mc = new ModelConfig(this.project.subpath('.'));
+      const mc = new ModelConfig(this.agentCwd);
       const leadConfig = mc.getRoleConfig('lead');
       if (leadConfig.runtime && leadConfig.runtime !== this.leadRuntime) {
         console.error(`  Lead runtime changed: ${this.leadRuntime} → ${leadConfig.runtime}`);
@@ -230,7 +230,7 @@ export class LeadManager {
     let roleContext = '';
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
-      const mc = new ModelConfig(this.project.subpath('.'));
+      const mc = new ModelConfig(this.agentCwd);
       const roleConfigs = mc.getRoleConfigs();
       if (roleConfigs.length > 0) {
         roleContext += '\n## Available Roles & Models\n';
@@ -287,7 +287,7 @@ export class LeadManager {
     });
 
     // Save the configured model to DB so UI can display it
-    try { const mc = await import("../agents/ModelConfig.js").then(m => new m.ModelConfig(this.project.subpath("."))); const cfg = mc.getRoleConfig("lead"); if (cfg.model) this.sqlite.updateAgentModel(meta.agentId as any, cfg.model); } catch {}
+    try { const mc = await import("../agents/ModelConfig.js").then(m => new m.ModelConfig(this.agentCwd)); const cfg = mc.getRoleConfig("lead"); if (cfg.model) this.sqlite.updateAgentModel(meta.agentId as any, cfg.model); } catch {}
     log('Lead', `Spawned fresh (session: ${meta.sessionId}, agent: ${meta.agentId})`);
     if (this.heartbeatConfig.enabled) {
       this.startHeartbeatTimer();
@@ -730,7 +730,7 @@ export class LeadManager {
     let modelPoolContext = '';
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
-      const mc = new ModelConfig(this.project.subpath('.'));
+      const mc = new ModelConfig(this.agentCwd);
       const roleConfigs = mc.getRoleConfigs();
       if (roleConfigs.length > 0) {
         modelPoolContext += '\n## Available Models per Role\n';

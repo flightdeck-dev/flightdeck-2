@@ -35,7 +35,7 @@ export async function handleAgentRoutes(
       if (!resolvedRuntime) {
         try {
           const { ModelConfig } = await import('../../agents/ModelConfig.js');
-          const mc = new ModelConfig(fd.project.subpath('.'));
+          const mc = new ModelConfig(fd.status().config.cwd ?? fd.project.subpath('.'));
           resolvedRuntime = mc.getRoleConfig(body.role).runtime;
         } catch { /* fallback to adapter default */ }
       }
