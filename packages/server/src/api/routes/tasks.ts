@@ -353,14 +353,16 @@ export async function handleTaskRoutes(
     try {
       const body = await readBody();
       if (!body.toolName) { json(400, { error: 'Missing required field: toolName' }); return true; }
-      // Persist to activity log
-      fd.sqlite.logActivity(
-        body.agentId || 'unknown',
-        body.agentRole || 'unknown',
-        `tool:${body.toolName}`,
-        `${body.toolName}${body.status === 'error' ? ' (failed)' : ''}`,
-        { input: body.input, status: body.status, durationMs: body.durationMs, error: body.error },
-      );
+      // Only persist completed/error to activity log (skip 'running' to avoid duplicates)
+      if (body.status !== 'running') {
+        fd.sqlite.logActivity(
+          body.agentId || 'unknown',
+          body.agentRole || 'unknown',
+          `tool:${body.toolName}`,
+          `${body.toolName}${body.status === 'error' ? ' (failed)' : ''}`,
+          { status: body.status, durationMs: body.durationMs, error: body.error },
+        );
+      }
       if (wsServer) {
         wsServer.broadcast({ type: 'tool:event', project: projectName, ...body });
       }
