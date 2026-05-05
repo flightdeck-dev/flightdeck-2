@@ -900,6 +900,10 @@ export class LeadManager {
         parts.push('');
         parts.push('Decide: reassign to worker with feedback, modify the task, or escalate.');
         break;
+      case 'file_conflict':
+        parts.push('[plan event: file conflict]');
+        parts.push(event.message);
+        break;
     }
 
     return parts.join('\n');
