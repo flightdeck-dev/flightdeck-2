@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { eq, sql, count } from 'drizzle-orm';
-import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks, savedSessions, escalations } from '../db/schema.js';
+import { tasks, agents, costEntries, specHashes, taskEvents, taskComments, fileLocks, savedSessions, escalations, activityLog } from '../db/schema.js';
 import { createDatabase, type FlightdeckDatabase } from '../db/database.js';
 import type { Task, Agent, CostEntry, TaskId, AgentId, TaskState, SpecId } from '@flightdeck-ai/shared';
 
@@ -641,5 +641,26 @@ export class SqliteStore extends EventEmitter {
   countPendingEscalations(): number {
     const row = this._db.select({ count: count() }).from(escalations).where(eq(escalations.status, 'pending')).get();
     return row?.count ?? 0;
+  }
+
+  // ── Activity Log ──
+
+  logActivity(agentId: string, agentRole: string, actionType: string, summary: string, details?: Record<string, unknown>): void {
+    this._db.insert(activityLog).values({
+      agentId,
+      agentRole,
+      actionType,
+      summary,
+      details: details ? JSON.stringify(details) : '{}',
+    }).run();
+  }
+
+  getActivityLog(opts?: { agentId?: string; actionType?: string; limit?: number }): Array<{
+    id: number; agentId: string; agentRole: string; actionType: string; summary: string; details: string; timestamp: string;
+  }> {
+    let query = this._db.select().from(activityLog).$dynamic();
+    if (opts?.agentId) query = query.where(eq(activityLog.agentId, opts.agentId));
+    if (opts?.actionType) query = query.where(eq(activityLog.actionType, opts.actionType));
+    return query.orderBy(activityLog.id).limit(opts?.limit ?? 100).all() as any;
   }
 }

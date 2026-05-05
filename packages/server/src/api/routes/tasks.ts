@@ -67,6 +67,14 @@ export async function handleTaskRoutes(
         contextParts.push('\n\nSubmit results with flightdeck_task_submit. If blocked, use flightdeck_escalate.');
         void am.sendToAgent(agentId as import('@flightdeck-ai/shared').AgentId, contextParts.filter(Boolean).join('')).catch(() => {});
       }
+      // Audit log: delegation
+      fd.sqlite.logActivity(
+        req.headers['x-agent-id'] as string || 'system',
+        'director',
+        'task:delegate',
+        `Delegated "${task.title}" to ${agentId}`,
+        { taskId: task.id, targetAgent: agentId },
+      );
       json(200, task);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -324,11 +332,29 @@ export async function handleTaskRoutes(
     try {
       const body = await readBody();
       if (!body.toolName) { json(400, { error: 'Missing required field: toolName' }); return true; }
+      // Persist to activity log
+      fd.sqlite.logActivity(
+        body.agentId || 'unknown',
+        body.agentRole || 'unknown',
+        `tool:${body.toolName}`,
+        `${body.toolName}${body.status === 'error' ? ' (failed)' : ''}`,
+        { input: body.input, status: body.status, durationMs: body.durationMs, error: body.error },
+      );
       if (wsServer) {
         wsServer.broadcast({ type: 'tool:event', project: projectName, ...body });
       }
-      json(200, { status: 'broadcast' });
+      json(200, { status: 'logged' });
     } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    return true;
+  }
+
+  // ── Activity Log ──
+  if (subPath === '/activity' && method === 'GET') {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const agentId = url.searchParams.get('agentId') || undefined;
+    const actionType = url.searchParams.get('actionType') || undefined;
+    const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+    json(200, fd.sqlite.getActivityLog({ agentId, actionType, limit }));
     return true;
   }
 

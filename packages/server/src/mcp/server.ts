@@ -100,15 +100,21 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     const toolName = args[0] as string;
     const handlerIdx = args.length - 1;
     const originalHandler = args[handlerIdx];
-    args[handlerIdx] = (params: any) => {
+    args[handlerIdx] = async (params: any) => {
       const agentId = getEnvAgentId() || 'unknown';
-      return toolCallContext.run(
-        { toolName, agentId, input: params, startTime: Date.now(), client },
-        () => {
-          client.notifyToolCall({ toolName, agentId, input: params, output: null, status: 'running' });
-          return originalHandler(params);
-        }
-      );
+      const startTime = Date.now();
+      client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'running' });
+      try {
+        const result = await toolCallContext.run(
+          { toolName, agentId, input: params, startTime, client },
+          () => originalHandler(params),
+        );
+        client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'completed', durationMs: Date.now() - startTime });
+        return result;
+      } catch (err) {
+        client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'error', durationMs: Date.now() - startTime, error: (err as Error).message });
+        throw err;
+      }
     };
     return (originalTool as any)(...args);
   }) as typeof server.tool;

@@ -487,6 +487,7 @@ export class GatewayClient {
   async notifyToolCall(data: {
     toolName: string;
     agentId: string;
+    agentRole?: string;
     input: unknown;
     output: unknown;
     status: 'running' | 'completed' | 'error';
