@@ -360,7 +360,7 @@ export async function handleTaskRoutes(
           body.agentRole || 'unknown',
           `tool:${body.toolName}`,
           `${body.toolName}${body.status === 'error' ? ' (failed)' : ''}`,
-          { status: body.status, durationMs: body.durationMs, error: body.error },
+          { input: typeof body.input === 'string' ? body.input.slice(0, 500) : JSON.stringify(body.input)?.slice(0, 500), status: body.status, durationMs: body.durationMs, error: body.error },
         );
       }
       if (wsServer) {
