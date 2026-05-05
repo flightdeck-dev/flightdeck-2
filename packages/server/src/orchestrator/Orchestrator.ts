@@ -520,15 +520,7 @@ export class Orchestrator {
         if (!meta) continue;
 
         if (meta.status === 'running') {
-          // Active session — check if running too long without progress
-          const runningMinutes = (Date.now() - new Date(task.updatedAt).getTime()) / 60_000;
-          if (runningMinutes > (this.governanceConfig.stallTimeoutMinutes ?? 10)) {
-            // Running too long — send a reminder to submit
-            await this.adapter.steer(task.acpSessionId, {
-              content: `[${formatTs()}] [SYSTEM] Task "${task.title}" (${task.id}) has been running for ${Math.round(runningMinutes)} minutes. If you've completed the work, please call flightdeck_task_submit now. If blocked, call flightdeck_escalate.`,
-            });
-            detected++;
-          }
+          // Active session — let it run as long as it needs
           continue;
         }
 
@@ -541,50 +533,52 @@ export class Orchestrator {
         }
 
         if (meta.status === 'ended') {
-          // Session ended without submit — definite stall
-          await this.adapter.kill(task.acpSessionId);
-
-          const maxRetries = this.governanceConfig.maxRetries ?? 3;
-          const retries = this.retryCount.get(task.id) ?? 0;
-
-          this.dag.failTask(task.id);
-
-          if (retries < maxRetries) {
-            // Retry: append error context to description so next worker has it
-            const comments = this.store.getTaskComments(task.id);
-            const lastReview = comments.filter(c => c.type === 'review').pop();
-            const lastError = comments.filter(c => c.type === 'system').pop();
-            const retryContext = [
-              `\n\n--- RETRY #${retries + 1} CONTEXT ---`,
-              lastError ? `Previous failure: ${lastError.content}` : 'Previous attempt: agent session ended without submission.',
-              lastReview ? `Last review feedback: ${lastReview.content}` : '',
-            ].filter(Boolean).join('\n');
-            // Append context to task description
-            const currentTask = this.store.getTask(task.id);
-            if (currentTask) {
-              this.store.updateTaskDescription(task.id, (currentTask.description ?? '') + retryContext);
-            }
-            this.dag.retryTask(task.id);
-            this.retryCount.set(task.id, retries + 1);
-          } else {
-            // Max retries exhausted — notify Lead
-            this.leadManager?.steerLead({
-              type: 'task_failure',
-              taskId: task.id,
-              error: `Task failed after ${maxRetries} retries. Agent session ended without submission.`,
+          // Session ended without submit — resume it
+          try {
+            await this.adapter.steer(task.acpSessionId, {
+              content: `[${formatTs()}] [SYSTEM] Your session was interrupted. Task "${task.title}" (${task.id}) is still assigned to you. Please complete it and call flightdeck_task_submit.`,
             });
-            // Also notify Director about exhausted failures
-            this.notifyDirectorIfNeeded(task.id, 'failed');
-            this.webhookNotifier?.notify(
-              taskFailedEvent(this.config.name, task.title, `Failed after ${maxRetries} retries`),
-            );
-          }
+            detected++;
+          } catch {
+            // Resume failed — mark agent hibernated, retry task
+            const maxRetries = this.governanceConfig.maxRetries ?? 3;
+            const retries = this.retryCount.get(task.id) ?? 0;
 
-          this.store.updateAgentStatus(task.assignedAgent, 'hibernated');
-          this.webhookNotifier?.notify(
-            agentStallEvent(this.config.name, task.assignedAgent as string, task.title),
-          );
-          detected++;
+            this.dag.failTask(task.id);
+
+            if (retries < maxRetries) {
+              const comments = this.store.getTaskComments(task.id);
+              const lastReview = comments.filter(c => c.type === 'review').pop();
+              const lastError = comments.filter(c => c.type === 'system').pop();
+              const retryContext = [
+                `\n\n--- RETRY #${retries + 1} CONTEXT ---`,
+                lastError ? `Previous failure: ${lastError.content}` : 'Previous attempt: agent session ended and could not be resumed.',
+                lastReview ? `Last review feedback: ${lastReview.content}` : '',
+              ].filter(Boolean).join('\n');
+              const currentTask = this.store.getTask(task.id);
+              if (currentTask) {
+                this.store.updateTaskDescription(task.id, (currentTask.description ?? '') + retryContext);
+              }
+              this.dag.retryTask(task.id);
+              this.retryCount.set(task.id, retries + 1);
+            } else {
+              this.leadManager?.steerLead({
+                type: 'task_failure',
+                taskId: task.id,
+                error: `Task failed after ${maxRetries} retries. Agent session ended and could not be resumed.`,
+              });
+              this.notifyDirectorIfNeeded(task.id, 'failed');
+              this.webhookNotifier?.notify(
+                taskFailedEvent(this.config.name, task.title, `Failed after ${maxRetries} retries`),
+              );
+            }
+
+            this.store.updateAgentStatus(task.assignedAgent, 'hibernated');
+            this.webhookNotifier?.notify(
+              agentStallEvent(this.config.name, task.assignedAgent as string, task.title),
+            );
+            detected++;
+          }
         }
       } catch {
         errors++;
