@@ -325,6 +325,20 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     }
   };
 
+  // ACP adapter tool call audit (same handler as Copilot SDK)
+  acpAdapter.onToolCall = (agentId, data) => {
+    if (data.status !== 'completed') return;
+    for (const projName of projectManager.list()) {
+      const fd = projectManager.get(projName);
+      if (!fd) continue;
+      const agent = fd.sqlite.getAgent(agentId as any);
+      if (agent) {
+        fd.sqlite.logActivity(agentId, agent.role, `tool:${data.toolName}`, data.toolName, { source: 'acp' });
+        break;
+      }
+    }
+  };
+
   // Wire Copilot SDK streaming output to WebSocket
   copilotSdkAdapter.onOutput = (agentId, event) => {
     const e = event as any;
@@ -337,6 +351,22 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     for (const wsServer of wsServers.values()) {
       if (mapped.delta) {
         wsServer.broadcast({ type: 'agent:stream', agentId, delta: mapped.delta, contentType: mapped.contentType, toolName: mapped.toolName });
+      }
+    }
+  };
+
+  // Track all tool calls (native + custom MCP) for audit log
+  copilotSdkAdapter.onToolCall = (agentId, data) => {
+    if (data.status !== 'completed') return;
+    // Skip flightdeck MCP tools (already logged via /tool-events HTTP endpoint)
+    if (data.toolName.startsWith('flightdeck_')) return;
+    for (const projName of projectManager.list()) {
+      const fd = projectManager.get(projName);
+      if (!fd) continue;
+      const agent = fd.sqlite.getAgent(agentId as any);
+      if (agent) {
+        fd.sqlite.logActivity(agentId, agent.role, `tool:${data.toolName}`, data.toolName, { source: 'sdk' });
+        break;
       }
     }
   };

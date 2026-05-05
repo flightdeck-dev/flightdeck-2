@@ -153,6 +153,7 @@ export class AcpAdapter extends AgentAdapter {
 
   /** Callback fired when any session produces output (for global streaming). */
   onAnySessionOutput: ((agentId: string, update: NonNullable<AcpSession['onOutputChunk']> extends (u: infer U) => void ? U : never) => void) | null = null;
+  onToolCall: ((agentId: string, data: { toolName: string; status: 'running' | 'completed' }) => void) | null = null;
 
   /** Get PIDs of all living child agent processes (for orphan tracking). */
   getChildPids(): number[] {
@@ -231,6 +232,10 @@ export class AcpAdapter extends AgentAdapter {
             // Store tool call and forward to listener
             session.onOutputChunk?.(update);
             self.onAnySessionOutput?.(session.agentId, update);
+            if (self.onToolCall) {
+              const toolName = (update as any).name ?? (update as any).toolName ?? 'unknown';
+              self.onToolCall(session.agentId, { toolName, status: 'completed' });
+            }
             break;
           case 'tool_call_update':
             // Forward tool call update to listener

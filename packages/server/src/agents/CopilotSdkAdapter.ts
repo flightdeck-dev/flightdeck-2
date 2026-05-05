@@ -68,6 +68,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
   onSessionTurnEnd: ((sessionId: string, agentId: string) => void) | null = null;
   /** Callback fired on any output. */
   onOutput: ((agentId: string, event: SessionEvent) => void) | null = null;
+  onToolCall: ((agentId: string, data: { toolName: string; status: 'running' | 'completed' }) => void) | null = null;
 
   constructor(options?: CopilotSdkAdapterOptions) {
     super();
@@ -1082,6 +1083,20 @@ export class CopilotSdkAdapter extends AgentAdapter {
             messagesLength: data.messagesLength ?? 0,
           });
         } catch { /* */ }
+      }
+
+      // Track tool calls (all tools: native + custom MCP)
+      if ((event.type as string) === 'tool.execution_start') {
+        const data = (event as any).data;
+        if (this.onToolCall) {
+          try { this.onToolCall(aid, { toolName: data?.toolName ?? 'unknown', status: 'running' }); } catch { /* */ }
+        }
+      }
+      if ((event.type as string) === 'tool.execution_complete') {
+        const data = (event as any).data;
+        if (this.onToolCall) {
+          try { this.onToolCall(aid, { toolName: data?.toolName ?? 'unknown', status: 'completed' }); } catch { /* */ }
+        }
       }
 
       if (this.onOutput) {
