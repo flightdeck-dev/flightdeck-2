@@ -419,7 +419,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
       runtime: z.string().optional().describe('Preferred runtime for the agent executing this task.'),
       model: z.string().optional().describe('Preferred model for the agent executing this task.'),
-      reviewers: z.array(z.string()).optional().describe('Agent IDs to review this task. Omit to let Director assign later.'),
+      reviewers: z.array(z.string()).optional().describe('Agent IDs to review this task. Reviewers are auto-steered when task enters in_review. Omit to let Director assign later via task_set_reviewers.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();

@@ -124,6 +124,8 @@ export class TaskDAG {
   completeTask(id: TaskId): Task {
     const task = this.store.getTask(id);
     if (!task) throw new Error(`Task not found: ${id}`);
+    // Idempotent: if already done, return as-is
+    if (task.state === 'done') return task;
     const result = transition(task.state, 'done', { taskId: id });
     this.store.updateTaskState(id, 'done');
     this.processEffects(result.effects);

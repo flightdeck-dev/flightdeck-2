@@ -177,6 +177,10 @@ export class Flightdeck {
 
   setTaskReviewers(taskId: TaskId, reviewers: string[] | null): Task | null {
     this.sqlite.setTaskReviewers(taskId, reviewers);
+    // Trigger orchestrator tick so assigned reviewers get steered immediately
+    if (reviewers && reviewers.length > 0) {
+      void this.orchestrator.tick().catch(() => { /* best effort */ });
+    }
     return this.sqlite.getTask(taskId);
   }
 
