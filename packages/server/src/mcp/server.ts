@@ -418,7 +418,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       priority: z.number().optional(),
       needsReview: z.boolean().describe('Whether this task needs reviewer approval after worker submits. Set false for trivial/mechanical tasks.'),
       notifyLead: z.boolean().optional().describe('If true, notify Lead when this task completes. Default: false.'),
-      acceptanceCriteria: z.string().describe('What "done" looks like. Concise success condition shown to worker and reviewer. Can be simple (e.g. "file exists with correct content").'),
+      acceptanceCriteria: z.string().min(1).describe('What "done" looks like. Concise success condition shown to worker and reviewer. Can be simple (e.g. "file exists with correct content").'),
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
       runtime: z.string().optional().describe('Preferred runtime for the agent executing this task.'),
       model: z.string().optional().describe('Preferred model for the agent executing this task.'),
