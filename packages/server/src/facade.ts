@@ -175,6 +175,11 @@ export class Flightdeck {
     return this.dag.declareTasks(tasks);
   }
 
+  setTaskReviewers(taskId: TaskId, reviewers: string[] | null): Task | null {
+    this.sqlite.setTaskReviewers(taskId, reviewers);
+    return this.sqlite.getTask(taskId);
+  }
+
   declareSubTasks(parentId: TaskId, subTasks: Parameters<TaskDAG['declareSubTasks']>[1]): Task[] {
     return this.dag.declareSubTasks(parentId, subTasks);
   }

@@ -280,6 +280,19 @@ export async function handleTaskRoutes(
     return true;
   }
 
+  if (subPath.match(/^\/tasks\/[^/]+\/reviewers$/) && method === 'POST') {
+    try {
+      const taskId = subPath.split('/')[2];
+      const body = await readBody();
+      const reviewers = Array.isArray(body.reviewers) ? body.reviewers : null;
+      const task = fd.setTaskReviewers(taskId as import('@flightdeck-ai/shared').TaskId, reviewers);
+      if (!task) { json(404, { error: 'Task not found' }); return true; }
+      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      json(200, task);
+    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    return true;
+  }
+
   if (subPath === '/tasks/declare' && method === 'POST') {
     try {
       const body = await readBody();

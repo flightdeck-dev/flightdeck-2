@@ -80,6 +80,7 @@ export interface Task {
   context?: string; // Additional context, references, code snippets
   runtime?: string; // Preferred runtime for the agent executing this task
   model?: string; // Preferred model for the agent executing this task
+  reviewers?: string[] | null; // Agent IDs assigned to review this task (attention set)
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }

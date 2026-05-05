@@ -48,6 +48,7 @@ export class TaskDAG {
     notifyLead?: boolean;
     runtime?: string;
     model?: string;
+    reviewers?: string[] | null;
   }): Task {
     const now = new Date().toISOString();
     const deps = opts.dependsOn ?? [];
@@ -70,6 +71,7 @@ export class TaskDAG {
       needsReview: opts.needsReview !== false,
       runtime: opts.runtime,
       model: opts.model,
+      reviewers: opts.reviewers ?? null,
       compactedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -210,6 +212,7 @@ export class TaskDAG {
     notifyLead?: boolean;
     runtime?: string;
     model?: string;
+    reviewers?: string[] | null;
   }>): Task[] {
     // First pass: create all tasks, mapping temp keys to real IDs
     const idMap = new Map<string, TaskId>();
@@ -225,6 +228,7 @@ export class TaskDAG {
         notifyLead: t.notifyLead,
         runtime: t.runtime,
         model: t.model,
+        reviewers: t.reviewers,
       });
       idMap.set(t.title, task.id);
       results.push(task);

@@ -28,6 +28,7 @@ export const tasks = sqliteTable('tasks', {
   notifyLead: integer('notify_lead', { mode: 'boolean' }).notNull().default(false),
   runtime: text('runtime'),
   model: text('model'),
+  reviewers: text('reviewers'),
   compactedAt: text('compacted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

@@ -97,6 +97,7 @@ export class SqliteStore extends EventEmitter {
       notifyLead: task.notifyLead === true,
       runtime: task.runtime ?? null,
       model: task.model ?? null,
+      reviewers: task.reviewers ? JSON.stringify(task.reviewers) : null,
       compactedAt: task.compactedAt ?? null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -261,6 +262,7 @@ export class SqliteStore extends EventEmitter {
       notifyLead: Boolean(row.notifyLead),
       runtime: row.runtime ?? undefined,
       model: row.model ?? undefined,
+      reviewers: row.reviewers ? JSON.parse(row.reviewers) as string[] : null,
       compactedAt: (row.compactedAt ?? null) as string | null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -588,6 +590,12 @@ export class SqliteStore extends EventEmitter {
 
   clearTaskStale(id: TaskId): void {
     this._db.run(sql`UPDATE tasks SET stale = 0 WHERE id = ${id as string}`);
+  }
+
+  setTaskReviewers(id: TaskId, reviewers: string[] | null): void {
+    const now = new Date().toISOString();
+    const value = reviewers ? JSON.stringify(reviewers) : null;
+    this._db.run(sql`UPDATE tasks SET reviewers = ${value}, updated_at = ${now} WHERE id = ${id as string}`);
   }
 
   // ── Saved Sessions (gateway restart recovery) ──

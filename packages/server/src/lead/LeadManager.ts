@@ -52,7 +52,10 @@ export type DirectorEvent =
   | { type: 'agent_session_ended'; taskId: string; agentId: string; title: string; message: string }
   | { type: 'spec_milestone'; specId: string; completed: number; total: number }
   | { type: 'plan_validation_request'; specId: string; context: string }
-  | { type: 'file_conflict'; taskId: string; message: string };
+  | { type: 'file_conflict'; taskId: string; message: string }
+  | { type: 'reviewers_needed'; taskId: string; title: string; message: string }
+  | { type: 'reviewer_unavailable'; taskId: string; agentId: string; title: string; message: string }
+  | { type: 'all_reviewers_rejected'; taskId: string; title: string; feedback: string };
 
 export type LeadEvent =
   | { type: 'user_message'; message: ChatMessage }
@@ -871,6 +874,21 @@ export class LeadManager {
         parts.push(`Agent ${event.agentId} session ended without submitting task "${event.title}" (${event.taskId}).`);
         parts.push('');
         parts.push('Decide: resume the agent (steer it to continue), reassign to another worker, or fail the task.');
+        break;
+      case 'reviewers_needed':
+        parts.push('[plan event: reviewers needed]');
+        parts.push(event.message);
+        break;
+      case 'reviewer_unavailable':
+        parts.push('[plan event: reviewer unavailable]');
+        parts.push(event.message);
+        break;
+      case 'all_reviewers_rejected':
+        parts.push('[plan event: review rejected]');
+        parts.push(`Task "${event.title}" (${event.taskId}) was rejected by reviewers.`);
+        parts.push(`Feedback: ${event.feedback}`);
+        parts.push('');
+        parts.push('Decide: reassign to worker with feedback, modify the task, or escalate.');
         break;
     }
 

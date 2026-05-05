@@ -419,6 +419,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
       context: z.string().optional().describe('Additional context: references, code snippets, related files.'),
       runtime: z.string().optional().describe('Preferred runtime for the agent executing this task.'),
       model: z.string().optional().describe('Preferred model for the agent executing this task.'),
+      reviewers: z.array(z.string()).optional().describe('Agent IDs to review this task. Omit to let Director assign later.'),
     })),
   }, async (params) => {
     const resolved = requireAgentId();
@@ -1068,6 +1069,20 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     if ('error' in resolved) return resolved.error;
     try {
       return jsonResponse(await client.clearTaskStale(params.taskId));
+    } catch (err) {
+      return errorResponse(`Error: ${(err as Error).message}`);
+    }
+  });
+
+  server.tool('flightdeck_task_set_reviewers', 'Set or update the reviewer attention set for a task. Pass agent IDs to assign reviewers, or empty array to clear.', {
+    taskId: z.string(),
+    reviewers: z.array(z.string()).describe('Agent IDs to assign as reviewers. Empty array clears reviewers.'),
+  }, async (params) => {
+    const resolved = requireAgentId();
+    if ('error' in resolved) return resolved.error;
+    try {
+      const reviewers = params.reviewers.length > 0 ? params.reviewers : null;
+      return jsonResponse(await client.setTaskReviewers(params.taskId, reviewers));
     } catch (err) {
       return errorResponse(`Error: ${(err as Error).message}`);
     }

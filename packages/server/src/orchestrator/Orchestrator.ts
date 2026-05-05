@@ -16,7 +16,6 @@ import { StatusFileWriter, type StatusData } from '../status/StatusFileWriter.js
 import { SpecChangeDetector, type SpecChange } from '../specs/SpecChangeDetector.js';
 import { WebhookNotifier, type NotificationsConfig, taskCompletedEvent, taskFailedEvent, specCompletedEvent, escalationEvent, agentStallEvent, budgetWarningEvent } from '../integrations/WebhookNotifier.js';
 import type { SpecStore } from '../storage/SpecStore.js';
-import { processReview } from '../verification/ReviewFlow.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -152,42 +151,9 @@ export class Orchestrator {
     log('Orchestrator', `Effect: ${effect.type}${(effect as any).taskId ? ` for ${(effect as any).taskId}` : ''}`);
     switch (effect.type) {
       case 'spawn_reviewer': {
-        if (!this.adapter) break;
-        const task = this.dag.getTask(effect.taskId);
-        if (!task) break;
-        // Use ReviewFlow.processReview which handles:
-        // - Spawning reviewer agent with the review prompt
-        // - Waiting for its verdict
-        // - Transitioning task state (done/failed/running)
-        processReview(effect.taskId, this.store, this.adapter, {
-          cwd: this.config.cwd ?? process.cwd(),
-          projectName: this.config.name,
-          agentManager: this.agentManager ?? undefined,
-        }).then(result => {
-          if (result.passed) {
-            this.webhookNotifier?.notify(
-              taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
-            );
-            // Notify Director if this was a critical-path completion
-            this.notifyDirectorIfNeeded(effect.taskId, 'completed');
-          } else {
-            // Notify lead about review failure
-            this.leadManager?.steerLead({
-              type: 'task_failure',
-              taskId: effect.taskId as string,
-              error: `Review failed: ${result.feedback}`,
-            });
-          }
-          this.broadcastStateChange();
-        }).catch((err: unknown) => {
-          console.error(`[${this.config.name}] Review spawn failed for task ${effect.taskId}:`, err instanceof Error ? err.message : String(err));
-          // Leave in in_review for retry; notify Lead
-          this.leadManager?.steerLead({
-            type: 'task_failure',
-            taskId: effect.taskId as string,
-            error: `Review process failed: ${err instanceof Error ? err.message : String(err)}`,
-          }).catch(() => {});
-        });
+        // With attention set, reviews are handled by processAttentionSetReviews in tick.
+        // The spawn_reviewer effect just triggers a reactive tick to pick it up.
+        this.scheduleReactiveTick();
         break;
       }
       case 'escalate': {
@@ -303,11 +269,8 @@ export class Orchestrator {
     const promoted = this.promoteReadyTasks();
     if (promoted > 0) stateChanged = true;
 
-    // 2. Spawn reviewers for in_review tasks that don't have one yet.
-    //    The spawn_reviewer effect fires from TaskDAG.processEffects, but
-    //    MCP server runs a separate Flightdeck instance (no effectHandler).
-    //    So we catch in_review tasks here as a reliable fallback.
-    await this.spawnMissingReviewers();
+    // 2. Process attention set reviews for in_review tasks
+    await this.processAttentionSetReviews();
 
     // 3. Detect stalls — check ACP session state for running agents
     const stalls = await this.detectStalls();
@@ -428,47 +391,128 @@ export class Orchestrator {
    * When a WorkflowEngine is configured, completed tasks are advanced
    * through their pipeline (e.g., running post-review steps).
    */
-  // processCompletions removed: reviews are always handled by ReviewFlow
 
   /**
-   * Spawn reviewers for in_review tasks that don't have an active review.
-   * The spawn_reviewer effect fires inside TaskDAG, but the MCP server runs
-   * a separate Flightdeck instance without the effectHandler. So we poll
-   * for in_review tasks here as a reliable catch-all.
+   * Process tasks in in_review state using the attention set (reviewers array).
+   * - If task has reviewers assigned, steer each available reviewer
+   * - If reviewer is unavailable (session ended/hibernated), notify Director
+   * - If no reviewers assigned and needsReview is true, notify Director to assign
    */
   private reviewInProgress = new Set<string>();
-  private async spawnMissingReviewers(): Promise<void> {
+  private reviewSteerRetries = new Map<string, number>();
+  private async processAttentionSetReviews(): Promise<void> {
     if (!this.adapter) return;
     const inReviewTasks = this.dag.listTasks().filter(t => t.state === 'in_review');
     for (const task of inReviewTasks) {
-      if (this.reviewInProgress.has(task.id)) continue; // Already has a reviewer
-      this.reviewInProgress.add(task.id);
-      processReview(task.id, this.store, this.adapter, {
-        cwd: this.config.cwd ?? process.cwd(),
-        projectName: this.config.name,
-        agentManager: this.agentManager ?? undefined,
-      }).then(result => {
-        this.reviewInProgress.delete(task.id);
-        if (result.passed) {
-          this.webhookNotifier?.notify(
-            taskCompletedEvent(this.config.name, task.title, (task.assignedAgent as string) ?? 'unknown'),
-          );
-          this.notifyDirectorIfNeeded(task.id, 'completed');
-        } else {
-          this.leadManager?.steerLead({
-            type: 'task_failure',
+      if (this.reviewInProgress.has(task.id)) continue;
+
+      const reviewers = (task as any).reviewers as string[] | null;
+
+      // No reviewers assigned — notify Director to assign
+      if (!reviewers || reviewers.length === 0) {
+        if (!this.notifiedTaskIds.has(`review-needed:${task.id}`)) {
+          this.notifiedTaskIds.add(`review-needed:${task.id}`);
+          this.leadManager?.steerDirectorEvent({
+            type: 'reviewers_needed',
             taskId: task.id as string,
-            error: `Review failed: ${result.feedback}`,
+            title: task.title,
+            message: `Task "${task.title}" (${task.id}) is in_review but has no reviewers assigned. Use flightdeck_task_set_reviewers("${task.id}", ["<agentId>"]) to assign.`,
           });
         }
-        this.broadcastStateChange();
-      }).catch((err: unknown) => {
+        continue;
+      }
+
+      // Has reviewers — steer each one
+      this.reviewInProgress.add(task.id);
+      let steeredAny = false;
+
+      for (const reviewerId of reviewers) {
+        const agent = this.store.getAgent(reviewerId as any);
+        if (!agent) {
+          // Agent doesn't exist — notify Director
+          this.leadManager?.steerDirectorEvent({
+            type: 'reviewer_unavailable',
+            taskId: task.id as string,
+            agentId: reviewerId,
+            title: task.title,
+            message: `Reviewer "${reviewerId}" for task "${task.title}" does not exist. Spawn or reassign.`,
+          });
+          continue;
+        }
+
+        if (agent.status === 'hibernated' || agent.status === 'errored') {
+          // Agent is hibernated/offline — notify Director
+          this.leadManager?.steerDirectorEvent({
+            type: 'reviewer_unavailable',
+            taskId: task.id as string,
+            agentId: reviewerId,
+            title: task.title,
+            message: `Reviewer "${reviewerId}" is ${agent.status}. Wake with flightdeck_agent_wake or reassign.`,
+          });
+          continue;
+        }
+
+        // Agent exists and is idle/busy — steer with review prompt
+        if (agent.acpSessionId) {
+          const reviewPrompt = [
+            `[${formatTs()}] [SYSTEM] Review requested for task "${task.title}" (${task.id}).`,
+            task.description ? `Description: ${task.description}` : '',
+            (task as any).claim ? `Submission: ${(task as any).claim}` : '',
+            (task as any).acceptanceCriteria ? `Acceptance Criteria: ${(task as any).acceptanceCriteria}` : '',
+            '',
+            'Review the work and use flightdeck_task_complete() to approve or flightdeck_task_fail() to reject with feedback.',
+          ].filter(Boolean).join('\n');
+
+          try {
+            await this.adapter.steer(agent.acpSessionId, { content: reviewPrompt });
+            steeredAny = true;
+          } catch (err) {
+            // Retry once
+            const retryKey = `${task.id}:${reviewerId}`;
+            const retries = this.reviewSteerRetries.get(retryKey) ?? 0;
+            if (retries < 1) {
+              this.reviewSteerRetries.set(retryKey, retries + 1);
+              try {
+                await this.adapter.steer(agent.acpSessionId, { content: reviewPrompt });
+                steeredAny = true;
+              } catch {
+                this.leadManager?.steerDirectorEvent({
+                  type: 'reviewer_unavailable',
+                  taskId: task.id as string,
+                  agentId: reviewerId,
+                  title: task.title,
+                  message: `Failed to steer reviewer "${reviewerId}" for task "${task.title}". Session may be dead.`,
+                });
+              }
+            } else {
+              this.leadManager?.steerDirectorEvent({
+                type: 'reviewer_unavailable',
+                taskId: task.id as string,
+                agentId: reviewerId,
+                title: task.title,
+                message: `Failed to steer reviewer "${reviewerId}" after retry. Reassign or respawn.`,
+              });
+            }
+          }
+        }
+      }
+
+      if (!steeredAny) {
+        // None of the reviewers could be steered
         this.reviewInProgress.delete(task.id);
-        console.error(`[${this.config.name}] Review failed for ${task.id}:`, err instanceof Error ? err.message : String(err));
-      });
+      }
+      // Note: reviewInProgress stays set until task leaves in_review state
+      // The tick will re-check on next pass
+    }
+
+    // Clean up reviewInProgress for tasks no longer in_review
+    for (const taskId of this.reviewInProgress) {
+      const t = this.dag.getTask(taskId as any);
+      if (!t || t.state !== 'in_review') {
+        this.reviewInProgress.delete(taskId);
+      }
     }
   }
-  // via spawn_reviewer effect. No auto-approve in tick.
 
   /**
    * Handle a workflow step action for a task.
@@ -913,7 +957,7 @@ export class Orchestrator {
     const promoted = this.promoteReadyTasks();
     if (promoted > 0) stateChanged = true;
 
-    await this.spawnMissingReviewers();
+    await this.processAttentionSetReviews();
 
     const assigned = this.autoAssignReadyTasks();
     if (assigned > 0) stateChanged = true;

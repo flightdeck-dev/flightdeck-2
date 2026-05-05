@@ -166,6 +166,10 @@ export class GatewayClient {
     return this.request('POST', `/tasks/${taskId}/clear-stale`);
   }
 
+  async setTaskReviewers(taskId: string, reviewers: string[] | null): Promise<unknown> {
+    return this.request('POST', `/tasks/${taskId}/reviewers`, { reviewers });
+  }
+
   async getTaskEvents(taskId: string): Promise<unknown[]> {
     return this.get(`/tasks/${taskId}/events`);
   }
