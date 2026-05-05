@@ -19,6 +19,12 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `cost` real DEFAULT 0,
   `stale` integer NOT NULL DEFAULT 0,
   `needs_review` integer NOT NULL DEFAULT 1,
+  `acceptance_criteria` text,
+  `context` text,
+  `notify_lead` integer NOT NULL DEFAULT 0,
+  `runtime` text,
+  `model` text,
+  `reviewers` text,
   `compacted_at` text,
   `created_at` text NOT NULL,
   `updated_at` text NOT NULL

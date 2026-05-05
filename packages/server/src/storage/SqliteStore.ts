@@ -54,6 +54,7 @@ export class SqliteStore extends EventEmitter {
     this.addColumnIfMissing('tasks', 'notify_lead', 'integer NOT NULL DEFAULT 0');
     this.addColumnIfMissing('tasks', 'runtime', 'text');
     this.addColumnIfMissing('tasks', 'model', 'text');
+    this.addColumnIfMissing('tasks', 'reviewers', 'text');
     this.addColumnIfMissing('messages', 'source', "text DEFAULT 'web'");
     this.addColumnIfMissing('messages', 'sender_id', 'text');
     this.addColumnIfMissing('messages', 'sender_name', 'text');
