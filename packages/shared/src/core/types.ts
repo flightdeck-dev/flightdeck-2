@@ -243,7 +243,8 @@ export type SideEffect =
   | { type: 'escalate'; taskId: TaskId; reason: string }
   | { type: 'update_dag'; taskId: TaskId }
   | { type: 'log_decision'; decision: Decision }
-  | { type: 'notify_lead_completed'; taskId: TaskId; title: string; claim?: string };
+  | { type: 'notify_lead_completed'; taskId: TaskId; title: string; claim?: string }
+  | { type: 'notify_lead_declared'; tasks: Array<{ taskId: TaskId; title: string }> };
 
 export interface TransitionResult {
   newState: TaskState;

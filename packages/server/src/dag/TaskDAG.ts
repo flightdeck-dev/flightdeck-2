@@ -309,6 +309,12 @@ export class TaskDAG {
         this.reverseAdj.get(results[i].id)!.add(dep);
       }
     }
+
+    // Notify Lead about declared tasks (if any have notifyLead=true)
+    const notifyTasks = results.filter((r, i) => tasks[i].notifyLead);
+    if (notifyTasks.length > 0) {
+      this.processEffects([{ type: 'notify_lead_declared', tasks: notifyTasks.map(t => ({ taskId: t.id, title: t.title })) }]);
+    }
     return results;
   }
 

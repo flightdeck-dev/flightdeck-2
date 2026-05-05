@@ -71,6 +71,7 @@ export type LeadEvent =
   | { type: 'cron'; job: { id: string; name: string; prompt: string; skill?: string } }
   | { type: 'scout_report'; suggestions: Array<{ title: string; description: string; category: string; effort: string; impact: string }> }
   | { type: 'task_completed_notify'; taskId: string; title: string; claim?: string }
+  | { type: 'tasks_declared_notify'; message: string }
   | { type: 'system_notice'; message: string };
 
 export interface HeartbeatCondition {
@@ -590,6 +591,15 @@ export class LeadManager {
         if (event.claim) parts.push(`Result: ${event.claim}`);
         parts.push('');
         parts.push(`Review with flightdeck_task_context("${event.taskId}") if needed.`);
+        break;
+      }
+
+      case 'tasks_declared_notify': {
+        const tdnTs = formatTs();
+        parts.push(`[${tdnTs}] [SYSTEM]`);
+        parts.push(`source: tasks_declared_notify`);
+        parts.push('---');
+        parts.push(event.message);
         break;
       }
 

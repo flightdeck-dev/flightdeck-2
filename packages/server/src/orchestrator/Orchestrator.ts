@@ -205,6 +205,14 @@ export class Orchestrator {
         });
         break;
       }
+      case 'notify_lead_declared': {
+        const titles = effect.tasks.map(t => t.title).join(', ');
+        this.leadManager?.steerLead({
+          type: 'tasks_declared_notify',
+          message: `Director declared ${effect.tasks.length} task(s): ${titles}`,
+        });
+        break;
+      }
     }
   }
 
