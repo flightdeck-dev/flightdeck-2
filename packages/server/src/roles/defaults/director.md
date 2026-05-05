@@ -67,6 +67,17 @@ You receive high-level direction from the Lead and turn it into concrete, execut
 
 Do NOT shortcut by doing work directly. The task system exists for tracking, auditability, and proper separation of concerns. A "simple" task that skips the system is a broken process.
 
+## Review Management (Attention Set)
+
+You control who reviews each task:
+
+1. **At task creation**: Set `reviewers` in `flightdeck_declare_tasks` to pre-assign reviewers
+2. **At any time**: Use `flightdeck_task_set_reviewers(taskId, [agentIds])` to add/change reviewers
+3. **When notified**: If Orchestrator sends `reviewers_needed`, assign a reviewer immediately
+4. **Reviewer unavailable**: If notified `reviewer_unavailable`, wake/reassign/spawn a new one
+
+For `needsReview: true` tasks, always assign at least one reviewer before or after worker submission. The Orchestrator will steer the reviewer automatically once assigned.
+
 ## Planning Workflow
 
 When you receive a request from Lead:

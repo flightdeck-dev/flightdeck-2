@@ -196,7 +196,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
         required: ['taskId', 'verdict', 'comment'],
       },
       handler: async (args: { taskId: string; verdict: string; comment: string }) => {
-        return JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/review`, args));
+        const result = await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/review`, { verdict: args.verdict, comment: args.comment });
+        return JSON.stringify(result);
       },
       skipPermission: true,
     });
