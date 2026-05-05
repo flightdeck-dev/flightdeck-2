@@ -49,6 +49,7 @@ export interface CopilotAgentSession {
   projectName?: string;
   cwd: string;
   model?: string;
+  pendingToolCalls?: Map<string, string>;
 }
 
 export class CopilotSdkAdapter extends AgentAdapter {
@@ -1088,14 +1089,20 @@ export class CopilotSdkAdapter extends AgentAdapter {
       // Track tool calls (all tools: native + custom MCP)
       if ((event.type as string) === 'tool.execution_start') {
         const data = (event as any).data;
-        if (this.onToolCall) {
-          try { this.onToolCall(aid, { toolName: data?.toolName ?? 'unknown', status: 'running' }); } catch { /* */ }
+        const toolCallId = data?.toolCallId;
+        const toolName = data?.toolName ?? 'unknown';
+        if (toolCallId) {
+          agentSession.pendingToolCalls = agentSession.pendingToolCalls ?? new Map();
+          agentSession.pendingToolCalls.set(toolCallId, toolName);
         }
       }
       if ((event.type as string) === 'tool.execution_complete') {
         const data = (event as any).data;
+        const toolCallId = data?.toolCallId;
+        const toolName = agentSession.pendingToolCalls?.get(toolCallId) ?? 'unknown';
+        if (toolCallId) agentSession.pendingToolCalls?.delete(toolCallId);
         if (this.onToolCall) {
-          try { this.onToolCall(aid, { toolName: data?.toolName ?? 'unknown', status: 'completed' }); } catch { /* */ }
+          try { this.onToolCall(aid, { toolName, status: 'completed' }); } catch { /* */ }
         }
       }
 
