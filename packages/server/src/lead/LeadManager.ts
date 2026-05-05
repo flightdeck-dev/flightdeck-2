@@ -49,6 +49,7 @@ export type DirectorEvent =
   | { type: 'critical_task_completed'; taskId: string; specId: string | null; title: string; remainingInSpec: number }
   | { type: 'task_failed'; taskId: string; error: string; retriesLeft: number }
   | { type: 'worker_escalation'; taskId: string; agentId: string; reason: string }
+  | { type: 'agent_session_ended'; taskId: string; agentId: string; title: string; message: string }
   | { type: 'spec_milestone'; specId: string; completed: number; total: number }
   | { type: 'plan_validation_request'; specId: string; context: string }
   | { type: 'file_conflict'; taskId: string; message: string };
@@ -863,6 +864,13 @@ export class LeadManager {
         parts.push('');
         parts.push('Please review the remaining plan and make any necessary adjustments.');
         parts.push('If no changes are needed, respond with FLIGHTDECK_NO_REPLY.');
+        break;
+
+      case 'agent_session_ended':
+        parts.push('[plan event: agent session ended]');
+        parts.push(`Agent ${event.agentId} session ended without submitting task "${event.title}" (${event.taskId}).`);
+        parts.push('');
+        parts.push('Decide: resume the agent (steer it to continue), reassign to another worker, or fail the task.');
         break;
     }
 
