@@ -94,27 +94,18 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
 
   const server = new McpServer({ name: 'flightdeck', version: '2.0.0' });
 
-  // Wrap server.tool to inject AsyncLocalStorage context for tool call notifications
+  // Wrap server.tool to inject AsyncLocalStorage context
   const originalTool = server.tool.bind(server);
   server.tool = ((...args: any[]) => {
     const toolName = args[0] as string;
     const handlerIdx = args.length - 1;
     const originalHandler = args[handlerIdx];
-    args[handlerIdx] = async (params: any) => {
+    args[handlerIdx] = (params: any) => {
       const agentId = getEnvAgentId() || 'unknown';
-      const startTime = Date.now();
-      client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'running' });
-      try {
-        const result = await toolCallContext.run(
-          { toolName, agentId, input: params, startTime, client },
-          () => originalHandler(params),
-        );
-        client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'completed', durationMs: Date.now() - startTime });
-        return result;
-      } catch (err) {
-        client.notifyToolCall({ toolName, agentId, agentRole: agentRole || ENV_AGENT_ROLE || 'unknown', input: params, output: null, status: 'error', durationMs: Date.now() - startTime, error: (err as Error).message });
-        throw err;
-      }
+      return toolCallContext.run(
+        { toolName, agentId, input: params, startTime: Date.now(), client },
+        () => originalHandler(params),
+      );
     };
     return (originalTool as any)(...args);
   }) as typeof server.tool;

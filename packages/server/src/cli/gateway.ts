@@ -358,8 +358,6 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   // Track all tool calls (native + custom MCP) for audit log
   copilotSdkAdapter.onToolCall = (agentId, data) => {
     if (data.status !== 'completed') return;
-    // Skip flightdeck MCP tools (already logged via /tool-events HTTP endpoint)
-    if (data.toolName.startsWith('flightdeck_')) return;
     for (const projName of projectManager.list()) {
       const fd = projectManager.get(projName);
       if (!fd) continue;

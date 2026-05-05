@@ -353,20 +353,11 @@ export async function handleTaskRoutes(
     try {
       const body = await readBody();
       if (!body.toolName) { json(400, { error: 'Missing required field: toolName' }); return true; }
-      // Only persist completed/error to activity log (skip 'running' to avoid duplicates)
-      if (body.status !== 'running') {
-        fd.sqlite.logActivity(
-          body.agentId || 'unknown',
-          body.agentRole || 'unknown',
-          `tool:${body.toolName}`,
-          `${body.toolName}${body.status === 'error' ? ' (failed)' : ''}`,
-          { input: typeof body.input === 'string' ? body.input.slice(0, 500) : JSON.stringify(body.input)?.slice(0, 500), status: body.status, durationMs: body.durationMs, error: body.error },
-        );
-      }
+      // Broadcast to dashboard (audit logging is handled by daemon-side SDK/ACP hooks)
       if (wsServer) {
         wsServer.broadcast({ type: 'tool:event', project: projectName, ...body });
       }
-      json(200, { status: 'logged' });
+      json(200, { status: 'ok' });
     } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     return true;
   }
