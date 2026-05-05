@@ -1276,6 +1276,26 @@ export class CopilotSdkAdapter extends AgentAdapter {
         } catch { /* */ }
       }
       if (this.onOutput) { try { this.onOutput(aid, event); } catch { /* */ } }
+
+      // Track tool calls (same as create path)
+      if ((event.type as string) === 'tool.execution_start') {
+        const data = (event as any).data;
+        const toolCallId = data?.toolCallId;
+        const toolName = data?.toolName ?? 'unknown';
+        if (toolCallId) {
+          agentSession.pendingToolCalls = agentSession.pendingToolCalls ?? new Map();
+          agentSession.pendingToolCalls.set(toolCallId, toolName);
+        }
+      }
+      if ((event.type as string) === 'tool.execution_complete') {
+        const data = (event as any).data;
+        const toolCallId = data?.toolCallId;
+        const toolName = agentSession.pendingToolCalls?.get(toolCallId) ?? 'unknown';
+        if (toolCallId) agentSession.pendingToolCalls?.delete(toolCallId);
+        if (this.onToolCall) {
+          try { this.onToolCall(aid, { toolName, status: 'completed' }); } catch { /* */ }
+        }
+      }
     });
 
     return { agentId: aid, sessionId: sessionId, status: 'running' as const };

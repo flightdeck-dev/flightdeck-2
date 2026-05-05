@@ -233,7 +233,7 @@ export class AcpAdapter extends AgentAdapter {
             session.onOutputChunk?.(update);
             self.onAnySessionOutput?.(session.agentId, update);
             if (self.onToolCall) {
-              const toolName = (update as any).name ?? (update as any).toolName ?? 'unknown';
+              const toolName = (update as any).title ?? (update as any).name ?? (update as any).toolName ?? 'unknown';
               self.onToolCall(session.agentId, { toolName, status: 'completed' });
             }
             break;
