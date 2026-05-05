@@ -46,6 +46,7 @@ export async function handleAgentRoutes(
         task: body.task,
         cwd: body.cwd ?? fd.status().config.cwd ?? fd.project.subpath('.'),
         projectName,
+        autoResolve: body.autoResolve ?? false,
       });
       json(201, newAgent);
     } catch (e: unknown) {

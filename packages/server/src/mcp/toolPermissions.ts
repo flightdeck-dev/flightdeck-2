@@ -46,6 +46,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_task_pause', 'flightdeck_task_resume', 'flightdeck_task_skip',
     'flightdeck_task_fail', 'flightdeck_task_retry', 'flightdeck_task_complete',
     'flightdeck_task_delegate',
+    'flightdeck_task_set_reviewers',
     'flightdeck_declare_tasks', 'flightdeck_declare_subtasks',
     // Agent management (Director spawns and manages ALL agents)
     'flightdeck_agent_list', 'flightdeck_agent_spawn', 'flightdeck_agent_terminate',

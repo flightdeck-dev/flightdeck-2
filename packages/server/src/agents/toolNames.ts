@@ -9,6 +9,7 @@ export const TOOL_NAMES = {
   TASK_CONTEXT: 'flightdeck_task_context',
   TASK_ADD: 'flightdeck_task_add',
   TASK_DELEGATE: 'flightdeck_task_delegate',
+  TASK_SET_REVIEWERS: 'flightdeck_task_set_reviewers',
   TASK_SUBMIT: 'flightdeck_task_submit',
   TASK_FAIL: 'flightdeck_task_fail',
   TASK_CANCEL: 'flightdeck_task_cancel',
