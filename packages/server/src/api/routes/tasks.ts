@@ -92,6 +92,13 @@ export async function handleTaskRoutes(
     try {
       const body = await readBody();
       const task = fd.submitTask(taskId as import('@flightdeck-ai/shared').TaskId, body.claim);
+      fd.sqlite.logActivity(
+        req.headers['x-agent-id'] as string || 'unknown',
+        'worker',
+        'task:submit',
+        `Submitted "${task.title}"`,
+        { taskId: task.id, claim: body.claim },
+      );
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       json(200, task);
     } catch (e: unknown) {
@@ -123,6 +130,13 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.failTask(taskId as import('@flightdeck-ai/shared').TaskId);
+      fd.sqlite.logActivity(
+        req.headers['x-agent-id'] as string || 'unknown',
+        'worker',
+        'task:fail',
+        `Failed "${task.title}"`,
+        { taskId: task.id },
+      );
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       json(200, task);
     } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
@@ -279,6 +293,13 @@ export async function handleTaskRoutes(
         }
       }
       const tasks = fd.declareTasks(body.tasks as Parameters<typeof fd.declareTasks>[0]);
+      fd.sqlite.logActivity(
+        declareCallerId || 'unknown',
+        'director',
+        'task:declare',
+        `Declared ${tasks.length} task(s)`,
+        { taskIds: tasks.map((t: any) => t.id), titles: tasks.map((t: any) => t.title) },
+      );
       if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
       json(201, tasks);
     } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }

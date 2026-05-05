@@ -167,6 +167,10 @@ export class AgentManager {
   private sessionToAgent = new Map<string, AgentId>();
   /** agentId → sessionId mapping */
   private agentToSession = new Map<AgentId, string>();
+
+  private audit(agentId: string, role: string, action: string, summary: string, details?: Record<string, unknown>): void {
+    try { this.store.logActivity(agentId, role, action, summary, details); } catch { /* best effort */ }
+  }
   /** agentId → worktree taskId for cleanup */
   private agentWorktrees = new Map<AgentId, { taskId: string; mergeStrategy: 'auto' | 'squash' | 'pr' }>();
   private adapter: AgentAdapter;
@@ -395,6 +399,7 @@ export class AgentManager {
         }
       }
 
+      this.audit(agent.id, agent.role, 'agent:spawn', `Spawned ${agent.role} agent`, { runtime: opts.runtime, model: opts.model });
       return agent;
     } catch (err) {
       // Spawn failed — mark agent as errored
@@ -530,6 +535,7 @@ export class AgentManager {
     }
 
     await this.adapter.steer(sessionId, { content: message, urgent: false });
+    this.audit(agentId, agent.role, 'agent:steer', `Steered ${agent.role}`, { messageLength: message.length });
   }
 
   async setAgentModel(agentId: AgentId, model: string): Promise<void> {
@@ -647,6 +653,7 @@ export class AgentManager {
     // Update DB: keep acpSessionId so we can resume later
     this.store.updateAgentStatus(agentId, 'hibernated');
     console.error(`[hibernate] Agent ${agentId} hibernated (session preserved: ${sessionId ?? 'none'})`);
+    this.audit(agentId, agent.role, 'agent:hibernate', `Hibernated ${agent.role}`);
   }
 
   async wakeAgent(agentId: AgentId): Promise<Agent> {
@@ -678,6 +685,7 @@ export class AgentManager {
       this.agentToSession.set(agentId, meta.sessionId);
 
       log('AgentMgr', `Wake success: ${agentId} (session: ${meta.sessionId})`);
+      this.audit(agentId, agent.role, 'agent:wake', `Woke ${agent.role} from hibernation`);
       return { ...agent, acpSessionId: meta.sessionId, status: 'busy' };
     } catch (err) {
       // Resume failed — retire the agent, don't retry
@@ -707,6 +715,7 @@ export class AgentManager {
     this.store.updateAgentStatus(agentId, 'retired');
     this.store.updateAgentAcpSession(agentId, null);
     console.error(`[retire] Agent ${agentId} retired`);
+    this.audit(agentId, agent.role, 'agent:retire', `Retired ${agent.role}`);
   }
 
   async unretireAgent(agentId: AgentId): Promise<void> {
