@@ -234,9 +234,6 @@ export class AcpAdapter extends AgentAdapter {
             self.onAnySessionOutput?.(session.agentId, update);
             if (self.onToolCall) {
               let toolName = (update as any).title ?? (update as any).name ?? (update as any).toolName ?? 'unknown';
-              // Normalize MCP tool names: "Tool: server/tool_name" → "tool_name"
-              const mcpMatch = toolName.match(/^Tool:\s*[^/]+\/(.+)$/);
-              if (mcpMatch) toolName = mcpMatch[1];
               self.onToolCall(session.agentId, { toolName, status: 'completed' });
             }
             break;
