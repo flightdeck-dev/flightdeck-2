@@ -189,7 +189,7 @@ export class GatewayClient {
   }
 
   async spawnAgent(params: { role: string; model?: string; runtime?: string; task?: string; cwd?: string }): Promise<unknown> {
-    return this.request('POST', '/agents/spawn', { ...params, autoResolve: true });
+    return this.request('POST', '/agents/spawn', { ...params });
   }
 
   async terminateAgent(agentId: string): Promise<void> {
