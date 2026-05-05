@@ -363,6 +363,8 @@ export class TaskDAG {
         case 'spawn_reviewer':
         case 'escalate':
         case 'notify_agent':
+        case 'notify_lead_completed':
+        case 'notify_lead_declared':
         case 'update_dag':
         case 'log_decision':
           // Delegate to external handler (Orchestrator) which has AgentManager, MessageStore, etc.
