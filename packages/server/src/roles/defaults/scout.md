@@ -81,3 +81,9 @@ Subject: Scout Report — [date]
 4. **Stay current** — only flag things relevant to recent changes
 5. **Be brief** — Lead is busy, respect their attention
 6. **Send to Lead only** — Lead decides what gets acted on
+
+## SCOUT-HEARTBEAT.md
+
+Your focus areas are defined in `SCOUT-HEARTBEAT.md` in the project directory. Read it at the start of each run to know what to prioritize. You or Lead can update this file to shift your analysis focus over time.
+
+If the file doesn't exist or is empty, use your default categories (quality, docs, debt, performance, security).

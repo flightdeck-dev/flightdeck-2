@@ -123,7 +123,14 @@ export async function runScout(
   specId: string,
   opts?: ScoutOptions,
 ): Promise<Suggestion[]> {
-  const context = buildScoutContext(fd, specId);
+  const baseContext = buildScoutContext(fd, specId);
+
+  // Read SCOUT-HEARTBEAT.md for user-customizable focus areas
+  const scoutHeartbeat = fd.project.readScoutHeartbeat();
+  const context = scoutHeartbeat
+    ? `${scoutHeartbeat}\n\n---\n\n${baseContext}`
+    : baseContext;
+
   const adapter = opts?.adapter;
 
   if (!adapter) {

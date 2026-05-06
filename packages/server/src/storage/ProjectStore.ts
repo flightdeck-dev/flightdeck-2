@@ -51,6 +51,34 @@ const HEARTBEAT_TEMPLATE = `# Heartbeat Instructions
 - (Add your own instructions here)
 `;
 
+const SCOUT_HEARTBEAT_TEMPLATE = `# Scout Heartbeat Instructions
+
+When triggered, analyze the project for:
+
+## Code Quality
+- Test coverage gaps
+- Missing error handling
+- Stale TODOs or FIXMEs
+
+## Technical Debt
+- Duplicated logic that should be extracted
+- Overly complex functions
+- Outdated dependencies
+
+## Security
+- Hardcoded secrets or credentials
+- Unvalidated inputs
+- Missing auth checks
+
+## Performance
+- N+1 queries or redundant fetches
+- Unbounded loops or memory leaks
+- Missing caching opportunities
+
+## User Notes
+- (Add your own focus areas here)
+`;
+
 export class ProjectStore {
   private projectDir: string;
 
@@ -88,6 +116,12 @@ export class ProjectStore {
     const heartbeatPath = join(this.projectDir, 'HEARTBEAT.md');
     if (!existsSync(heartbeatPath)) {
       writeFileSync(heartbeatPath, HEARTBEAT_TEMPLATE);
+    }
+
+    // Write default SCOUT-HEARTBEAT.md
+    const scoutHeartbeatPath = join(this.projectDir, 'SCOUT-HEARTBEAT.md');
+    if (!existsSync(scoutHeartbeatPath)) {
+      writeFileSync(scoutHeartbeatPath, SCOUT_HEARTBEAT_TEMPLATE);
     }
 
     // Write default role-preference.md
@@ -208,6 +242,12 @@ _Updated periodically by consolidating daily logs._
 
   readHeartbeat(): string | null {
     const p = join(this.projectDir, 'HEARTBEAT.md');
+    if (!existsSync(p)) return null;
+    return readFileSync(p, 'utf-8');
+  }
+
+  readScoutHeartbeat(): string | null {
+    const p = join(this.projectDir, 'SCOUT-HEARTBEAT.md');
     if (!existsSync(p)) return null;
     return readFileSync(p, 'utf-8');
   }
