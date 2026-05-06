@@ -28,7 +28,7 @@ The Director is the **execution manager** of a Flightdeck project. It owns task 
 - **Spawn:** On-demand when Lead first steers the Director
 - **Persistence:** Session saved to SQLite; auto-resumes on daemon restart
 - **Auto-wake:** If hibernated, wakes automatically on first steer from Lead
-- **Always running:** Idles between planning requests (responds `FLIGHTDECK_IDLE`)
+- **Always running:** Idles between planning requests (responds `HEARTBEAT_OK`)
 
 ## Communication
 
@@ -42,7 +42,7 @@ The Director is the **execution manager** of a Flightdeck project. It owns task 
 
 | Sentinel | Meaning |
 |----------|---------|
-| `FLIGHTDECK_IDLE` | Nothing to do, waiting for next request |
+| `HEARTBEAT_OK` | Nothing to do, waiting for next request |
 | `FLIGHTDECK_NO_REPLY` | Processed event but nothing to report |
 | *(anything else)* | Plan output or status update |
 

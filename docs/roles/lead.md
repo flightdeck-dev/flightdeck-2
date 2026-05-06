@@ -39,7 +39,7 @@ The Lead is the **user-facing CEO** of a Flightdeck project. It receives user me
 
 | Sentinel | Meaning |
 |----------|---------|
-| `FLIGHTDECK_IDLE` | Nothing needs attention (heartbeat response) |
+| `HEARTBEAT_OK` | Nothing needs attention (heartbeat response) |
 | `FLIGHTDECK_NO_REPLY` | Processed an event but nothing to say to user |
 | *(anything else)* | Forwarded to user |
 

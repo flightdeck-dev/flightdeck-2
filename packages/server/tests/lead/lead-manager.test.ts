@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
+import { LeadManager, HEARTBEAT_OK, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import { AcpAdapter } from '../../src/agents/AcpAdapter.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { ProjectStore } from '../../src/storage/ProjectStore.js';
@@ -50,23 +50,21 @@ describe('LeadManager', () => {
     expect(steer).toContain('npm test failed');
   });
 
-  it('builds heartbeat steer with HEARTBEAT.md', () => {
+  it('builds heartbeat steer with minimal prompt', () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
-    writeFileSync(project.subpath('HEARTBEAT.md'), '# Check stuff\n- Do the thing\n');
     const steer = lm.buildHeartbeatSteer();
-    expect(steer).toContain('[heartbeat steer]');
     expect(steer).toContain('HEARTBEAT.md');
-    expect(steer).toContain('Check stuff');
-    expect(steer).toContain('Do the thing');
+    expect(steer).toContain('HEARTBEAT_OK');
+    expect(steer).not.toContain('[heartbeat steer]');
   });
 
-  it('builds heartbeat steer without HEARTBEAT.md', () => {
+  it('builds same heartbeat steer regardless of HEARTBEAT.md existence', () => {
     const lm = new LeadManager({ sqlite, project, acpAdapter });
     const hbPath = project.subpath('HEARTBEAT.md');
     if (existsSync(hbPath)) rmSync(hbPath);
     const steer = lm.buildHeartbeatSteer();
-    expect(steer).toContain('[heartbeat steer]');
-    expect(steer).not.toContain('HEARTBEAT.md');
+    expect(steer).toContain('HEARTBEAT.md');
+    expect(steer).toContain('HEARTBEAT_OK');
   });
 
   it('checkHeartbeatConditions passes with no conditions', () => {
@@ -93,14 +91,14 @@ describe('LeadManager', () => {
   // --- NO_REPLY / IDLE filtering tests ---
 
   describe('handleLeadResponse', () => {
-    it('suppresses FLIGHTDECK_IDLE', () => {
+    it('suppresses HEARTBEAT_OK', () => {
       const lm = new LeadManager({ sqlite, project, acpAdapter });
-      expect(lm.handleLeadResponse('FLIGHTDECK_IDLE')).toBeNull();
+      expect(lm.handleLeadResponse('HEARTBEAT_OK')).toBeNull();
     });
 
-    it('suppresses FLIGHTDECK_IDLE with whitespace', () => {
+    it('suppresses HEARTBEAT_OK with whitespace', () => {
       const lm = new LeadManager({ sqlite, project, acpAdapter });
-      expect(lm.handleLeadResponse('  FLIGHTDECK_IDLE  \n')).toBeNull();
+      expect(lm.handleLeadResponse('  HEARTBEAT_OK  \n')).toBeNull();
     });
 
     it('suppresses FLIGHTDECK_NO_REPLY', () => {
@@ -121,7 +119,7 @@ describe('LeadManager', () => {
 
     it('forwards responses that contain sentinel strings but are not exact matches', () => {
       const lm = new LeadManager({ sqlite, project, acpAdapter });
-      const response = 'The agent returned FLIGHTDECK_IDLE but I want to report it';
+      const response = 'The agent returned HEARTBEAT_OK but I want to report it';
       expect(lm.handleLeadResponse(response)).toBe(response);
     });
   });
@@ -129,7 +127,7 @@ describe('LeadManager', () => {
   // --- Sentinel constants tests ---
 
   it('exports sentinel constants', () => {
-    expect(FLIGHTDECK_IDLE).toBe('FLIGHTDECK_IDLE');
+    expect(HEARTBEAT_OK).toBe('HEARTBEAT_OK');
     expect(FLIGHTDECK_NO_REPLY).toBe('FLIGHTDECK_NO_REPLY');
   });
 

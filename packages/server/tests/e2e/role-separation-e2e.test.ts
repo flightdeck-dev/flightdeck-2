@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { getToolsForRole, ROLE_TOOLS } from '../../src/mcp/toolPermissions.js';
-import { parseReviewerResponse, buildReviewPrompt } from '../../src/verification/ReviewFlow.js';
-import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
+import { LeadManager, HEARTBEAT_OK, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import type { DirectorEvent } from '../../src/lead/LeadManager.js';
 import { SqliteStore } from '../../src/storage/SqliteStore.js';
 import { createDatabase } from '../../src/db/database.js';
@@ -210,82 +209,6 @@ describe('Role Separation E2E', () => {
     });
   });
 
-  // ── 2. ReviewFlow Integration ──
-
-  describe('2. ReviewFlow Integration', () => {
-
-    describe('parseReviewerResponse', () => {
-      it('parses "VERDICT: APPROVE" → approve', () => {
-        const result = parseReviewerResponse('VERDICT: APPROVE\nLooks great!');
-        expect(result.verdict).toBe('approve');
-        expect(result.feedback).toBe('Looks great!');
-      });
-
-      it('parses "VERDICT: REJECT" with feedback', () => {
-        const result = parseReviewerResponse('VERDICT: REJECT\nBad implementation');
-        expect(result.verdict).toBe('reject');
-        expect(result.feedback).toBe('Bad implementation');
-      });
-
-      it('parses "VERDICT: REQUEST-CHANGES" with feedback', () => {
-        const result = parseReviewerResponse('VERDICT: REQUEST-CHANGES\nFix the tests');
-        expect(result.verdict).toBe('request-changes');
-        expect(result.feedback).toBe('Fix the tests');
-      });
-
-      it('infers approve from keywords when no verdict line', () => {
-        const result = parseReviewerResponse('This change looks good, I approve of it.');
-        expect(result.verdict).toBe('approve');
-      });
-
-      it('infers reject from keywords when no verdict line', () => {
-        const result = parseReviewerResponse('I reject this change, it breaks the API.');
-        expect(result.verdict).toBe('reject');
-      });
-
-      it('defaults to request-changes for garbled output', () => {
-        const result = parseReviewerResponse('asdfghjkl random gibberish');
-        expect(result.verdict).toBe('request-changes');
-      });
-
-      it('auto-approves empty output', () => {
-        const result = parseReviewerResponse('');
-        expect(result.verdict).toBe('approve');
-      });
-    });
-
-    describe('buildReviewPrompt', () => {
-      it('includes task ID and title', () => {
-        const prompt = buildReviewPrompt({
-          id: 'task-1' as TaskId,
-          title: 'Fix auth bug',
-          claim: 'Fixed the token refresh logic',
-        });
-        expect(prompt).toContain('task-1');
-        expect(prompt).toContain('Fix auth bug');
-        expect(prompt).toContain('Fixed the token refresh logic');
-        expect(prompt).toContain('flightdeck_review_submit');
-        expect(prompt).toContain('approve');
-      });
-
-      it('includes diff when provided', () => {
-        const prompt = buildReviewPrompt({
-          id: 'task-2' as TaskId,
-          diff: '+const x = 1;\n-const x = 2;',
-        });
-        expect(prompt).toContain('+const x = 1;');
-      });
-
-      it('includes artifacts when provided', () => {
-        const prompt = buildReviewPrompt({
-          id: 'task-3' as TaskId,
-          artifacts: ['screenshot.png', 'test-output.log'],
-        });
-        expect(prompt).toContain('screenshot.png');
-        expect(prompt).toContain('test-output.log');
-      });
-    });
-  });
 
   // ── 3. Director Event Routing ──
 
@@ -489,8 +412,8 @@ describe('Role Separation E2E', () => {
       });
     });
 
-    it('FLIGHTDECK_IDLE → null (suppressed)', () => {
-      expect(leadManager.handleLeadResponse(FLIGHTDECK_IDLE)).toBeNull();
+    it('HEARTBEAT_OK → null (suppressed)', () => {
+      expect(leadManager.handleLeadResponse(HEARTBEAT_OK)).toBeNull();
     });
 
     it('FLIGHTDECK_NO_REPLY → null (suppressed)', () => {
@@ -503,7 +426,7 @@ describe('Role Separation E2E', () => {
     });
 
     it('whitespace around sentinels → still suppressed', () => {
-      expect(leadManager.handleLeadResponse('  FLIGHTDECK_IDLE  ')).toBeNull();
+      expect(leadManager.handleLeadResponse('  HEARTBEAT_OK  ')).toBeNull();
       expect(leadManager.handleLeadResponse('\nFLIGHTDECK_NO_REPLY\n')).toBeNull();
     });
   });

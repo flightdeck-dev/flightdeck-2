@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AgentManager, buildSystemPrompt } from '../../src/agents/AgentManager.js';
-import { LeadManager, FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
+import { LeadManager, HEARTBEAT_OK, FLIGHTDECK_NO_REPLY } from '../../src/lead/LeadManager.js';
 import type { AgentAdapter, SpawnOptions, SteerMessage, AgentMetadata } from '../../src/agents/AgentAdapter.js';
 import type { AgentId, AgentRuntime, Agent } from '@flightdeck-ai/shared';
 import { createDatabase } from '../../src/db/database.js';
@@ -383,7 +383,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
       });
 
       // IDLE → suppressed
-      expect(leadManager.handleLeadResponse(FLIGHTDECK_IDLE)).toBeNull();
+      expect(leadManager.handleLeadResponse(HEARTBEAT_OK)).toBeNull();
 
       // NO_REPLY → suppressed
       expect(leadManager.handleLeadResponse(FLIGHTDECK_NO_REPLY)).toBeNull();
@@ -439,7 +439,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
 
   // 9.10: Heartbeat trigger
   describe('9.10 - Heartbeat trigger', () => {
-    it('builds heartbeat steer with project status', () => {
+    it('builds heartbeat steer with minimal prompt', () => {
       const leadManager = new LeadManager({
         sqlite: store as any,
         project: createMockProjectStore('Check on auth module progress') as any,
@@ -448,13 +448,11 @@ describe('Scenario 9: Claw as Supervisor', () => {
 
       const steer = leadManager.buildHeartbeatSteer();
 
-      expect(steer).toContain('[heartbeat steer]');
-      expect(steer).toContain('$1.23');
       expect(steer).toContain('HEARTBEAT.md');
-      expect(steer).toContain('Check on auth module progress');
+      expect(steer).toContain('HEARTBEAT_OK');
     });
 
-    it('builds heartbeat steer without HEARTBEAT.md', () => {
+    it('builds same steer regardless of HEARTBEAT.md existence', () => {
       const leadManager = new LeadManager({
         sqlite: store as any,
         project: createMockProjectStore() as any,
@@ -463,8 +461,8 @@ describe('Scenario 9: Claw as Supervisor', () => {
 
       const steer = leadManager.buildHeartbeatSteer();
 
-      expect(steer).toContain('[heartbeat steer]');
-      expect(steer).not.toContain('HEARTBEAT.md');
+      expect(steer).toContain('HEARTBEAT.md');
+      expect(steer).toContain('HEARTBEAT_OK');
     });
 
     it('sends heartbeat steer to lead', async () => {
@@ -478,7 +476,7 @@ describe('Scenario 9: Claw as Supervisor', () => {
       await leadManager.steerLead({ type: 'heartbeat' });
 
       expect(adapter.steerLog).toHaveLength(1);
-      expect(adapter.steerLog[0].message.content).toContain('[heartbeat steer]');
+      expect(adapter.steerLog[0].message.content).toContain('HEARTBEAT_OK');
     });
 
     it('checks heartbeat conditions — tasks_completed', () => {

@@ -226,7 +226,7 @@ Each module has ONE job. Modules communicate ONLY through the event bus.
 - Pulls current state from Flightdeck via MCP on demand (not pushed every event)
 - Interrupted only on: user messages, critical failures, escalations, budget warnings
 
-**Director Agent** - persistent, idle until needed. Always-on session that responds with FLIGHTDECK_IDLE when not processing a request. Activated when:
+**Director Agent** - persistent, idle until needed. Always-on session that responds with HEARTBEAT_OK when not processing a request. Activated when:
 - Initial spec needs to be decomposed into a task DAG
 - A worker escalates that a task needs re-planning
 - User pivots and the DAG needs restructuring
