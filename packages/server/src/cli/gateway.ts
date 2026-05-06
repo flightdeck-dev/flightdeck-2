@@ -468,7 +468,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     leadManagers.set(name, leadManager);
     agentManagers.set(name, fd.agentManager);
 
-    // Wire scout heartbeat callback
+    // Wire scout heartbeat callback (kept for manual invocations)
     leadManager.onScoutHeartbeat = async () => {
       try {
         const { runScout } = await import('../orchestrator/Scout.js');
@@ -478,6 +478,26 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         }
       } catch (e) { console.error('  Scout run failed:', e); }
     };
+
+    // Independent Scout heartbeat timer
+    {
+      const scoutHbCfg = projectConfig.scoutHeartbeat;
+      const scoutHbEnabled = projectConfig.scoutEnabled && (scoutHbCfg?.enabled !== false);
+      const scoutHbInterval = Math.max(scoutHbCfg?.interval ?? 3600000, 300000); // min 5 min
+      const scoutRequireTaskCompletion = scoutHbCfg?.requireTaskCompletion ?? false;
+
+      if (scoutHbEnabled) {
+        const scoutTimer = setInterval(async () => {
+          const tasksCompleted = leadManager.getAndResetScoutTaskCount();
+          if (!scoutRequireTaskCompletion || tasksCompleted > 0) {
+            if (leadManager.onScoutHeartbeat) {
+              try { await leadManager.onScoutHeartbeat(); } catch (e) { console.error(`[${name}] Scout heartbeat failed:`, e); }
+            }
+          }
+        }, scoutHbInterval);
+        scoutTimer.unref();
+      }
+    }
 
     // Create and start cron scheduler
     const cronStore = new CronStore(fd.project.subpath('.'));
@@ -615,7 +635,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       leadManagers.set(name, leadManager);
       agentManagers.set(name, fd.agentManager);
 
-      // Wire scout heartbeat callback
+      // Wire scout heartbeat callback (kept for manual invocations)
       leadManager.onScoutHeartbeat = async () => {
         try {
           const { runScout } = await import('../orchestrator/Scout.js');
@@ -625,6 +645,26 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
           }
         } catch (e) { console.error('  Scout run failed:', e); }
       };
+
+      // Independent Scout heartbeat timer
+      {
+        const scoutHbCfg = projectConfig.scoutHeartbeat;
+        const scoutHbEnabled = projectConfig.scoutEnabled && (scoutHbCfg?.enabled !== false);
+        const scoutHbInterval = Math.max(scoutHbCfg?.interval ?? 3600000, 300000); // min 5 min
+        const scoutRequireTaskCompletion = scoutHbCfg?.requireTaskCompletion ?? false;
+
+        if (scoutHbEnabled) {
+          const scoutTimer = setInterval(async () => {
+            const tasksCompleted = leadManager.getAndResetScoutTaskCount();
+            if (!scoutRequireTaskCompletion || tasksCompleted > 0) {
+              if (leadManager.onScoutHeartbeat) {
+                try { await leadManager.onScoutHeartbeat(); } catch (e) { console.error(`[${name}] Scout heartbeat failed:`, e); }
+              }
+            }
+          }, scoutHbInterval);
+          scoutTimer.unref();
+        }
+      }
 
       // CronStore + CronScheduler
       const cronStore = new CronStore(fd.project.subpath('.'));

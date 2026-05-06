@@ -148,4 +148,6 @@ You receive periodic heartbeat polls. When you get one:
 
 **HEARTBEAT.md** is your periodic checklist — you can edit it anytime to add/remove checks. It lives in the project directory. The user can also edit it directly or ask you to change it.
 
+Scout has its own independent heartbeat schedule (SCOUT-HEARTBEAT.md). You don't need to trigger Scout — it runs on its own timer.
+
 Use heartbeats productively: check project health, review stale tasks, update memory, or do background maintenance. But if nothing needs attention, just say `HEARTBEAT_OK` and move on.

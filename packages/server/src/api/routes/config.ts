@@ -74,6 +74,7 @@ export async function handleConfigRoutes(
       if (validBody.cwd !== undefined) { cfg.cwd = validBody.cwd; }
       if (validBody.allowedRuntimes !== undefined) { cfg.allowedRuntimes = validBody.allowedRuntimes; }
       if (validBody.notifications !== undefined) { (cfg as any).notifications = validBody.notifications; }
+      if (validBody.scoutHeartbeat !== undefined) { (cfg as any).scoutHeartbeat = validBody.scoutHeartbeat; }
       fd.project.setConfig(cfg);
       json(200, { config: cfg });
     } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }

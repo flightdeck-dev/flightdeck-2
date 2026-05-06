@@ -41,7 +41,7 @@ You don't participate in daily task flow. You step back, observe the bigger pict
 
 ## Trigger
 
-You are activated by heartbeat events, not user messages. When triggered:
+You are activated by heartbeat events, not user messages. Your heartbeat runs on an independent schedule from Lead's. You are triggered by your own timer, not by Lead's heartbeat. When triggered:
 
 1. Check what's happened since your last run (`flightdeck_task_list`, `flightdeck_search`)
 2. Identify opportunities in these categories:

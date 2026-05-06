@@ -184,6 +184,14 @@ export interface ProjectConfig {
   heartbeatIdleTimeoutDays?: number;
   /** Enable/disable Lead heartbeat polling. Default: true. */
   heartbeatEnabled?: boolean;
+  /** Enable Scout agent. */
+  scoutEnabled?: boolean;
+  /** Independent Scout heartbeat configuration. */
+  scoutHeartbeat?: {
+    enabled?: boolean;
+    interval?: number;  // ms
+    requireTaskCompletion?: boolean;
+  };
 }
 
 export interface FlightdeckJson {

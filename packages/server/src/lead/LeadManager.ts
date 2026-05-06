@@ -115,6 +115,7 @@ export class LeadManager {
   private leadAgentId: string | null = null;
   private lastHeartbeatAt: string | null = null;
   private tasksSinceLastHeartbeat = 0;
+  private _tasksSinceLastScoutHeartbeat = 0;
   private lastSteerAt: string | null = null;
   private lastUserInteractionAt: number = Date.now();
   private projectName: string | undefined;
@@ -660,6 +661,14 @@ export class LeadManager {
   /** Record a task completion for heartbeat condition tracking */
   recordTaskCompletion(): void {
     this.tasksSinceLastHeartbeat++;
+    this._tasksSinceLastScoutHeartbeat++;
+  }
+
+  /** Get and reset scout task completion counter */
+  getAndResetScoutTaskCount(): number {
+    const count = this._tasksSinceLastScoutHeartbeat;
+    this._tasksSinceLastScoutHeartbeat = 0;
+    return count;
   }
 
   /** Spawn Director as a persistent ACP session */
@@ -1066,19 +1075,12 @@ export class LeadManager {
         this.isHeartbeating = true;
         const tasksCompleted = this.tasksSinceLastHeartbeat;
         this.steerLead({ type: 'heartbeat' })
-          .then(async () => {
-            // Run scout if enabled and there were completed tasks
-            const cfg = this.project.getConfig() as any;
-            if (cfg.scoutEnabled && tasksCompleted > 0 && this.onScoutHeartbeat) {
-              try { await this.onScoutHeartbeat(); } catch (e) { console.error('  Scout heartbeat failed:', e); }
-            }
-          })
           .catch(() => {})
           .finally(() => { this.isHeartbeating = false; });
         this.tasksSinceLastHeartbeat = 0;
         this.lastHeartbeatAt = new Date().toISOString();
       }
-    }, this.heartbeatConfig.interval);
+    }, Math.max(this.heartbeatConfig.interval, 300000)); // min 5 minutes
   }
 }
 

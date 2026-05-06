@@ -973,6 +973,9 @@ function ProjectSettings() {
   const { agents } = useAgentsHook();
   const [heartbeatEnabled, setHeartbeatEnabled] = useState<boolean>(false);
   const [scoutEnabled, setScoutEnabled] = useState<boolean>(false);
+  const [scoutHeartbeatEnabled, setScoutHeartbeatEnabled] = useState<boolean>(true);
+  const [scoutHeartbeatInterval, setScoutHeartbeatInterval] = useState<number>(60);
+  const [scoutRequireTaskCompletion, setScoutRequireTaskCompletion] = useState<boolean>(false);
   const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState<boolean>(true);
   const [idleTimeoutDays, setIdleTimeoutDays] = useState<number>(3);
   const [saving, setSaving] = useState(false);
@@ -996,6 +999,10 @@ function ProjectSettings() {
     const cfg = status.config as any;
     setHeartbeatEnabled(cfg.heartbeatEnabled === true);
     setScoutEnabled(cfg.scoutEnabled === true);
+    const shb = cfg.scoutHeartbeat;
+    setScoutHeartbeatEnabled(shb?.enabled !== false);
+    setScoutHeartbeatInterval(Math.round((shb?.interval ?? 3600000) / 60000));
+    setScoutRequireTaskCompletion(shb?.requireTaskCompletion === true);
     setIdleTimeoutEnabled((cfg.heartbeatIdleTimeoutDays ?? 3) > 0);
     setIdleTimeoutDays(cfg.heartbeatIdleTimeoutDays || 3);
     setCwd(cfg.cwd ?? '');
@@ -1273,6 +1280,56 @@ function ProjectSettings() {
               await saveConfig({ scoutEnabled: v });
             }} />
           </div>
+          {scoutEnabled && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm">Scout heartbeat</p>
+                  <p className="text-xs text-[var(--color-text-tertiary)]">Independent periodic Scout analysis</p>
+                </div>
+                <Toggle value={scoutHeartbeatEnabled} onChange={async v => {
+                  setScoutHeartbeatEnabled(v);
+                  await saveConfig({ scoutHeartbeat: { enabled: v, interval: scoutHeartbeatInterval * 60000, requireTaskCompletion: scoutRequireTaskCompletion } });
+                }} />
+              </div>
+              {scoutHeartbeatEnabled && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm">Interval (minutes)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={5}
+                        max={1440}
+                        value={scoutHeartbeatInterval}
+                        onChange={e => setScoutHeartbeatInterval(Math.max(5, Math.min(1440, parseInt(e.target.value) || 60)))}
+                        className="w-16 px-2 py-1 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-secondary)] text-right"
+                      />
+                      <button
+                        disabled={saving}
+                        onClick={() => saveConfig({ scoutHeartbeat: { enabled: scoutHeartbeatEnabled, interval: scoutHeartbeatInterval * 60000, requireTaskCompletion: scoutRequireTaskCompletion } })}
+                        className="px-3 py-1 text-xs rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {saving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm">Require task completion</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">Only run Scout if tasks were completed since last run</p>
+                    </div>
+                    <Toggle value={scoutRequireTaskCompletion} onChange={async v => {
+                      setScoutRequireTaskCompletion(v);
+                      await saveConfig({ scoutHeartbeat: { enabled: scoutHeartbeatEnabled, interval: scoutHeartbeatInterval * 60000, requireTaskCompletion: v } });
+                    }} />
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </Card>
       </section>
 
