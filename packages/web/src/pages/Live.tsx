@@ -39,7 +39,7 @@ interface StreamChunk {
   toolName?: string;
 }
 
-function AgentPane({ agent, chunks, paused }: { agent: Agent; chunks: StreamChunk[]; paused: boolean }) {
+function AgentPane({ agent, chunks, paused, height }: { agent: Agent; chunks: StreamChunk[]; paused: boolean; height: number }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
 
@@ -62,7 +62,7 @@ function AgentPane({ agent, chunks, paused }: { agent: Agent; chunks: StreamChun
   const shortId = agent.id.length > 18 ? agent.id.slice(0, 18) + '…' : agent.id;
 
   return (
-    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden flex flex-col h-[220px] bg-[var(--color-surface)]">
+    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden flex flex-col bg-[var(--color-surface)]" style={{ height: `${height}px` }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface-secondary)] cursor-grab active:cursor-grabbing"
            draggable="true">
@@ -77,7 +77,7 @@ function AgentPane({ agent, chunks, paused }: { agent: Agent; chunks: StreamChun
 
       {/* Output stream */}
       <div ref={scrollRef} onScroll={handleScroll}
-           className="flex-1 overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed">
+           className="flex-1 overflow-y-auto px-3 py-1.5 font-mono text-xs leading-tight">
         {chunks.length === 0 ? (
           <span className="text-[var(--color-text-tertiary)] italic">No recent output</span>
         ) : (
@@ -104,6 +104,7 @@ export default function Live() {
   const { agents, agentStreamChunks } = useAgents();
   const [paused, setPaused] = useState(false);
   const [cols, setCols] = useState<'auto' | 2 | 3 | 4>('auto');
+  const [paneHeight, setPaneHeight] = useState(220);
   const [order, setOrder] = useState<string[]>([]); // agent IDs in user-defined order
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -179,6 +180,14 @@ export default function Live() {
               </button>
             ))}
           </div>
+          {/* Height */}
+          <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+            <span>H</span>
+            <input type="range" min={150} max={500} step={10} value={paneHeight}
+              onChange={e => setPaneHeight(Number(e.target.value))}
+              className="w-16 h-3 accent-[var(--color-primary)]" />
+            <span className="w-8 text-right">{paneHeight}</span>
+          </div>
           {/* Pause */}
           <button onClick={() => setPaused(!paused)}
             className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md transition-colors ${paused ? 'bg-yellow-500/10 text-yellow-500' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'}`}>
@@ -206,6 +215,7 @@ export default function Live() {
                 agent={agent}
                 chunks={agentStreamChunks.get(agent.id) ?? []}
                 paused={paused}
+                height={paneHeight}
               />
             </div>
           ))}
