@@ -17,6 +17,7 @@ const Agents = lazy(() => import('./pages/Agents.tsx'));
 const Specs = lazy(() => import('./pages/Specs.tsx'));
 const Decisions = lazy(() => import('./pages/Decisions.tsx'));
 const Activity = lazy(() => import('./pages/Activity.tsx'));
+const Live = lazy(() => import('./pages/Live.tsx'));
 const Cron = lazy(() => import('./pages/Cron.tsx'));
 const Roles = lazy(() => import('./pages/Roles.tsx'));
 const Settings = lazy(() => import('./pages/Settings.tsx'));
@@ -41,6 +42,7 @@ function ProjectScope() {
             <Route path="specs" element={<Specs />} />
             <Route path="decisions" element={<Decisions />} />
             <Route path="activity" element={<Activity />} />
+            <Route path="live" element={<Live />} />
             <Route path="cron" element={<Cron />} />
             <Route path="roles" element={<Roles />} />
             <Route path="files" element={<Files />} />
