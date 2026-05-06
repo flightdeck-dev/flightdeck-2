@@ -1024,7 +1024,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'user_message', message: msg });
-        if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+        if (response?.trim() && response.trim() !== 'HEARTBEAT_OK' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
           if (fd.messages) {
             // Check for merged source IDs (multi-parent reply)
             const mergedIds = leadManager.getLastMergedSourceIds?.() ?? [];
@@ -1060,7 +1060,7 @@ function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promi
     (async () => {
       try {
         const response = await leadManager.steerLead({ type: 'task_comment', taskId, message: msg });
-        if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
+        if (response?.trim() && response.trim() !== 'HEARTBEAT_OK' && response.trim() !== 'FLIGHTDECK_NO_REPLY') {
           if (fd.messages) {
             const leadMsg = fd.messages.createMessage({
               parentId: null, taskId,

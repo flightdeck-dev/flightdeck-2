@@ -167,7 +167,7 @@ export async function handleMessageRoutes(
       if (isAsync) {
         if (leadManager) {
           leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content as string } as ChatMessage }).then(raw => {
-            if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
+            if (raw?.trim() && raw.trim() !== 'HEARTBEAT_OK' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
               if (fd.messages) {
                 const leadMsg = fd.messages.createMessage({ parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: raw.trim(), metadata: null });
                 if (wsServer) wsServer.broadcast({ type: 'chat:message', project: projectName, message: leadMsg });
@@ -183,7 +183,7 @@ export async function handleMessageRoutes(
         if (leadManager) {
           try {
             const raw = await leadManager.steerLead({ type: 'user_message', message: userMsg ?? { content: body.content as string } as ChatMessage });
-            if (raw?.trim() && raw.trim() !== 'FLIGHTDECK_IDLE' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
+            if (raw?.trim() && raw.trim() !== 'HEARTBEAT_OK' && raw.trim() !== 'FLIGHTDECK_NO_REPLY') {
               leadResponse = raw.trim();
               if (fd.messages) {
                 leadMsg = fd.messages.createMessage({ parentId: userMsg?.id ?? null, taskId: null, authorType: 'lead', authorId: 'lead', content: leadResponse, metadata: null });
@@ -250,7 +250,7 @@ export async function handleMessageRoutes(
           const lm = deps.leadManagers.get(projectName);
           if (lm) {
             lm.steerLead({ type: 'agent_message', agentId: agentId as string, message: body.content as string }).then(response => {
-              if (response?.trim() && response.trim() !== 'FLIGHTDECK_IDLE' && response.trim() !== 'FLIGHTDECK_NO_REPLY' && fd.messages) {
+              if (response?.trim() && response.trim() !== 'HEARTBEAT_OK' && response.trim() !== 'FLIGHTDECK_NO_REPLY' && fd.messages) {
                 const leadMsg = fd.messages.createMessage({
                   parentId: null, taskId: null,
                   authorType: 'lead', authorId: 'lead', content: response.trim(), metadata: null,

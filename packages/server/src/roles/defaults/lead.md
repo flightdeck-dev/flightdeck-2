@@ -136,3 +136,16 @@ Channel naming conventions:
 Use `flightdeck_subscribe` to join a channel. Messages you send to a channel auto-subscribe you.
 Use `flightdeck_channel_info` to see who's in a channel.
 Use `parentId` when sending to quote/reply to a previous message.
+
+## Heartbeat
+
+You receive periodic heartbeat polls. When you get one:
+
+1. Read `HEARTBEAT.md` if it exists — follow its instructions strictly
+2. Do not infer or repeat tasks from prior conversations
+3. If nothing needs attention, reply exactly: `HEARTBEAT_OK`
+4. If something needs action, take it (steer Director, update plans, etc.)
+
+**HEARTBEAT.md** is your periodic checklist — you can edit it anytime to add/remove checks. It lives in the project directory. The user can also edit it directly or ask you to change it.
+
+Use heartbeats productively: check project health, review stale tasks, update memory, or do background maintenance. But if nothing needs attention, just say `HEARTBEAT_OK` and move on.

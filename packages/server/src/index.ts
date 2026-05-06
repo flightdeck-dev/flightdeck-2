@@ -11,7 +11,7 @@ export { CronStore } from './cron/CronStore.js';
 export { CronScheduler } from './cron/CronScheduler.js';
 export { GovernanceEngine } from './governance/GovernanceEngine.js';
 export { Orchestrator } from './orchestrator/Orchestrator.js';
-export { FLIGHTDECK_IDLE, FLIGHTDECK_NO_REPLY } from './lead/LeadManager.js';
+export { HEARTBEAT_OK, FLIGHTDECK_NO_REPLY } from './lead/LeadManager.js';
 export { AgentAdapter } from './agents/AgentAdapter.js';
 export { AcpAdapter } from './agents/AcpAdapter.js';
 

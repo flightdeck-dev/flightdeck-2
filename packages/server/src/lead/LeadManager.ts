@@ -39,10 +39,10 @@ function formatTs(): string {
  */
 /**
  * Sentinel strings that agents can return.
- * FLIGHTDECK_IDLE — "I have nothing to do" (like OpenClaw's HEARTBEAT_OK)
+ * HEARTBEAT_OK — "Nothing needs attention" (same as OpenClaw)
  * FLIGHTDECK_NO_REPLY — "I processed this but have nothing to say to the user"
  */
-export const FLIGHTDECK_IDLE = 'FLIGHTDECK_IDLE';
+export const HEARTBEAT_OK = 'HEARTBEAT_OK';
 export const FLIGHTDECK_NO_REPLY = 'FLIGHTDECK_NO_REPLY';
 
 export type DirectorEvent =
@@ -614,33 +614,9 @@ export class LeadManager {
     return parts.join('\n');
   }
 
-  /** Build heartbeat steer with project status + HEARTBEAT.md content */
+  /** Build heartbeat steer — minimal prompt, Lead reads HEARTBEAT.md itself */
   buildHeartbeatSteer(): string {
-    const parts: string[] = [];
-    parts.push('[heartbeat steer]');
-
-    // Project status
-    const stats = this.sqlite.getTaskStats?.() ?? {};
-    const totalCost = this.sqlite.getTotalCost();
-    parts.push(`Project status: ${JSON.stringify(stats)}, total cost: $${totalCost.toFixed(2)}`);
-
-    // Recent completions
-    parts.push(`Tasks completed since last heartbeat: ${this.tasksSinceLastHeartbeat}`);
-
-    // Pending decisions count
-    parts.push('');
-
-    // HEARTBEAT.md content
-    const heartbeatMd = this.project.readHeartbeat();
-    if (heartbeatMd) {
-      parts.push('--- HEARTBEAT.md ---');
-      parts.push(heartbeatMd);
-      parts.push('---');
-      parts.push('');
-      parts.push('Follow the instructions in HEARTBEAT.md. Update it if needed.');
-    }
-
-    return parts.join('\n');
+    return 'Read HEARTBEAT.md if it exists. Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.';
   }
 
   /** Check if all heartbeat conditions are met */
@@ -1059,8 +1035,8 @@ export class LeadManager {
   handleLeadResponse(response: string, _eventType?: LeadEvent['type']): string | null {
     const trimmed = response.trim();
 
-    // FLIGHTDECK_IDLE on heartbeat → don't forward, just log
-    if (trimmed === FLIGHTDECK_IDLE) {
+    // HEARTBEAT_OK on heartbeat → don't forward, just log
+    if (trimmed === HEARTBEAT_OK) {
       return null;
     }
 
