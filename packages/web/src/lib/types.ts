@@ -99,6 +99,16 @@ export interface Activity {
   timestamp: string;
 }
 
+export interface ActivityEntry {
+  id: number;
+  agentId: string;
+  agentRole: string;
+  actionType: string;
+  summary: string;
+  details: string;
+  timestamp: string;
+}
+
 export interface ProjectSummary {
   name: string;
   governance: string;

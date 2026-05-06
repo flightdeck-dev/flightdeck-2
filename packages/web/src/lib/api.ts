@@ -1,4 +1,4 @@
-import type { Task, Agent, Decision, ChatMessage, ProjectStatus, ProjectSummary } from './types.ts';
+import type { Task, Agent, Decision, ChatMessage, ProjectStatus, ProjectSummary, ActivityEntry } from './types.ts';
 import type { DisplayConfig } from '@flightdeck-ai/shared/display';
 
 const BASE = '';
@@ -58,6 +58,13 @@ export const api = {
   getTask: (project: string, id: string) => get<Task>(projectPath(project, `/tasks/${id}`)),
   getAgents: (project: string) => get<Agent[]>(projectPath(project, '/agents?include_retired=true')),
   getDecisions: (project: string, limit = 20) => get<Decision[]>(projectPath(project, `/decisions?limit=${limit}`)),
+  getActivity: (project: string, opts?: { agentId?: string; actionType?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.agentId) params.set('agentId', opts.agentId);
+    if (opts?.actionType) params.set('actionType', opts.actionType);
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    return get<ActivityEntry[]>(projectPath(project, `/activity?${params}`));
+  },
   getMessages: (project: string, opts?: { thread_id?: string; task_id?: string; limit?: number; author_types?: string; channel?: string }) => {
     const params = new URLSearchParams();
     if (opts?.thread_id) params.set('thread_id', opts.thread_id);
