@@ -36,6 +36,11 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     // Utilities
     'flightdeck_role_list',
     'flightdeck_tools_available',
+    // Timers
+    'flightdeck_timer_set', 'flightdeck_timer_cancel', 'flightdeck_timer_list',
+    // Cron management
+    'flightdeck_cron_list', 'flightdeck_cron_add',
+    'flightdeck_cron_enable', 'flightdeck_cron_disable', 'flightdeck_cron_remove', 'flightdeck_cron_run',
   ],
   director: [
     // Status & monitoring
@@ -67,12 +72,23 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_decision_log', 'flightdeck_decision_list',
     // Scheduling
     'flightdeck_cron_list', 'flightdeck_cron_add',
+    'flightdeck_cron_enable', 'flightdeck_cron_disable', 'flightdeck_cron_remove', 'flightdeck_cron_run',
     // Batch channel management
     'flightdeck_subscribe_agents',
     // Utilities
     'flightdeck_role_list',
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
     'flightdeck_tools_available',
+    // Agent control
+    'flightdeck_agent_interrupt', 'flightdeck_agent_output',
+    // Task maintenance
+    'flightdeck_task_clear_stale', 'flightdeck_task_compact',
+    // Specs
+    'flightdeck_spec_cancel',
+    // System
+    'flightdeck_model_set', 'flightdeck_isolation_status',
+    'flightdeck_webhook_test', 'flightdeck_skill_install', 'flightdeck_skill_list',
+    'flightdeck_role_info', 'flightdeck_msg_list',
   ],
   agent: [
     // Status
@@ -97,10 +113,12 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_suggestion_list',
     // Escalation & file locks
     'flightdeck_escalate', 'flightdeck_file_lock', 'flightdeck_file_unlock', 'flightdeck_file_locks',
-    // Scheduling (read-only)
+    // Scheduling (read-only + timers)
     'flightdeck_cron_list',
+    'flightdeck_timer_set', 'flightdeck_timer_cancel', 'flightdeck_timer_list',
     // Utilities
     'flightdeck_tools_available',
+    'flightdeck_role_info', 'flightdeck_msg_list',
   ],
 };
 
