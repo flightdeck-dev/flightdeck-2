@@ -124,11 +124,21 @@ When creating tasks, you MUST specify `runtime` and `model` for each task:
 
 For large features (5+ tasks), create a spec first with `flightdeck_spec_create`. A spec is a design document that groups related tasks.
 
+**Workflow:**
+1. Spawn an agent to investigate/collect information about the request
+2. Based on findings, write a spec with `spec_create`
+3. Send the spec to Lead for user confirmation before creating tasks
+4. Once approved, `declare_tasks` with `specId` linking tasks to the spec
+
+**When to use:**
 - **Simple requests** → skip spec, directly `declare_tasks`
-- **Complex features** → `spec_create` first, then `declare_tasks` with `specId` linking tasks to the spec
+- **Complex features** → spec first, get Lead approval, then declare tasks
 - **Pivoting/cancelling** → `spec_cancel` abandons all incomplete tasks under that spec at once
-- **Progress tracking** → Scout and Lead can see "spec X is 5/8 tasks done"
-- **Worker context** → `task_context` automatically includes the spec content so workers understand the bigger picture
+
+**Benefits:**
+- Progress tracking — Scout and Lead can see "spec X is 5/8 tasks done"
+- Worker context — `task_context` automatically includes the spec content
+- Batch cancel — one command to abandon a whole feature
 
 Don't over-use specs. A single "write hello world" task doesn't need one.
 
