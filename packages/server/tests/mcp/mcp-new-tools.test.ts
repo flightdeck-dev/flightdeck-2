@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -6,6 +6,7 @@ import { Flightdeck } from '../../src/facade.js';
 import { createMcpServer } from '../../src/mcp/server.js';
 import { startTestGateway } from './test-gateway.js';
 import type { AgentId, Agent } from '@flightdeck-ai/shared';
+import type { AgentManager } from '../../src/agents/AgentManager.js';
 
 async function callTool(server: any, name: string, params: Record<string, unknown>) {
   const tool = (server as any)._registeredTools[name];
@@ -41,7 +42,14 @@ describe('MCP new tools', () => {
     fd.registerAgent(worker);
     fd.registerAgent(director);
     fd.registerAgent(reviewer);
-    gateway = await startTestGateway(fd, projectName);
+    const mockAm = {
+      spawnAgent: vi.fn().mockResolvedValue({ id: 'worker-new' as AgentId, role: 'worker', runtime: 'codex', acpSessionId: null, status: 'idle', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null }),
+      terminateAgent: vi.fn().mockResolvedValue(undefined),
+      restartAgent: vi.fn().mockResolvedValue(undefined),
+      interruptAgent: vi.fn().mockResolvedValue(undefined),
+      sendToAgent: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AgentManager;
+    gateway = await startTestGateway(fd, projectName, { agentManager: mockAm });
     process.env.FLIGHTDECK_URL = `http://127.0.0.1:${gateway.port}`;
     process.env.FLIGHTDECK_PROJECT = projectName;
     server = createMcpServer(projectName);

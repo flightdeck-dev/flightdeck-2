@@ -79,6 +79,7 @@ describe('Agent relay HTTP endpoints', () => {
     server = createHttpServer({
       projectManager: pm,
       leadManagers: new Map(),
+      agentManagers: new Map([['test', mockAm]]),
       port: 0,
       corsOrigin: '*',
       wsServers: new Map(),
@@ -165,6 +166,7 @@ describe('Agent relay endpoints without AgentManager', () => {
     server = createHttpServer({
       projectManager: pm,
       leadManagers: new Map(),
+      agentManagers: new Map(),
       port: 0,
       corsOrigin: '*',
       wsServers: new Map(),

@@ -8,7 +8,7 @@ export async function handleTaskRoutes(
   const { fd, projectName, wsServer, json, readBody, req } = deps;
 
   function broadcastStateUpdate() {
-    broadcastStateUpdate();
+    if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
   }
 
   if (subPath === '/tasks' && method === 'POST') {
