@@ -88,6 +88,7 @@ export class Orchestrator {
   private governanceConfig: GovernanceConfig;
   private sessionManager: SessionManager | null;
   private retryCount = new Map<TaskId, number>();
+  private lastIdlePing = new Map<TaskId, number>();
   private notifiedTaskIds = new Set<string>();
   /** Tracks which specs have had retrospectives triggered. Bounded: entries older than 24h are pruned. */
   private retrospectivesDone = new Map<string, number>();
@@ -577,11 +578,15 @@ export class Orchestrator {
         }
 
         if (meta.status === 'idle') {
-          // Idle session, task not submitted — light ping
-          await this.adapter.steer(task.acpSessionId, {
-            content: `[${formatTs()}] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
-          });
-          detected++;
+          // Idle session, task not submitted — ping at most once per 5 minutes
+          const lastPing = this.lastIdlePing?.get(task.id) ?? 0;
+          if (Date.now() - lastPing >= 300_000) {
+            await this.adapter.steer(task.acpSessionId, {
+              content: `[${formatTs()}] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
+            });
+            this.lastIdlePing.set(task.id, Date.now());
+            detected++;
+          }
         }
 
         if (meta.status === 'ended') {
