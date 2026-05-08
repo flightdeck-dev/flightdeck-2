@@ -106,8 +106,8 @@ describe('MCP new tools', () => {
     expect(data.state).toBe('skipped');
   });
 
-  it('task_complete works for reviewer', async () => {
-    setCallerAgent('reviewer-1');
+  it('task_complete works for director', async () => {
+    setCallerAgent('director-1');
     const task = fd.addTask({ title: 'complete me' });
     fd.delegateTask(task.id, 'worker-1' as AgentId);
     fd.submitTask(task.id);

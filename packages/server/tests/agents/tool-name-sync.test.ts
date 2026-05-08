@@ -11,7 +11,12 @@ import { ALL_TOOL_NAMES } from '../../src/agents/toolNames.js';
 function extractMcpToolNames(): string[] {
   const src = readFileSync(resolve(__dirname, '../../src/mcp/server.ts'), 'utf-8');
   const names: string[] = [];
+  // Direct server.tool('flightdeck_...') calls
   for (const match of src.matchAll(/server\.tool\('(flightdeck_[^']+)'/g)) {
+    names.push(match[1]);
+  }
+  // registerTaskAction('flightdeck_...') helper calls
+  for (const match of src.matchAll(/registerTaskAction\('(flightdeck_[^']+)'/g)) {
     names.push(match[1]);
   }
   return [...new Set(names)].sort();

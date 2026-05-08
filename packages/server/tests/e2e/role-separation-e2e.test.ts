@@ -166,8 +166,7 @@ describe('Role Separation E2E', () => {
         expect(reviewerTools).not.toContain('flightdeck_agent_spawn');
       });
 
-      it('DOES have task_complete, task_fail, task_get, escalate', () => {
-        expect(reviewerTools).toContain('flightdeck_task_complete');
+      it('DOES have task_fail, task_get, escalate', () => {
         expect(reviewerTools).toContain('flightdeck_task_fail');
         expect(reviewerTools).toContain('flightdeck_task_get');
         expect(reviewerTools).toContain('flightdeck_escalate');

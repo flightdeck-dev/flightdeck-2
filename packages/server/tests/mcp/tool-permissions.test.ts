@@ -58,7 +58,6 @@ describe('toolPermissions', () => {
     expect(ROLE_TOOLS.agent).not.toContain('flightdeck_task_delegate');
     expect(ROLE_TOOLS.director).toContain('flightdeck_task_delegate');
     expect(ROLE_TOOLS.agent).toContain('flightdeck_task_submit');
-    expect(ROLE_TOOLS.agent).toContain('flightdeck_task_complete');
     expect(ROLE_TOOLS.agent).toContain('flightdeck_task_fail');
     expect(ROLE_TOOLS.agent).toContain('flightdeck_task_get');
   });

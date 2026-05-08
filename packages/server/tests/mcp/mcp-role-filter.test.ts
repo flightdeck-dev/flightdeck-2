@@ -29,7 +29,7 @@ describe('toolPermissions', () => {
     expect(getToolsForRole('director')).toContain('flightdeck_declare_tasks');
     expect(getToolsForRole('director')).toContain('flightdeck_agent_spawn');
     // reviewer, worker, scout all map to agent
-    expect(getToolsForRole('reviewer')).toContain('flightdeck_task_complete');
+    expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_complete');
     expect(getToolsForRole('reviewer')).not.toContain('flightdeck_task_delegate');
   });
 
@@ -102,7 +102,7 @@ describe('MCP Server role-based tool filtering', () => {
   it('reviewer gets agent-level tools (same as worker)', () => {
     const server = createMcpServer({ projectName, agentRole: 'reviewer' });
     const tools = getToolNames(server);
-    expect(tools).toContain('flightdeck_task_complete');
+    expect(tools).not.toContain('flightdeck_task_complete');
     expect(tools).toContain('flightdeck_task_fail');
     expect(tools).not.toContain('flightdeck_task_delegate');
     expect(tools).not.toContain('flightdeck_agent_spawn');
