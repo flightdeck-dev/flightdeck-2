@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProject } from '../hooks/useProject.tsx';
 import { api } from '../lib/api.ts';
 import { useWsEventBus } from '../hooks/useWsEventBus.tsx';
-import { Activity as ActivityIcon, Filter, ChevronDown, ChevronRight, Shield, Bot, Eye, User } from 'lucide-react';
+import { Activity as ActivityIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import type { ActivityEntry } from '../lib/types.ts';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -70,7 +70,7 @@ export default function Activity() {
     if (!projectName) return;
     try {
       const data = await api.getActivity(projectName, { limit: 200 });
-      setEntries([...data].reverse()); // newest first
+      setEntries([...data].reverse()); // API returns oldest-first (ORDER BY id ASC), reverse for newest-first display
     } catch (e) { console.error('Failed to fetch activity', e); }
     setLoading(false);
   }, [projectName]);

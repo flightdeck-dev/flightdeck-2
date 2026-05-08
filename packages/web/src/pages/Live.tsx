@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useProject } from '../hooks/useProject.tsx';
 import { useAgents } from '../hooks/useAgents.tsx';
 import { useWsEventBus } from '../hooks/useWsEventBus.tsx';
@@ -111,6 +111,8 @@ export default function Live() {
   // Filter: only show non-hibernated, non-retired agents
   const activeAgents = agents.filter(a => a.status !== 'hibernated' && a.status !== 'retired');
 
+  const activeAgentKey = useMemo(() => activeAgents.map(a => a.id).join(','), [activeAgents]);
+
   // Sync order with active agents (add new ones at end, remove gone ones)
   useEffect(() => {
     setOrder(prev => {
@@ -119,7 +121,7 @@ export default function Live() {
       const newIds = activeAgents.filter(a => !prev.includes(a.id)).map(a => a.id);
       return [...kept, ...newIds];
     });
-  }, [activeAgents.map(a => a.id).join(',')]);
+  }, [activeAgentKey]);
 
   const orderedAgents = order
     .map(id => activeAgents.find(a => a.id === id))

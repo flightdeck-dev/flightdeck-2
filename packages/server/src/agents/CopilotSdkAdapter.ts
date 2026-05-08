@@ -167,6 +167,24 @@ export class CopilotSdkAdapter extends AgentAdapter {
     });
 
     tools.push({
+      name: 'flightdeck_task_set_reviewers',
+      description: 'Set or update the reviewer attention set for a task. Pass agent IDs to assign reviewers, or empty array to clear.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskId: { type: 'string', description: 'Task ID' },
+          reviewers: { type: 'array', items: { type: 'string' }, description: 'Agent IDs to assign as reviewers. Empty array clears reviewers.' },
+        },
+        required: ['taskId', 'reviewers'],
+      },
+      handler: async (args: { taskId: string; reviewers: string[] }) => {
+        const reviewers = args.reviewers.length > 0 ? args.reviewers : null;
+        return JSON.stringify(await httpPost(`/tasks/${encodeURIComponent(args.taskId)}/reviewers`, { reviewers }));
+      },
+      skipPermission: true,
+    });
+
+    tools.push({
       name: 'flightdeck_task_submit',
       description: 'Submit completed work for a task. REQUIRED after completing work.',
       parameters: {

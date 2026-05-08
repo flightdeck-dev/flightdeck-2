@@ -6,6 +6,8 @@ import { useProject } from './useProject.tsx';
 import type { Agent } from '../lib/types.ts';
 import type { ContentType } from '@flightdeck-ai/shared/display';
 
+const MAX_CHUNKS = 500;
+
 export interface StreamChunk {
   content: string;
   contentType?: ContentType;
@@ -66,7 +68,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         const prev = agentOutputsRef.current.get(event.agentId) ?? '';
         agentOutputsRef.current.set(event.agentId, prev + event.delta);
         const prevChunks = agentStreamChunksRef.current.get(event.agentId) ?? [];
-        agentStreamChunksRef.current.set(event.agentId, [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName }]);
+        agentStreamChunksRef.current.set(event.agentId, [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName }].slice(-MAX_CHUNKS));
         scheduleFlush();
       } else if (event.type === 'tool:event') {
         const agentId = event.agentId;
@@ -76,7 +78,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             content: `\n🔧 ${event.toolName}(...)`,
             contentType: 'tool_call' as const,
             toolName: event.toolName,
-          }]);
+          }].slice(-MAX_CHUNKS));
         } else if (event.status === 'completed') {
           const outputStr = typeof event.output === 'string' ? event.output : JSON.stringify(event.output);
           const durationStr = event.durationMs ? ` (${event.durationMs}ms)` : '';
@@ -84,13 +86,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             content: `\n✅ ${event.toolName}${durationStr}: ${outputStr?.slice(0, 500) ?? '(no output)'}`,
             contentType: 'tool_result' as const,
             toolName: event.toolName,
-          }]);
+          }].slice(-MAX_CHUNKS));
         } else if (event.status === 'error') {
           agentStreamChunksRef.current.set(agentId, [...prevChunks, {
             content: `\n❌ ${event.toolName}: ${event.error ?? 'unknown error'}`,
             contentType: 'tool_result' as const,
             toolName: event.toolName,
-          }]);
+          }].slice(-MAX_CHUNKS));
         }
         scheduleFlush();
       } else if (event.type === 'dm:message') {

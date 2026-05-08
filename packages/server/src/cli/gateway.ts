@@ -391,6 +391,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
   const wsServers = new Map<string, any>();
   const orchestrators: Array<{ stop: () => void; start: () => void }> = [];
   const cronSchedulers: Array<{ stop: () => void }> = [];
+  const scoutTimers: ReturnType<typeof setInterval>[] = [];
   const { WebhookNotifier } = await import('../integrations/WebhookNotifier.js');
   const webhookNotifiers = new Map<string, InstanceType<typeof WebhookNotifier>>();
   const cronStores = new Map<string, InstanceType<typeof CronStore>>();
@@ -480,24 +481,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     };
 
     // Independent Scout heartbeat timer
-    {
-      const scoutHbCfg = projectConfig.scoutHeartbeat;
-      const scoutHbEnabled = projectConfig.scoutEnabled && (scoutHbCfg?.enabled !== false);
-      const scoutHbInterval = Math.max(scoutHbCfg?.interval ?? 3600000, 300000); // min 5 min
-      const scoutRequireTaskCompletion = scoutHbCfg?.requireTaskCompletion ?? false;
-
-      if (scoutHbEnabled) {
-        const scoutTimer = setInterval(async () => {
-          const tasksCompleted = leadManager.getAndResetScoutTaskCount();
-          if (!scoutRequireTaskCompletion || tasksCompleted > 0) {
-            if (leadManager.onScoutHeartbeat) {
-              try { await leadManager.onScoutHeartbeat(); } catch (e) { console.error(`[${name}] Scout heartbeat failed:`, e); }
-            }
-          }
-        }, scoutHbInterval);
-        scoutTimer.unref();
-      }
-    }
+    startScoutHeartbeatTimer(projectConfig, leadManager, name, scoutTimers);
 
     // Create and start cron scheduler
     const cronStore = new CronStore(fd.project.subpath('.'));
@@ -647,24 +631,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       };
 
       // Independent Scout heartbeat timer
-      {
-        const scoutHbCfg = projectConfig.scoutHeartbeat;
-        const scoutHbEnabled = projectConfig.scoutEnabled && (scoutHbCfg?.enabled !== false);
-        const scoutHbInterval = Math.max(scoutHbCfg?.interval ?? 3600000, 300000); // min 5 min
-        const scoutRequireTaskCompletion = scoutHbCfg?.requireTaskCompletion ?? false;
-
-        if (scoutHbEnabled) {
-          const scoutTimer = setInterval(async () => {
-            const tasksCompleted = leadManager.getAndResetScoutTaskCount();
-            if (!scoutRequireTaskCompletion || tasksCompleted > 0) {
-              if (leadManager.onScoutHeartbeat) {
-                try { await leadManager.onScoutHeartbeat(); } catch (e) { console.error(`[${name}] Scout heartbeat failed:`, e); }
-              }
-            }
-          }, scoutHbInterval);
-          scoutTimer.unref();
-        }
-      }
+      startScoutHeartbeatTimer(projectConfig, leadManager, name, scoutTimers);
 
       // CronStore + CronScheduler
       const cronStore = new CronStore(fd.project.subpath('.'));
@@ -882,6 +849,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     for (const o of orchestrators) o.stop();
     for (const cs of cronSchedulers) cs.stop();
     for (const lm of leadManagers.values()) lm.stop();
+    for (const st of scoutTimers) clearInterval(st);
     if (bridgeManager) bridgeManager.stopAll().catch(() => {});
     acpAdapter.clear();
     // Clean up PID tracking — graceful shutdown means no orphans
@@ -971,6 +939,32 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     // Don't crash — many rejections are transient (network errors, agent timeouts).
     // Node 15+ will eventually crash on truly unhandled rejections.
   });
+}
+
+/** Shared helper to start the scout heartbeat timer for a project. */
+function startScoutHeartbeatTimer(
+  projectConfig: any,
+  leadManager: any,
+  name: string,
+  scoutTimers: ReturnType<typeof setInterval>[],
+): void {
+  const scoutHbCfg = projectConfig.scoutHeartbeat;
+  const scoutHbEnabled = projectConfig.scoutEnabled && (scoutHbCfg?.enabled !== false);
+  const scoutHbInterval = Math.max(scoutHbCfg?.interval ?? 3600000, 300000); // min 5 min
+  const scoutRequireTaskCompletion = scoutHbCfg?.requireTaskCompletion ?? false;
+
+  if (scoutHbEnabled) {
+    const timer = setInterval(async () => {
+      const tasksCompleted = leadManager.getAndResetScoutTaskCount();
+      if (!scoutRequireTaskCompletion || tasksCompleted > 0) {
+        if (leadManager.onScoutHeartbeat) {
+          try { await leadManager.onScoutHeartbeat(); } catch (e) { console.error(`[${name}] Scout heartbeat failed:`, e); }
+        }
+      }
+    }, scoutHbInterval);
+    timer.unref();
+    scoutTimers.push(timer);
+  }
 }
 
 async function spawnAgents(

@@ -95,7 +95,7 @@ export const ROLE_TOOLS: Record<string, string[]> = {
     'flightdeck_status',
     // Tasks (union of worker + reviewer capabilities)
     'flightdeck_task_list', 'flightdeck_task_context', 'flightdeck_task_get',
-    'flightdeck_task_submit', 'flightdeck_task_complete',
+    'flightdeck_task_submit',
     'flightdeck_task_fail', 'flightdeck_task_cancel', 'flightdeck_task_resume',
     'flightdeck_task_comment', 'flightdeck_review_submit',
     // Communication
