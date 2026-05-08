@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleCollaborationRoutes(
@@ -21,7 +22,7 @@ export async function handleCollaborationRoutes(
       };
       fd.sendMessage(msg, 'escalations');
       json(200, { status: 'escalated', taskId: body.taskId });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -32,7 +33,7 @@ export async function handleCollaborationRoutes(
       if (!body.content) { json(400, { error: 'Missing content' }); return true; }
       const learning = fd.learnings.append({ agentId, content: body.content, tags: body.tags ?? [], category: body.category });
       json(201, learning);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -57,7 +58,7 @@ export async function handleCollaborationRoutes(
       const esc = fd.sqlite.createEscalation(agentId, body.title, body.description, body.priority);
       if (wsServer) wsServer.broadcast({ type: 'escalation:created', project: projectName, escalation: esc });
       json(201, esc);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -70,7 +71,7 @@ export async function handleCollaborationRoutes(
       if (!esc) { json(404, { error: 'Escalation not found' }); return true; }
       if (wsServer) wsServer.broadcast({ type: 'escalation:resolved', project: projectName, escalation: esc });
       json(200, { success: true, escalation: esc });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

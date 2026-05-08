@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleTaskRoutes(
@@ -5,6 +6,10 @@ export async function handleTaskRoutes(
   deps: ProjectScopedDeps,
 ): Promise<boolean> {
   const { fd, projectName, wsServer, json, readBody, req } = deps;
+
+  function broadcastStateUpdate() {
+    broadcastStateUpdate();
+  }
 
   if (subPath === '/tasks' && method === 'POST') {
     try {
@@ -19,7 +24,7 @@ export async function handleTaskRoutes(
         }
       }
       const task = fd.addTask({ title: body.title, description: body.description, role: body.role || 'worker', needsReview: body.needsReview, notifyLead: body.notifyLead, runtime: body.runtime, model: body.model });
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(201, task);
     } catch (e: unknown) { json((e instanceof Error && e.message === 'Body too large') ? 413 : 400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
     return true;
@@ -45,7 +50,7 @@ export async function handleTaskRoutes(
     if (!agentId) { json(400, { error: 'Missing agentId in body or X-Agent-Id header' }); return true; }
     try {
       const task = fd.delegateTask(taskId as import('@flightdeck-ai/shared').TaskId, agentId as import('@flightdeck-ai/shared').AgentId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       // Steer the assigned agent with task context
       const am = deps.agentManagers.get(deps.projectName);
       if (am) {
@@ -99,7 +104,7 @@ export async function handleTaskRoutes(
         `Submitted "${task.title}"`,
         { taskId: task.id, claim: body.claim },
       );
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -120,9 +125,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.completeTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -137,9 +142,9 @@ export async function handleTaskRoutes(
         `Failed "${task.title}"`,
         { taskId: task.id },
       );
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -149,9 +154,9 @@ export async function handleTaskRoutes(
       const body = await readBody();
       if (!body.state) { json(400, { error: 'Missing required field: state' }); return true; }
       fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, body.state);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -162,7 +167,7 @@ export async function handleTaskRoutes(
       if (!body.description) { json(400, { error: 'Missing required field: description' }); return true; }
       fd.sqlite.updateTaskDescription(taskId as import('@flightdeck-ai/shared').TaskId, body.description);
       json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -173,7 +178,7 @@ export async function handleTaskRoutes(
       if (!body.role) { json(400, { error: 'Missing required field: role' }); return true; }
       fd.sqlite.updateTaskRole(taskId as import('@flightdeck-ai/shared').TaskId, body.role);
       json(200, fd.sqlite.getTask(taskId as import('@flightdeck-ai/shared').TaskId));
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -181,9 +186,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.cancelTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -198,9 +203,9 @@ export async function handleTaskRoutes(
     }
     try {
       const task = fd.pauseTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -208,9 +213,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.resumeTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -218,9 +223,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.retryTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -228,9 +233,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.skipTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -238,9 +243,9 @@ export async function handleTaskRoutes(
     const taskId = subPath.split('/')[2];
     try {
       const task = fd.reopenTask(taskId as import('@flightdeck-ai/shared').TaskId);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -258,8 +263,8 @@ export async function handleTaskRoutes(
         fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, 'running' as import('@flightdeck-ai/shared').TaskState);
         json(200, { taskId, verdict: 'request_changes', newState: 'running', feedback: body.comment });
       }
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+      broadcastStateUpdate();
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -269,7 +274,7 @@ export async function handleTaskRoutes(
       const body = await readBody();
       const task = fd.compactTask(taskId as import('@flightdeck-ai/shared').TaskId, body.summary);
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -287,9 +292,9 @@ export async function handleTaskRoutes(
       const reviewers = Array.isArray(body.reviewers) ? body.reviewers : null;
       const task = fd.setTaskReviewers(taskId as import('@flightdeck-ai/shared').TaskId, reviewers);
       if (!task) { json(404, { error: 'Task not found' }); return true; }
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(200, task);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -313,9 +318,9 @@ export async function handleTaskRoutes(
         `Declared ${tasks.length} task(s)`,
         { taskIds: tasks.map((t: any) => t.id), titles: tasks.map((t: any) => t.title) },
       );
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(201, tasks);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -325,9 +330,9 @@ export async function handleTaskRoutes(
       const body = await readBody();
       if (!Array.isArray(body.tasks)) { json(400, { error: 'Expected { tasks: [...] }' }); return true; }
       const tasks = fd.declareSubTasks(parentTaskId as import('@flightdeck-ai/shared').TaskId, body.tasks as Parameters<typeof fd.declareTasks>[0]);
-      if (wsServer) wsServer.broadcast({ type: 'state:update', stats: fd.getTaskStats() });
+      broadcastStateUpdate();
       json(201, tasks);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -358,7 +363,7 @@ export async function handleTaskRoutes(
       } else {
         json(400, { error: 'Missing required field: comment or message' });
       }
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -371,7 +376,7 @@ export async function handleTaskRoutes(
         wsServer.broadcast({ type: 'tool:event', project: projectName, ...body });
       }
       json(200, { status: 'ok' });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

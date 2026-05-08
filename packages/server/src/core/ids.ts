@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { TaskId, SpecId, AgentId, ProjectId, DecisionId, MessageId } from './types.js';
+import type { TaskId, SpecId, AgentId, ProjectId, DecisionId, MessageId } from '@flightdeck-ai/shared';
 
 function hashId(prefix: string, ...parts: string[]): string {
   const hash = createHash('sha256')

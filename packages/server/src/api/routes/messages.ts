@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 import type { ChatMessage } from '../../comms/MessageStore.js';
 import { leadResponseEvent } from '../../integrations/WebhookNotifier.js';
@@ -34,7 +35,7 @@ export async function handleMessageRoutes(
         subscribed.push(agentId);
       }
       json(200, { status: 'subscribed', channel: body.channel, agentIds: subscribed });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -52,7 +53,7 @@ export async function handleMessageRoutes(
       if (!body.name) { json(400, { error: 'Missing channel name' }); return true; }
       const channel = fd.messages?.createChannel(body.name, { description: body.description, createdBy: agentId });
       json(200, channel ?? { name: body.name, description: body.description ?? null, archived: false });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -63,7 +64,7 @@ export async function handleMessageRoutes(
       if (!body.name) { json(400, { error: 'Missing channel name' }); return true; }
       const success = fd.messages?.archiveChannel(body.name) ?? false;
       json(200, { status: success ? 'archived' : 'not_found', channel: body.name });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -88,7 +89,7 @@ export async function handleMessageRoutes(
         }
       }
       json(200, { status: 'broadcast', channel: broadcastChannel, messageId: msg?.id ?? null, recipientCount: allAgents.length });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -109,7 +110,7 @@ export async function handleMessageRoutes(
       if (!body.channel) { json(400, { error: 'Missing channel' }); return true; }
       fd.messages?.subscribe(agentId, body.channel);
       json(200, { status: 'subscribed', channel: body.channel });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -121,7 +122,7 @@ export async function handleMessageRoutes(
       if (!body.channel) { json(400, { error: 'Missing channel' }); return true; }
       fd.messages?.unsubscribe(agentId, body.channel);
       json(200, { status: 'unsubscribed', channel: body.channel });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -304,7 +305,7 @@ export async function handleMessageRoutes(
       } else {
         json(400, { error: 'Must provide to, channel, or taskId' });
       }
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

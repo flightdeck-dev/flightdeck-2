@@ -3,7 +3,7 @@ import type { SqliteStore } from '../storage/SqliteStore.js';
 import type { ProjectStore } from '../storage/ProjectStore.js';
 import type { MessageStore, ChatMessage } from '../comms/MessageStore.js';
 import type { AgentAdapter } from '../agents/AgentAdapter.js';
-import type { AgentRuntime } from '../core/types.js';
+import type { AgentRuntime } from '@flightdeck-ai/shared';
 import type { AcpSession } from '../agents/AcpAdapter.js';
 import { buildMemoryContext } from '../agents/AgentManager.js';
 import { loadRolePrompt } from '../roles/loadRolePrompt.js';

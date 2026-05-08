@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { GlobalRouteDeps } from './types.js';
 
 export async function handleGlobalRoutes(
@@ -109,7 +110,7 @@ export async function handleGlobalRoutes(
       Object.assign(existing, body);
       saveGlobalConfig(existing);
       json(200, existing);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -138,7 +139,7 @@ export async function handleGlobalRoutes(
       const { mkdirSync } = await import('node:fs');
       mkdirSync(body.path, { recursive: true });
       json(200, { created: true, path: body.path });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

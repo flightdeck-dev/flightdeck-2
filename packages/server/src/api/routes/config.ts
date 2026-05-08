@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleConfigRoutes(
@@ -208,7 +209,7 @@ export async function handleConfigRoutes(
       const prefPath = pjoin(fd.project.subpath('.'), 'role-preference.md');
       wtas(prefPath, body.content);
       json(200, { success: true });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -261,7 +262,7 @@ export async function handleConfigRoutes(
         lm.steerDirector(notice).catch(() => {});
       }
       json(200, { success: true, enabledModels: mc.getRoleEnabledModels(roleId) });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -282,7 +283,7 @@ export async function handleConfigRoutes(
       const frontmatter = `---\nid: ${roleId}\nname: ${existing?.name ?? roleId}\ndescription: ${existing?.description ?? ''}\nicon: ${existing?.icon ?? '🔧'}\ncolor: "${existing?.color ?? '#888888'}"\npermissions:\n${Object.entries(existing?.permissions ?? {}).map(([k, v]) => `  ${k}: ${v}`).join('\n')}\n---\n`;
       wtas(pjoin(rolesDir, `${roleId}.md`), frontmatter + body.content);
       json(200, { success: true });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -299,7 +300,7 @@ export async function handleConfigRoutes(
       const frontmatter = `---\nid: ${body.id}\nname: ${body.name}\ndescription: ${body.description ?? ''}\nicon: ${body.icon ?? '🔧'}\ncolor: "${body.color ?? '#888888'}"\npermissions:\n  task_delegate: true\n  task_submit: true\n  escalate: true\n---\n`;
       wtas(pjoin(rolesDir, `${body.id}.md`), frontmatter + (body.instructions ?? `You are a ${body.name} agent. Complete your assigned tasks.`));
       json(201, { success: true, id: body.id });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid request' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

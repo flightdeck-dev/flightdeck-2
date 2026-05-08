@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleSpecRoutes(
@@ -40,7 +41,7 @@ export async function handleSpecRoutes(
       if (!body.title || !body.content) { json(400, { error: 'Missing title or content' }); return true; }
       const spec = fd.createSpec(body.title, body.content);
       json(201, spec);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

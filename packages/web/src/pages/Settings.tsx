@@ -155,22 +155,22 @@ function GlobalSettings() {
 
   // Fetch projects to get first project name for runtime context
   const { data: projectsData } = useSWR('projects-for-settings', () =>
-    fetch('/api/projects').then(r => r.json()).then(d => d.projects ?? [])
+    api.getProjects()
   );
   const runtimeProject = projectsData?.[0]?.name ?? '';
 
   const { data: runtimesData, mutate: mutateRuntimes } = useSWR(
     'runtimes-global',
-    () => fetch('/api/runtimes').then(r => r.json()) as Promise<RuntimeInfo[]>
+    () => api.getGlobalRuntimes() as Promise<RuntimeInfo[]>
   );
   const runtimes = runtimesData ?? null;
 
   const { data: customRuntimes, mutate: mutateCustom } = useSWR('custom-runtimes',
-    () => fetch('/api/custom-runtimes').then(r => r.json()) as Promise<Record<string, any>>
+    () => api.getCustomRuntimes() as Promise<Record<string, any>>
   );
 
   const { data: globalCfg } = useSWR('global-config', () =>
-    fetch('/api/global-config').then(r => r.json())
+    api.getGlobalConfig()
   );
   const [disabledRuntimes, setDisabledRuntimes] = useState<string[]>([]);
   const [globalConfig, setGlobalConfig] = useState<any>({});
@@ -209,7 +209,7 @@ function GlobalSettings() {
       const newDisabled = enabled
         ? prev.filter(r => r !== id)
         : [...prev, id];
-      fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabledRuntimes: newDisabled }) })
+      api.updateGlobalConfig({ disabledRuntimes: newDisabled })
         .catch(() => setDisabledRuntimes(prev));
       return newDisabled;
     });
@@ -240,12 +240,7 @@ function GlobalSettings() {
     setDragId(null);
     setDragOverId(null);
     try {
-      const res = await fetch('/api/global-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runtimeOrder: order }),
-      });
-      if (!res.ok) console.error('Failed to save runtime order');
+      await api.updateGlobalConfig({ runtimeOrder: order });
     } catch { /* best effort */ }
   }, [dragId, runtimes, getSortedRuntimes]);
 
@@ -257,7 +252,7 @@ function GlobalSettings() {
   }) ?? 'custom';
 
   const { data: registryAgents, mutate: mutateRegistry } = useSWR('acp-registry', 
-    () => fetch('/api/registry').then(r => r.json()).then(d => Array.isArray(d) ? d : []),
+    () => api.getRegistry().then(d => Array.isArray(d) ? d : []),
     { revalidateOnFocus: false }
   );
   const [addedAgents, setAddedAgents] = useState<Set<string>>(new Set());
@@ -269,15 +264,10 @@ function GlobalSettings() {
   const removeCustomRuntime = useCallback(async (id: string) => {
     setRemovingRuntime(id);
     try {
-      const res = await fetch('/api/custom-runtimes');
-      const existing = await res.json();
+      const existing = await api.getCustomRuntimes() as Record<string, any>;
       const updated = { ...existing };
       delete updated[id];
-      await fetch('/api/custom-runtimes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      });
+      await api.updateCustomRuntimes(updated);
       mutateCustom();
       mutateRuntimes();
       setAddedAgents(prev => { const next = new Set(prev); next.delete(id); return next; });
@@ -342,7 +332,7 @@ function GlobalSettings() {
             <select
               value={globalConfig?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
               onChange={async e => {
-                await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: e.target.value }) });
+                await api.updateGlobalConfig({ timezone: e.target.value });
                 setGlobalConfig((prev: any) => ({ ...prev, timezone: e.target.value }));
               }}
               className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]"
@@ -457,14 +447,9 @@ function GlobalSettings() {
                           customRt.installHint = `npm install -g ${basePkg}`;
                         }
                         try {
-                          const res = await fetch('/api/custom-runtimes');
-                          const existing = await res.json();
+                          const existing = await api.getCustomRuntimes() as Record<string, any>;
                           const updated = { ...existing, [agent.id]: customRt };
-                          await fetch('/api/custom-runtimes', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updated),
-                          });
+                          await api.updateCustomRuntimes(updated);
                           setAddedAgents(prev => new Set(prev).add(agent.id));
                           mutateCustom();
                           mutateRuntimes();
@@ -514,13 +499,8 @@ function GlobalSettings() {
                 setManualSaving(true);
                 setManualSaved(false);
                 try {
-                  const res = await fetch('/api/custom-runtimes');
-                  const existing = await res.json();
-                  await fetch('/api/custom-runtimes', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...existing, [id]: { name, command: cmd, args, ...(Object.keys(env).length ? { env } : {}) } }),
-                  });
+                  const existing = await api.getCustomRuntimes() as Record<string, any>;
+                  await api.updateCustomRuntimes({ ...existing, [id]: { name, command: cmd, args, ...(Object.keys(env).length ? { env } : {}) } });
                   ['custom-rt-id','custom-rt-name','custom-rt-cmd','custom-rt-args','custom-rt-env'].forEach(x => {
                     const el = document.getElementById(x) as HTMLInputElement; if (el) el.value = '';
                   });
@@ -555,8 +535,7 @@ function DebugLogSection() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/logs?tail=100');
-      const data = await res.json();
+      const data = await api.getLogs(100);
       setLogs(data.lines ?? []);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch { /* */ }
@@ -659,7 +638,7 @@ function ChatBridgesSection({ globalCfg }: { globalCfg: any }) {
     setBridges(updated);
     setSaving(true);
     try {
-      await fetch('/api/global-config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bridges: updated }) });
+      await api.updateGlobalConfig({ bridges: updated });
     } catch {} finally { setSaving(false); }
   }, []);
 
@@ -831,8 +810,7 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
   const hasChanges = content !== original;
 
   useEffect(() => {
-    fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`)
-      .then(r => r.ok ? r.json() : { content: '' })
+    api.getMemoryFile(projectName, filename)
       .then(d => { const c = d.content ?? ''; setContent(c); setOriginal(c); contentRef.current = c; originalRef.current = c; })
       .catch(() => { setContent(''); setOriginal(''); contentRef.current = ''; originalRef.current = ''; })
       .finally(() => setLoading(false));
@@ -845,10 +823,7 @@ function MemoryFileEditor({ projectName, filename, onClose }: { projectName: str
   const save = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${encodeURIComponent(projectName)}/memory/${encodeURIComponent(filename)}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: contentRef.current }),
-      });
+      await api.updateMemoryFile(projectName, filename, contentRef.current);
       setOriginal(contentRef.current);
       originalRef.current = contentRef.current;
     } catch {}
@@ -907,8 +882,7 @@ function IdentityMemorySection({ projectName }: { projectName: string }) {
 
   const loadFiles = useCallback(async () => {
     try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/memory`);
-      const data = await res.json();
+      const data = await api.getMemoryFiles(projectName);
       setFiles(data.files ?? []);
     } catch {}
   }, [projectName]);
@@ -1012,14 +986,14 @@ function ProjectSettings() {
   // Load lead/director runtime/model from model config
   useEffect(() => {
     if (!projectName) return;
-    fetch(`/api/projects/${encodeURIComponent(projectName)}/models`).then(r => r.json()).then(data => {
+    api.getProjectModels(projectName).then((data: any) => {
       const lead = data.roles?.find((r: any) => r.role === "lead");
       if (lead) { setLeadRuntime(lead.runtime ?? "copilot"); setLeadModel(lead.model ?? ""); }
       const director = data.roles?.find((r: any) => r.role === "director");
       if (director) { setDirectorRuntime(director.runtime ?? "copilot"); setDirectorModel(director.model ?? ""); }
     }).catch(() => {});
     // Fetch available models for dropdown (filtered by current runtime)
-    fetch(`/api/projects/${encodeURIComponent(projectName)}/models/available`).then(r => r.json()).then(data => {
+    api.getAvailableModels(projectName).then((data: any) => {
       const leadRtModels = data[leadRuntime];
       const leadAll: string[] = [];
       if (Array.isArray(leadRtModels)) {
@@ -1033,7 +1007,7 @@ function ProjectSettings() {
       }
       setDirectorModelOptions(dirAll);
     }).catch(() => {});
-  }, [projectName, leadRuntime, directorRuntime]);
+  }, [projectName, leadRuntime, directorRuntime]); // eslint-disable-line
 
   // Load allowedRuntimes from project config
   useEffect(() => {
@@ -1123,7 +1097,7 @@ function ProjectSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Lead Runtime</span>
-            <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: leadModel }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+            <select value={leadRuntime} onChange={async e => { setLeadRuntime(e.target.value); if (projectName) { await api.updateLeadModel(projectName, e.target.value, leadModel); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
               {availableRuntimes ? availableRuntimes.map(rt => (
                 <option key={rt.id} value={rt.id}>{rt.name}</option>
               )) : (
@@ -1133,14 +1107,14 @@ function ProjectSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Lead Model</span>
-            <select value={leadModel} onChange={async e => { setLeadModel(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/lead`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: leadRuntime, model: e.target.value }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
+            <select value={leadModel} onChange={async e => { setLeadModel(e.target.value); if (projectName) { await api.updateLeadModel(projectName, leadRuntime, e.target.value); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
               <option value="">Select model...</option>
               {leadModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Director Runtime</span>
-            <select value={directorRuntime} onChange={async e => { setDirectorRuntime(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/director`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: e.target.value, model: directorModel }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
+            <select value={directorRuntime} onChange={async e => { setDirectorRuntime(e.target.value); if (projectName) { await api.updateDirectorModel(projectName, e.target.value, directorModel); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer">
               {availableRuntimes ? availableRuntimes.map(rt => (
                 <option key={rt.id} value={rt.id}>{rt.name}</option>
               )) : (
@@ -1150,7 +1124,7 @@ function ProjectSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">Director Model</span>
-            <select value={directorModel} onChange={async e => { setDirectorModel(e.target.value); if (projectName) { await fetch(`/api/projects/${encodeURIComponent(projectName)}/models/director`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: directorRuntime, model: e.target.value }) }); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
+            <select value={directorModel} onChange={async e => { setDirectorModel(e.target.value); if (projectName) { await api.updateDirectorModel(projectName, directorRuntime, e.target.value); } }} className="text-sm px-2.5 py-1 rounded-lg bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer max-w-[200px]">
               <option value="">Select model...</option>
               {directorModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>

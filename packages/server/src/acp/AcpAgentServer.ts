@@ -98,7 +98,7 @@ export class AcpAgentServer implements Agent {
       messageStore: this.facade.messages ?? undefined,
       acpAdapter: this.acpAdapter,
       projectName,
-      leadRuntime: this.currentRuntime as import('../core/types.js').AgentRuntime,
+      leadRuntime: this.currentRuntime as import('@flightdeck-ai/shared').AgentRuntime,
     });
   }
 

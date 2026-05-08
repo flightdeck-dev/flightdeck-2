@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleWorkspaceRoutes(
@@ -12,7 +13,7 @@ export async function handleWorkspaceRoutes(
       const agentId = req.headers['x-agent-id'] as string || 'http-api';
       const timer = fd.timers.setTimer(agentId, body.label, body.delayMs, body.message, body.repeat);
       json(200, timer);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -42,7 +43,7 @@ export async function handleWorkspaceRoutes(
       const role = body.role ?? req.headers['x-agent-role'] ?? 'worker';
       const success = fd.sqlite.acquireFileLock(body.filePath, agentId, role, body.reason);
       json(success ? 200 : 409, { locked: success, filePath: body.filePath });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -53,7 +54,7 @@ export async function handleWorkspaceRoutes(
       const agentId = body?.agentId ?? req.headers['x-agent-id'] ?? '';
       const released = fd.sqlite.releaseFileLock(filePath, agentId);
       json(200, { released, filePath });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -100,7 +101,7 @@ export async function handleWorkspaceRoutes(
       const result = sm.installSkill(body.source);
       if (!result) { json(400, { error: 'Failed to install skill' }); return true; }
       json(200, result);
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

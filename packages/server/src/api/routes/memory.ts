@@ -1,3 +1,4 @@
+import { errorJson } from './utils.js';
 import type { ProjectScopedDeps } from './types.js';
 
 export async function handleMemoryRoutes(
@@ -23,7 +24,7 @@ export async function handleMemoryRoutes(
       if (!body.entry) { json(400, { error: 'Missing entry' }); return true; }
       fd.memory.appendDailyLog(body.entry);
       json(200, { status: 'logged', filename: fd.memory.getDailyLogFilename() });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 
@@ -41,7 +42,7 @@ export async function handleMemoryRoutes(
       const body = await readBody();
       fd.writeMemory(filename, body.content);
       json(200, { status: 'written', path: `memory/${filename}` });
-    } catch (e: unknown) { json(400, { error: e instanceof Error ? e.message : 'Invalid JSON' }); }
+    } catch (e: unknown) { errorJson(json, e); }
     return true;
   }
 

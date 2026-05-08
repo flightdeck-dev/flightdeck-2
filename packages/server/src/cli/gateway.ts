@@ -457,8 +457,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       acpAdapter: multiAdapter,
       projectName: name,
       cwd: projectCwd,
-      leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
-      directorRuntime: directorRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+      leadRuntime: leadRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+      directorRuntime: directorRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
       heartbeat: {
         enabled: projectConfig.heartbeatEnabled === true,
         interval: 30 * 60 * 1000,
@@ -607,8 +607,8 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         acpAdapter: multiAdapter,
         projectName: name,
         cwd: projectCwd,
-        leadRuntime: leadRoleConfig.runtime as import('../core/types.js').AgentRuntime,
-        directorRuntime: directorRoleConfig.runtime as import('../core/types.js').AgentRuntime,
+        leadRuntime: leadRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+        directorRuntime: directorRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
         heartbeat: {
           enabled: projectConfig.heartbeatEnabled === true,
           interval: 30 * 60 * 1000,

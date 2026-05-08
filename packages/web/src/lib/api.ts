@@ -169,6 +169,33 @@ export const api = {
   // Runtimes
   getRuntimes: (project: string) => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string; supportsModelDiscovery?: boolean }>>(projectPath(project, '/runtimes')),
 
+  // Global config
+  getGlobalConfig: () => get<Record<string, unknown>>('/api/global-config'),
+  updateGlobalConfig: (data: Record<string, unknown>) => put<Record<string, unknown>>('/api/global-config', data),
+
+  // Global runtimes
+  getGlobalRuntimes: () => get<Array<{ id: string; name: string; command: string; supportsAcp: boolean; adapter: string; icon?: string; iconUrl?: string; docsUrl?: string; setupLinks?: Array<{ label: string; url: string }>; loginInstructions?: string; installHint?: string; supportsSessionLoad?: boolean; supportsModelDiscovery?: boolean }>>('/api/runtimes'),
+
+  // Custom runtimes
+  getCustomRuntimes: () => get<Record<string, unknown>>('/api/custom-runtimes'),
+  updateCustomRuntimes: (data: Record<string, unknown>) => put<Record<string, unknown>>('/api/custom-runtimes', data),
+
+  // ACP Registry
+  getRegistry: () => get<unknown[]>('/api/registry'),
+
+  // Logs
+  getLogs: (tail = 100) => get<{ lines: string[] }>(`/api/logs?tail=${tail}`),
+
+  // Memory files
+  getMemoryFiles: (project: string) => get<{ files: Array<{ filename: string; size: number; preview: string }> }>(projectPath(project, '/memory')),
+  getMemoryFile: (project: string, filename: string) => get<{ content: string }>(projectPath(project, `/memory/${encodeURIComponent(filename)}`)),
+  updateMemoryFile: (project: string, filename: string, content: string) => put<{ success: boolean }>(projectPath(project, `/memory/${encodeURIComponent(filename)}`), { content }),
+
+  // Project models
+  getProjectModels: (project: string) => get<Record<string, unknown>>(projectPath(project, '/models')),
+  updateLeadModel: (project: string, runtime: string, model: string) => put<{ success: boolean }>(projectPath(project, '/models/lead'), { runtime, model }),
+  updateDirectorModel: (project: string, runtime: string, model: string) => put<{ success: boolean }>(projectPath(project, '/models/director'), { runtime, model }),
+
   // Escalations
   getEscalations: (project: string, status?: string) => {
     const params = status ? `?status=${status}` : '';

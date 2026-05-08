@@ -282,83 +282,25 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_cancel', 'Cancel a task', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.cancelTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
+  // Helper for simple taskId-only state-change tools
+  function registerTaskAction(name: string, description: string, action: (taskId: string) => Promise<unknown>) {
+    server.tool(name, description, { taskId: z.string() }, async (params) => {
+      const resolved = requireAgentId();
+      if ('error' in resolved) return resolved.error;
+      try {
+        return jsonResponse(await action(params.taskId));
+      } catch (err) {
+        return errorResponse(`Error: ${(err as Error).message}`);
+      }
+    });
+  }
 
-  server.tool('flightdeck_task_pause', 'Pause a task', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.pauseTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_task_resume', 'Resume a paused task (paused → running)', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.resumeTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_task_retry', 'Retry a failed task', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.retryTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_task_skip', 'Skip a task (unblocks dependents)', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.skipTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
-
-  server.tool('flightdeck_task_complete', 'Complete a task (in_review → done)', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.completeTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
+  registerTaskAction('flightdeck_task_cancel', 'Cancel a task', (id) => client.cancelTask(id));
+  registerTaskAction('flightdeck_task_pause', 'Pause a task', (id) => client.pauseTask(id));
+  registerTaskAction('flightdeck_task_resume', 'Resume a paused task (paused → running)', (id) => client.resumeTask(id));
+  registerTaskAction('flightdeck_task_retry', 'Retry a failed task', (id) => client.retryTask(id));
+  registerTaskAction('flightdeck_task_skip', 'Skip a task (unblocks dependents)', (id) => client.skipTask(id));
+  registerTaskAction('flightdeck_task_complete', 'Complete a task (in_review → done)', (id) => client.completeTask(id));
 
   server.tool('flightdeck_review_submit', 'Submit a code review verdict for a task in review', {
     taskId: z.string().describe('The task ID being reviewed'),
@@ -392,18 +334,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_reopen', 'Reopen a completed task (done → ready)', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      const task = await client.reopenTask(params.taskId);
-      return jsonResponse(task);
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
+  registerTaskAction('flightdeck_task_reopen', 'Reopen a completed task (done → ready)', (id) => client.reopenTask(id));
 
   server.tool('flightdeck_declare_tasks', 'Batch create tasks with dependencies. dependsOn accepts task titles, index refs (#0, #1), or existing task IDs.', {
     tasks: z.array(z.object({
@@ -1062,17 +993,7 @@ export function createMcpServer(projectNameOrOpts?: string | McpServerOptions): 
     }
   });
 
-  server.tool('flightdeck_task_clear_stale', 'Clear stale flag on a task after re-planning', {
-    taskId: z.string(),
-  }, async (params) => {
-    const resolved = requireAgentId();
-    if ('error' in resolved) return resolved.error;
-    try {
-      return jsonResponse(await client.clearTaskStale(params.taskId));
-    } catch (err) {
-      return errorResponse(`Error: ${(err as Error).message}`);
-    }
-  });
+  registerTaskAction('flightdeck_task_clear_stale', 'Clear stale flag on a task after re-planning', (id) => client.clearTaskStale(id));
 
   server.tool('flightdeck_task_set_reviewers', 'Set or update the reviewer attention set for a task. Pass agent IDs to assign reviewers, or empty array to clear.', {
     taskId: z.string(),
