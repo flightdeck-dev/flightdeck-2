@@ -585,8 +585,26 @@ export class Orchestrator {
         }
 
         if (meta.status === 'ended') {
-          // Session ended without submit — notify Director to decide
-          this.notifyDirectorIfNeeded(task.id, 'session_ended');
+          // Session ended without submit
+          const retries = this.retryCount.get(task.id) ?? 0;
+          const maxRetries = this.governanceConfig.maxRetries ?? 3;
+
+          if (retries >= maxRetries) {
+            // Max retries exhausted — fail the task and notify Lead
+            this.store.updateTaskState(task.id, 'failed' as any);
+            this.store.clearTaskAssignment(task.id);
+            this.leadManager?.steerLead({
+              type: 'task_failure',
+              taskId: task.id as string,
+              error: `Task "${task.title}" failed after ${retries} retries (agent session ended without submit)`,
+            });
+          } else {
+            // Reset task for retry
+            this.retryCount.set(task.id, retries + 1);
+            this.store.updateTaskState(task.id, 'ready' as any);
+            this.store.clearTaskAssignment(task.id);
+            this.notifyDirectorIfNeeded(task.id, 'session_ended');
+          }
           this.store.updateAgentStatus(task.assignedAgent, 'hibernated');
           detected++;
         }
