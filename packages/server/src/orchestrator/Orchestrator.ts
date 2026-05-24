@@ -89,6 +89,7 @@ export class Orchestrator {
   private sessionManager: SessionManager | null;
   private retryCount = new Map<TaskId, number>();
   private lastIdlePing = new Map<TaskId, number>();
+  private idlePingCount = new Map<TaskId, number>();
   private notifiedTaskIds = new Set<string>();
   /** Tracks which specs have had retrospectives triggered. Bounded: entries older than 24h are pruned. */
   private retrospectivesDone = new Map<string, number>();
@@ -581,9 +582,32 @@ export class Orchestrator {
           // Idle session, task not submitted — ping at most once per 5 minutes
           const lastPing = this.lastIdlePing?.get(task.id) ?? 0;
           if (Date.now() - lastPing >= 300_000) {
-            await this.adapter.steer(task.acpSessionId, {
-              content: `[${formatTs()}] [SYSTEM] Stall check: task "${task.title}" (${task.id}) is still assigned to you. Submit progress or escalate if blocked.`,
-            });
+            const count = (this.idlePingCount.get(task.id) ?? 0) + 1;
+            this.idlePingCount.set(task.id, count);
+
+            if (count >= 3) {
+              // 3 consecutive idle pings — auto-escalate to Director
+              this.notifyDirectorIfNeeded(task.id, 'session_stalled');
+              this.idlePingCount.set(task.id, 0);
+            } else {
+              const desc = task.description || 'No description provided.';
+              const ac = (task as any).acceptanceCriteria || 'Not specified.';
+              await this.adapter.steer(task.acpSessionId, {
+                content: `[${formatTs()}] [SYSTEM] Continue working on your assigned task.
+
+Task: "${task.title}" (${task.id})
+Description: ${desc}
+Acceptance Criteria: ${ac}
+
+Your turn ended but the task is not yet submitted. Continue making progress toward the acceptance criteria.
+
+Continuation behavior:
+- Keep the full task scope intact. Do not redefine success around a smaller or easier subset.
+- If you're blocked, use flightdeck_escalate to ask for help.
+- When done, use flightdeck_task_submit with a clear summary of what was completed.
+- Do not stop working just because a turn ended — keep going until the task is complete or you're blocked.`,
+              });
+            }
             this.lastIdlePing.set(task.id, Date.now());
             detected++;
           }
@@ -1003,7 +1027,7 @@ export class Orchestrator {
 
   private specMilestonesSent = new Map<string, Set<number>>();
 
-  private notifyDirectorIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated' | 'session_ended'): void {
+  private notifyDirectorIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated' | 'session_ended' | 'session_stalled'): void {
     if (!this.leadManager) return;
 
     const task = this.dag.getTask(taskId);
@@ -1060,6 +1084,15 @@ export class Orchestrator {
           agentId: (task.assignedAgent as string) ?? 'unknown',
           title: task.title,
           message: `Agent session ended without submitting task "${task.title}". Decide: resume the agent, reassign to another worker, or fail the task.`,
+        });
+        break;
+      }
+      case 'session_stalled': {
+        this.leadManager.steerDirectorEvent({
+          type: 'session_stalled',
+          taskId: taskId as string,
+          agentId: (task.assignedAgent as string) ?? 'unknown',
+          title: task.title,
         });
         break;
       }

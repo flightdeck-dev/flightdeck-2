@@ -55,7 +55,8 @@ export type DirectorEvent =
   | { type: 'file_conflict'; taskId: string; message: string }
   | { type: 'reviewers_needed'; taskId: string; title: string; message: string }
   | { type: 'reviewer_unavailable'; taskId: string; agentId: string; title: string; message: string }
-  | { type: 'all_reviewers_rejected'; taskId: string; title: string; feedback: string };
+  | { type: 'all_reviewers_rejected'; taskId: string; title: string; feedback: string }
+  | { type: 'session_stalled'; taskId: string; agentId: string; title: string };
 
 export type LeadEvent =
   | { type: 'user_message'; message: ChatMessage }
@@ -888,6 +889,11 @@ export class LeadManager {
       case 'file_conflict':
         parts.push('[plan event: file conflict]');
         parts.push(event.message);
+        break;
+      case 'session_stalled':
+        parts.push('[plan event: agent stalled]');
+        parts.push(`Agent has been idle for 3+ consecutive checks on task "${event.title}" (${event.taskId}).`);
+        parts.push('Decide: steer the agent with more context, reassign to another worker, or escalate to Lead.');
         break;
     }
 
