@@ -672,7 +672,12 @@ Continuation behavior:
   private autoAssignReadyTasks(): number {
     const readyTasks = this.dag.getReadyTasks().filter(t => !t.assignedAgent);
     const agents = this.store.listAgents().filter(a => a.status === 'idle');
-    let notified = 0;
+    let assigned = 0;
+
+    // Count active workers for cap enforcement
+    const allAgents = this.store.listAgents();
+    const activeWorkerCount = allAgents.filter(a => a.role === 'worker' && (a.status === 'idle' || a.status === 'busy')).length;
+    const maxWorkers = this.config.maxConcurrentWorkers ?? 30;
 
     for (const task of readyTasks) {
       // Check governance gate
@@ -686,33 +691,51 @@ Continuation behavior:
       // Skip already-notified tasks
       if (this.notifiedTaskIds.has(task.id)) continue;
 
-      // Notify Director instead of auto-assigning
-      if (this.leadManager) {
-        const t = task as any;
-        const idleForRole = agents.filter(a => a.role === task.role);
-        const idleList = idleForRole.length > 0
-          ? idleForRole.map(a => `${a.id} (${a.role}${a.runtimeName ? ', runtime: ' + a.runtimeName : ''})`).join(', ')
-          : '(none)';
-        const lines = [
-          `[SYSTEM] Task ready for assignment:`,
-          `Task: "${task.title}" (${task.id})`,
-          `Role: ${task.role}`,
-          t.description ? `Description: ${t.description}` : '',
-          task.runtime ? `Runtime: ${task.runtime}` : '',
-          task.model ? `Model: ${task.model}` : '',
-          '',
-          `Assign with: flightdeck_task_delegate("${task.id}", "<agentId>")`,
-          `Or spawn new: flightdeck_agent_spawn({role: "${task.role}", ...})`,
-          `Idle ${task.role} agents: ${idleList}`,
-        ].filter(Boolean).join('\n');
-        this.leadManager.steerDirector?.(lines).catch(() => {});
+      // Try to assign to an idle agent with matching role
+      const idleForRole = agents.filter(a => a.role === task.role && a.status === 'idle');
+      if (idleForRole.length > 0) {
+        const agent = idleForRole.shift()!;
+        try {
+          this.dag.delegateTask(task.id, agent.id as any);
+          assigned++;
+          this.notifiedTaskIds.add(task.id);
+          log('Orchestrator', `Auto-assigned task "${truncate(task.title, 50)}" to idle agent ${agent.id}`);
+        } catch (e) {
+          log('Orchestrator', `Failed to assign task ${task.id} to ${agent.id}: ${e}`);
+        }
+        continue;
+      }
+
+      // No idle agent — auto-spawn if under cap
+      if (this.agentManager && (activeWorkerCount + assigned) < maxWorkers) {
         this.notifiedTaskIds.add(task.id);
-        notified++;
-        log('Orchestrator', `Notified Director about ready task "${truncate(task.title, 50)}" (${task.id})`);
+        assigned++;
+        const spawnOpts = {
+          role: task.role || 'worker',
+          model: task.model,
+          runtime: task.runtime,
+          task: task.id as string,
+        };
+        this.agentManager.spawnAgent(spawnOpts as any).then(agent => {
+          log('Orchestrator', `Auto-spawned agent ${agent.id} for task "${truncate(task.title, 50)}"`);
+        }).catch(e => {
+          log('Orchestrator', `Failed to auto-spawn for task ${task.id}: ${e}`);
+          this.notifiedTaskIds.delete(task.id);
+        });
+      } else if (!this.notifiedTaskIds.has(task.id)) {
+        // At cap — notify Director as fallback
+        if (this.leadManager) {
+          const lines = [
+            `[SYSTEM] Worker cap reached (${maxWorkers}). Task waiting: "${task.title}" (${task.id})`,
+            `Role: ${task.role}. Will auto-assign when a worker becomes available.`,
+          ].join('\n');
+          this.leadManager.steerDirector?.(lines).catch(() => {});
+          this.notifiedTaskIds.add(task.id);
+        }
       }
     }
 
-    return notified;
+    return assigned;
   }
 
   /**
@@ -1026,6 +1049,11 @@ Continuation behavior:
   /* ── Reactive Director notifications ─────────────────────────── */
 
   private specMilestonesSent = new Map<string, Set<number>>();
+
+  /** Public method to emit an event to the Director agent. */
+  emitDirectorEvent(event: { type: string; [key: string]: unknown }): void {
+    this.leadManager?.steerDirectorEvent(event as any);
+  }
 
   private notifyDirectorIfNeeded(taskId: TaskId, eventType: 'completed' | 'failed' | 'escalated' | 'session_ended' | 'session_stalled'): void {
     if (!this.leadManager) return;

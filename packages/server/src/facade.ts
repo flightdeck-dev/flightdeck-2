@@ -172,7 +172,28 @@ export class Flightdeck {
   }
 
   declareTasks(tasks: Parameters<TaskDAG['declareTasks']>[0]): Task[] {
-    return this.dag.declareTasks(tasks);
+    const created = this.dag.declareTasks(tasks);
+    const config = this.project.getConfig();
+    const threshold = config.planApprovalThreshold ?? 3;
+    if (created.length >= threshold) {
+      // Transition all non-pending tasks to 'planned' state for Lead approval
+      for (const task of created) {
+        if (task.state === 'ready') {
+          this.sqlite.updateTaskState(task.id, 'planned' as any);
+          (task as any).state = 'planned';
+        }
+      }
+      // Notify Lead for plan approval
+      if (this.orchestrator && (this.orchestrator as any).leadManager) {
+        const summary = created.map(t => `• ${t.title} [${t.role ?? 'worker'}]`).join('\n');
+        (this.orchestrator as any).leadManager.steerLead({
+          type: 'plan_approval_needed',
+          message: `Director declared ${created.length} tasks (≥${threshold}). Review and approve/reject with flightdeck_plan_review.\n\nTasks:\n${summary}`,
+          taskIds: created.map(t => t.id),
+        });
+      }
+    }
+    return created;
   }
 
   setTaskReviewers(taskId: TaskId, reviewers: string[] | null): Task | null {

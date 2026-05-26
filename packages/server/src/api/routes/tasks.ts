@@ -261,6 +261,17 @@ export async function handleTaskRoutes(
         json(200, { taskId, verdict: 'approve', newState: 'done' });
       } else {
         fd.sqlite.updateTaskState(taskId as import('@flightdeck-ai/shared').TaskId, 'running' as import('@flightdeck-ai/shared').TaskState);
+        // Track review rejections and notify Director if repeated
+        const comments = fd.sqlite.getTaskComments(taskId as import('@flightdeck-ai/shared').TaskId);
+        const rejectionCount = comments.filter((c: any) => c.verdict === 'request_changes').length;
+        if (rejectionCount >= 3 && fd.orchestrator) {
+          fd.orchestrator.emitDirectorEvent({
+            type: 'repeated_review_rejection',
+            taskId,
+            rejectionCount,
+            message: `Task "${taskId}" has been rejected ${rejectionCount} times. Consider reassigning, splitting, or providing clearer acceptance criteria.`,
+          });
+        }
         json(200, { taskId, verdict: 'request_changes', newState: 'running', feedback: body.comment });
       }
       broadcastStateUpdate();
