@@ -51,7 +51,7 @@ describe('Orchestrator', () => {
     expect(result.readyTasksAssigned).toBe(1);
   });
 
-  it('notifies director even when no idle agents', async () => {
+  it('auto-spawns when no idle agents and agentManager available', async () => {
     dag.addTask({ title: 'Ready task', role: 'worker' });
     store.insertAgent({
       id: 'agent-w1' as AgentId,
@@ -59,8 +59,9 @@ describe('Orchestrator', () => {
       status: 'busy', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
     });
 
+    // Without agentManager, task stays unassigned (no spawn capability)
     const result = await orch.tick();
-    expect(result.readyTasksAssigned).toBe(1);
+    expect(result.readyTasksAssigned).toBe(0);
   });
 
   it('skips active ACP sessions (do not disturb)', async () => {
