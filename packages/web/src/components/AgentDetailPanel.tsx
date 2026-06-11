@@ -445,10 +445,16 @@ export function AgentDetailPanel({
               {(() => {
                 const sep = '\u001F';
                 const agentRuntime = agent.runtimeName ?? '';
-                const knownCombo = modelGroups.some(g =>
-                  g.models.includes(agent.model ?? '') && (!agentRuntime || g.runtime === agentRuntime));
+                // Resolve the runtime to display: the agent's own runtime if it
+                // offers the model, otherwise any group that does (covers agents
+                // with no persisted runtimeName)
+                const owningGroups = modelGroups.filter(g => g.models.includes(agent.model ?? ''));
+                const displayRuntime = owningGroups.some(g => g.runtime === agentRuntime)
+                  ? agentRuntime
+                  : owningGroups[0]?.runtime ?? '';
+                const knownCombo = !!displayRuntime;
                 const currentValue = agent.model
-                  ? `${knownCombo ? agentRuntime : ''}${sep}${agent.model}`
+                  ? `${displayRuntime}${sep}${agent.model}`
                   : '';
                 return (
                   <select

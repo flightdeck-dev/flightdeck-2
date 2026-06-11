@@ -87,6 +87,8 @@ export class Flightdeck {
     if (projectConfig.allowedRuntimes && projectConfig.allowedRuntimes.length > 0) {
       this.agentManager.allowedRuntimes = projectConfig.allowedRuntimes;
     }
+    // Project cwd for restarts and model-config resolution
+    this.agentManager.projectCwd = projectConfig.cwd ?? this.project.subpath('.');
     this.messages = new MessageStore(this.sqlite.db);
     this.agentManager.setMessageStore(this.messages);
 

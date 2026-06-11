@@ -139,6 +139,14 @@ describe('AgentManager', () => {
     expect(adapter.spawnCalls[1].runtime).toBe('codex');
   });
 
+  it('restartAgent re-spawns in the project cwd, not the daemon cwd', async () => {
+    manager.projectCwd = '/tmp/my-project';
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp/my-project', autoResolve: true });
+    await manager.restartAgent(agent.id);
+
+    expect(adapter.spawnCalls[1].cwd).toBe('/tmp/my-project');
+  });
+
   it('setAgentModel persists the model so it survives reads', async () => {
     const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
     await manager.setAgentModel(agent.id, 'claude-sonnet-4.6');

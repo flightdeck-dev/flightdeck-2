@@ -182,6 +182,10 @@ export class AgentManager {
   /** If set, only these runtimes are allowed for this project. */
   allowedRuntimes: string[] | null = null;
 
+  /** Project working directory (config cwd or internal storage). Used as the
+   *  fallback cwd for restarts and model-config resolution. */
+  projectCwd: string | null = null;
+
   /** Callback fired when a DM message is stored (outgoing steer or agent response) */
   onDmMessage: ((projectName: string, message: any) => void) | null = null;
 
@@ -299,8 +303,8 @@ export class AgentManager {
       const { ModelConfig } = await import('./ModelConfig.js');
       const { FD_HOME } = await import('../cli/constants.js');
       // opts.cwd may be absent (e.g. orchestrator auto-spawn) — fall back to
-      // internal project storage so role model config is still resolved
-      const configDir = opts.cwd ?? join(FD_HOME, 'projects', opts.projectName ?? this.projectName);
+      // the project cwd, then internal storage, so role model config is still resolved
+      const configDir = opts.cwd ?? this.projectCwd ?? join(FD_HOME, 'projects', opts.projectName ?? this.projectName);
       const mc = new ModelConfig(configDir);
       const enabledModels = mc.getRoleEnabledModelsWithDiscovery(opts.role);
       const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
@@ -595,7 +599,9 @@ export class AgentManager {
     }
     this.agentToSession.delete(agentId);
 
-    // Re-spawn with same role/config
+    // Re-spawn with same role/config in the project cwd (not the daemon's
+    // working directory, which differs from where the agent originally ran)
+    const restartCwd = this.projectCwd ?? process.cwd();
     const role = this.roleRegistry.get(agent.role);
     const systemPrompt = buildSystemPrompt({
       roleName: role?.name ?? agent.role,
@@ -603,13 +609,13 @@ export class AgentManager {
       agentId,
       projectName: this.projectName,
       permissions: role?.permissions ?? {},
-      cwd: process.cwd(),
+      cwd: restartCwd,
     });
 
     const meta = await this.adapter.spawn({
       agentId,
       role: agent.role,
-      cwd: process.cwd(),
+      cwd: restartCwd,
       // Respawn with the agent's persisted model/runtime — otherwise the
       // restart silently lands on the adapter's default provider
       model: agent.model ?? undefined,
