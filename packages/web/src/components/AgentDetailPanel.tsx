@@ -128,8 +128,8 @@ export function AgentDetailPanel({
     if (agentOutputData?.lines?.length) setHistoricalOutput(agentOutputData.lines.join('\n'));
   }, [agentOutputData]);
 
-  // Model dropdown state
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  // Model dropdown state (grouped by runtime so provider routing is preserved)
+  const [modelGroups, setModelGroups] = useState<Array<{ runtime: string; models: string[] }>>([]);
   const [modelLoading, setModelLoading] = useState(false);
 
   const config = STATUS_CONFIG[agent.status] ?? { color: 'var(--color-text-tertiary)', label: agent.status };
@@ -145,16 +145,18 @@ export function AgentDetailPanel({
   );
   useEffect(() => {
     if (!modelsData) return;
-    const models: string[] = [];
+    const groups: Array<{ runtime: string; models: string[] }> = [];
     for (const runtime of Object.keys(modelsData as Record<string, any>)) {
       const runtimeModels = (modelsData as Record<string, any>)[runtime];
       if (Array.isArray(runtimeModels)) {
+        const models: string[] = [];
         for (const m of runtimeModels) {
           if (m.modelId && !models.includes(m.modelId)) models.push(m.modelId);
         }
+        if (models.length) groups.push({ runtime, models });
       }
     }
-    setAvailableModels(models);
+    setModelGroups(groups);
   }, [modelsData]);
 
   // Auto-scroll chat
@@ -218,10 +220,10 @@ export function AgentDetailPanel({
     setSending(false);
   };
 
-  const handleModelChange = async (model: string) => {
+  const handleModelChange = async (model: string, runtime?: string) => {
     setModelLoading(true);
     try {
-      await api.setAgentModel(projectName, agent.id, model);
+      await api.setAgentModel(projectName, agent.id, model, runtime);
       globalMutate((key: unknown) => Array.isArray(key) && key[0] === 'agents');
     } catch (err) {
       console.error('Failed to set model:', err);
@@ -440,19 +442,39 @@ export function AgentDetailPanel({
 
             <div className="flex justify-between gap-4 items-center">
               <span className="text-[var(--color-text-tertiary)] shrink-0">Model</span>
-              <select
-                value={agent.model ?? ''}
-                onChange={e => handleModelChange(e.target.value)}
-                disabled={modelLoading}
-                className="font-mono text-xs text-right bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md px-2 py-1 focus:outline-none focus:border-[var(--color-text-tertiary)] max-w-[220px] truncate disabled:opacity-50"
-              >
-                {agent.model && !availableModels.includes(agent.model) && (
-                  <option value={agent.model}>{agent.model}</option>
-                )}
-                {availableModels.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+              {(() => {
+                const sep = '\u001F';
+                const agentRuntime = agent.runtimeName ?? '';
+                const knownCombo = modelGroups.some(g =>
+                  g.models.includes(agent.model ?? '') && (!agentRuntime || g.runtime === agentRuntime));
+                const currentValue = agent.model
+                  ? `${knownCombo ? agentRuntime : ''}${sep}${agent.model}`
+                  : '';
+                return (
+                  <select
+                    value={currentValue}
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const [rt, model] = e.target.value.split(sep);
+                      handleModelChange(model, rt || undefined);
+                    }}
+                    disabled={modelLoading}
+                    className="font-mono text-xs text-right bg-[var(--color-surface-secondary)] border border-[var(--color-border)] rounded-md px-2 py-1 focus:outline-none focus:border-[var(--color-text-tertiary)] max-w-[220px] truncate disabled:opacity-50"
+                  >
+                    {!agent.model && <option value="">—</option>}
+                    {agent.model && !knownCombo && (
+                      <option value={`${sep}${agent.model}`}>{agent.model}</option>
+                    )}
+                    {modelGroups.map(g => (
+                      <optgroup key={g.runtime} label={g.runtime}>
+                        {g.models.map(m => (
+                          <option key={`${g.runtime}${sep}${m}`} value={`${g.runtime}${sep}${m}`}>{m}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                );
+              })()}
             </div>
 
             {currentTask && (

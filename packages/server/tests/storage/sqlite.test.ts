@@ -95,6 +95,30 @@ describe('SqliteStore', () => {
     expect(store.getAgent('agent-test' as AgentId)!.status).toBe('busy');
   });
 
+  it('persists and reads back agent model and runtime name', () => {
+    // Regression: agents.model was written via raw SQL but missing from the
+    // drizzle schema, so select() never returned it and the UI showed the
+    // selection as unsaved.
+    const agent: Agent = {
+      id: 'agent-model' as AgentId,
+      role: 'worker',
+      runtime: 'acp',
+      runtimeName: 'copilot',
+      acpSessionId: null,
+      status: 'idle',
+      currentSpecId: null,
+      costAccumulated: 0,
+      lastHeartbeat: null,
+    };
+    store.insertAgent(agent);
+    store.updateAgentModel('agent-model' as AgentId, 'claude-sonnet-4.6');
+    expect(store.getAgent('agent-model' as AgentId)!.model).toBe('claude-sonnet-4.6');
+    expect(store.listAgents()[0].model).toBe('claude-sonnet-4.6');
+
+    store.updateAgentRuntimeName('agent-model' as AgentId, 'claude');
+    expect(store.getAgent('agent-model' as AgentId)!.runtimeName).toBe('claude');
+  });
+
   it('tracks costs', () => {
     const entry: CostEntry = {
       agentId: 'agent-1' as AgentId,

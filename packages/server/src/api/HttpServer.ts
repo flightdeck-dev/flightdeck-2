@@ -73,7 +73,10 @@ export function createHttpServer(deps: HttpServerDeps): Server {
     let mc = modelCfgCache.get(projName);
     if (!mc) {
       const { ModelConfig: MC } = await import('../agents/ModelConfig.js');
-      mc = new MC(fd.project.subpath('.'));
+      // Must match the directory agent spawn paths read from (project cwd,
+      // falling back to internal storage) — otherwise UI model selections
+      // are written to a config.yaml that spawn never reads.
+      mc = new MC(fd.status().config.cwd ?? fd.project.subpath('.'));
       modelCfgCache.set(projName, mc);
     }
     return mc;

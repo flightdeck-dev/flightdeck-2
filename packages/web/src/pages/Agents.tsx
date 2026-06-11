@@ -105,9 +105,9 @@ function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; p
     return result;
   }, [modelsData, agent.runtimeName, agent.runtime]);
 
-  const selectModel = async (model: string) => {
+  const selectModel = async (model: string, runtime: string) => {
     setLoading(true);
-    try { await api.setAgentModel(projectName, agent.id, model); onChanged(); } catch (err) { console.error(err); }
+    try { await api.setAgentModel(projectName, agent.id, model, runtime); onChanged(); } catch (err) { console.error(err); }
     setLoading(false);
     setOpen(false);
   };
@@ -130,7 +130,7 @@ function AgentModelDropdown({ agent, projectName, onChanged }: { agent: Agent; p
               <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">{g.runtime}</div>
               {g.models.map(m => (
                 <button key={m}
-                  onClick={e => { e.stopPropagation(); selectModel(m); }}
+                  onClick={e => { e.stopPropagation(); selectModel(m, g.runtime); }}
                   className={`w-full px-3 py-1.5 text-xs text-left font-mono truncate hover:bg-[var(--color-surface-secondary)] transition-colors ${
                     m === agent.model ? 'text-[var(--color-primary)]' : ''
                   }`}>

@@ -128,6 +128,39 @@ describe('AgentManager', () => {
     expect(restarted.acpSessionId).toBe('mock-session-2');
   });
 
+  it('restartAgent re-spawns with the persisted model and runtime', async () => {
+    // Regression: restart used to pass model: undefined and no runtime,
+    // silently re-routing the agent to the adapter's default provider.
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true, model: 'gpt-4', runtime: 'codex' });
+    await manager.restartAgent(agent.id);
+
+    expect(adapter.spawnCalls).toHaveLength(2);
+    expect(adapter.spawnCalls[1].model).toBe('gpt-4');
+    expect(adapter.spawnCalls[1].runtime).toBe('codex');
+  });
+
+  it('setAgentModel persists the model so it survives reads', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
+    await manager.setAgentModel(agent.id, 'claude-sonnet-4.6');
+    expect(store.getAgent(agent.id)!.model).toBe('claude-sonnet-4.6');
+  });
+
+  it('setAgentModel with explicit runtime updates the agent runtime for respawn routing', async () => {
+    const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true, runtime: 'codex' });
+    await manager.setAgentModel(agent.id, 'claude-sonnet-4.6', 'claude');
+    const updated = store.getAgent(agent.id)!;
+    expect(updated.model).toBe('claude-sonnet-4.6');
+    expect(updated.runtimeName).toBe('claude');
+  });
+
+  it('spawnAgent without cwd still resolves and does not crash model resolution', async () => {
+    // Regression: orchestrator auto-spawn passes no cwd; new ModelConfig(undefined)
+    // threw and silently skipped runtime/model resolution.
+    const agent = await manager.spawnAgent({ role: 'worker', autoResolve: true } as any);
+    expect(agent.status).toBe('idle');
+    expect(adapter.spawnCalls).toHaveLength(1);
+  });
+
   it('terminateAgent throws for unknown agent', async () => {
     await expect(manager.terminateAgent('nonexistent' as AgentId))
       .rejects.toThrow('Agent not found');

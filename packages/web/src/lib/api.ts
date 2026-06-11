@@ -104,8 +104,8 @@ export const api = {
     get<{ agentId: string; lines: string[]; totalLines: number }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/output?tail=${tail ?? 100}`)),
   sendAgentMessage: (project: string, agentId: string, message: string, urgent?: boolean) =>
     post<{ ok: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/${urgent ? 'interrupt' : 'send'}`), { message }),
-  setAgentModel: (project: string, agentId: string, model: string) =>
-    put<{ success: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/model`), { model }),
+  setAgentModel: (project: string, agentId: string, model: string, runtime?: string) =>
+    put<{ success: boolean }>(projectPath(project, `/agents/${encodeURIComponent(agentId)}/model`), { model, ...(runtime ? { runtime } : {}) }),
   getAvailableModels: (project: string) => get<Record<string, unknown>>(projectPath(project, '/models/available')),
   testRuntime: (project: string, runtimeId: string) => post<{ success: boolean; installed: boolean; version?: string; message: string }>(projectPath(project, `/runtimes/${runtimeId}/test`), {}),
   hibernateAgent: (project: string, agentId: string) =>

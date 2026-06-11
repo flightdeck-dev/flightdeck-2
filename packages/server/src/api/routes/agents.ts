@@ -173,7 +173,7 @@ export async function handleAgentRoutes(
     try {
       const body = await readBody();
       if (!body.model) { json(400, { error: 'Missing required field: model' }); return true; }
-      await am.setAgentModel(agentId as import('@flightdeck-ai/shared').AgentId, body.model);
+      await am.setAgentModel(agentId as import('@flightdeck-ai/shared').AgentId, body.model, body.runtime);
       json(200, { success: true });
     } catch (e: unknown) {
       json(500, { error: `Failed to set agent model: ${e instanceof Error ? e.message : String(e)}` });
