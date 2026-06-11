@@ -93,7 +93,7 @@ describe('Chat page', () => {
 
   it('"Lead is starting up" shown when no agents and no messages', () => {
     mockAgents = [];
-    mockMessages = [];
+    mockMessages = [{ id: 'msg-1', authorType: 'user', authorId: 'user-1', content: 'hello', createdAt: new Date().toISOString() }];
     render(<Chat />);
     expect(screen.getByText(/Lead is starting up/)).toBeInTheDocument();
   });

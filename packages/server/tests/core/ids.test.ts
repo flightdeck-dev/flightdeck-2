@@ -18,6 +18,15 @@ describe('ID Generation', () => {
     expect(m1).not.toBe(m2);
   });
 
+  it('never collides for agents spawned in a tight loop (same role, same timestamp)', () => {
+    // Guards the entropy in agentId — coarse Date.now() resolution (notably
+    // on Windows) must not produce duplicate agents.id values.
+    const now = Date.now().toString();
+    const ids = new Set<string>();
+    for (let i = 0; i < 5000; i++) ids.add(agentId('worker', now));
+    expect(ids.size).toBe(5000);
+  });
+
   it('generates different IDs for different inputs', () => {
     expect(taskId('hello')).not.toBe(taskId('world'));
   });

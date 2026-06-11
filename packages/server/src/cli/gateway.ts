@@ -441,8 +441,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       }
     }
 
-    // Read per-role runtime config from .flightdeck/config.yaml in project cwd
-    const projectCwd = fd.status().config.cwd ?? process.cwd();
+    // Read per-role runtime config from .flightdeck/config.yaml in project cwd,
+    // falling back to internal project storage (same resolution as the web API
+    // writes — never process.cwd(), which depends on where the server started).
+    const projectCwd = fd.status().config.cwd ?? fd.project.subpath('.');
     const { ModelConfig } = await import('../agents/ModelConfig.js');
     const modelConfig = new ModelConfig(projectCwd);
     const leadRoleConfig = modelConfig.getRoleConfig('lead');
@@ -591,8 +593,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const profile = fd.status().config.governance;
       console.error(`\n── Hot-register project: ${name} (profile: ${profile}) ──`);
 
-      // ModelConfig — read from project cwd, not internal storage
-      const projectCwd = fd.status().config.cwd ?? process.cwd();
+      // ModelConfig — read from project cwd, falling back to internal storage
+      // (same resolution as the web API writes — never process.cwd())
+      const projectCwd = fd.status().config.cwd ?? fd.project.subpath('.');
       const { ModelConfig } = await import('../agents/ModelConfig.js');
       const modelConfig = new ModelConfig(projectCwd);
       const leadRoleConfig = modelConfig.getRoleConfig('lead');

@@ -29,6 +29,25 @@ describe('Flightdeck Facade', () => {
     expect(status.totalCost).toBeUndefined();
   });
 
+  it('opens a single connection to state.sqlite (memory store shares it)', () => {
+    // Regression: MemoryStore used to open its own connection that close()
+    // never released, keeping state.sqlite locked on Windows (EBUSY on
+    // cleanup) and cascading into UNIQUE constraint failures in e2e tests.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- white-box check of the shared client
+    expect((fd.memory as any).db).toBe(fd.sqlite.rawClient);
+  });
+
+  it('close() releases the sqlite file so the project dir can be removed', () => {
+    fd.addTask({ title: 'lock check' });
+    fd.close();
+    const projDir = join(homedir(), '.flightdeck', 'v2', 'projects', projectName);
+    // On Windows this throws EBUSY if any handle is still open
+    rmSync(projDir, { recursive: true, force: true });
+    expect(existsSync(projDir)).toBe(false);
+    // Re-create so afterEach close() has a live instance
+    fd = new Flightdeck(projectName);
+  });
+
   it('creates specs', () => {
     const spec = fd.createSpec('Add OAuth2', 'Implement OAuth2 support');
     expect(spec.title).toBe('Add OAuth2');

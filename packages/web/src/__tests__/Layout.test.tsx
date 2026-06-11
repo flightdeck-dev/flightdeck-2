@@ -31,6 +31,7 @@ vi.mock('../components/SearchDialog.tsx', () => ({
 
 vi.mock('react-router-dom', () => ({
   Outlet: () => <div data-testid="outlet">Page Content</div>,
+  Link: ({ to, children, ...props }: any) => <a href={to} {...props}>{children}</a>,
 }));
 
 // Mock fetch for health check

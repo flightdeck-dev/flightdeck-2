@@ -22,6 +22,7 @@ vi.mock('swr', () => ({
     }
     return { data: null, isLoading: false };
   },
+  useSWRConfig: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock('../components/Markdown.tsx', () => ({

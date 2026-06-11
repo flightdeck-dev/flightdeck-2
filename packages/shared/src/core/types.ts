@@ -96,6 +96,8 @@ export interface Agent {
   currentSpecId: SpecId | null;
   costAccumulated: number;
   lastHeartbeat: string | null;
+  /** Concrete model ID the agent runs on (persisted across restarts). */
+  model?: string;
 }
 
 export interface CostEntry {

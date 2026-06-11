@@ -441,6 +441,13 @@ export class SqliteStore extends EventEmitter {
     this._db.run(sql`UPDATE agents SET model = ${model} WHERE id = ${agentId}`);
   }
 
+  updateAgentRuntimeName(agentId: AgentId, runtimeName: string): void {
+    this._db.update(agents)
+      .set({ runtimeName })
+      .where(eq(agents.id, agentId))
+      .run();
+  }
+
   updateTaskDescription(taskId: TaskId, description: string): void {
     this._db.update(tasks)
       .set({ description, updatedAt: new Date().toISOString() })
@@ -513,7 +520,7 @@ export class SqliteStore extends EventEmitter {
       currentSpecId: (row.currentSpecId ?? null) as SpecId | null,
       costAccumulated: row.costAccumulated,
       lastHeartbeat: (row.lastHeartbeat ?? null) as string | null,
-      model: (row as any).model ?? undefined,
+      model: row.model ?? undefined,
     };
   }
 
@@ -543,9 +550,14 @@ export class SqliteStore extends EventEmitter {
     return row?.total ?? 0;
   }
 
-  close(): void {
+  /** The underlying better-sqlite3 connection (for stores sharing this DB file). */
+  get rawClient(): import('better-sqlite3').Database {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal drizzle client property
-    (this._db as any).$client.close();
+    return (this._db as any).$client;
+  }
+
+  close(): void {
+    this.rawClient.close();
   }
 
   // ── Spec Hashes (FR-008) ──

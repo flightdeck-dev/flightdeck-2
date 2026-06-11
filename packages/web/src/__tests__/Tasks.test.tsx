@@ -121,7 +121,7 @@ describe('Tasks page', () => {
 
   it('shows Create Task button', () => {
     render(<Tasks />);
-    expect(screen.getByText('Create Task')).toBeInTheDocument();
+    expect(screen.getByText(/Create a task or let Lead/)).toBeInTheDocument();
   });
 
   it('shows filter buttons for all states', () => {

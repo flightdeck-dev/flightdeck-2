@@ -182,6 +182,10 @@ export class AgentManager {
   /** If set, only these runtimes are allowed for this project. */
   allowedRuntimes: string[] | null = null;
 
+  /** Project working directory (config cwd or internal storage). Used as the
+   *  fallback cwd for restarts and model-config resolution. */
+  projectCwd: string | null = null;
+
   /** Callback fired when a DM message is stored (outgoing steer or agent response) */
   onDmMessage: ((projectName: string, message: any) => void) | null = null;
 
@@ -297,7 +301,11 @@ export class AgentManager {
     let resolvedRuntime = opts.runtime;
     try {
       const { ModelConfig } = await import('./ModelConfig.js');
-      const mc = new ModelConfig(opts.cwd);
+      const { FD_HOME } = await import('../cli/constants.js');
+      // opts.cwd may be absent (e.g. orchestrator auto-spawn) — fall back to
+      // the project cwd, then internal storage, so role model config is still resolved
+      const configDir = opts.cwd ?? this.projectCwd ?? join(FD_HOME, 'projects', opts.projectName ?? this.projectName);
+      const mc = new ModelConfig(configDir);
       const enabledModels = mc.getRoleEnabledModelsWithDiscovery(opts.role);
       const disabledRts: string[] = (opts as any).disabledRuntimes ?? [];
       const activeModels = enabledModels.filter(m => m.enabled && !disabledRts.includes(m.runtime));
@@ -349,7 +357,7 @@ export class AgentManager {
     // 6. Spawn via adapter
     // For Claude Code runtime, inject role instructions via _meta.systemPrompt (append mode)
     // This provides stronger guidance than AGENTS.md alone
-    const isClaudeCode = opts.runtime === 'claude' || opts.runtime === 'claude-agent';
+    const isClaudeCode = resolvedRuntime === 'claude' || resolvedRuntime === 'claude-agent';
     try {
       const meta = await this.adapter.spawn({
         agentId: newId,
@@ -369,6 +377,11 @@ export class AgentManager {
       this.store.updateAgentStatus(newId, 'idle');
       if (displayModel) this.store.updateAgentModel(newId, displayModel);
       else if (meta.model) this.store.updateAgentModel(newId, meta.model);
+      // Persist the resolved runtime when it was auto-resolved (not passed in)
+      if (resolvedRuntime && resolvedRuntime !== opts.runtime) {
+        this.store.updateAgentRuntimeName(newId, resolvedRuntime);
+        agent.runtimeName = resolvedRuntime;
+      }
       agent.acpSessionId = meta.sessionId;
       agent.status = 'idle';
 
@@ -538,14 +551,34 @@ export class AgentManager {
     this.audit(agentId, agent.role, 'agent:steer', `Steered ${agent.role}`, { messageLength: message.length });
   }
 
-  async setAgentModel(agentId: AgentId, model: string): Promise<void> {
+  async setAgentModel(agentId: AgentId, model: string, runtime?: string): Promise<void> {
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     // Persist model to DB
     this.store.updateAgentModel(agentId, model);
-    // Also update live session if available
+
+    // The model may belong to a different runtime than the agent currently
+    // runs on (the UI lists models across all runtimes). Resolve the owning
+    // runtime so restarts route to the right provider.
+    let targetRuntime = runtime;
+    if (!targetRuntime) {
+      try {
+        const { modelRegistry } = await import('./ModelRegistry.js');
+        const current = agent.runtimeName ?? undefined;
+        const owners = modelRegistry.getRuntimes().filter(rt =>
+          modelRegistry.getModels(rt).some(m => m.modelId === model));
+        // Prefer the agent's current runtime when it also offers the model
+        targetRuntime = (current && owners.includes(current)) ? current : owners[0];
+      } catch { /* registry unavailable — keep current runtime */ }
+    }
+    const runtimeChanged = !!targetRuntime && targetRuntime !== (agent.runtimeName ?? undefined);
+    if (runtimeChanged) this.store.updateAgentRuntimeName(agentId, targetRuntime!);
+
+    // Update the live session only when the model belongs to the current
+    // runtime — a foreign model ID can't be applied to a running session
+    // and takes effect on the next restart instead.
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
-    if (sessionId && typeof (this.adapter as any).setModel === 'function') {
+    if (sessionId && !runtimeChanged && typeof (this.adapter as any).setModel === 'function') {
       try {
         await (this.adapter as any).setModel(sessionId, model);
       } catch { /* live session may not support it — that's OK, persisted for next spawn */ }
@@ -566,7 +599,9 @@ export class AgentManager {
     }
     this.agentToSession.delete(agentId);
 
-    // Re-spawn with same role/config
+    // Re-spawn with same role/config in the project cwd (not the daemon's
+    // working directory, which differs from where the agent originally ran)
+    const restartCwd = this.projectCwd ?? process.cwd();
     const role = this.roleRegistry.get(agent.role);
     const systemPrompt = buildSystemPrompt({
       roleName: role?.name ?? agent.role,
@@ -574,14 +609,17 @@ export class AgentManager {
       agentId,
       projectName: this.projectName,
       permissions: role?.permissions ?? {},
-      cwd: process.cwd(),
+      cwd: restartCwd,
     });
 
     const meta = await this.adapter.spawn({
       agentId,
       role: agent.role,
-      cwd: process.cwd(),
-      model: undefined,
+      cwd: restartCwd,
+      // Respawn with the agent's persisted model/runtime — otherwise the
+      // restart silently lands on the adapter's default provider
+      model: agent.model ?? undefined,
+      runtime: agent.runtimeName ?? undefined,
       systemPrompt,
     });
 

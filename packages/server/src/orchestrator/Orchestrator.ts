@@ -715,6 +715,10 @@ Continuation behavior:
           model: task.model,
           runtime: task.runtime,
           task: task.id as string,
+          cwd: this.config.cwd,
+          // Unattended spawn: fall back to the role's configured default
+          // model when the task doesn't pin one, instead of erroring
+          autoResolve: true,
         };
         this.agentManager.spawnAgent(spawnOpts as any).then(agent => {
           log('Orchestrator', `Auto-spawned agent ${agent.id} for task "${truncate(task.title, 50)}"`);

@@ -15,6 +15,8 @@ export interface MemorySearchResult {
 
 export class MemoryStore {
   private db: DatabaseInstance | null = null;
+  /** True when this store opened its own connection (vs. one passed in). */
+  private ownsDb = false;
 
   constructor(
     private memoryDir: string,
@@ -28,12 +30,21 @@ export class MemoryStore {
         const BetterSqlite3 = require('better-sqlite3') as any;
         this.db = new BetterSqlite3(dbPathOrDb) as DatabaseInstance;
         this.db!.pragma('journal_mode = WAL');
+        this.ownsDb = true;
       } else {
         this.db = dbPathOrDb;
       }
       this.initFts();
       this.reindex();
     }
+  }
+
+  /** Close the FTS connection if this store owns it (no-op for shared connections). */
+  close(): void {
+    if (this.ownsDb && this.db) {
+      try { this.db.close(); } catch { /* already closed */ }
+    }
+    this.db = null;
   }
 
   private initFts(): void {

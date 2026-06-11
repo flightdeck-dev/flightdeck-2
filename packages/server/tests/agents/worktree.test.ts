@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { WorktreeManager } from '../../src/agents/WorktreeManager.js';
 import { detectFileConflicts } from '../../src/agents/fileConflicts.js';
 
 function createTempGitRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'fd-wt-test-'));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'fd-wt-test-')));
   execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
   execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir });
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir });

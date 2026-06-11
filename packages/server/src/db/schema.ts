@@ -51,6 +51,9 @@ export const agents = sqliteTable('agents', {
   currentSpecId: text('current_spec_id'),
   costAccumulated: real('cost_accumulated').notNull().default(0),
   lastHeartbeat: text('last_heartbeat'),
+  model: text('model'),
+  contextWindowTokens: integer('context_window_tokens'),
+  contextWindowLimit: integer('context_window_limit'),
 }, (table) => [
   index('idx_agents_status').on(table.status),
   index('idx_agents_role').on(table.role),

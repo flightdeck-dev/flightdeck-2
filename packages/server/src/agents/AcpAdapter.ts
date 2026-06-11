@@ -600,8 +600,23 @@ export class AcpAdapter extends AgentAdapter {
 
       // Set model if specified and different from default
       if (session.model && result.models?.currentModelId !== session.model) {
-        // Use configOptions for model setting
-        const modelConfigOption = result.configOptions?.find(
+        let applied = false;
+        // Prefer the standard session model API when the runtime advertises
+        // the requested model — configOptions alone silently drops the
+        // selection on runtimes that don't expose a 'model' config option
+        if (result.models?.availableModels?.some((m: { modelId: string }) => m.modelId === session.model)) {
+          try {
+            await session.connection.unstable_setSessionModel({
+              sessionId: result.sessionId,
+              modelId: session.model,
+            });
+            applied = true;
+          } catch {
+            // Fall through to configOptions
+          }
+        }
+        // Fallback: use configOptions for model setting
+        const modelConfigOption = applied ? undefined : result.configOptions?.find(
           (opt: { id: string }) => opt.id === 'model'
         );
         if (modelConfigOption) {
