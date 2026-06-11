@@ -101,8 +101,12 @@ export interface LeadManagerOptions {
   cwd?: string;
   /** Runtime name for Lead (e.g. 'copilot', 'opencode'). Falls back to adapter default. */
   leadRuntime?: AgentRuntime;
+  /** Concrete model ID for Lead. Falls back to the runtime's default model. */
+  leadModel?: string;
   /** Runtime name for Director. Falls back to leadRuntime, then adapter default. */
   directorRuntime?: AgentRuntime;
+  /** Concrete model ID for Director. Falls back to leadModel semantics in the gateway. */
+  directorModel?: string;
 }
 
 export class LeadManager {
@@ -122,9 +126,13 @@ export class LeadManager {
   private projectName: string | undefined;
   private agentCwd: string;
   private leadRuntime: AgentRuntime | undefined;
+  private leadModel: string | undefined;
   private directorRuntime: AgentRuntime | undefined;
+  private directorModel: string | undefined;
   /** Optional callback invoked during heartbeat when scout should run */
   public onScoutHeartbeat: (() => Promise<void>) | null = null;
+  /** Optional callback to surface operational notices to the user's chat (wired by the gateway). */
+  public onSystemNotice: ((content: string) => void) | null = null;
 
   private directorSessionId: string | null = null;
   private directorAgentId: string | null = null;
@@ -144,7 +152,22 @@ export class LeadManager {
     this.agentCwd = opts.cwd ?? process.cwd();
     this.sessionStore = new SessionStore(opts.projectName ?? 'default', opts.sqlite.db);
     this.leadRuntime = opts.leadRuntime;
+    this.leadModel = opts.leadModel;
     this.directorRuntime = opts.directorRuntime;
+    this.directorModel = opts.directorModel;
+  }
+
+  /** Surface an operational problem to the user: chat notice if wired, else persisted system message. */
+  private notifySystem(content: string): void {
+    if (this.onSystemNotice) {
+      try { this.onSystemNotice(content); return; } catch { /* fall through to store */ }
+    }
+    try {
+      this.messageStore?.createMessage({
+        parentId: null, taskId: null, authorType: 'system', authorId: null,
+        content, metadata: null,
+      });
+    } catch { /* best effort — never break the caller */ }
   }
 
   /** Spawn a new Lead agent session */
@@ -190,7 +213,9 @@ export class LeadManager {
         console.error(`  Lead ${lead.id} woken (session: ${meta.sessionId})`);
         // Still spawn director alongside
         if (!this.directorSessionId) {
-          try { await this.spawnDirector(); } catch { /* non-fatal */ }
+          try { await this.spawnDirector(); } catch (err) {
+            this.reportDirectorSpawnFailure(err);
+          }
         }
         this.retireOtherAgents('lead', lead.id);
         return meta.sessionId;
@@ -201,7 +226,7 @@ export class LeadManager {
       }
     }
 
-    // Re-read model config to pick up runtime changes (e.g. user switched from copilot to claude)
+    // Re-read model config to pick up runtime/model changes (e.g. user switched from copilot to claude)
     try {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
       const mc = new ModelConfig(this.agentCwd);
@@ -210,6 +235,7 @@ export class LeadManager {
         console.error(`  Lead runtime changed: ${this.leadRuntime} → ${leadConfig.runtime}`);
         this.leadRuntime = leadConfig.runtime as AgentRuntime;
       }
+      if (leadConfig.model) this.leadModel = leadConfig.model;
     } catch { /* fallback to existing runtime */ }
 
     // Purge stale offline agents before spawning
@@ -274,6 +300,7 @@ export class LeadManager {
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.leadRuntime,
+      ...(this.leadModel ? { model: this.leadModel } : {}),
       ...(systemPrompt ? { systemPrompt } : {}),
     });
     this.leadSessionId = meta.sessionId;
@@ -305,7 +332,11 @@ export class LeadManager {
       try {
         await this.spawnDirector();
         log('Lead', 'Director auto-spawned alongside Lead');
-      } catch { /* Director spawn failure is non-fatal */ }
+      } catch (err) {
+        // Non-fatal for the Lead, but the user must hear about it —
+        // a silently missing Director looks like "Director ignores messages"
+        this.reportDirectorSpawnFailure(err);
+      }
     }
 
     // Retire all other leads (one project = one active lead)
@@ -672,6 +703,17 @@ export class LeadManager {
     return count;
   }
 
+  /** Log a Director spawn failure and surface it to the user's chat. */
+  private reportDirectorSpawnFailure(err: unknown): void {
+    const reason = err instanceof Error ? err.message : String(err);
+    log('Director', `Spawn FAILED (runtime: ${this.directorRuntime}): ${reason}`);
+    this.notifySystem(
+      `⚠️ Director failed to start (runtime: ${this.directorRuntime ?? 'default'}): ${reason}\n` +
+      `Messages to the Director will be dropped until this is fixed. ` +
+      `Configure the director role's runtime/model in Settings → Roles, or install the missing runtime.`
+    );
+  }
+
   /** Spawn Director as a persistent ACP session */
   async spawnDirector(): Promise<string> {
     // Check project-level runtime restrictions
@@ -685,7 +727,19 @@ export class LeadManager {
       if (e instanceof Error && e.message.includes('not allowed')) throw e;
       /* project.getConfig() may not exist in tests — skip check */
     }
-    log('Director', `Spawning (runtime: ${this.directorRuntime})...`);
+    // Re-read model config — Director inherits the Lead's runtime/model
+    // unless the user explicitly configured the director role
+    try {
+      const { ModelConfig } = await import('../agents/ModelConfig.js');
+      const mc = new ModelConfig(this.agentCwd);
+      const cfg = mc.hasRoleConfig('director') ? mc.getRoleConfig('director') : mc.getRoleConfig('lead');
+      if (cfg.runtime) this.directorRuntime = cfg.runtime as AgentRuntime;
+      if (cfg.model) this.directorModel = cfg.model;
+    } catch { /* keep constructor-provided values */ }
+    if (!this.directorRuntime && this.leadRuntime) this.directorRuntime = this.leadRuntime;
+    if (!this.directorModel && this.leadModel) this.directorModel = this.leadModel;
+
+    log('Director', `Spawning (runtime: ${this.directorRuntime}, model: ${this.directorModel ?? 'default'})...`);
     // Try to wake a hibernated director first
     const hibernatedDirectors = this.sqlite.listAgents().filter(a => a.role === 'director' && a.status === 'hibernated' && a.acpSessionId);
     if (hibernatedDirectors.length > 0) {
@@ -763,6 +817,7 @@ export class LeadManager {
       cwd: this.agentCwd,
       projectName: this.projectName,
       runtime: this.directorRuntime,
+      ...(this.directorModel ? { model: this.directorModel } : {}),
       ...(fullSystemPrompt ? { systemPrompt: fullSystemPrompt } : {}),
     });
     this.directorSessionId = meta.sessionId;
@@ -774,13 +829,17 @@ export class LeadManager {
       id: meta.agentId,
       role: 'director',
       runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
-      runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'codex',
+      runtimeName: this.directorRuntime ?? this.leadRuntime ?? null,
       acpSessionId: meta.sessionId,
       status: 'idle',
       currentSpecId: null,
       costAccumulated: 0,
       lastHeartbeat: null,
     });
+    const directorDisplayModel = this.directorModel ?? meta.model;
+    if (directorDisplayModel) {
+      try { this.sqlite.updateAgentModel(meta.agentId as any, directorDisplayModel); } catch { /* display only */ }
+    }
 
     // Notify Lead about new Director (only if replacing an old one, not on first boot)
     if (this.leadSessionId && this.directorAgentId) {
@@ -923,7 +982,10 @@ export class LeadManager {
         return '';
       }
     }
-    if (!this.directorSessionId) return '';
+    if (!this.directorSessionId) {
+      log('Director', 'steer dropped — no Director session (spawn failed or not started)');
+      return '';
+    }
     const response = await this.acpAdapter.steer(this.directorSessionId, { content: message });
     log('Director', `→ response (${Date.now() - directorStart}ms): "${truncate(response)}"`);
     return response;

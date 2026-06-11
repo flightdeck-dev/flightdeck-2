@@ -153,6 +153,18 @@ agents:
     expect(cfg.model).toBe('high');
   });
 
+  it('hasRoleConfig distinguishes explicit config from fallbacks', () => {
+    // lead/worker are configured in the fixture; director is not
+    expect(mc.hasRoleConfig('lead')).toBe(true);
+    expect(mc.hasRoleConfig('worker')).toBe(true);
+    expect(mc.hasRoleConfig('director')).toBe(false);
+    // Regression: an unconfigured director used to resolve to the global
+    // default runtime (codex), which may not even be installed — callers
+    // need this signal to inherit the Lead's runtime/model instead.
+    mc.setRole('director', 'claude:opus');
+    expect(mc.hasRoleConfig('director')).toBe(true);
+  });
+
   it('handles missing config file gracefully', () => {
     const emptyDir = join(tmpdir(), `fd-empty-${randomUUID().slice(0, 8)}`);
     mkdirSync(join(emptyDir, '.flightdeck'), { recursive: true });

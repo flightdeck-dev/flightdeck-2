@@ -237,4 +237,60 @@ describe('CopilotSdkAdapter', () => {
       await adapter.shutdown();
     });
   });
+
+  // ─── Stream event processing (dedup + ACP-style chunk synthesis) ─────
+
+  describe('processStreamEvent', () => {
+    function makeSession() {
+      const chunks: any[] = [];
+      const session: any = { onOutputChunk: (u: any) => chunks.push(u) };
+      return { session, chunks };
+    }
+    const process = (session: any, event: any) =>
+      (adapter as any).processStreamEvent(session, event);
+
+    it('drops the full assistant.message after deltas were streamed (no word duplication)', () => {
+      const { session, chunks } = makeSession();
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'hello ' } })).toBe(true);
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'world' } })).toBe(true);
+      // Full message repeats the streamed text — must NOT be forwarded
+      expect(process(session, { type: 'assistant.message', data: { content: 'hello world' } })).toBe(false);
+      const texts = chunks.filter(c => c.sessionUpdate === 'agent_message_chunk').map(c => c.content.text);
+      expect(texts).toEqual(['hello ', 'world']);
+    });
+
+    it('forwards the full assistant.message when nothing was streamed', () => {
+      const { session, chunks } = makeSession();
+      expect(process(session, { type: 'assistant.message', data: { content: 'hello world' } })).toBe(true);
+      expect(chunks).toEqual([{ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello world' } }]);
+    });
+
+    it('resets delta tracking at turn boundary (session.idle)', () => {
+      const { session } = makeSession();
+      process(session, { type: 'assistant.message_delta', data: { deltaContent: 'a' } });
+      process(session, { type: 'session.idle' });
+      // Next turn answers without streaming — full message must pass through
+      expect(process(session, { type: 'assistant.message', data: { content: 'next turn' } })).toBe(true);
+    });
+
+    it('dedupes reasoning the same way as text', () => {
+      const { session } = makeSession();
+      process(session, { type: 'assistant.reasoning_delta', data: { deltaContent: 'thinking…' } });
+      expect(process(session, { type: 'assistant.reasoning', data: { content: 'thinking…' } })).toBe(false);
+    });
+
+    it('synthesizes ACP-style tool call updates for onOutputChunk', () => {
+      const { session, chunks } = makeSession();
+      process(session, { type: 'tool.execution_start', data: { toolCallId: 't1', name: 'grep', arguments: { q: 'x' } } });
+      process(session, { type: 'tool.execution_complete', data: { toolCallId: 't1', name: 'grep', content: 'match' } });
+      expect(chunks[0]).toMatchObject({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'grep', status: 'pending' });
+      expect(chunks[1]).toMatchObject({ sessionUpdate: 'tool_call_update', toolCallId: 't1', title: 'grep', status: 'completed', content: [{ type: 'text', text: 'match' }] });
+    });
+
+    it('works without onOutputChunk wired (workers)', () => {
+      const session: any = {};
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'x' } })).toBe(true);
+      expect(process(session, { type: 'assistant.message', data: { content: 'x' } })).toBe(false);
+    });
+  });
 });

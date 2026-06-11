@@ -421,6 +421,20 @@ export class AcpAdapter extends AgentAdapter {
       throw new Error(`Unknown runtime "${runtimeName}". Available: ${Object.keys(this.runtimes).join(', ')}`);
     }
 
+    // Fail fast when the runtime binary is missing. Without this check the
+    // ENOENT arrives async after spawn() already "succeeded", leaving a dead
+    // session that silently drops every message.
+    const resolvedCmd = resolveCommand(runtime.command);
+    if (resolvedCmd === runtime.command) {
+      const { commandExists } = await import('../utils/platform.js');
+      if (!commandExists(runtime.command)) {
+        throw new Error(
+          `Runtime "${runtimeName}" is not available: command "${runtime.command}" not found on PATH. ` +
+          `Install it, or configure a different runtime/model for this role.`
+        );
+      }
+    }
+
     const prompt = opts.systemPrompt ?? `You are a ${opts.role} agent. Complete your assigned tasks.`;
     const args = interpolateArgs(runtime.args, { prompt, cwd: opts.cwd });
     const sessionLocalId = `acp-${randomUUID().slice(0, 8)}`;

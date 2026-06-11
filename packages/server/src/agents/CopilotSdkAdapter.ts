@@ -50,6 +50,12 @@ export interface CopilotAgentSession {
   cwd: string;
   model?: string;
   pendingToolCalls?: Map<string, string>;
+  /** ACP-style per-chunk callback (set by LeadManager for chat streaming). */
+  onOutputChunk?: (update: unknown) => void;
+  /** True once a text/reasoning delta was streamed this turn — used to drop
+   *  the redundant full-content event that would duplicate streamed words. */
+  sawTextDelta?: boolean;
+  sawReasoningDelta?: boolean;
 }
 
 export class CopilotSdkAdapter extends AgentAdapter {
@@ -988,6 +994,64 @@ export class CopilotSdkAdapter extends AgentAdapter {
   /**
    * Spawn a new Copilot agent session with flightdeck tools injected.
    */
+  /**
+   * Normalize a Copilot SDK event into an ACP-style SessionUpdate for the
+   * session's onOutputChunk (lead chat streaming), and decide whether the raw
+   * event should still be forwarded to onOutput (agent:stream broadcast).
+   *
+   * Returns false for full-content events whose text was already streamed as
+   * deltas this turn — forwarding those would repeat every word in the UI.
+   */
+  private processStreamEvent(agentSession: CopilotAgentSession, event: { type: string; data?: any }): boolean {
+    let update: Record<string, unknown> | null = null;
+    let forward = true;
+    switch (event.type) {
+      case 'assistant.message_delta':
+        agentSession.sawTextDelta = true;
+        update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data?.deltaContent ?? '' } };
+        break;
+      case 'assistant.reasoning_delta':
+        agentSession.sawReasoningDelta = true;
+        update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data?.deltaContent ?? '' } };
+        break;
+      case 'assistant.message':
+        if (agentSession.sawTextDelta) forward = false;
+        else if (event.data?.content) update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data.content } };
+        break;
+      case 'assistant.reasoning':
+        if (agentSession.sawReasoningDelta) forward = false;
+        else if (event.data?.content) update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data.content } };
+        break;
+      case 'tool.execution_start':
+        update = {
+          sessionUpdate: 'tool_call',
+          toolCallId: event.data?.toolCallId ?? '',
+          title: event.data?.name ?? event.data?.toolName ?? '',
+          rawInput: event.data?.arguments,
+          status: 'pending',
+        };
+        break;
+      case 'tool.execution_complete':
+        update = {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: event.data?.toolCallId ?? '',
+          title: event.data?.name ?? event.data?.toolName ?? '',
+          content: event.data?.content ? [{ type: 'text', text: String(event.data.content) }] : [],
+          status: 'completed',
+        };
+        break;
+      case 'session.idle':
+        // Turn boundary — next turn may or may not stream deltas
+        agentSession.sawTextDelta = false;
+        agentSession.sawReasoningDelta = false;
+        break;
+    }
+    if (update && agentSession.onOutputChunk) {
+      try { agentSession.onOutputChunk(update); } catch { /* consumer errors must not kill the event stream */ }
+    }
+    return forward;
+  }
+
   async spawn(opts: BaseSpawnOptions): Promise<AgentMetadata> {
     const client = await this.ensureClient();
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
@@ -1125,7 +1189,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
         }
       }
 
-      if (this.onOutput) {
+      const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
+      if (forward && this.onOutput) {
         try { this.onOutput(aid, event); } catch { /* */ }
       }
     });
@@ -1294,8 +1359,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
           });
         } catch { /* */ }
       }
-      if (this.onOutput) { try { this.onOutput(aid, event); } catch { /* */ } }
-
       // Track tool calls (same as create path)
       if ((event.type as string) === 'tool.execution_start') {
         const data = (event as any).data;
@@ -1314,6 +1377,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
         if (this.onToolCall) {
           try { this.onToolCall(aid, { toolName, status: 'completed' }); } catch { /* */ }
         }
+      }
+
+      const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
+      if (forward && this.onOutput) {
+        try { this.onOutput(aid, event); } catch { /* */ }
       }
     });
 

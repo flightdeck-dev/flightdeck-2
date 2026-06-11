@@ -448,7 +448,11 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     const { ModelConfig } = await import('../agents/ModelConfig.js');
     const modelConfig = new ModelConfig(projectCwd);
     const leadRoleConfig = modelConfig.getRoleConfig('lead');
-    const directorRoleConfig = modelConfig.getRoleConfig('director');
+    // Director inherits the Lead's runtime/model unless explicitly configured —
+    // the global default (e.g. codex) may not even be installed
+    const directorRoleConfig = modelConfig.hasRoleConfig('director')
+      ? modelConfig.getRoleConfig('director')
+      : leadRoleConfig;
 
     // Create LeadManager
     const projectConfig = fd.project.getConfig();
@@ -460,7 +464,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       projectName: name,
       cwd: projectCwd,
       leadRuntime: leadRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+      leadModel: leadRoleConfig.model || undefined,
       directorRuntime: directorRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+      directorModel: directorRoleConfig.model || undefined,
       heartbeat: {
         enabled: projectConfig.heartbeatEnabled === true,
         interval: 30 * 60 * 1000,
@@ -599,7 +605,10 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
       const { ModelConfig } = await import('../agents/ModelConfig.js');
       const modelConfig = new ModelConfig(projectCwd);
       const leadRoleConfig = modelConfig.getRoleConfig('lead');
-      const directorRoleConfig = modelConfig.getRoleConfig('director');
+      // Director inherits the Lead's runtime/model unless explicitly configured
+      const directorRoleConfig = modelConfig.hasRoleConfig('director')
+        ? modelConfig.getRoleConfig('director')
+        : leadRoleConfig;
 
       // LeadManager
       const projectConfig = fd.project.getConfig();
@@ -611,7 +620,9 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
         projectName: name,
         cwd: projectCwd,
         leadRuntime: leadRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+        leadModel: leadRoleConfig.model || undefined,
         directorRuntime: directorRoleConfig.runtime as import('@flightdeck-ai/shared').AgentRuntime,
+        directorModel: directorRoleConfig.model || undefined,
         heartbeat: {
           enabled: projectConfig.heartbeatEnabled === true,
           interval: 30 * 60 * 1000,
@@ -1003,9 +1014,23 @@ async function spawnAgents(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void; cancelLead?(): Promise<void> }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
+function wireWsToLead(wsServer: any, leadManager: { steerLead(event: any): Promise<string | null>; getLastMergedSourceIds?(): string[]; setStreamHandler?(handler: (update: any) => void): void; cancelLead?(): Promise<void>; onSystemNotice?: ((content: string) => void) | null }, fd: Flightdeck, projectName: string, notifier?: InstanceType<typeof import('../integrations/WebhookNotifier.js').WebhookNotifier> | null): void {
   // Pre-generate message ID for stream↔final message consistency
   const msgIdRef = { current: makeMessageId('lead', Date.now().toString()) };
+
+  // Surface operational notices (e.g. Director spawn failures) in the chat:
+  // persist so they survive reloads, broadcast so the user sees them live
+  if ('onSystemNotice' in leadManager) {
+    leadManager.onSystemNotice = (content: string) => {
+      try {
+        const sysMsg = fd.messages?.createMessage({
+          parentId: null, taskId: null, authorType: 'system', authorId: null,
+          content, metadata: null,
+        });
+        if (sysMsg) wsServer.broadcast({ type: 'chat:message', project: projectName, message: sysMsg });
+      } catch { /* best effort */ }
+    };
+  }
 
   // Wire streaming updates (tool calls, thoughts) from Lead to WebSocket
   if (leadManager.setStreamHandler && wsServer.streamChunk) {
