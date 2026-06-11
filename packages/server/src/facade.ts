@@ -58,7 +58,9 @@ export class Flightdeck {
     this.sqlite = new SqliteStore(this.project.subpath('state.sqlite'));
     this.specs = new SpecStore(this.project.subpath('specs'));
     this.decisions = new DecisionLog(this.project.subpath('decisions'));
-    this.memory = new MemoryStore(this.project.subpath('memory'), this.project.subpath('state.sqlite'));
+    // Share the SqliteStore connection — a second handle to state.sqlite
+    // keeps the file locked on Windows after close() (EBUSY on cleanup)
+    this.memory = new MemoryStore(this.project.subpath('memory'), this.sqlite.rawClient);
 
     this.reports = new ReportStore(this.project.subpath('reports'));
     this.dag = new TaskDAG(this.sqlite);
@@ -350,6 +352,7 @@ export class Flightdeck {
   close(): void {
     this.orchestrator.stop();
     this.timers.clearAll();
+    this.memory.close();
     this.sqlite.close();
   }
 }

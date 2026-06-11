@@ -550,9 +550,14 @@ export class SqliteStore extends EventEmitter {
     return row?.total ?? 0;
   }
 
-  close(): void {
+  /** The underlying better-sqlite3 connection (for stores sharing this DB file). */
+  get rawClient(): import('better-sqlite3').Database {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal drizzle client property
-    (this._db as any).$client.close();
+    return (this._db as any).$client;
+  }
+
+  close(): void {
+    this.rawClient.close();
   }
 
   // ── Spec Hashes (FR-008) ──
