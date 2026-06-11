@@ -84,10 +84,10 @@ describe('Dashboard', () => {
   it('shows active agent count (excluding terminated)', () => {
     mockAgents = [
       { id: 'a1', role: 'developer', status: 'busy' },
-      { id: 'a2', role: 'lead', status: 'terminated' },
+      { id: 'a2', role: 'lead', status: 'hibernated' },
     ];
     render(<Dashboard />);
-    // 1 active agent
+    // 1 active agent (hibernated is excluded)
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('agents')).toBeInTheDocument();
   });

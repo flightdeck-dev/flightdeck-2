@@ -18,7 +18,7 @@ vi.mock('../lib/api.ts', () => ({
 
 let mockAgents: any[] = [];
 vi.mock('../hooks/useAgents.tsx', () => ({
-  useAgents: () => ({ agents: mockAgents, agentOutputs: new Map(), agentStreamChunks: new Map() }),
+  useAgents: () => ({ agents: mockAgents, agentOutputs: new Map(), agentStreamChunks: new Map(), dmMessages: new Map() }),
 }));
 
 vi.mock('../hooks/useProject.tsx', () => ({
