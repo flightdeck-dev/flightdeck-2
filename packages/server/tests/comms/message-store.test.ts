@@ -159,4 +159,26 @@ describe('MessageStore', () => {
     const afterRead = store.getUnreadDMs('worker-1');
     expect(afterRead.length).toBe(0);
   });
+
+  it('appendDM writes canonical dm:<recipient> channel with recipient set', () => {
+    // Regression: bare channel 'dm' leaked into the main chat feed
+    // (the dm: prefix filter missed it) and was invisible to the
+    // per-agent DM panel (which queries channel 'dm:<id>')
+    const msg = store.appendDM('lead', 'worker-9', 'hello');
+    expect(msg.channel).toBe('dm:worker-9');
+    expect(msg.recipient).toBe('worker-9');
+  });
+
+  it('getUnreadDMs finds both canonical and legacy bare-dm rows', () => {
+    // Legacy row shape (pre-migration): channel 'dm' + recipient
+    store.createMessage({
+      parentId: null, taskId: null, authorType: 'agent', authorId: 'lead',
+      content: 'legacy format', metadata: null, channel: 'dm', recipient: 'worker-2',
+    });
+    // Canonical row shape
+    store.appendDM('director', 'worker-2', 'canonical format');
+
+    const unread = store.getUnreadDMs('worker-2');
+    expect(unread.map(m => m.content).sort()).toEqual(['canonical format', 'legacy format']);
+  });
 });

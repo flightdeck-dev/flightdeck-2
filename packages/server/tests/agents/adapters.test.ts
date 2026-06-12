@@ -39,6 +39,17 @@ describe('AcpAdapter', () => {
     expect(meta).toBeNull();
   });
 
+  it('spawn fails fast when the runtime binary is missing', async () => {
+    // Regression: the ENOENT used to arrive async after spawn() "succeeded",
+    // leaving a dead session that silently dropped every message.
+    const runtimes: Record<string, RuntimeConfig> = {
+      ghost: { command: 'definitely-not-a-real-binary-xyz', args: [], adapter: 'acp' },
+    };
+    adapter = new AcpAdapter(runtimes, 'ghost');
+    await expect(adapter.spawn({ role: 'director', cwd: '/tmp' }))
+      .rejects.toThrow(/not found on PATH/);
+  });
+
   it('kill terminates the session', async () => {
     const runtimes: Record<string, RuntimeConfig> = {
       codex: { command: 'sleep', args: ['30'], adapter: 'acp' },

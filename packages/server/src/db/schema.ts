@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 /** ISO 8601 UTC timestamp with Z suffix — use instead of datetime('now') to avoid timezone ambiguity */
@@ -104,7 +104,10 @@ export const readState = sqliteTable('read_state', {
   agentId: text('agent_id').notNull(),
   channel: text('channel').notNull().default('dm'),
   lastReadAt: text('last_read_at').notNull(),
-}, () => []);
+}, (table) => [
+  // Matches sql/schema.sql — markRead's ON CONFLICT(agent_id, channel) relies on it
+  primaryKey({ columns: [table.agentId, table.channel] }),
+]);
 
 // ── Channel Subscriptions ────────────────────────────────────────────
 

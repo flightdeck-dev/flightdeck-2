@@ -69,6 +69,10 @@ export interface ChatMessage {
   senderName?: string | null;
   replyToId?: string | null;
   attachments?: Array<{ url: string; filename: string; mimeType: string; size: number }> | null;
+  /** DM/channel routing: 'dm:<agentId>' identifies the recipient of an agent DM */
+  channel?: string | null;
+  /** DM recipient agent ID */
+  recipient?: string | null;
   channelId?: string | null;
   createdAt: string;
   updatedAt: string | null;

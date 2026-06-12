@@ -104,6 +104,16 @@ export class ModelConfig {
   }
 
   /**
+   * Whether the user explicitly configured this role (runtime, model, or
+   * model pool). When false, callers may apply their own fallback — e.g.
+   * Director inherits the Lead's runtime/model instead of a global default.
+   */
+  hasRoleConfig(role: string): boolean {
+    const rc = this.getAgentsConfig().roles?.[role];
+    return !!rc && !!(rc.runtime || rc.model || (rc.enabledModels && rc.enabledModels.length > 0));
+  }
+
+  /**
    * Get config for a single role.
    */
   getRoleConfig(role: string): ResolvedRoleConfig {

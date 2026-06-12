@@ -3,13 +3,13 @@ import type { DisplayConfig, ContentType } from '@flightdeck-ai/shared/display';
 import { WS_INITIAL_BACKOFF_MS, WS_MAX_BACKOFF_MS } from './constants.ts';
 
 export type WsEvent =
-  | { type: 'chat:message'; message: ChatMessage }
+  | { type: 'chat:message'; message: ChatMessage; project?: string }
   | { type: 'chat:stream'; message_id: string; delta: string; done: boolean; content_type?: ContentType; tool_name?: string }
   | { type: 'thread:created'; thread: Thread }
-  | { type: 'task:comment'; task_id: string; message: ChatMessage }
+  | { type: 'task:comment'; task_id: string; message: ChatMessage; project?: string }
   | { type: 'display:config'; config: DisplayConfig }
   | { type: 'state:update'; stats: Record<string, number> }
-  | { type: 'agent:stream'; agentId: string; delta: string; contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result'; toolName?: string }
+  | { type: 'agent:stream'; agentId: string; delta: string; contentType: 'text' | 'thinking' | 'tool_call' | 'tool_result'; toolName?: string; replace?: boolean }
   | { type: 'tool:event'; toolName: string; agentId: string; input: unknown; output: unknown; status: string; durationMs?: number; error?: string }
   | { type: 'dm:message'; project: string; message: { id: string; channel: string; content: string; authorType: string; authorId: string | null; createdAt: string; [k: string]: unknown } };
 

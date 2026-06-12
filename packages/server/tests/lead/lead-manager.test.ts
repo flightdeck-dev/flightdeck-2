@@ -144,4 +144,55 @@ describe('LeadManager', () => {
       expect(lm.getLeadSessionId()).toBeNull();
     });
   });
+
+  describe('director spawn', () => {
+    function fakeAdapter(spawns: any[], opts?: { failDirector?: boolean }) {
+      return {
+        spawn: async (o: any) => {
+          if (opts?.failDirector && o.role === 'director') {
+            throw new Error('Runtime "codex" is not available: command "codex" not found on PATH.');
+          }
+          spawns.push(o);
+          return { agentId: `${o.role}-fake`, sessionId: `sess-${o.role}`, status: 'running' };
+        },
+        getSession: () => undefined,
+        steer: async () => '',
+        kill: async () => { /* noop */ },
+        getMetadata: async () => null,
+      };
+    }
+
+    it('director inherits lead runtime/model when not explicitly configured', async () => {
+      // Regression: an unconfigured director used to fall back to the global
+      // default runtime (codex) — which may not be installed — and then
+      // silently dropped every message from the Lead.
+      const cwd = project.subpath('.');
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(join(cwd, '.flightdeck'), { recursive: true });
+      writeFileSync(join(cwd, '.flightdeck', 'config.yaml'), [
+        'agents:', '  roles:', '    lead:', '      runtime: copilot', '      model: claude-sonnet-4.6', '',
+      ].join('\n'));
+      const spawns: any[] = [];
+      const lm = new LeadManager({
+        sqlite, project, acpAdapter: fakeAdapter(spawns), cwd,
+        leadRuntime: 'copilot' as any, leadModel: 'claude-sonnet-4.6',
+      });
+      await lm.spawnDirector();
+      const d = spawns.find(s => s.role === 'director');
+      expect(d.runtime).toBe('copilot');
+      expect(d.model).toBe('claude-sonnet-4.6');
+    });
+
+    it('surfaces director spawn failure via onSystemNotice instead of failing silently', async () => {
+      const spawns: any[] = [];
+      const notices: string[] = [];
+      const lm = new LeadManager({
+        sqlite, project, acpAdapter: fakeAdapter(spawns, { failDirector: true }), cwd: project.subpath('.'),
+      });
+      lm.onSystemNotice = c => notices.push(c);
+      await lm.spawnLead();
+      expect(notices.some(n => n.includes('Director failed to start'))).toBe(true);
+      expect(notices.some(n => n.includes('not found on PATH'))).toBe(true);
+    });
+  });
 });

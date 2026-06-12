@@ -65,13 +65,14 @@ export const api = {
     if (opts?.limit) params.set('limit', String(opts.limit));
     return get<ActivityEntry[]>(projectPath(project, `/activity?${params}`));
   },
-  getMessages: (project: string, opts?: { thread_id?: string; task_id?: string; limit?: number; author_types?: string; channel?: string }) => {
+  getMessages: (project: string, opts?: { thread_id?: string; task_id?: string; limit?: number; author_types?: string; channel?: string; include_agent_dms?: boolean }) => {
     const params = new URLSearchParams();
     if (opts?.thread_id) params.set('thread_id', opts.thread_id);
     if (opts?.task_id) params.set('task_id', opts.task_id);
     if (opts?.limit) params.set('limit', String(opts.limit));
     if (opts?.author_types) params.set('author_types', opts.author_types);
     if (opts?.channel) params.set('channel', opts.channel);
+    if (opts?.include_agent_dms) params.set('include_agent_dms', 'true');
     return get<ChatMessage[]>(projectPath(project, `/messages?${params}`));
   },
   getReport: async (project: string): Promise<string> => {

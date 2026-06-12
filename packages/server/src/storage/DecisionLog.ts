@@ -23,7 +23,13 @@ export class DecisionLog {
     const filepath = join(this.decisionsDir, filename);
     if (!existsSync(filepath)) return [];
     const lines = readFileSync(filepath, 'utf-8').trim().split('\n').filter(Boolean);
-    return lines.map(l => JSON.parse(l) as Decision);
+    // A single corrupted line must not take down every API route that lists
+    // decisions — skip it instead
+    const decisions: Decision[] = [];
+    for (const l of lines) {
+      try { decisions.push(JSON.parse(l) as Decision); } catch { /* skip corrupted line */ }
+    }
+    return decisions;
   }
 
   list(opts?: DecisionListOptions, filename: string = 'decisions.jsonl'): Decision[] {

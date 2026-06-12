@@ -237,4 +237,76 @@ describe('CopilotSdkAdapter', () => {
       await adapter.shutdown();
     });
   });
+
+  // ─── Stream event processing (dedup + ACP-style chunk synthesis) ─────
+
+  describe('processStreamEvent', () => {
+    function makeSession() {
+      const chunks: any[] = [];
+      const session: any = { onOutputChunk: (u: any) => chunks.push(u) };
+      return { session, chunks };
+    }
+    const process = (session: any, event: any) =>
+      (adapter as any).processStreamEvent(session, event);
+
+    it('rewrites the full assistant.message to message_final after deltas were streamed', () => {
+      const { session, chunks } = makeSession();
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'hello ' } })).toBeTruthy();
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'world' } })).toBeTruthy();
+      // Full message repeats the streamed text — forwarded as a REPLACE event
+      // so the UI swaps the accumulated stream for the authoritative text
+      const fwd = process(session, { type: 'assistant.message', data: { content: 'hello world' } });
+      expect(fwd).toEqual({ type: 'assistant.message_final', data: { content: 'hello world' } });
+      const texts = chunks.filter(c => c.sessionUpdate === 'agent_message_chunk').map(c => c.content.text);
+      expect(texts).toEqual(['hello ', 'world']);
+    });
+
+    it('forwards the full assistant.message unchanged when nothing was streamed', () => {
+      const { session, chunks } = makeSession();
+      const event = { type: 'assistant.message', data: { content: 'hello world' } };
+      expect(process(session, event)).toBe(event);
+      expect(chunks).toEqual([{ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello world' } }]);
+    });
+
+    it('resets delta tracking at turn boundary (session.idle)', () => {
+      const { session } = makeSession();
+      process(session, { type: 'assistant.message_delta', data: { deltaContent: 'a' } });
+      process(session, { type: 'session.idle' });
+      // Next turn answers without streaming — full message passes through unchanged
+      const event = { type: 'assistant.message', data: { content: 'next turn' } };
+      expect(process(session, event)).toBe(event);
+    });
+
+    it('drops duplicate reasoning (thinking does not need replace fidelity)', () => {
+      const { session } = makeSession();
+      process(session, { type: 'assistant.reasoning_delta', data: { deltaContent: 'thinking…' } });
+      expect(process(session, { type: 'assistant.reasoning', data: { content: 'thinking…' } })).toBeNull();
+    });
+
+    it('synthesizes ACP-style tool call updates for onOutputChunk', () => {
+      const { session, chunks } = makeSession();
+      process(session, { type: 'tool.execution_start', data: { toolCallId: 't1', name: 'grep', arguments: { q: 'x' } } });
+      process(session, { type: 'tool.execution_complete', data: { toolCallId: 't1', name: 'grep', content: 'match' } });
+      expect(chunks[0]).toMatchObject({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'grep', status: 'pending' });
+      expect(chunks[1]).toMatchObject({ sessionUpdate: 'tool_call_update', toolCallId: 't1', title: 'grep', status: 'completed', content: [{ type: 'text', text: 'match' }] });
+    });
+
+    it('works without onOutputChunk wired (workers)', () => {
+      const session: any = {};
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'x' } })).toBeTruthy();
+      expect(process(session, { type: 'assistant.message', data: { content: 'x' } }))
+        .toEqual({ type: 'assistant.message_final', data: { content: 'x' } });
+    });
+
+    it('mapper marks message_final as a replace broadcast', async () => {
+      const { mapCopilotSdkEvent } = await import('../../src/agents/copilotSdkEventMapper.js');
+      expect(mapCopilotSdkEvent({ type: 'assistant.message_final', data: { content: 'final text' } }))
+        .toEqual({ delta: 'final text', contentType: 'text', replace: true });
+      // Plain deltas and unstreamed full messages stay append-mode
+      expect(mapCopilotSdkEvent({ type: 'assistant.message_delta', data: { deltaContent: 'x' } }))
+        .toEqual({ delta: 'x', contentType: 'text' });
+      expect(mapCopilotSdkEvent({ type: 'assistant.message', data: { content: 'y' } }))
+        .toEqual({ delta: 'y', contentType: 'text' });
+    });
+  });
 });

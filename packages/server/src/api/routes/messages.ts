@@ -149,9 +149,18 @@ export async function handleMessageRoutes(
     const authorTypesParam = url.searchParams.get('author_types');
     const authorTypes = authorTypesParam ? authorTypesParam.split(',') : undefined;
     const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
-    const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 50, authorTypes }) ?? [];
-    const mainChatMsgs = allMsgs.filter(m => !m.channel?.startsWith('dm:'));
-    json(200, mainChatMsgs.slice(-limit).reverse());
+    // Agent↔agent DM traffic is excluded from the main chat by default;
+    // include_agent_dms=true lets the UI show it (collapsed by default)
+    const includeAgentDms = url.searchParams.get('include_agent_dms') === 'true';
+    // Over-fetch: DM filtering below can discard a large share of the window
+    const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 200, authorTypes }) ?? [];
+    const mainChatMsgs = allMsgs.filter(m =>
+      !m.channel?.startsWith('dm:') || (includeAgentDms && m.authorType === 'agent'));
+    // listMessages returns newest-first: keep the NEWEST `limit` entries,
+    // then reverse to the ascending order the chat renders in.
+    // (slice(-limit) used to keep the oldest entries — chats longer than
+    // `limit` never showed their most recent messages.)
+    json(200, mainChatMsgs.slice(0, limit).reverse());
     return true;
   }
 
@@ -227,7 +236,7 @@ export async function handleMessageRoutes(
             parentId: body.parentId ?? null, taskId: null,
             authorType: 'agent', authorId: agentId,
             content: (body.content as string).length > 4000 ? (body.content as string).slice(0, 4000) + '\n\u2026[truncated]' : body.content,
-            metadata: null, channel: `dm:${body.to}`,
+            metadata: null, channel: `dm:${body.to}`, recipient: body.to,
             replyToId: body.parentId ?? body.replyToId ?? null,
           });
         }

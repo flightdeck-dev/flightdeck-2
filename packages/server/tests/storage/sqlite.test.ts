@@ -95,6 +95,24 @@ describe('SqliteStore', () => {
     expect(store.getAgent('agent-test' as AgentId)!.status).toBe('busy');
   });
 
+  it('migrates legacy DM message formats to canonical dm:<recipient>', () => {
+    // Legacy shape A: bare channel 'dm' with recipient
+    store.rawClient.prepare(
+      `INSERT INTO messages (id, author_type, author_id, content, channel, recipient, created_at) VALUES (?, 'agent', 'lead', 'legacy A', 'dm', 'worker-7', ?)`
+    ).run('msg-legacy-a', new Date().toISOString());
+    // Legacy shape B: channel 'dm:<id>' without recipient
+    store.rawClient.prepare(
+      `INSERT INTO messages (id, author_type, author_id, content, channel, created_at) VALUES (?, 'system', NULL, 'legacy B', 'dm:worker-8', ?)`
+    ).run('msg-legacy-b', new Date().toISOString());
+    store.close();
+
+    // Reopen — constructor migration normalizes both shapes
+    store = new SqliteStore(join(tmpDir, 'test.sqlite'));
+    const rows = store.rawClient.prepare(`SELECT id, channel, recipient FROM messages ORDER BY id`).all() as Array<{ id: string; channel: string; recipient: string | null }>;
+    expect(rows.find(r => r.id === 'msg-legacy-a')).toMatchObject({ channel: 'dm:worker-7', recipient: 'worker-7' });
+    expect(rows.find(r => r.id === 'msg-legacy-b')).toMatchObject({ channel: 'dm:worker-8', recipient: 'worker-8' });
+  });
+
   it('persists and reads back agent model and runtime name', () => {
     // Regression: agents.model was written via raw SQL but missing from the
     // drizzle schema, so select() never returned it and the UI showed the

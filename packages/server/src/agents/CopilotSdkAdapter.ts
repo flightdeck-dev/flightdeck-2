@@ -50,6 +50,14 @@ export interface CopilotAgentSession {
   cwd: string;
   model?: string;
   pendingToolCalls?: Map<string, string>;
+  /** ACP-style per-chunk callback (set by LeadManager for chat streaming). */
+  onOutputChunk?: (update: unknown) => void;
+  /** Disposer for the session.on event handler (prevents stacking on resume). */
+  eventUnsubscribe?: () => void;
+  /** True once a text/reasoning delta was streamed this turn — used to drop
+   *  the redundant full-content event that would duplicate streamed words. */
+  sawTextDelta?: boolean;
+  sawReasoningDelta?: boolean;
 }
 
 export class CopilotSdkAdapter extends AgentAdapter {
@@ -988,6 +996,73 @@ export class CopilotSdkAdapter extends AgentAdapter {
   /**
    * Spawn a new Copilot agent session with flightdeck tools injected.
    */
+  /**
+   * Normalize a Copilot SDK event into an ACP-style SessionUpdate for the
+   * session's onOutputChunk (lead chat streaming), and decide what to forward
+   * to onOutput (agent:stream broadcast).
+   *
+   * Returns the event to forward (possibly rewritten), or null to drop it.
+   * When the full assistant.message arrives after deltas were streamed, it is
+   * rewritten to the synthetic 'assistant.message_final' — the UI replaces the
+   * accumulated stream with it, so any delta-level glitches (duplicated or
+   * dropped fragments) self-correct at turn end.
+   */
+  private processStreamEvent(agentSession: CopilotAgentSession, event: { type: string; data?: any }): { type: string; data?: any } | null {
+    let update: Record<string, unknown> | null = null;
+    let forward: { type: string; data?: any } | null = event;
+    switch (event.type) {
+      case 'assistant.message_delta':
+        agentSession.sawTextDelta = true;
+        update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data?.deltaContent ?? '' } };
+        break;
+      case 'assistant.reasoning_delta':
+        agentSession.sawReasoningDelta = true;
+        update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data?.deltaContent ?? '' } };
+        break;
+      case 'assistant.message':
+        if (agentSession.sawTextDelta) {
+          forward = event.data?.content
+            ? { type: 'assistant.message_final', data: { content: event.data.content } }
+            : null;
+        } else if (event.data?.content) {
+          update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data.content } };
+        }
+        break;
+      case 'assistant.reasoning':
+        // Thinking blocks don't need replace fidelity — drop the duplicate
+        if (agentSession.sawReasoningDelta) forward = null;
+        else if (event.data?.content) update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data.content } };
+        break;
+      case 'tool.execution_start':
+        update = {
+          sessionUpdate: 'tool_call',
+          toolCallId: event.data?.toolCallId ?? '',
+          title: event.data?.name ?? event.data?.toolName ?? '',
+          rawInput: event.data?.arguments,
+          status: 'pending',
+        };
+        break;
+      case 'tool.execution_complete':
+        update = {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: event.data?.toolCallId ?? '',
+          title: event.data?.name ?? event.data?.toolName ?? '',
+          content: event.data?.content ? [{ type: 'text', text: String(event.data.content) }] : [],
+          status: 'completed',
+        };
+        break;
+      case 'session.idle':
+        // Turn boundary — next turn may or may not stream deltas
+        agentSession.sawTextDelta = false;
+        agentSession.sawReasoningDelta = false;
+        break;
+    }
+    if (update && agentSession.onOutputChunk) {
+      try { agentSession.onOutputChunk(update); } catch { /* consumer errors must not kill the event stream */ }
+    }
+    return forward;
+  }
+
   async spawn(opts: BaseSpawnOptions): Promise<AgentMetadata> {
     const client = await this.ensureClient();
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
@@ -1040,10 +1115,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
+    // Replacing an existing session entry? Detach its handler first so
+    // events don't fan out to stale handlers from previous registrations.
+    this.sessions.get(sessionId)?.eventUnsubscribe?.();
     this.sessions.set(sessionId, agentSession);
 
     // Wire up event handlers
-    session.on((event: SessionEvent) => {
+    agentSession.eventUnsubscribe = session.on((event: SessionEvent) => {
       agentSession.lastActivityAt = new Date();
 
       // Capture resolved model from session.created event
@@ -1125,8 +1203,9 @@ export class CopilotSdkAdapter extends AgentAdapter {
         }
       }
 
-      if (this.onOutput) {
-        try { this.onOutput(aid, event); } catch { /* */ }
+      const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
+      if (forward && this.onOutput) {
+        try { this.onOutput(aid, forward as SessionEvent); } catch { /* */ }
       }
     });
 
@@ -1162,16 +1241,20 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     await agentSession.session.send({ prompt: message.content });
 
-    // Wait for idle (turn complete)
+    // Wait for idle (turn complete). session.on returns an unsubscribe fn —
+    // without calling it, every steer() leaks a handler that keeps firing
+    // on all future session events.
     await new Promise<void>((resolve) => {
-      const handler = (event: SessionEvent) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = agentSession.session.on((event: SessionEvent) => {
         if (event.type === 'session.idle') {
+          if (timer) clearTimeout(timer);
+          unsubscribe();
           resolve();
         }
-      };
-      agentSession.session.on(handler);
+      });
       // Timeout after 5 minutes
-      setTimeout(() => resolve(), 5 * 60 * 1000);
+      timer = setTimeout(() => { unsubscribe(); resolve(); }, 5 * 60 * 1000);
     });
 
     return agentSession.output.slice(outputBefore);
@@ -1186,6 +1269,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
     try {
       await agentSession.session.disconnect();
     } catch { /* */ }
+    agentSession.eventUnsubscribe?.();
+    agentSession.eventUnsubscribe = undefined;
     agentSession.status = 'ended';
     // Clean up after grace period
     setTimeout(() => this.sessions.delete(sessionId), 60_000);
@@ -1255,10 +1340,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
+    // Resuming the same session id again must not stack handlers — detach
+    // the previous registration first.
+    this.sessions.get(sessionId)?.eventUnsubscribe?.();
     this.sessions.set(sessionId, agentSession);
 
     // Wire same event handlers as spawn
-    session.on((event: SessionEvent) => {
+    agentSession.eventUnsubscribe = session.on((event: SessionEvent) => {
       agentSession.lastActivityAt = new Date();
       if (event.type === 'assistant.message') {
         agentSession.output += event.data.content;
@@ -1294,8 +1382,6 @@ export class CopilotSdkAdapter extends AgentAdapter {
           });
         } catch { /* */ }
       }
-      if (this.onOutput) { try { this.onOutput(aid, event); } catch { /* */ } }
-
       // Track tool calls (same as create path)
       if ((event.type as string) === 'tool.execution_start') {
         const data = (event as any).data;
@@ -1314,6 +1400,11 @@ export class CopilotSdkAdapter extends AgentAdapter {
         if (this.onToolCall) {
           try { this.onToolCall(aid, { toolName, status: 'completed' }); } catch { /* */ }
         }
+      }
+
+      const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
+      if (forward && this.onOutput) {
+        try { this.onOutput(aid, forward as SessionEvent); } catch { /* */ }
       }
     });
 
