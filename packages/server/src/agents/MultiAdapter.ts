@@ -17,6 +17,29 @@ export class MultiAdapter extends AgentAdapter {
     super();
     this.acpAdapter = acpAdapter;
     this.copilotSdkAdapter = copilotSdkAdapter ?? null;
+    this.hookSessionEnd(this.acpAdapter);
+    if (this.copilotSdkAdapter) this.hookSessionEnd(this.copilotSdkAdapter);
+  }
+
+  /**
+   * Drop sessionAdapterMap entries when sessions end naturally (crash, exit) —
+   * kill() is not the only way sessions die, and without this the map grows
+   * for the lifetime of the gateway. Implemented as a transparent property
+   * hook so consumers (gateway, facade) can still assign onSessionEnd later.
+   */
+  private hookSessionEnd(adapter: AgentAdapter): void {
+    let external: ((sessionId: string, session: unknown) => void) | null =
+      (adapter as { onSessionEnd?: ((sessionId: string, session: unknown) => void) | null }).onSessionEnd ?? null;
+    const wrapper = (sessionId: string, session: unknown) => {
+      this.sessionAdapterMap.delete(sessionId);
+      if (external) { try { external(sessionId, session); } catch { /* consumer errors are not ours */ } }
+    };
+    Object.defineProperty(adapter, 'onSessionEnd', {
+      get: () => wrapper,
+      set: (fn) => { external = fn; },
+      configurable: true,
+      enumerable: true,
+    });
   }
 
   private pickAdapter(runtime?: string): AgentAdapter {

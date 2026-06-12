@@ -93,9 +93,43 @@ describe('Orchestrator suspended agents', () => {
 
     const purged = store.purgeOfflineAgents();
     expect(purged).toBe(1);
-    
+
     const remaining = store.listAgents(true);
     expect(remaining).toHaveLength(1);
     expect(remaining[0].status).toBe('retired');
+  });
+
+  it('purgeOfflineAgents keeps resumable agents and agents with in-flight tasks', () => {
+    // Resumable: has a saved session — purging it would lose the resume
+    store.insertAgent({
+      id: 'agent-resumable' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: 'sess-keep',
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+    // Has a running task assigned — purging would orphan the task
+    store.insertAgent({
+      id: 'agent-busy-task' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+    store.insertTask({
+      id: 'task-inflight' as any, specId: null, title: 'wip', description: '',
+      state: 'running', role: 'worker', dependsOn: [], priority: 0,
+      assignedAgent: 'agent-busy-task' as AgentId, acpSessionId: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    });
+    // Truly dead: no session, no tasks
+    store.insertAgent({
+      id: 'agent-dead' as AgentId,
+      role: 'worker', runtime: 'acp', acpSessionId: null,
+      status: 'hibernated', currentSpecId: null, costAccumulated: 0, lastHeartbeat: null,
+    });
+
+    const purged = store.purgeOfflineAgents();
+    expect(purged).toBe(1);
+    const ids = store.listAgents(true).map(a => a.id);
+    expect(ids).toContain('agent-resumable');
+    expect(ids).toContain('agent-busy-task');
+    expect(ids).not.toContain('agent-dead');
   });
 });

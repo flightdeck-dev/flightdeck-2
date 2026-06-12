@@ -1,4 +1,4 @@
-import { eq, desc, and, lt, gt, isNotNull, sql } from 'drizzle-orm';
+import { eq, desc, and, or, lt, gt, isNotNull, sql } from 'drizzle-orm';
 import { messages, readState, channelSubscriptions, channels } from '../db/schema.js';
 import type { FlightdeckDatabase } from '../db/database.js';
 import { messageId } from '@flightdeck-ai/shared';
@@ -331,6 +331,8 @@ export class MessageStore {
   // ── DM ────────────────────────────────────────────────────────────────
 
   appendDM(from: string, to: string, content: string): ChatMessage {
+    // Canonical DM format: channel 'dm:<recipient>' + recipient column.
+    // (Bare channel 'dm' predates this and is migrated in SqliteStore.)
     return this.createMessage({
       parentId: null,
       taskId: null,
@@ -338,7 +340,7 @@ export class MessageStore {
       authorId: from,
       content,
       metadata: null,
-      channel: 'dm',
+      channel: `dm:${to}`,
       recipient: to,
     });
   }
@@ -346,8 +348,8 @@ export class MessageStore {
   getUnreadDMs(agentId: string): ChatMessage[] {
     const lastRead = this.getLastRead(agentId, 'dm');
     const conditions = [
-      eq(messages.recipient, agentId),
-      eq(messages.channel, 'dm'),
+      // Match canonical 'dm:<id>' rows; recipient covers legacy bare-'dm' rows
+      or(eq(messages.channel, `dm:${agentId}`), and(eq(messages.channel, 'dm'), eq(messages.recipient, agentId)))!,
     ];
     if (lastRead) conditions.push(gt(messages.createdAt, lastRead));
     const rows = this.db

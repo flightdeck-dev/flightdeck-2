@@ -67,6 +67,11 @@ export class SqliteStore extends EventEmitter {
     // Re-run index creation after columns are ensured
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_channel` ON `messages` (`channel`)')); } catch {}
     try { this._db.run(sql.raw('CREATE INDEX IF NOT EXISTS `idx_messages_recipient` ON `messages` (`recipient`)')); } catch {}
+    // One-time DM format migration (idempotent): unify on channel 'dm:<recipient>'
+    // + recipient column. Legacy rows used bare channel 'dm' (recipient-only)
+    // or 'dm:<id>' without recipient, so no single query could find all DMs.
+    try { this._db.run(sql.raw(`UPDATE messages SET channel = 'dm:' || recipient WHERE channel = 'dm' AND recipient IS NOT NULL AND recipient != ''`)); } catch {}
+    try { this._db.run(sql.raw(`UPDATE messages SET recipient = substr(channel, 4) WHERE channel LIKE 'dm:%' AND (recipient IS NULL OR recipient = '')`)); } catch {}
   }
 
   private addColumnIfMissing(table: string, column: string, type: string): void {
@@ -340,9 +345,22 @@ export class SqliteStore extends EventEmitter {
     return result.changes > 0;
   }
 
-  /** Remove all agents with status 'hibernated'. Returns count deleted. */
+  /**
+   * Remove dead hibernated agents. Skips agents that are still resumable
+   * (have a saved session) or have in-flight tasks assigned — purging those
+   * would orphan the tasks and lose resumable sessions.
+   */
   purgeOfflineAgents(): number {
-    const result = this._db.delete(agents).where(eq(agents.status, 'hibernated')).run();
+    const result = this._db.run(sql`
+      DELETE FROM agents
+      WHERE status = 'hibernated'
+        AND (acp_session_id IS NULL OR acp_session_id = '')
+        AND id NOT IN (
+          SELECT assigned_agent FROM tasks
+          WHERE assigned_agent IS NOT NULL
+            AND state IN ('running', 'in_review', 'claimed')
+        )
+    `);
     return result.changes;
   }
 

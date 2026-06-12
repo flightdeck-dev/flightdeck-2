@@ -517,7 +517,7 @@ export class AgentManager {
         parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
-        metadata: null, channel: `dm:${agentId}`,
+        metadata: null, channel: `dm:${agentId}`, recipient: agentId,
       });
       if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
     }
@@ -542,7 +542,7 @@ export class AgentManager {
         parentId: null, taskId: null,
         authorType: 'system', authorId: null,
         content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
-        metadata: null, channel: `dm:${agentId}`,
+        metadata: null, channel: `dm:${agentId}`, recipient: agentId,
       });
       if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
     }

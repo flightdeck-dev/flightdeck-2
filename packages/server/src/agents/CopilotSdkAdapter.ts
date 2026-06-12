@@ -52,6 +52,8 @@ export interface CopilotAgentSession {
   pendingToolCalls?: Map<string, string>;
   /** ACP-style per-chunk callback (set by LeadManager for chat streaming). */
   onOutputChunk?: (update: unknown) => void;
+  /** Disposer for the session.on event handler (prevents stacking on resume). */
+  eventUnsubscribe?: () => void;
   /** True once a text/reasoning delta was streamed this turn — used to drop
    *  the redundant full-content event that would duplicate streamed words. */
   sawTextDelta?: boolean;
@@ -1104,10 +1106,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
+    // Replacing an existing session entry? Detach its handler first so
+    // events don't fan out to stale handlers from previous registrations.
+    this.sessions.get(sessionId)?.eventUnsubscribe?.();
     this.sessions.set(sessionId, agentSession);
 
     // Wire up event handlers
-    session.on((event: SessionEvent) => {
+    agentSession.eventUnsubscribe = session.on((event: SessionEvent) => {
       agentSession.lastActivityAt = new Date();
 
       // Capture resolved model from session.created event
@@ -1255,6 +1260,8 @@ export class CopilotSdkAdapter extends AgentAdapter {
     try {
       await agentSession.session.disconnect();
     } catch { /* */ }
+    agentSession.eventUnsubscribe?.();
+    agentSession.eventUnsubscribe = undefined;
     agentSession.status = 'ended';
     // Clean up after grace period
     setTimeout(() => this.sessions.delete(sessionId), 60_000);
@@ -1324,10 +1331,13 @@ export class CopilotSdkAdapter extends AgentAdapter {
       model: opts.model,
     };
 
+    // Resuming the same session id again must not stack handlers — detach
+    // the previous registration first.
+    this.sessions.get(sessionId)?.eventUnsubscribe?.();
     this.sessions.set(sessionId, agentSession);
 
     // Wire same event handlers as spawn
-    session.on((event: SessionEvent) => {
+    agentSession.eventUnsubscribe = session.on((event: SessionEvent) => {
       agentSession.lastActivityAt = new Date();
       if (event.type === 'assistant.message') {
         agentSession.output += event.data.content;

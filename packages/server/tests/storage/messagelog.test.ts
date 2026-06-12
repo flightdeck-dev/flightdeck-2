@@ -88,12 +88,17 @@ describe('MessageStore (channel & DM)', () => {
       expect(ms.getUnreadDMs('lead-1')).toEqual([]);
     });
 
-    it('excludes already-read DMs after markRead', () => {
+    it('excludes already-read DMs after markRead', async () => {
       ms.appendDM('worker-1', 'lead-1', 'first');
       ms.markRead('lead-1');
 
       const unread1 = ms.getUnreadDMs('lead-1');
       expect(unread1).toHaveLength(0);
+
+      // Timestamps have millisecond granularity — a message created in the
+      // same ms as markRead is indistinguishable from an already-read one.
+      // Step past the boundary so the test is deterministic.
+      await new Promise(r => setTimeout(r, 2));
 
       // New message after markRead should show up
       ms.appendDM('worker-1', 'lead-1', 'second');

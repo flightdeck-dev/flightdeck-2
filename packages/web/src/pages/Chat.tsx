@@ -151,11 +151,8 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
             <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
           )}
           {(() => {
-            // Agent DMs store the recipient in `channel` ('dm:<agentId>');
-            // `channelId` is only set by external bridges
-            const dmChannel = msg.channel?.startsWith('dm:') ? msg.channel : msg.channelId?.startsWith('dm:') ? msg.channelId : null;
-            if (!dmChannel) return null;
-            const recipient = dmChannel.slice(3);
+            const recipient = dmRecipient(msg);
+            if (recipient === '?' || (!msg.channel?.startsWith('dm:') && msg.channel !== 'dm' && !msg.channelId?.startsWith('dm:') && !msg.recipient)) return null;
             return (
               <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1" title={`DM to ${recipient}`}>
                 → {recipient}
@@ -283,14 +280,17 @@ export function ToolCallCard({ tc, level }: { tc: ToolCallState; level: 'summary
   );
 }
 
-/** True for agent↔agent DM traffic (sender in authorId, recipient in channel). */
+/** True for agent↔agent DM traffic (sender in authorId, recipient in channel/recipient). */
 function isAgentDm(m: ChatMessage): boolean {
-  return m.authorType === 'agent' && !!(m.channel?.startsWith('dm:') || m.channelId?.startsWith('dm:'));
+  return m.authorType === 'agent'
+    && !!(m.channel?.startsWith('dm:') || m.channel === 'dm' || m.channelId?.startsWith('dm:') || m.recipient);
 }
 
 function dmRecipient(m: ChatMessage): string {
-  const ch = m.channel?.startsWith('dm:') ? m.channel : m.channelId ?? '';
-  return ch.startsWith('dm:') ? ch.slice(3) : '?';
+  if (m.channel?.startsWith('dm:')) return m.channel.slice(3);
+  if (m.recipient) return m.recipient;
+  if (m.channelId?.startsWith('dm:')) return m.channelId.slice(3);
+  return '?';
 }
 
 /** Collapsed run of consecutive agent↔agent DMs — one line, expandable. */
