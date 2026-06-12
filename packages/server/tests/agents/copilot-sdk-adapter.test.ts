@@ -249,19 +249,22 @@ describe('CopilotSdkAdapter', () => {
     const process = (session: any, event: any) =>
       (adapter as any).processStreamEvent(session, event);
 
-    it('drops the full assistant.message after deltas were streamed (no word duplication)', () => {
+    it('rewrites the full assistant.message to message_final after deltas were streamed', () => {
       const { session, chunks } = makeSession();
-      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'hello ' } })).toBe(true);
-      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'world' } })).toBe(true);
-      // Full message repeats the streamed text — must NOT be forwarded
-      expect(process(session, { type: 'assistant.message', data: { content: 'hello world' } })).toBe(false);
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'hello ' } })).toBeTruthy();
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'world' } })).toBeTruthy();
+      // Full message repeats the streamed text — forwarded as a REPLACE event
+      // so the UI swaps the accumulated stream for the authoritative text
+      const fwd = process(session, { type: 'assistant.message', data: { content: 'hello world' } });
+      expect(fwd).toEqual({ type: 'assistant.message_final', data: { content: 'hello world' } });
       const texts = chunks.filter(c => c.sessionUpdate === 'agent_message_chunk').map(c => c.content.text);
       expect(texts).toEqual(['hello ', 'world']);
     });
 
-    it('forwards the full assistant.message when nothing was streamed', () => {
+    it('forwards the full assistant.message unchanged when nothing was streamed', () => {
       const { session, chunks } = makeSession();
-      expect(process(session, { type: 'assistant.message', data: { content: 'hello world' } })).toBe(true);
+      const event = { type: 'assistant.message', data: { content: 'hello world' } };
+      expect(process(session, event)).toBe(event);
       expect(chunks).toEqual([{ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello world' } }]);
     });
 
@@ -269,14 +272,15 @@ describe('CopilotSdkAdapter', () => {
       const { session } = makeSession();
       process(session, { type: 'assistant.message_delta', data: { deltaContent: 'a' } });
       process(session, { type: 'session.idle' });
-      // Next turn answers without streaming — full message must pass through
-      expect(process(session, { type: 'assistant.message', data: { content: 'next turn' } })).toBe(true);
+      // Next turn answers without streaming — full message passes through unchanged
+      const event = { type: 'assistant.message', data: { content: 'next turn' } };
+      expect(process(session, event)).toBe(event);
     });
 
-    it('dedupes reasoning the same way as text', () => {
+    it('drops duplicate reasoning (thinking does not need replace fidelity)', () => {
       const { session } = makeSession();
       process(session, { type: 'assistant.reasoning_delta', data: { deltaContent: 'thinking…' } });
-      expect(process(session, { type: 'assistant.reasoning', data: { content: 'thinking…' } })).toBe(false);
+      expect(process(session, { type: 'assistant.reasoning', data: { content: 'thinking…' } })).toBeNull();
     });
 
     it('synthesizes ACP-style tool call updates for onOutputChunk', () => {
@@ -289,8 +293,20 @@ describe('CopilotSdkAdapter', () => {
 
     it('works without onOutputChunk wired (workers)', () => {
       const session: any = {};
-      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'x' } })).toBe(true);
-      expect(process(session, { type: 'assistant.message', data: { content: 'x' } })).toBe(false);
+      expect(process(session, { type: 'assistant.message_delta', data: { deltaContent: 'x' } })).toBeTruthy();
+      expect(process(session, { type: 'assistant.message', data: { content: 'x' } }))
+        .toEqual({ type: 'assistant.message_final', data: { content: 'x' } });
+    });
+
+    it('mapper marks message_final as a replace broadcast', async () => {
+      const { mapCopilotSdkEvent } = await import('../../src/agents/copilotSdkEventMapper.js');
+      expect(mapCopilotSdkEvent({ type: 'assistant.message_final', data: { content: 'final text' } }))
+        .toEqual({ delta: 'final text', contentType: 'text', replace: true });
+      // Plain deltas and unstreamed full messages stay append-mode
+      expect(mapCopilotSdkEvent({ type: 'assistant.message_delta', data: { deltaContent: 'x' } }))
+        .toEqual({ delta: 'x', contentType: 'text' });
+      expect(mapCopilotSdkEvent({ type: 'assistant.message', data: { content: 'y' } }))
+        .toEqual({ delta: 'y', contentType: 'text' });
     });
   });
 });

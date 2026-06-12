@@ -998,15 +998,18 @@ export class CopilotSdkAdapter extends AgentAdapter {
    */
   /**
    * Normalize a Copilot SDK event into an ACP-style SessionUpdate for the
-   * session's onOutputChunk (lead chat streaming), and decide whether the raw
-   * event should still be forwarded to onOutput (agent:stream broadcast).
+   * session's onOutputChunk (lead chat streaming), and decide what to forward
+   * to onOutput (agent:stream broadcast).
    *
-   * Returns false for full-content events whose text was already streamed as
-   * deltas this turn — forwarding those would repeat every word in the UI.
+   * Returns the event to forward (possibly rewritten), or null to drop it.
+   * When the full assistant.message arrives after deltas were streamed, it is
+   * rewritten to the synthetic 'assistant.message_final' — the UI replaces the
+   * accumulated stream with it, so any delta-level glitches (duplicated or
+   * dropped fragments) self-correct at turn end.
    */
-  private processStreamEvent(agentSession: CopilotAgentSession, event: { type: string; data?: any }): boolean {
+  private processStreamEvent(agentSession: CopilotAgentSession, event: { type: string; data?: any }): { type: string; data?: any } | null {
     let update: Record<string, unknown> | null = null;
-    let forward = true;
+    let forward: { type: string; data?: any } | null = event;
     switch (event.type) {
       case 'assistant.message_delta':
         agentSession.sawTextDelta = true;
@@ -1017,11 +1020,17 @@ export class CopilotSdkAdapter extends AgentAdapter {
         update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data?.deltaContent ?? '' } };
         break;
       case 'assistant.message':
-        if (agentSession.sawTextDelta) forward = false;
-        else if (event.data?.content) update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data.content } };
+        if (agentSession.sawTextDelta) {
+          forward = event.data?.content
+            ? { type: 'assistant.message_final', data: { content: event.data.content } }
+            : null;
+        } else if (event.data?.content) {
+          update = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: event.data.content } };
+        }
         break;
       case 'assistant.reasoning':
-        if (agentSession.sawReasoningDelta) forward = false;
+        // Thinking blocks don't need replace fidelity — drop the duplicate
+        if (agentSession.sawReasoningDelta) forward = null;
         else if (event.data?.content) update = { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: event.data.content } };
         break;
       case 'tool.execution_start':
@@ -1196,7 +1205,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
       const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
       if (forward && this.onOutput) {
-        try { this.onOutput(aid, event); } catch { /* */ }
+        try { this.onOutput(aid, forward as SessionEvent); } catch { /* */ }
       }
     });
 
@@ -1395,7 +1404,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
       const forward = this.processStreamEvent(agentSession, event as { type: string; data?: any });
       if (forward && this.onOutput) {
-        try { this.onOutput(aid, event); } catch { /* */ }
+        try { this.onOutput(aid, forward as SessionEvent); } catch { /* */ }
       }
     });
 

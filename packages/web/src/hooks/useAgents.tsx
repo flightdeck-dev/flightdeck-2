@@ -12,6 +12,8 @@ export interface StreamChunk {
   content: string;
   contentType?: ContentType;
   toolName?: string;
+  /** Streamed text of the in-flight turn — replaced by the final message. */
+  ephemeral?: boolean;
 }
 
 export interface AgentContextValue {
@@ -30,6 +32,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const agentOutputsRef = useRef(new Map<string, string>());
   const agentStreamChunksRef = useRef(new Map<string, StreamChunk[]>());
   const dmMessagesRef = useRef(new Map<string, any[]>());
+  /** Per-agent output offset where the current turn's streamed text began. */
+  const turnStartRef = useRef(new Map<string, number>());
   const dirtyRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const { subscribe } = useWsEventBus();
@@ -57,6 +61,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     agentOutputsRef.current.clear();
     agentStreamChunksRef.current.clear();
     dmMessagesRef.current.clear();
+    turnStartRef.current.clear();
     setAgentOutputs(new Map());
     setAgentStreamChunks(new Map());
     setDmMessages(new Map());
@@ -68,9 +73,27 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         mutateAgents();
       } else if (event.type === 'agent:stream') {
         const prev = agentOutputsRef.current.get(event.agentId) ?? '';
-        agentOutputsRef.current.set(event.agentId, prev + event.delta);
         const prevChunks = agentStreamChunksRef.current.get(event.agentId) ?? [];
-        agentStreamChunksRef.current.set(event.agentId, [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName }].slice(-MAX_CHUNKS));
+        const isText = !event.contentType || event.contentType === 'text';
+        if (event.replace && isText) {
+          // Final authoritative text for the turn — replace the streamed
+          // deltas with it so any delta-level glitches self-correct
+          const start = turnStartRef.current.get(event.agentId);
+          const base = start !== undefined ? prev.slice(0, start) : prev;
+          agentOutputsRef.current.set(event.agentId, base + event.delta);
+          agentStreamChunksRef.current.set(event.agentId,
+            [...prevChunks.filter(c => !c.ephemeral), { content: event.delta, contentType: 'text' as const }].slice(-MAX_CHUNKS));
+          turnStartRef.current.delete(event.agentId);
+        } else {
+          // Mark where this turn's text began so a later replace knows
+          // how much of the output to swap out
+          if (isText && !turnStartRef.current.has(event.agentId)) {
+            turnStartRef.current.set(event.agentId, prev.length);
+          }
+          agentOutputsRef.current.set(event.agentId, prev + event.delta);
+          agentStreamChunksRef.current.set(event.agentId,
+            [...prevChunks, { content: event.delta, contentType: event.contentType ?? 'text', toolName: (event as any).toolName, ...(isText ? { ephemeral: true } : {}) }].slice(-MAX_CHUNKS));
+        }
         scheduleFlush();
       } else if (event.type === 'tool:event') {
         const agentId = event.agentId;

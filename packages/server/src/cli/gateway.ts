@@ -350,7 +350,7 @@ export async function startGateway(deps: GatewayDeps): Promise<void> {
     if (!mapped) return;
     for (const wsServer of wsServers.values()) {
       if (mapped.delta) {
-        wsServer.broadcast({ type: 'agent:stream', agentId, delta: mapped.delta, contentType: mapped.contentType, toolName: mapped.toolName });
+        wsServer.broadcast({ type: 'agent:stream', agentId, delta: mapped.delta, contentType: mapped.contentType, toolName: mapped.toolName, ...(mapped.replace ? { replace: true } : {}) });
       }
     }
   };
