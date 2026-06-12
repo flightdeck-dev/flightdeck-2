@@ -12,27 +12,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { log, truncate } from '../utils/logger.js';
-import { loadGlobalConfig } from '../config/GlobalConfig.js';
-
-/** Format timestamp in user's timezone as ISO with offset */
-function formatTs(): string {
-  try {
-    const gc = loadGlobalConfig() as any;
-    if (gc.timezone) {
-      const tz = gc.timezone;
-        const d = new Date();
-        const parts = new Intl.DateTimeFormat('en-CA', {
-          timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-          timeZoneName: 'longOffset',
-        }).formatToParts(d);
-        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
-        const offset = get('timeZoneName').replace('GMT', '') || '+00:00';
-        return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}${offset}`;
-    }
-  } catch {}
-  return new Date().toISOString().slice(0, 19) + 'Z';
-}
+import { formatTs } from '../utils/time.js';
 
 /**
  * Events that can trigger a Lead steer.

@@ -323,4 +323,55 @@ describe('AgentManager DM delivery', () => {
     expect(dmSteers).toHaveLength(1);
     expect(dmSteers[0].message.content).toContain('New priority task available');
   });
+
+  describe('message sender attribution', () => {
+    // Regression: agent messages from the web dashboard arrived as bare text,
+    // indistinguishable from system notices, and were stored as authorType
+    // 'system' — agents treated user messages as system notifications.
+
+    it('user messages get a [USER] envelope and user-attributed DM', async () => {
+      const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
+      adapter.steerCalls = [];
+      await manager.sendToAgent(agent.id, 'please summarize progress', { sender: { type: 'user', source: 'web-dashboard' } });
+
+      expect(adapter.steerCalls).toHaveLength(1);
+      const content = adapter.steerCalls[0].message.content;
+      expect(content).toMatch(/^\[\d{4}-\d\d-\d\dT[^\]]*\] \[USER\]\nsource: web-dashboard\n---\nplease summarize progress$/);
+
+      const dms = messageStore.getUnreadDMs(agent.id).filter(m => m.content.includes('summarize'));
+      expect(dms).toHaveLength(1);
+      expect(dms[0].authorType).toBe('user');
+    });
+
+    it('agent-to-agent messages get an [AGENT <id>] envelope', async () => {
+      const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
+      adapter.steerCalls = [];
+      await manager.interruptAgent(agent.id, 'need your branch', { sender: { type: 'agent', id: 'reviewer-abc' } });
+
+      const content = adapter.steerCalls[0].message.content;
+      expect(content).toContain('[AGENT reviewer-abc]');
+      expect(content).toContain('source: direct_message');
+      expect(content).toContain('need your branch');
+    });
+
+    it('system/default messages pass through unchanged (orchestrator callers)', async () => {
+      const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
+      adapter.steerCalls = [];
+      await manager.sendToAgent(agent.id, '[SYSTEM] Continue working on your assigned task.');
+
+      expect(adapter.steerCalls[0].message.content).toBe('[SYSTEM] Continue working on your assigned task.');
+      const dms = messageStore.getUnreadDMs(agent.id).filter(m => m.content.includes('Continue working'));
+      expect(dms[0].authorType).toBe('system');
+    });
+
+    it('skipStore avoids double-persisting DMs the caller already stored', async () => {
+      const agent = await manager.spawnAgent({ role: 'worker', cwd: '/tmp', autoResolve: true });
+      adapter.steerCalls = [];
+      await manager.sendToAgent(agent.id, 'already stored elsewhere', { sender: { type: 'agent', id: 'lead' }, skipStore: true });
+
+      expect(adapter.steerCalls).toHaveLength(1);
+      const dms = messageStore.getUnreadDMs(agent.id).filter(m => m.content.includes('already stored'));
+      expect(dms).toHaveLength(0);
+    });
+  });
 });

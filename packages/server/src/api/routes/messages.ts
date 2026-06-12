@@ -274,7 +274,10 @@ export async function handleMessageRoutes(
           if (am) {
             const targetAgent = fd.sqlite.getAgent(targetTo as import('@flightdeck-ai/shared').AgentId);
             if (targetAgent?.acpSessionId) {
-              am.sendToAgent(targetTo as import('@flightdeck-ai/shared').AgentId, body.content as string).catch(() => {});
+              // skipStore: the DM was already persisted above with reply context —
+              // sendToAgent used to store a SECOND copy attributed to 'system'
+              am.sendToAgent(targetTo as import('@flightdeck-ai/shared').AgentId, body.content as string,
+                { sender: { type: 'agent', id: agentId, source: 'direct_message' }, skipStore: true }).catch(() => {});
             }
           }
         }
@@ -298,7 +301,10 @@ export async function handleMessageRoutes(
               if (sub === agentId) continue; // don't echo to sender
               const subAgent = fd.sqlite.getAgent(sub as import('@flightdeck-ai/shared').AgentId);
               if (subAgent?.acpSessionId) {
-                am.sendToAgent(sub as import('@flightdeck-ai/shared').AgentId, `[#${body.channel} from ${agentId}]: ${body.content}`).catch(() => {});
+                // Keep the [#channel from x] prefix (it is the stored DM's channel
+                // context) but attribute the author correctly instead of 'system'
+                am.sendToAgent(sub as import('@flightdeck-ai/shared').AgentId, `[#${body.channel} from ${agentId}]: ${body.content}`,
+                  { sender: { type: 'agent', id: agentId, source: `#${body.channel}` } }).catch(() => {});
               }
             }
           }
