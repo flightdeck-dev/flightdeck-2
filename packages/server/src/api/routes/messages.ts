@@ -231,7 +231,7 @@ export async function handleMessageRoutes(
             parentId: body.parentId ?? null, taskId: null,
             authorType: 'agent', authorId: agentId,
             content: (body.content as string).length > 4000 ? (body.content as string).slice(0, 4000) + '\n\u2026[truncated]' : body.content,
-            metadata: null, channel: `dm:${body.to}`,
+            metadata: null, channel: `dm:${body.to}`, recipient: body.to,
             replyToId: body.parentId ?? body.replyToId ?? null,
           });
         }

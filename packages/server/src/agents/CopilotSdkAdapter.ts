@@ -1227,16 +1227,20 @@ export class CopilotSdkAdapter extends AgentAdapter {
 
     await agentSession.session.send({ prompt: message.content });
 
-    // Wait for idle (turn complete)
+    // Wait for idle (turn complete). session.on returns an unsubscribe fn —
+    // without calling it, every steer() leaks a handler that keeps firing
+    // on all future session events.
     await new Promise<void>((resolve) => {
-      const handler = (event: SessionEvent) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = agentSession.session.on((event: SessionEvent) => {
         if (event.type === 'session.idle') {
+          if (timer) clearTimeout(timer);
+          unsubscribe();
           resolve();
         }
-      };
-      agentSession.session.on(handler);
+      });
       // Timeout after 5 minutes
-      setTimeout(() => resolve(), 5 * 60 * 1000);
+      timer = setTimeout(() => { unsubscribe(); resolve(); }, 5 * 60 * 1000);
     });
 
     return agentSession.output.slice(outputBefore);

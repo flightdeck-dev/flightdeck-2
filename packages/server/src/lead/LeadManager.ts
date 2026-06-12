@@ -1049,20 +1049,27 @@ export class LeadManager {
         runtime: this.leadRuntime,
       });
       this.leadSessionId = meta.sessionId;
-    this.leadAgentId = meta.agentId;
+      this.leadAgentId = meta.agentId;
       this.wireStreamHandler();
 
-      this.sqlite.insertAgent({
-        id: meta.agentId,
-        role: 'lead',
-        runtime: this.leadRuntime ?? 'acp',
-      runtimeName: this.leadRuntime ?? 'codex',
-        acpSessionId: meta.sessionId,
-        status: 'idle',
-        currentSpecId: null,
-        costAccumulated: 0,
-        lastHeartbeat: null,
-      });
+      // The agent row usually still exists when resuming — an INSERT would
+      // hit the primary key and make every resume "fail". Upsert instead.
+      if (this.sqlite.getAgent(meta.agentId as any)) {
+        this.sqlite.updateAgentAcpSession(meta.agentId as any, meta.sessionId);
+        this.sqlite.updateAgentStatus(meta.agentId as any, 'idle');
+      } else {
+        this.sqlite.insertAgent({
+          id: meta.agentId,
+          role: 'lead',
+          runtime: this.leadRuntime ?? 'acp',
+          runtimeName: this.leadRuntime ?? null,
+          acpSessionId: meta.sessionId,
+          status: 'idle',
+          currentSpecId: null,
+          costAccumulated: 0,
+          lastHeartbeat: null,
+        });
+      }
 
       return meta.sessionId;
     } catch (err) {
@@ -1082,21 +1089,30 @@ export class LeadManager {
         cwd,
         role: 'director',
         model,
+        // Without the runtime, MultiAdapter routes the resume to the
+        // default (ACP) adapter even for copilot-sdk directors
+        runtime: this.directorRuntime,
       });
       this.directorSessionId = meta.sessionId;
-    this.directorAgentId = meta.agentId;
+      this.directorAgentId = meta.agentId;
 
-      this.sqlite.insertAgent({
-        id: meta.agentId,
-        role: 'director',
-        runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
-        runtimeName: this.directorRuntime ?? this.leadRuntime ?? 'codex',
-        acpSessionId: meta.sessionId,
-        status: 'idle',
-        currentSpecId: null,
-        costAccumulated: 0,
-        lastHeartbeat: null,
-      });
+      // Upsert — the agent row usually still exists when resuming
+      if (this.sqlite.getAgent(meta.agentId as any)) {
+        this.sqlite.updateAgentAcpSession(meta.agentId as any, meta.sessionId);
+        this.sqlite.updateAgentStatus(meta.agentId as any, 'idle');
+      } else {
+        this.sqlite.insertAgent({
+          id: meta.agentId,
+          role: 'director',
+          runtime: this.directorRuntime ?? this.leadRuntime ?? 'acp',
+          runtimeName: this.directorRuntime ?? this.leadRuntime ?? null,
+          acpSessionId: meta.sessionId,
+          status: 'idle',
+          currentSpecId: null,
+          costAccumulated: 0,
+          lastHeartbeat: null,
+        });
+      }
 
       return meta.sessionId;
     } catch (err) {

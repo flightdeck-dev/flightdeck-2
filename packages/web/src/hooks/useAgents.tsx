@@ -56,8 +56,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     agentOutputsRef.current.clear();
     agentStreamChunksRef.current.clear();
+    dmMessagesRef.current.clear();
     setAgentOutputs(new Map());
     setAgentStreamChunks(new Map());
+    setDmMessages(new Map());
   }, [projectName]);
 
   useEffect(() => {
