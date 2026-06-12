@@ -152,10 +152,15 @@ export async function handleMessageRoutes(
     // Agent↔agent DM traffic is excluded from the main chat by default;
     // include_agent_dms=true lets the UI show it (collapsed by default)
     const includeAgentDms = url.searchParams.get('include_agent_dms') === 'true';
-    const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 50, authorTypes }) ?? [];
+    // Over-fetch: DM filtering below can discard a large share of the window
+    const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 200, authorTypes }) ?? [];
     const mainChatMsgs = allMsgs.filter(m =>
       !m.channel?.startsWith('dm:') || (includeAgentDms && m.authorType === 'agent'));
-    json(200, mainChatMsgs.slice(-limit).reverse());
+    // listMessages returns newest-first: keep the NEWEST `limit` entries,
+    // then reverse to the ascending order the chat renders in.
+    // (slice(-limit) used to keep the oldest entries — chats longer than
+    // `limit` never showed their most recent messages.)
+    json(200, mainChatMsgs.slice(0, limit).reverse());
     return true;
   }
 

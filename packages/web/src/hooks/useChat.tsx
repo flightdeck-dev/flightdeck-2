@@ -171,7 +171,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         case 'dm:message': {
           // Live agent↔agent DMs — shown in main chat unless turned off
           if ((displayConfigRef.current.agentMessages ?? 'summary') === 'off') break;
-          const dm = (event as any).message;
+          // The ws payload is the persisted message row — same shape the
+          // REST endpoint returns, just typed loosely on the event union
+          const dm = event.message as unknown as ChatMessage;
           if (!dm?.id) break;
           setWsMessages(prev => {
             if (prev.some(m => m.id === dm.id)) return prev;

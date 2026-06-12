@@ -294,8 +294,10 @@ function dmRecipient(m: ChatMessage): string {
 }
 
 /** Collapsed run of consecutive agent↔agent DMs — one line, expandable. */
-function AgentDmGroup({ msgs, replyCountMap, onReply, agents }: {
+function AgentDmGroup({ msgs, allMessages, replyCountMap, onReply, agents }: {
   msgs: ChatMessage[];
+  /** Full visible message list — reply previews may reference messages outside the group */
+  allMessages: ChatMessage[];
   replyCountMap?: Map<string, string[]>;
   onReply: (m: ChatMessage) => void;
   agents?: Array<{ id: string; role: string; runtime?: string; runtimeName?: string; model?: string; status?: string }>;
@@ -324,7 +326,7 @@ function AgentDmGroup({ msgs, replyCountMap, onReply, agents }: {
       {open && (
         <div className="pl-4 border-l-2 border-[var(--color-border)] ml-3">
           {msgs.map(m => (
-            <MessageBubble key={m.id} msg={m} messages={msgs} replyCountMap={replyCountMap} onReply={onReply} agents={agents} />
+            <MessageBubble key={m.id} msg={m} messages={allMessages} replyCountMap={replyCountMap} onReply={onReply} agents={agents} />
           ))}
         </div>
       )}
@@ -823,7 +825,7 @@ export default function Chat() {
               </div>
             )}
             {renderItems.map(item => item.kind === 'dmGroup' ? (
-              <AgentDmGroup key={item.key} msgs={item.msgs} replyCountMap={replyCountMap} onReply={handleReply} agents={agents} />
+              <AgentDmGroup key={item.key} msgs={item.msgs} allMessages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} agents={agents} />
             ) : (
               <MessageBubble key={item.msg.id} msg={item.msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(item.msg.id)} agents={agents} />
             ))}
