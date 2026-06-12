@@ -11,6 +11,12 @@ export interface DisplayConfig {
   toolCalls: ToolVisibility;
   /** Flightdeck internal tool calls (flightdeck_* prefix) visibility */
   flightdeckTools: ToolVisibility;
+  /**
+   * Agent↔agent DM visibility in the main chat.
+   * 'off' hides them, 'summary' collapses consecutive DMs into an expandable
+   * one-liner (default), 'detail' shows full bubbles with sender → recipient.
+   */
+  agentMessages?: ToolVisibility;
   /** Per-tool overrides (tool name → visibility) */
   toolOverrides?: Record<string, ToolVisibility>;
 }
@@ -21,21 +27,25 @@ export const DISPLAY_PRESETS = {
     thinking: false,
     toolCalls: 'off' as const,
     flightdeckTools: 'off' as const,
+    agentMessages: 'off' as const,
   },
   summary: {
     thinking: false,
     toolCalls: 'summary' as const,
     flightdeckTools: 'off' as const,
+    agentMessages: 'summary' as const,
   },
   detail: {
     thinking: true,
     toolCalls: 'detail' as const,
     flightdeckTools: 'summary' as const,
+    agentMessages: 'detail' as const,
   },
   debug: {
     thinking: true,
     toolCalls: 'detail' as const,
     flightdeckTools: 'detail' as const,
+    agentMessages: 'detail' as const,
   },
 } as const;
 
@@ -116,6 +126,8 @@ export function mergeDisplayConfig(
     thinking: partial.thinking ?? base.thinking,
     toolCalls: partial.toolCalls ?? base.toolCalls,
     flightdeckTools: partial.flightdeckTools ?? base.flightdeckTools,
+    // Persisted configs may predate this field — default to collapsed
+    agentMessages: partial.agentMessages ?? base.agentMessages ?? 'summary',
     toolOverrides,
   };
 }
@@ -132,6 +144,7 @@ export function isValidDisplayConfig(v: unknown): v is PartialDisplayConfig {
   if (obj.thinking !== undefined && typeof obj.thinking !== 'boolean') return false;
   if (obj.toolCalls !== undefined && !isValidToolVisibility(obj.toolCalls)) return false;
   if (obj.flightdeckTools !== undefined && !isValidToolVisibility(obj.flightdeckTools)) return false;
+  if (obj.agentMessages !== undefined && !isValidToolVisibility(obj.agentMessages)) return false;
   if (obj.toolOverrides !== undefined) {
     if (typeof obj.toolOverrides !== 'object' || obj.toolOverrides === null || Array.isArray(obj.toolOverrides)) return false;
     for (const val of Object.values(obj.toolOverrides as Record<string, unknown>)) {

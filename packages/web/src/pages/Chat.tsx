@@ -150,11 +150,18 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
           {msg.authorType === 'agent' && msg.authorId && (
             <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{msg.authorId}</span>
           )}
-          {msg.channelId?.startsWith('dm:') && (
-            <span className="text-[10px] text-[var(--color-text-tertiary)] ml-1">
-              → {msg.channelId.replace('dm:', '').replace(/-[a-z0-9]+$/, '')}
-            </span>
-          )}
+          {(() => {
+            // Agent DMs store the recipient in `channel` ('dm:<agentId>');
+            // `channelId` is only set by external bridges
+            const dmChannel = msg.channel?.startsWith('dm:') ? msg.channel : msg.channelId?.startsWith('dm:') ? msg.channelId : null;
+            if (!dmChannel) return null;
+            const recipient = dmChannel.slice(3);
+            return (
+              <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1" title={`DM to ${recipient}`}>
+                → {recipient}
+              </span>
+            );
+          })()}
           <span className="text-xs text-[var(--color-text-tertiary)]">
             {new Date(msg.createdAt).toLocaleTimeString()}
           </span>
@@ -273,6 +280,55 @@ export function ToolCallCard({ tc, level }: { tc: ToolCallState; level: 'summary
         {tc.result && <><span className="text-[var(--color-text-tertiary)]">→ Result:</span>\n{tc.result}</>}
       </div>
     </details>
+  );
+}
+
+/** True for agent↔agent DM traffic (sender in authorId, recipient in channel). */
+function isAgentDm(m: ChatMessage): boolean {
+  return m.authorType === 'agent' && !!(m.channel?.startsWith('dm:') || m.channelId?.startsWith('dm:'));
+}
+
+function dmRecipient(m: ChatMessage): string {
+  const ch = m.channel?.startsWith('dm:') ? m.channel : m.channelId ?? '';
+  return ch.startsWith('dm:') ? ch.slice(3) : '?';
+}
+
+/** Collapsed run of consecutive agent↔agent DMs — one line, expandable. */
+function AgentDmGroup({ msgs, replyCountMap, onReply, agents }: {
+  msgs: ChatMessage[];
+  replyCountMap?: Map<string, string[]>;
+  onReply: (m: ChatMessage) => void;
+  agents?: Array<{ id: string; role: string; runtime?: string; runtimeName?: string; model?: string; status?: string }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const pairs = useMemo(
+    () => [...new Set(msgs.map(m => `${m.authorId ?? '?'} → ${dmRecipient(m)}`))],
+    [msgs]
+  );
+  return (
+    <div className="my-0.5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] transition-colors"
+        title={pairs.join('\n')}
+      >
+        <span className="shrink-0">{open ? '▾' : '▸'}</span>
+        <Bot size={12} strokeWidth={1.5} className="shrink-0" />
+        <span className="font-mono truncate">
+          {pairs[0]}{pairs.length > 1 ? `  (+${pairs.length - 1} more)` : ''}
+        </span>
+        <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full bg-[var(--color-surface-secondary)]">
+          {msgs.length} agent message{msgs.length > 1 ? 's' : ''}
+        </span>
+      </button>
+      {open && (
+        <div className="pl-4 border-l-2 border-[var(--color-border)] ml-3">
+          {msgs.map(m => (
+            <MessageBubble key={m.id} msg={m} messages={msgs} replyCountMap={replyCountMap} onReply={onReply} agents={agents} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -591,6 +647,26 @@ export default function Chat() {
     return map;
   }, [filteredMessages]);
 
+  // Group consecutive agent↔agent DMs per display config:
+  // off → dropped, summary → collapsed expandable run, detail → full bubbles
+  const renderItems = useMemo(() => {
+    const visibility = displayConfig.agentMessages ?? 'summary';
+    const items: Array<{ kind: 'msg'; msg: ChatMessage } | { kind: 'dmGroup'; key: string; msgs: ChatMessage[] }> = [];
+    for (const m of filteredMessages) {
+      if (isAgentDm(m)) {
+        if (visibility === 'off') continue;
+        if (visibility === 'summary') {
+          const last = items[items.length - 1];
+          if (last?.kind === 'dmGroup') last.msgs.push(m);
+          else items.push({ kind: 'dmGroup', key: `dmg-${m.id}`, msgs: [m] });
+          continue;
+        }
+      }
+      items.push({ kind: 'msg', msg: m });
+    }
+    return items;
+  }, [filteredMessages, displayConfig.agentMessages]);
+
   const handleReply = useCallback((m: ChatMessage) => setReplyTo(m), []);
 
   useEffect(() => {
@@ -746,8 +822,10 @@ export default function Chat() {
                 </p>
               </div>
             )}
-            {filteredMessages.map(msg => (
-              <MessageBubble key={msg.id} msg={msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(msg.id)} agents={agents} />
+            {renderItems.map(item => item.kind === 'dmGroup' ? (
+              <AgentDmGroup key={item.key} msgs={item.msgs} replyCountMap={replyCountMap} onReply={handleReply} agents={agents} />
+            ) : (
+              <MessageBubble key={item.msg.id} msg={item.msg} messages={filteredMessages} replyCountMap={replyCountMap} onReply={handleReply} highlighted={searchMatches.includes(item.msg.id)} agents={agents} />
             ))}
             {streamEntries.map(([id, content]) => (
               <StreamingBubble key={id} content={content}

@@ -17,7 +17,8 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
     const preset = DISPLAY_PRESETS[p];
     return preset.thinking === displayConfig.thinking
       && preset.toolCalls === displayConfig.toolCalls
-      && preset.flightdeckTools === displayConfig.flightdeckTools;
+      && preset.flightdeckTools === displayConfig.flightdeckTools
+      && preset.agentMessages === (displayConfig.agentMessages ?? 'summary');
   }) ?? 'custom';
 
   // M9: Basic focus trap — keep keyboard focus inside the dialog
@@ -103,6 +104,15 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
             <VisibilitySelector
               value={displayConfig.flightdeckTools}
               onChange={v => setDisplayConfig({ flightdeckTools: v })}
+            />
+          </div>
+
+          {/* Agent ↔ agent messages */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm" title="DMs between agents (e.g. Lead → Director) in the main chat">Agent messages</span>
+            <VisibilitySelector
+              value={displayConfig.agentMessages ?? 'summary'}
+              onChange={v => setDisplayConfig({ agentMessages: v })}
             />
           </div>
         </div>

@@ -70,9 +70,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   // SWR for initial message load
+  const agentMsgVisibility = displayConfig.agentMessages ?? 'summary';
   const { data: initialMessages } = useSWR(
-    projectName ? ['messages', projectName, displayConfig.flightdeckTools] : null,
-    () => api.getMessages(projectName!, { limit: 100, author_types: displayConfig.flightdeckTools === 'detail' ? undefined : 'user,lead,system' })
+    projectName ? ['messages', projectName, displayConfig.flightdeckTools, agentMsgVisibility] : null,
+    () => api.getMessages(projectName!, {
+      limit: 100,
+      author_types: displayConfig.flightdeckTools === 'detail'
+        ? undefined
+        : agentMsgVisibility !== 'off' ? 'user,lead,system,agent' : 'user,lead,system',
+      include_agent_dms: agentMsgVisibility !== 'off',
+    })
   );
 
   // Clear WS messages when project changes
@@ -101,7 +108,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         case 'chat:message': {
           const msg = event.message;
           const isDebugMode = displayConfigRef.current.flightdeckTools === 'detail';
-          if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system') break;
+          const showAgentMsgs = (displayConfigRef.current.agentMessages ?? 'summary') !== 'off';
+          if (!isDebugMode && msg.authorType && msg.authorType !== 'user' && msg.authorType !== 'lead' && msg.authorType !== 'system'
+              && !(showAgentMsgs && msg.authorType === 'agent')) break;
           // Browser notification when Lead replies and tab is not focused
           if (msg.authorType === 'lead' && !document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') {
             new Notification('Flightdeck — Lead replied', { body: (msg.content || '').slice(0, 100) });
@@ -159,6 +168,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             return [...prev.slice(-(MAX_MESSAGES - 1)), event.message];
           });
           break;
+        case 'dm:message': {
+          // Live agent↔agent DMs — shown in main chat unless turned off
+          if ((displayConfigRef.current.agentMessages ?? 'summary') === 'off') break;
+          const dm = (event as any).message;
+          if (!dm?.id) break;
+          setWsMessages(prev => {
+            if (prev.some(m => m.id === dm.id)) return prev;
+            return [...prev.slice(-(MAX_MESSAGES - 1)), dm];
+          });
+          break;
+        }
       }
     });
   }, [subscribe]);

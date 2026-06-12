@@ -149,8 +149,12 @@ export async function handleMessageRoutes(
     const authorTypesParam = url.searchParams.get('author_types');
     const authorTypes = authorTypesParam ? authorTypesParam.split(',') : undefined;
     const limit = parseInt(url.searchParams.get('limit') ?? '50', 10) || 50;
+    // Agent↔agent DM traffic is excluded from the main chat by default;
+    // include_agent_dms=true lets the UI show it (collapsed by default)
+    const includeAgentDms = url.searchParams.get('include_agent_dms') === 'true';
     const allMsgs = fd.messages?.listMessages({ taskId, limit: limit + 50, authorTypes }) ?? [];
-    const mainChatMsgs = allMsgs.filter(m => !m.channel?.startsWith('dm:'));
+    const mainChatMsgs = allMsgs.filter(m =>
+      !m.channel?.startsWith('dm:') || (includeAgentDms && m.authorType === 'agent'));
     json(200, mainChatMsgs.slice(-limit).reverse());
     return true;
   }
