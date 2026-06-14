@@ -125,4 +125,40 @@ describe('Chat page', () => {
     expect(screen.getByText('Replying to')).toBeInTheDocument();
     expect(screen.getAllByText(/Hello from lead/).length).toBeGreaterThan(0);
   });
+
+  describe('system messages', () => {
+    it('error system messages always render (even when systemMessages off)', () => {
+      mockMessages = [{
+        id: 'sys-err', authorType: 'system', authorId: null,
+        content: '⚠️ Failed to spawn agent worker-1',
+        createdAt: new Date().toISOString(),
+      }];
+      render(<Chat />);
+      expect(screen.getByText(/Failed to spawn agent worker-1/)).toBeInTheDocument();
+    });
+
+    it('notice system messages are hidden when systemMessages is off', () => {
+      mockMessages = [{
+        id: 'sys-notice', authorType: 'system', authorId: null,
+        content: 'Plan approved. 3 tasks moved to pending.',
+        createdAt: new Date().toISOString(),
+      }];
+      render(<Chat />);
+      expect(screen.queryByText(/Plan approved/)).not.toBeInTheDocument();
+    });
+
+    it('long error content renders collapsed (summary visible, body hidden until expanded)', () => {
+      const stack = 'Error: boom\n' + 'at foo (a.ts:1)\n'.repeat(10);
+      mockMessages = [{
+        id: 'sys-err-long', authorType: 'system', authorId: null,
+        content: `⚠️ Failed to spawn agent worker-2\n\n\`\`\`\n${stack}\`\`\``,
+        createdAt: new Date().toISOString(),
+      }];
+      render(<Chat />);
+      // Summary line is shown (also present in the collapsible body markdown)
+      expect(screen.getAllByText(/Failed to spawn agent worker-2/).length).toBeGreaterThan(0);
+      // It's inside a <details> for collapsing
+      expect(document.querySelector('details')).toBeTruthy();
+    });
+  });
 });

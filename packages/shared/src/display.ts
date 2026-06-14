@@ -17,6 +17,14 @@ export interface DisplayConfig {
    * one-liner (default), 'detail' shows full bubbles with sender → recipient.
    */
   agentMessages?: ToolVisibility;
+  /**
+   * System message visibility in the main chat (operational notices, forwarded
+   * steers, scout/orchestrator chatter). 'off' hides them, 'summary' shows a
+   * compact pill / collapsed one-liner, 'detail' expands long content.
+   * NOTE: error/failure system messages are ALWAYS shown regardless of this
+   * setting — they render as an alert card so the user never misses a failure.
+   */
+  systemMessages?: ToolVisibility;
   /** Per-tool overrides (tool name → visibility) */
   toolOverrides?: Record<string, ToolVisibility>;
 }
@@ -28,24 +36,28 @@ export const DISPLAY_PRESETS = {
     toolCalls: 'off' as const,
     flightdeckTools: 'off' as const,
     agentMessages: 'off' as const,
+    systemMessages: 'off' as const,
   },
   summary: {
     thinking: false,
     toolCalls: 'summary' as const,
     flightdeckTools: 'off' as const,
     agentMessages: 'summary' as const,
+    systemMessages: 'off' as const,
   },
   detail: {
     thinking: true,
     toolCalls: 'detail' as const,
     flightdeckTools: 'summary' as const,
     agentMessages: 'detail' as const,
+    systemMessages: 'summary' as const,
   },
   debug: {
     thinking: true,
     toolCalls: 'detail' as const,
     flightdeckTools: 'detail' as const,
     agentMessages: 'detail' as const,
+    systemMessages: 'detail' as const,
   },
 } as const;
 
@@ -128,6 +140,8 @@ export function mergeDisplayConfig(
     flightdeckTools: partial.flightdeckTools ?? base.flightdeckTools,
     // Persisted configs may predate this field — default to collapsed
     agentMessages: partial.agentMessages ?? base.agentMessages ?? 'summary',
+    // Persisted configs may predate this field — default to hidden
+    systemMessages: partial.systemMessages ?? base.systemMessages ?? 'off',
     toolOverrides,
   };
 }
@@ -145,6 +159,7 @@ export function isValidDisplayConfig(v: unknown): v is PartialDisplayConfig {
   if (obj.toolCalls !== undefined && !isValidToolVisibility(obj.toolCalls)) return false;
   if (obj.flightdeckTools !== undefined && !isValidToolVisibility(obj.flightdeckTools)) return false;
   if (obj.agentMessages !== undefined && !isValidToolVisibility(obj.agentMessages)) return false;
+  if (obj.systemMessages !== undefined && !isValidToolVisibility(obj.systemMessages)) return false;
   if (obj.toolOverrides !== undefined) {
     if (typeof obj.toolOverrides !== 'object' || obj.toolOverrides === null || Array.isArray(obj.toolOverrides)) return false;
     for (const val of Object.values(obj.toolOverrides as Record<string, unknown>)) {
@@ -152,4 +167,61 @@ export function isValidDisplayConfig(v: unknown): v is PartialDisplayConfig {
     }
   }
   return true;
+}
+
+// ── System message classification ──
+
+/**
+ * Classification of a persisted `system` chat message, used to decide how it
+ * renders and whether the `systemMessages` visibility setting applies.
+ *
+ * - `error`   — operational failures (spawn errors, stack traces). ALWAYS shown.
+ * - `notice`  — short operational confirmations. Governed by `systemMessages`.
+ * - `debug`   — noisy internals: forwarded steers (system DMs), scout/orchestrator
+ *               chatter. Governed by `systemMessages` (only at 'detail').
+ */
+export type SystemMessageClass = 'error' | 'notice' | 'debug';
+
+/** Minimal shape needed to classify a system message (subset of ChatMessage). */
+export interface SystemMessageLike {
+  content: string;
+  authorId?: string | null;
+  channel?: string | null;
+  channelId?: string | null;
+  recipient?: string | null;
+}
+
+const ERROR_PREFIXES = ['⚠️', '❌', '🛑'];
+
+/** Classify a `system`-authored chat message. */
+export function classifySystemMessage(msg: SystemMessageLike): SystemMessageClass {
+  const content = msg.content ?? '';
+  const trimmed = content.trimStart();
+  if (ERROR_PREFIXES.some(p => trimmed.startsWith(p)) || /\bfailed\b/i.test(content.slice(0, 80))) {
+    return 'error';
+  }
+  // Forwarded steer copies are persisted as system DMs (recipient / dm channel).
+  const isDm = !!(msg.recipient || msg.channel?.startsWith('dm:') || msg.channel === 'dm' || msg.channelId?.startsWith('dm:'));
+  if (isDm) return 'debug';
+  // Scout / orchestrator internal chatter.
+  if (msg.authorId === 'orchestrator' || trimmed.startsWith('[scout]')) return 'debug';
+  return 'notice';
+}
+
+/**
+ * Decide whether a system message should be visible given its class and the
+ * configured `systemMessages` visibility.
+ * - error: always visible.
+ * - notice: visible at 'summary' and 'detail'.
+ * - debug: visible only at 'detail'.
+ */
+export function shouldShowSystemMessage(
+  cls: SystemMessageClass,
+  visibility: ToolVisibility | undefined,
+): boolean {
+  if (cls === 'error') return true;
+  const v = visibility ?? 'off';
+  if (v === 'off') return false;
+  if (cls === 'notice') return v === 'summary' || v === 'detail';
+  return v === 'detail'; // debug
 }

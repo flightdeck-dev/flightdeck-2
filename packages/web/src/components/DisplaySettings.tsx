@@ -18,7 +18,8 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
     return preset.thinking === displayConfig.thinking
       && preset.toolCalls === displayConfig.toolCalls
       && preset.flightdeckTools === displayConfig.flightdeckTools
-      && preset.agentMessages === (displayConfig.agentMessages ?? 'summary');
+      && preset.agentMessages === (displayConfig.agentMessages ?? 'summary')
+      && preset.systemMessages === (displayConfig.systemMessages ?? 'off');
   }) ?? 'custom';
 
   // M9: Basic focus trap — keep keyboard focus inside the dialog
@@ -113,6 +114,15 @@ export function DisplaySettings({ onClose }: { onClose: () => void }) {
             <VisibilitySelector
               value={displayConfig.agentMessages ?? 'summary'}
               onChange={v => setDisplayConfig({ agentMessages: v })}
+            />
+          </div>
+
+          {/* System messages */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm" title="Operational notices, forwarded steers, scout/orchestrator chatter. Errors always show regardless of this setting.">System messages</span>
+            <VisibilitySelector
+              value={displayConfig.systemMessages ?? 'off'}
+              onChange={v => setDisplayConfig({ systemMessages: v })}
             />
           </div>
         </div>
