@@ -120,7 +120,9 @@ describe('Agent relay HTTP endpoints', () => {
     const { status, data } = await req(port, 'POST', '/api/projects/test/agents/agent-1/interrupt', { message: 'stop' });
     expect(status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockAm.interruptAgent).toHaveBeenCalledWith('agent-1', 'stop');
+    // No X-Agent-Id header → attributed to the dashboard user
+    expect(mockAm.interruptAgent).toHaveBeenCalledWith('agent-1', 'stop',
+      { sender: { type: 'user', source: 'web-dashboard' } });
   });
 
   it('POST /agents/:id/interrupt returns 400 without message', async () => {
@@ -132,7 +134,9 @@ describe('Agent relay HTTP endpoints', () => {
     const { status, data } = await req(port, 'POST', '/api/projects/test/agents/agent-1/send', { message: 'hello' });
     expect(status).toBe(200);
     expect(data.success).toBe(true);
-    expect(mockAm.sendToAgent).toHaveBeenCalledWith('agent-1', 'hello');
+    // No X-Agent-Id header → attributed to the dashboard user
+    expect(mockAm.sendToAgent).toHaveBeenCalledWith('agent-1', 'hello',
+      { sender: { type: 'user', source: 'web-dashboard' } });
   });
 
   it('POST /agents/:id/send returns 400 without message', async () => {

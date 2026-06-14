@@ -10,7 +10,20 @@ import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { RUNTIME_REGISTRY } from './runtimes.js';
 import { join, resolve, dirname } from 'node:path';
 import { log, truncate } from '../utils/logger.js';
+import { formatTs } from '../utils/time.js';
 import { fileURLToPath } from 'node:url';
+
+/** Who a steered message is from — controls envelope + DM attribution. */
+export type MessageSender =
+  | { type: 'user'; id?: string | null; source?: string }
+  | { type: 'agent'; id: string; source?: string }
+  | { type: 'system'; id?: string | null; source?: string };
+
+export interface SendToAgentOptions {
+  sender?: MessageSender;
+  /** Skip persisting the DM (caller already stored it with richer context). */
+  skipStore?: boolean;
+}
 
 export interface SpawnAgentOptions {
   role: AgentRole;
@@ -498,7 +511,34 @@ export class AgentManager {
   }
 
 
-  async interruptAgent(agentId: AgentId, message: string): Promise<void> {
+  /**
+   * Wrap a message in the same attributed envelope the Lead receives, so the
+   * agent can tell a user message from a system notice. Without this, agent
+   * messages from the web dashboard arrived as bare text — indistinguishable
+   * from system notifications.
+   */
+  private buildSteerEnvelope(message: string, sender?: MessageSender): string {
+    if (!sender || sender.type === 'system') return message;
+    const header = sender.type === 'user'
+      ? `[${formatTs()}] [USER]\nsource: ${sender.source ?? 'web-dashboard'}`
+      : `[${formatTs()}] [AGENT ${sender.id}]\nsource: ${sender.source ?? 'direct_message'}`;
+    return `${header}\n---\n${message}`;
+  }
+
+  /** Persist + broadcast the outgoing DM with proper author attribution. */
+  private storeOutgoingDm(agentId: AgentId, message: string, sender?: MessageSender): void {
+    if (!this.messageStore) return;
+    const dmMsg = this.messageStore.createMessage({
+      parentId: null, taskId: null,
+      authorType: sender?.type ?? 'system',
+      authorId: sender?.type === 'user' ? (sender.id ?? 'user') : sender?.id ?? null,
+      content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
+      metadata: null, channel: `dm:${agentId}`, recipient: agentId,
+    });
+    if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
+  }
+
+  async interruptAgent(agentId: AgentId, message: string, opts?: SendToAgentOptions): Promise<void> {
     log('AgentMgr', `Steer (interrupt) ${agentId}: "${truncate(message)}"`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
@@ -511,22 +551,13 @@ export class AgentManager {
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
 
-    // Store the outgoing steer message
-    if (this.messageStore) {
-      const dmMsg = this.messageStore.createMessage({
-        parentId: null, taskId: null,
-        authorType: 'system', authorId: null,
-        content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
-        metadata: null, channel: `dm:${agentId}`, recipient: agentId,
-      });
-      if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
-    }
+    if (!opts?.skipStore) this.storeOutgoingDm(agentId, message, opts?.sender);
 
-    await this.adapter.steer(sessionId, { content: message, urgent: true });
+    await this.adapter.steer(sessionId, { content: this.buildSteerEnvelope(message, opts?.sender), urgent: true });
   }
 
   /** Send a non-urgent message to an agent (queued, delivered after current turn) */
-  async sendToAgent(agentId: AgentId, message: string): Promise<void> {
+  async sendToAgent(agentId: AgentId, message: string, opts?: SendToAgentOptions): Promise<void> {
     log('AgentMgr', `Send to ${agentId}: "${truncate(message)}"`);
     const agent = this.store.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
@@ -536,18 +567,9 @@ export class AgentManager {
     const sessionId = this.agentToSession.get(agentId) ?? agent.acpSessionId;
     if (!sessionId) throw new Error(`No active session for agent: ${agentId}`);
 
-    // Store the outgoing steer message
-    if (this.messageStore) {
-      const dmMsg = this.messageStore.createMessage({
-        parentId: null, taskId: null,
-        authorType: 'system', authorId: null,
-        content: message.length > 4000 ? message.slice(0, 4000) + '\n…[truncated]' : message,
-        metadata: null, channel: `dm:${agentId}`, recipient: agentId,
-      });
-      if (this.onDmMessage) this.onDmMessage(this.projectName, dmMsg);
-    }
+    if (!opts?.skipStore) this.storeOutgoingDm(agentId, message, opts?.sender);
 
-    await this.adapter.steer(sessionId, { content: message, urgent: false });
+    await this.adapter.steer(sessionId, { content: this.buildSteerEnvelope(message, opts?.sender), urgent: false });
     this.audit(agentId, agent.role, 'agent:steer', `Steered ${agent.role}`, { messageLength: message.length });
   }
 

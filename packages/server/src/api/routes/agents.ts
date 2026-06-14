@@ -1,6 +1,11 @@
 import type { AgentRole } from '@flightdeck-ai/shared';
 import type { ProjectScopedDeps } from './types.js';
 
+/** Normalize a possibly-duplicated header value to a single string (or undefined). */
+function headerValue(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
 export async function handleAgentRoutes(
   subPath: string, method: string,
   deps: ProjectScopedDeps,
@@ -92,7 +97,14 @@ export async function handleAgentRoutes(
     try {
       const body = await readBody();
       if (!body.message) { json(400, { error: 'Missing required field: message' }); return true; }
-      await am.interruptAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message);
+      // Attribute correctly: agent-originated calls (MCP tools) carry
+      // X-Agent-Id; everything else is the user on the web dashboard.
+      // Previously the message arrived as a bare system notice.
+      const callerId = headerValue(req.headers['x-agent-id']);
+      const sender = callerId
+        ? { type: 'agent' as const, id: callerId, source: 'direct_message' }
+        : { type: 'user' as const, source: 'web-dashboard' };
+      await am.interruptAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message, { sender });
       json(200, { success: true });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -109,7 +121,13 @@ export async function handleAgentRoutes(
     try {
       const body = await readBody();
       if (!body.message) { json(400, { error: 'Missing required field: message' }); return true; }
-      await am.sendToAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message);
+      // Attribute correctly: agent-originated calls (MCP tools) carry
+      // X-Agent-Id; everything else is the user on the web dashboard.
+      const sendCallerId = headerValue(req.headers['x-agent-id']);
+      const sendSender = sendCallerId
+        ? { type: 'agent' as const, id: sendCallerId, source: 'direct_message' }
+        : { type: 'user' as const, source: 'web-dashboard' };
+      await am.sendToAgent(agentId as import('@flightdeck-ai/shared').AgentId, body.message, { sender: sendSender });
       json(200, { success: true });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

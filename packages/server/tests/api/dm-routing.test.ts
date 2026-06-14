@@ -113,7 +113,8 @@ describe('DM routing via /messages/send', () => {
   it('routes DM to worker via agentManager.sendToAgent()', async () => {
     const { status } = await req(port, 'POST', '/api/projects/test/messages/send', { to: 'worker-5', content: 'do stuff' }, { 'x-agent-id': 'lead-main' });
     expect(status).toBe(200);
-    expect(sendToAgentFn).toHaveBeenCalledWith('worker-5', 'do stuff');
+    expect(sendToAgentFn).toHaveBeenCalledWith('worker-5', 'do stuff',
+      expect.objectContaining({ sender: expect.objectContaining({ type: 'agent', id: 'lead-main' }), skipStore: true }));
   });
 
   it('stores DM in MessageStore with dm:{to} channel', async () => {
