@@ -60,6 +60,41 @@ export interface CopilotAgentSession {
   sawReasoningDelta?: boolean;
 }
 
+/**
+ * Native Copilot CLI tools that must be excluded for a given role.
+ *
+ * - Management roles (lead, director, scout) never get write/execute tools —
+ *   they coordinate, they don't modify the workspace.
+ * - The Lead is additionally barred from running programs and from spawning
+ *   sub-agents: it has no execution permission and no sub-agent capability.
+ *   Anything requiring execution must be delegated to the Director.
+ */
+export function excludedNativeToolsForRole(role: string): string[] | undefined {
+  const isManagement = ['lead', 'director', 'scout'].includes(role);
+  if (!isManagement) return undefined;
+
+  const tools = [
+    // Write/execute — legacy tool names (Copilot CLI <1.0.40)
+    'bash', 'str_replace_editor', 'write_file', 'apply_patch',
+    'insert_edit_into_file', 'create_file', 'delete_file',
+    // Write/execute — new tool names (Copilot CLI >=1.0.40)
+    'write_bash', 'create', 'edit',
+  ];
+
+  if (role === 'lead') {
+    // Lead has no run permission and no sub-agents. Exclude every shell/exec
+    // and sub-agent launcher tool name across CLI versions.
+    tools.push(
+      // Run / shell tools
+      'shell', 'exec', 'run_in_terminal', 'read_bash', 'stop_bash',
+      // Sub-agent / task delegation launchers
+      'task', 'subagent', 'run_subagent', 'launch_agent', 'spawn_agent',
+    );
+  }
+
+  return Array.from(new Set(tools));
+}
+
 export class CopilotSdkAdapter extends AgentAdapter {
   readonly runtime: AgentRuntime = 'acp';
   private client: CopilotClient | null = null;
@@ -1075,16 +1110,9 @@ export class CopilotSdkAdapter extends AgentAdapter {
     // Format: fd-{agentId} — deterministic, maps 1:1 to the agent.
     const sessionId = `fd-${aid}`;
 
-    // For management roles (lead, director, scout), exclude write/execute tools
-    // They can still read files for context, but cannot modify anything
-    const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
-    const excludedNativeTools = isManagement ? [
-      // Legacy tool names (Copilot CLI <1.0.40)
-      'bash', 'str_replace_editor', 'write_file', 'apply_patch',
-      'insert_edit_into_file', 'create_file', 'delete_file',
-      // New tool names (Copilot CLI >=1.0.40)
-      'write_bash', 'create', 'edit',
-    ] : undefined;
+    // For management roles (lead, director, scout), exclude write/execute tools.
+    // The Lead is further restricted: no run permission and no sub-agents.
+    const excludedNativeTools = excludedNativeToolsForRole(opts.role);
 
     const sessionConfig: SessionConfig = {
       sessionId,
@@ -1306,14 +1334,7 @@ export class CopilotSdkAdapter extends AgentAdapter {
     const aid = (opts.agentId ?? makeAgentId(opts.role, Date.now().toString())) as AgentId;
     const tools = this.buildTools(aid, opts.role as AgentRole, opts.projectName);
 
-    const isManagement = ['lead', 'director', 'scout'].includes(opts.role);
-    const excludedNativeTools = isManagement ? [
-      // Legacy tool names (Copilot CLI <1.0.40)
-      'bash', 'str_replace_editor', 'write_file', 'apply_patch',
-      'insert_edit_into_file', 'create_file', 'delete_file',
-      // New tool names (Copilot CLI >=1.0.40)
-      'write_bash', 'create', 'edit',
-    ] : undefined;
+    const excludedNativeTools = excludedNativeToolsForRole(opts.role);
 
     const session = await client.resumeSession(opts.previousSessionId, {
       model: opts.model ?? this.defaultModel,
