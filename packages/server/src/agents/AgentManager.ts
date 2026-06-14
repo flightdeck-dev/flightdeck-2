@@ -14,13 +14,10 @@ import { formatTs } from '../utils/time.js';
 import { fileURLToPath } from 'node:url';
 
 /** Who a steered message is from — controls envelope + DM attribution. */
-export interface MessageSender {
-  type: 'user' | 'agent' | 'system';
-  /** Sender agent ID (for type 'agent') or user identifier. */
-  id?: string | null;
-  /** Display source, e.g. 'web-dashboard', 'direct_message'. */
-  source?: string;
-}
+export type MessageSender =
+  | { type: 'user'; id?: string | null; source?: string }
+  | { type: 'agent'; id: string; source?: string }
+  | { type: 'system'; id?: string | null; source?: string };
 
 export interface SendToAgentOptions {
   sender?: MessageSender;
@@ -524,7 +521,7 @@ export class AgentManager {
     if (!sender || sender.type === 'system') return message;
     const header = sender.type === 'user'
       ? `[${formatTs()}] [USER]\nsource: ${sender.source ?? 'web-dashboard'}`
-      : `[${formatTs()}] [AGENT ${sender.id ?? 'unknown'}]\nsource: ${sender.source ?? 'direct_message'}`;
+      : `[${formatTs()}] [AGENT ${sender.id}]\nsource: ${sender.source ?? 'direct_message'}`;
     return `${header}\n---\n${message}`;
   }
 
