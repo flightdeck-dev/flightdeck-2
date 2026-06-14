@@ -8,7 +8,7 @@ import { useDisplay } from '../hooks/useDisplay.tsx';
 import type { StreamChunk, ToolCallState } from '../hooks/useChat.tsx';
 import type { ChatMessage, Thread } from '../lib/types.ts';
 import { api } from '../lib/api.ts';
-import { shouldShow, type ContentType } from '@flightdeck-ai/shared/display';
+import { shouldShow, classifySystemMessage, shouldShowSystemMessage, type ContentType } from '@flightdeck-ai/shared/display';
 import { ChatSidePanel } from '../components/ChatSidePanel.tsx';
 
 // L2: Hoist regex outside component to avoid re-creation per call
@@ -76,6 +76,77 @@ function scrollToMessage(id: string) {
   setTimeout(() => el.classList.remove('animate-highlight'), 1500);
 }
 
+const SYSTEM_LONG_THRESHOLD = 140;
+
+function systemSummary(s: string): string {
+  const nl = s.indexOf('\n');
+  const line = (nl === -1 ? s : s.slice(0, nl)).trim();
+  return line || 'System message';
+}
+
+/** Renders a `system` chat message, dispatching on its classification:
+ *  error → alert card (long content collapsible), notice → pill / collapsible,
+ *  debug → muted pill / collapsible. */
+const SystemMessage = memo(function SystemMessage({ msg }: { msg: ChatMessage }) {
+  const cls = classifySystemMessage(msg);
+  const content = msg.content ?? '';
+  const isLong = content.length > SYSTEM_LONG_THRESHOLD || content.includes('\n');
+  const summary = systemSummary(content);
+
+  if (cls === 'error') {
+    return (
+      <div className="my-2 mx-3 rounded-md border-l-2 border-[var(--color-status-failed)] bg-[color-mix(in_srgb,var(--color-status-failed)_8%,transparent)] px-3 py-2 text-sm min-w-0">
+        {isLong ? (
+          <details className="group min-w-0">
+            <summary className="flex items-center gap-2 cursor-pointer select-none text-[var(--color-status-failed)] font-medium list-none [&::-webkit-details-marker]:hidden">
+              <AlertTriangle size={14} strokeWidth={1.5} className="shrink-0" />
+              <span className="truncate">{summary.replace(/^[⚠❌🛑\u26A0\uFE0F]+\s*/u, '')}</span>
+              <span className="ml-auto text-xs text-[var(--color-text-tertiary)] group-open:hidden">expand</span>
+            </summary>
+            <div className="mt-2 text-[var(--color-text-secondary)] overflow-x-auto">
+              <Markdown content={content} />
+            </div>
+          </details>
+        ) : (
+          <div className="flex items-center gap-2 text-[var(--color-status-failed)] min-w-0">
+            <AlertTriangle size={14} strokeWidth={1.5} className="shrink-0" />
+            <span className="min-w-0 break-words">{content}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const muted = cls === 'debug';
+
+  // Short notice/debug → centered pill (unchanged look for the common case).
+  if (!isLong) {
+    return (
+      <div className="text-center py-2">
+        <span className={`text-xs px-3 py-1 rounded-full bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] ${muted ? 'opacity-70' : ''}`}>
+          {content}
+        </span>
+      </div>
+    );
+  }
+
+  // Long notice/debug → centered collapsible one-liner instead of a giant pill.
+  return (
+    <div className="py-2 px-3">
+      <details className={`group mx-auto max-w-[85%] min-w-0 ${muted ? 'opacity-80' : ''}`}>
+        <summary className="flex items-center gap-2 cursor-pointer select-none text-xs text-[var(--color-text-tertiary)] list-none [&::-webkit-details-marker]:hidden justify-center">
+          <SettingsIcon size={12} strokeWidth={1.5} className="shrink-0" />
+          <span className="truncate">{summary}</span>
+          <span className="text-[10px] opacity-60 group-open:hidden">· expand</span>
+        </summary>
+        <div className="mt-2 text-xs text-[var(--color-text-secondary)] border-l-2 border-[var(--color-border)] pl-3 overflow-x-auto">
+          <Markdown content={content} />
+        </div>
+      </details>
+    </div>
+  );
+});
+
 const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap, onReply, highlighted, agents }: { msg: ChatMessage; messages?: ChatMessage[]; replyCountMap?: Map<string, string[]>; onReply: (m: ChatMessage) => void; highlighted?: boolean; agents?: Array<{ id: string; role: string; runtime?: string; runtimeName?: string; model?: string; status?: string }> }) {
   const style = AUTHOR_STYLES[msg.authorType] ?? AUTHOR_STYLES.system;
   const isUser = msg.authorType === 'user';
@@ -83,13 +154,7 @@ const MessageBubble = memo(function MessageBubble({ msg, messages, replyCountMap
   const parentMsgs = msg.parentIds && messages ? msg.parentIds.map(pid => messages.find(m => m.id === pid)).filter(Boolean) as ChatMessage[] : [];
 
   if (msg.authorType === 'system') {
-    return (
-      <div className="text-center py-2">
-        <span className="text-xs text-[var(--color-text-tertiary)] px-3 py-1 rounded-full bg-[var(--color-surface-secondary)]">
-          {msg.content}
-        </span>
-      </div>
-    );
+    return <SystemMessage msg={msg} />;
   }
 
   const replies = replyCountMap?.get(msg.id);
@@ -653,8 +718,15 @@ export default function Chat() {
   // off → dropped, summary → collapsed expandable run, detail → full bubbles
   const renderItems = useMemo(() => {
     const visibility = displayConfig.agentMessages ?? 'summary';
+    const sysVisibility = displayConfig.systemMessages ?? 'off';
     const items: Array<{ kind: 'msg'; msg: ChatMessage } | { kind: 'dmGroup'; key: string; msgs: ChatMessage[] }> = [];
     for (const m of filteredMessages) {
+      if (m.authorType === 'system') {
+        // error system messages always show; notices/debug gated by config
+        if (!shouldShowSystemMessage(classifySystemMessage(m), sysVisibility)) continue;
+        items.push({ kind: 'msg', msg: m });
+        continue;
+      }
       if (isAgentDm(m)) {
         if (visibility === 'off') continue;
         if (visibility === 'summary') {
@@ -667,7 +739,7 @@ export default function Chat() {
       items.push({ kind: 'msg', msg: m });
     }
     return items;
-  }, [filteredMessages, displayConfig.agentMessages]);
+  }, [filteredMessages, displayConfig.agentMessages, displayConfig.systemMessages]);
 
   const handleReply = useCallback((m: ChatMessage) => setReplyTo(m), []);
 

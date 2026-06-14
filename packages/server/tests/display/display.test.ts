@@ -9,6 +9,8 @@ import {
   mergeDisplayConfig,
   isValidDisplayConfig,
   isValidToolVisibility,
+  classifySystemMessage,
+  shouldShowSystemMessage,
   type DisplayConfig,
 } from '@flightdeck-ai/shared';
 
@@ -45,6 +47,70 @@ describe('DisplayConfig', () => {
       expect(p.thinking).toBe(true);
       expect(p.toolCalls).toBe('detail');
       expect(p.flightdeckTools).toBe('summary');
+    });
+
+    it('systemMessages: hidden except at detail/debug presets', () => {
+      expect(DISPLAY_PRESETS.minimal.systemMessages).toBe('off');
+      expect(DISPLAY_PRESETS.summary.systemMessages).toBe('off');
+      expect(DISPLAY_PRESETS.detail.systemMessages).toBe('summary');
+      expect(DISPLAY_PRESETS.debug.systemMessages).toBe('detail');
+    });
+  });
+
+  describe('classifySystemMessage', () => {
+    it('classifies error-prefixed content as error', () => {
+      expect(classifySystemMessage({ content: '⚠️ Failed to spawn agent worker-1' })).toBe('error');
+      expect(classifySystemMessage({ content: '❌ something broke' })).toBe('error');
+      expect(classifySystemMessage({ content: 'Director spawn FAILED after retries' })).toBe('error');
+    });
+
+    it('detects failure keywords anywhere in the content (not just the first line)', () => {
+      const msg = {
+        content: 'Spawning agent worker-9\nsource: orchestrator\n---\nUncaught exception: boom\nstack trace follows',
+      };
+      // failure keyword appears well past the first 80 chars / first line
+      expect(classifySystemMessage(msg)).toBe('error');
+    });
+
+    it('failure-keyword DMs are still classified as error (always shown)', () => {
+      // even though it looks like a forwarded steer (dm channel), a failure
+      // must win so it is never hidden by the systemMessages setting
+      expect(classifySystemMessage({ content: 'the build failed', channel: 'dm:worker-1' })).toBe('error');
+    });
+
+    it('classifies system DMs (forwarded steers) as debug', () => {
+      expect(classifySystemMessage({ content: 'do the thing', channel: 'dm:worker-1' })).toBe('debug');
+      expect(classifySystemMessage({ content: 'do the thing', recipient: 'worker-1' })).toBe('debug');
+    });
+
+    it('classifies scout/orchestrator chatter as debug', () => {
+      expect(classifySystemMessage({ content: '[scout] Analysis requested for spec s1' })).toBe('debug');
+      expect(classifySystemMessage({ content: 'task escalated', authorId: 'orchestrator' })).toBe('debug');
+    });
+
+    it('classifies plain operational confirmations as notice', () => {
+      expect(classifySystemMessage({ content: 'Plan approved. 3 tasks moved to pending.' })).toBe('notice');
+    });
+  });
+
+  describe('shouldShowSystemMessage', () => {
+    it('always shows errors regardless of visibility', () => {
+      for (const v of ['off', 'summary', 'detail', undefined] as const) {
+        expect(shouldShowSystemMessage('error', v)).toBe(true);
+      }
+    });
+
+    it('notices show at summary and detail only', () => {
+      expect(shouldShowSystemMessage('notice', 'off')).toBe(false);
+      expect(shouldShowSystemMessage('notice', undefined)).toBe(false);
+      expect(shouldShowSystemMessage('notice', 'summary')).toBe(true);
+      expect(shouldShowSystemMessage('notice', 'detail')).toBe(true);
+    });
+
+    it('debug shows at detail only', () => {
+      expect(shouldShowSystemMessage('debug', 'off')).toBe(false);
+      expect(shouldShowSystemMessage('debug', 'summary')).toBe(false);
+      expect(shouldShowSystemMessage('debug', 'detail')).toBe(true);
     });
   });
 
