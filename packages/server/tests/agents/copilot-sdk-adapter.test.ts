@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CopilotSdkAdapter } from '../../src/agents/CopilotSdkAdapter.js';
+import { CopilotSdkAdapter, excludedNativeToolsForRole } from '../../src/agents/CopilotSdkAdapter.js';
 
 const mockFetch = vi.fn();
 
@@ -28,6 +28,56 @@ describe('CopilotSdkAdapter', () => {
   function getToolNames(role: string) {
     return getAllTools(role).map((t: any) => t.name);
   }
+
+  // ─── Excluded Native Tools (run permission + sub-agents) ────
+
+  describe('excluded native tools by role', () => {
+    it('lead has no run permission (shell/exec tools excluded)', () => {
+      const excluded = excludedNativeToolsForRole('lead')!;
+      for (const t of ['bash', 'write_bash', 'shell', 'exec', 'run_in_terminal']) {
+        expect(excluded).toContain(t);
+      }
+    });
+
+    it('lead has no sub-agents (task/subagent launchers excluded)', () => {
+      const excluded = excludedNativeToolsForRole('lead')!;
+      for (const t of ['task', 'subagent', 'run_subagent', 'launch_agent', 'spawn_agent']) {
+        expect(excluded).toContain(t);
+      }
+    });
+
+    it('lead still excludes write/edit tools', () => {
+      const excluded = excludedNativeToolsForRole('lead')!;
+      expect(excluded).toContain('write_file');
+      expect(excluded).toContain('edit');
+    });
+
+    it('lead keeps read tools (can read files for context)', () => {
+      const excluded = excludedNativeToolsForRole('lead')!;
+      for (const t of ['view', 'read_file', 'grep', 'glob']) {
+        expect(excluded).not.toContain(t);
+      }
+    });
+
+    it('director excludes write/execute but is not stripped of sub-agents', () => {
+      const excluded = excludedNativeToolsForRole('director')!;
+      expect(excluded).toContain('bash');
+      expect(excluded).toContain('write_bash');
+      expect(excluded).not.toContain('task');
+      expect(excluded).not.toContain('subagent');
+      expect(excluded).not.toContain('shell');
+    });
+
+    it('non-management roles get no exclusions', () => {
+      expect(excludedNativeToolsForRole('worker')).toBeUndefined();
+      expect(excludedNativeToolsForRole('reviewer')).toBeUndefined();
+    });
+
+    it('returns a de-duplicated list', () => {
+      const excluded = excludedNativeToolsForRole('lead')!;
+      expect(excluded.length).toBe(new Set(excluded).size);
+    });
+  });
 
   // ─── Role-Based Tool Gating ─────────────────────────────────
 

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 
 /**
  * Tests for lead role command allowlist validation.
- * Extracted logic mirrors AcpAdapter.ts createTerminal guard.
+ * The Lead has no run/sub-agent permission, but MAY read files for context.
+ * Mirrors AcpAdapter.ts createTerminal guard for role 'lead'.
  */
 
 const allowedLeadCmds = ['cat', 'ls', 'find', 'grep', 'head', 'tail', 'wc', 'echo', 'flightdeck'];
@@ -22,7 +23,7 @@ function validateLeadCommand(command: string): { allowed: boolean; reason?: stri
 }
 
 describe('Lead role command allowlist', () => {
-  describe('allowed commands', () => {
+  describe('read-only commands are allowed (Lead can read files)', () => {
     it.each([
       'cat file.txt',
       'ls -la',
@@ -60,7 +61,7 @@ describe('Lead role command allowlist', () => {
     });
   });
 
-  describe('disallowed commands', () => {
+  describe('non-read-only / execution commands - rejected', () => {
     it.each([
       'rm -rf /',
       'chmod 777 file',

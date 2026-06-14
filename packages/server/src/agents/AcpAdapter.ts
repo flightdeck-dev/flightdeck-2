@@ -293,7 +293,9 @@ export class AcpAdapter extends AgentAdapter {
       // --- Terminal capabilities (Client provides these to the Agent) ---
 
       async createTerminal(params: CreateTerminalRequest): Promise<CreateTerminalResponse> {
-        // Lead should not run arbitrary commands — only read operations
+        // Lead has no permission to run programs and no sub-agents, but it MAY
+        // read files for context. Allow only read-only commands; deny everything
+        // else (execution, writes, sub-agents). Delegate the rest to the Director.
         if (session.role === 'lead') {
           const cmd = params.command;
           const cmdLower = cmd.toLowerCase();
@@ -306,9 +308,11 @@ export class AcpAdapter extends AgentAdapter {
           const firstToken = cmdLower.trim().split(/\s+/)[0];
           // Handle absolute paths like /usr/bin/cat → cat
           const cmdBasename = firstToken.split('/').pop() ?? firstToken;
+          // Read-only commands only. Lead can read files for context, but cannot
+          // run programs, write files, or spawn sub-agents.
           const allowedLeadCmds = ['cat', 'ls', 'find', 'grep', 'head', 'tail', 'wc', 'echo', 'flightdeck'];
           if (!allowedLeadCmds.includes(cmdBasename)) {
-            throw new Error(`Role 'lead' cannot run '${params.command}'. Lead agents can only run read-only commands. Delegate implementation to worker agents.`);
+            throw new Error(`Role 'lead' cannot run '${params.command}'. Lead has no permission to run programs or spawn sub-agents — only read-only file commands are allowed. Delegate execution to the Director via flightdeck_send.`);
           }
         }
         const termId = `term-${randomUUID().slice(0, 8)}`;
