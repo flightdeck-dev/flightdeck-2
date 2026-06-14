@@ -64,6 +64,20 @@ describe('DisplayConfig', () => {
       expect(classifySystemMessage({ content: 'Director spawn FAILED after retries' })).toBe('error');
     });
 
+    it('detects failure keywords anywhere in the content (not just the first line)', () => {
+      const msg = {
+        content: 'Spawning agent worker-9\nsource: orchestrator\n---\nUncaught exception: boom\nstack trace follows',
+      };
+      // failure keyword appears well past the first 80 chars / first line
+      expect(classifySystemMessage(msg)).toBe('error');
+    });
+
+    it('failure-keyword DMs are still classified as error (always shown)', () => {
+      // even though it looks like a forwarded steer (dm channel), a failure
+      // must win so it is never hidden by the systemMessages setting
+      expect(classifySystemMessage({ content: 'the build failed', channel: 'dm:worker-1' })).toBe('error');
+    });
+
     it('classifies system DMs (forwarded steers) as debug', () => {
       expect(classifySystemMessage({ content: 'do the thing', channel: 'dm:worker-1' })).toBe('debug');
       expect(classifySystemMessage({ content: 'do the thing', recipient: 'worker-1' })).toBe('debug');

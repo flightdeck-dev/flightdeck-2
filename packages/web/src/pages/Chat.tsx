@@ -100,7 +100,7 @@ const SystemMessage = memo(function SystemMessage({ msg }: { msg: ChatMessage })
           <details className="group min-w-0">
             <summary className="flex items-center gap-2 cursor-pointer select-none text-[var(--color-status-failed)] font-medium list-none [&::-webkit-details-marker]:hidden">
               <AlertTriangle size={14} strokeWidth={1.5} className="shrink-0" />
-              <span className="truncate">{summary.replace(/^[⚠️❌🛑\uFE0F]\s*/u, '')}</span>
+              <span className="truncate">{summary.replace(/^[⚠❌🛑\u26A0\uFE0F]+\s*/u, '')}</span>
               <span className="ml-auto text-xs text-[var(--color-text-tertiary)] group-open:hidden">expand</span>
             </summary>
             <div className="mt-2 text-[var(--color-text-secondary)] overflow-x-auto">

@@ -19,10 +19,14 @@ export interface DisplayConfig {
   agentMessages?: ToolVisibility;
   /**
    * System message visibility in the main chat (operational notices, forwarded
-   * steers, scout/orchestrator chatter). 'off' hides them, 'summary' shows a
-   * compact pill / collapsed one-liner, 'detail' expands long content.
-   * NOTE: error/failure system messages are ALWAYS shown regardless of this
-   * setting — they render as an alert card so the user never misses a failure.
+   * steers, scout/orchestrator chatter), used by `shouldShowSystemMessage` to
+   * gate non-error system messages:
+   * - 'off'     — hide notices and debug chatter
+   * - 'summary' — show 'notice'-class messages
+   * - 'detail'  — show 'notice' and 'debug'-class messages
+   * NOTE: 'error'-class system messages are ALWAYS shown regardless of this
+   * setting. How a visible message is laid out (pill vs collapsible) is a UI
+   * concern decided by the renderer, not by this value.
    */
   systemMessages?: ToolVisibility;
   /** Per-tool overrides (tool name → visibility) */
@@ -192,12 +196,16 @@ export interface SystemMessageLike {
 }
 
 const ERROR_PREFIXES = ['⚠️', '❌', '🛑'];
+// Failure keywords. Matched across the WHOLE message (not just the first line)
+// so a failure system message is never misclassified as notice/debug and then
+// hidden — failures must always be shown.
+const FAILURE_RE = /\b(failed|failure|error|exception|stack trace|panic|crashed?)\b/i;
 
 /** Classify a `system`-authored chat message. */
 export function classifySystemMessage(msg: SystemMessageLike): SystemMessageClass {
   const content = msg.content ?? '';
   const trimmed = content.trimStart();
-  if (ERROR_PREFIXES.some(p => trimmed.startsWith(p)) || /\bfailed\b/i.test(content.slice(0, 80))) {
+  if (ERROR_PREFIXES.some(p => trimmed.startsWith(p)) || FAILURE_RE.test(content)) {
     return 'error';
   }
   // Forwarded steer copies are persisted as system DMs (recipient / dm channel).
