@@ -143,6 +143,31 @@ No existing coding agent platform has this:
 
 Scratchpad is a genuinely novel interaction modality for human-agent collaboration.
 
+## Security
+
+### Sandboxed Rendering
+
+- Scratchpad pages render inside a **sandboxed iframe**: `sandbox="allow-scripts"`
+- **Never** combine `allow-scripts` + `allow-same-origin` — that combo allows sandbox escape
+- Content injected via `srcdoc` or blob URL, not same-origin file path
+- Lead's JS runs freely inside the sandbox (interactive diagrams, D3, Mermaid, animations) but has **zero access** to the parent app's DOM, cookies, localStorage, or fetch context
+
+### Iframe ↔ App Communication
+
+- Parent and iframe communicate via `postMessage` only
+- Parent validates `origin` on all incoming messages
+- CSP on parent: `frame-src blob: 'self'`
+
+### User Annotations
+
+- Annotations are structured JSON (coordinates + type + text), not HTML
+- Lead reads annotations as plain data, never renders them as markup
+
+### File Storage
+
+- Page filenames enforced as `page-NNN.html` — reject path traversal (`../`)
+- MCP tools validate paths, only allow writes under `scratchpad/` directory
+
 ## Open Questions
 
 - [ ] Max page size / when to auto-paginate?
