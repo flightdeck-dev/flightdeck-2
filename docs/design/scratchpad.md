@@ -16,7 +16,8 @@ Lead communicates with users entirely through text messages. For architecture di
 
 - A scratchpad is a **collection of pages**, each stored as an HTML file.
 - Lead creates a new page when the current one is "full" or the topic shifts.
-- Pages are **append-forward** — you don't go back and rewrite, you start a new page.
+- Pages are **mutable** — Lead can update existing pages in-place (e.g., after user annotations).
+- Lead can also start a new page when the topic shifts or a fresh canvas makes more sense.
 - Lead can retrieve and reference previous pages by index or search.
 - Pages belong to a **project** (1 scratchpad per project).
 
@@ -122,7 +123,7 @@ Same as web, rendered in a secondary panel or split view.
 
 - **Not a whiteboard app** — Lead is the primary author, not the user
 - **Not real-time collaborative** — turn-based, async-friendly
-- **Not versioned** — no undo history, no git-style diffing. New page > edit old page
+- **Not versioned** — no undo history, no git-style diffing
 - **Not a document editor** — scratchpad is ephemeral working space, not final output
 
 ## Use Cases
